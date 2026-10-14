@@ -1,0 +1,9 @@
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { background: #fff !important; }
+  html[data-print='mauve'], html[data-print='mauve'] body { background: #c98bb4 !important; }
+  html[data-print='papier'], html[data-print='papier'] body { background: #fbf8f2 !important; }
+  body::before { display: none !important; }
+  .no-print { display: none !important; }
+  #root { height: auto; }
+}

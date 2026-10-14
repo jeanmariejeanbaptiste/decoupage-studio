@@ -93,3 +93,8 @@
 }
 .theme_sobre::before { display: none; }
 .theme_sobre .c_value, .theme_sobre .c_angle, .theme_sobre .c_movement, .theme_sobre .c_action { font-weight: 500; }
+
+@media print {
+  .sheet { padding: 0 12mm; }
+  .sheet::before { position: fixed; }
+}

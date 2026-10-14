@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
+import { ExportPage } from '../features/export/ExportPage';
+import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
 import { HomePage } from '../features/shell/HomePage';
 import { Sidebar } from '../features/shell/Sidebar';
@@ -79,6 +81,15 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  if (route === 'print' && doc && booted) {
+    return (
+      <>
+        <PrintPage doc={doc} />
+        <Toasts />
+      </>
+    );
+  }
+
   const title = doc?.project.title ?? '';
   const step = PREP_STEPS.find((p) => p.route === route);
   const stepValidated = !!step && !!doc?.validatedSteps.includes(step.n);
@@ -141,6 +152,7 @@ function Page({ route }: { route: Route }) {
     );
   }
   if (route === 'grid') return <GridPage doc={doc} />;
+  if (route === 'export') return <ExportPage doc={doc} />;
   const step = PREP_STEPS.find((p) => p.route === route);
   return (
     <div className="page">

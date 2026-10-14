@@ -1,0 +1,23 @@
+.root { min-height: 100vh; background: var(--paper); padding: 0 0 40px; }
+.bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+.group { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+.seg { border: 0; background: transparent; padding: 5px 12px; font-size: 13px; border-right: 1px solid var(--rule); }
+.seg:last-child { border-right: 0; }
+.on { background: var(--ink); color: var(--paper); }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-soft); margin-right: auto; }
+.paper { margin: 28px auto 0; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 0 var(--rule), 0 14px 40px rgba(42, 40, 36, 0.14); }
+.paper_A4 { width: 297mm; min-height: 210mm; }
+.paper_A3 { width: 420mm; min-height: 297mm; }
+.paper > div { min-height: inherit; }
+.screenFooter { text-align: center; color: var(--ink-soft); font-size: 12px; margin-top: 10px; }
+
+@media print {
+  .root { padding: 0; background: none; min-height: 0; }
+  .paper { margin: 0; border-radius: 0; box-shadow: none; width: auto; min-height: 0; overflow: visible; }
+}

@@ -1,0 +1,32 @@
+.formats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.format { display: flex; flex-direction: column; gap: 6px; padding: 16px; text-align: left; color: var(--ink); transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+.format:hover { border-color: var(--rust); }
+.format svg { color: var(--rust); }
+.format strong { font-family: var(--font-display); font-weight: 600; font-size: 20px; }
+.format span { color: var(--ink-soft); font-size: 13px; }
+.columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.columns > section { padding: 18px 20px; }
+.h2 { font-family: var(--font-display); font-weight: 500; font-size: 24px; margin: 0 0 10px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; color: var(--ink-soft); }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; width: fit-content; }
+.seg label { padding: 5px 12px; cursor: pointer; color: var(--ink); border-right: 1px solid var(--rule); font-size: 13px; }
+.seg label:last-child { border-right: 0; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; }
+.on { background: var(--ink); color: var(--paper) !important; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-soft); }
+.colList { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.colList li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 4px; border-radius: 3px; font-size: 13px; }
+.colList li:hover { background: var(--hover); }
+.colList li > label { display: flex; gap: 8px; align-items: center; }
+.off { color: var(--ink-soft); }
+.colTools { display: inline-flex; align-items: center; gap: 2px; }
+.never { display: inline-flex; gap: 4px; align-items: center; font-size: 11.5px; color: var(--ink-soft); margin-right: 6px; }
+.note { color: var(--ink-soft); font-size: 13px; margin: 0 0 10px; }
+.importRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.csv { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.csvScroll { overflow-x: auto; margin: 10px 0; }
+.csvTable { border-collapse: collapse; font-size: 12px; }
+.csvTable th, .csvTable td { border: 1px solid var(--rule); padding: 4px 6px; text-align: left; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.csvTable select { font-size: 12px; max-width: 160px; }
+.headerRow td { font-weight: 600; color: var(--ink-soft); }

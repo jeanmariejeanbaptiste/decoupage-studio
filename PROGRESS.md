@@ -57,7 +57,21 @@
 - [x] Bouton « Valider l'étape » (topbar) relié à `validatedSteps` et à la barre de progression
 - [x] Tests : `serialize.test.ts` (aller-retour sans perte, migration, erreurs) + `e2e/persistence.spec.ts` (rechargement, aller-retour fichier)
 
-## P6 — Export
+## P6 — Export ✅
+- [x] Vue `#/print` : thème Mauve (fond #C98BB4 + grain, titre Fraunces 800 SOFT, en-tête #DFA6D3, couleurs par colonne, ligne d'espacement), thèmes Papier et Sobre
+- [x] PDF via `window.print()` (`#/print?auto=1`) : `@page` A4/A3 paysage, fond de page peint (`@page { background }`), séquence insécable (`tbody` + `break-inside: avoid`), en-tête répété, pied de page « titre · version · date · page x / y » (boîte de marge `@bottom-center`)
+- [x] Excel (ExcelJS, chargé à la demande) : fusions, couleurs, polices, largeurs, ligne d'espacement, onglet « Registre » (testé)
+- [x] CSV (une ligne par plan, `;`, BOM) et JSON (projet complet)
+- [x] Import `.decoupage` / JSON / CSV-TSV avec assistant de correspondance des colonnes
+- [x] Page « Exporter » : formats, thème, format de page, colonnes exportées (ordre, « ne jamais fusionner »)
+- [x] Contrôle visuel §8.4 : `e2e/export.spec.ts` produit `test-results/export-rav3.png` et `test-results/export-rav3.pdf`
+
+### Comparaison visuelle de l'export RAV3
+La référence `docs/reference/export-decoupage.png` est absente du dépôt (voir DECISIONS.md) : la capture a été comparée point par point à la description du §8.2 et à la transcription du §12.
+- Conforme : fusions colonne par colonne (identiques au test unitaire du seed), SÉQUENCE fusionnée sur toute la hauteur et centrée, N° jamais fusionné et en rouge, ACTION fusionnée par bloc, TC fusionné par valeur (« TOUT » sur 4-8 en séquence 2), couleurs (#111 / #C42B2B / #7A2E1F), FOCALE et TC en noir gras (TC italique), ligne d'espacement #DFA6D3 après chaque séquence, largeurs relatives du §8.2, titre Fraunces 800 #7A4E74.
+- Pagination A4 : 3 pages (séquences 1-3, 4-6, 7) sans coupure, en-tête répété, pied de page numéroté.
+- Écarts possibles non vérifiables sans l'image : hauteur exacte des lignes, graisse précise du titre, présence ou non du pied de page dans la référence (désactivable).
+
 ## P7 — Registre
 ## P8 — Minutage avancé
 ## P9 — Inspecteur & matériel

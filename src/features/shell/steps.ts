@@ -18,5 +18,5 @@ export const PREP_STEPS: readonly PrepStep[] = [
   { n: 7, label: 'Listes de matériel', route: 'equipment', available: false },
   { n: 8, label: 'Plan de travail', route: 'schedule', available: false },
   { n: 9, label: 'Feuille de service', route: 'callsheet', available: false },
-  { n: 10, label: 'Exporter', route: 'export', available: false },
+  { n: 10, label: 'Exporter', route: 'export', available: true },
 ];

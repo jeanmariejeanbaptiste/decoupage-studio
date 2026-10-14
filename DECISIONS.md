@@ -27,3 +27,8 @@
 | 2026-10-14 | Au démarrage : seed via URL, sinon dernier projet ouvert (localStorage), sinon accueil. Une route projet sans projet ouvert propose de revenir à l'accueil. | Local-first, pas de compte. |
 | 2026-10-14 | Ouvrir une démonstration crée/écrase le projet de démonstration (identifiant fixe `seed-rav3` / `seed-fiction`). | Démo toujours restaurable dans son état d'origine. |
 | 2026-10-14 | Le bouton primaire marine de la barre supérieure est « Valider l'étape » (bascule `validatedSteps`). | §11 demande un bouton primaire ; il alimente « n étapes validées sur N ». |
+| 2026-10-14 | La vue d'impression est une route plein écran (`#/print`) sans barre ni sidebar ; `?auto=1` lance l'impression, `?theme=` force un thème. | §8.3 : vue dédiée + `window.print()`. |
+| 2026-10-14 | Le fond de page imprimé est peint par `@page { background }` (Chromium) pour couvrir aussi les marges qui accueillent le pied de page. | Fond mauve à fond perdu sur chaque page. |
+| 2026-10-14 | Le CSV utilise le séparateur « ; » et un BOM UTF-8. | Ouverture directe dans Excel en français. |
+| 2026-10-14 | Import CSV : une nouvelle séquence à chaque changement de libellé ; les actions identiques consécutives sont liées. | Réimport fidèle d'un export CSV. |
+| 2026-10-14 | ExcelJS est chargé dynamiquement au clic. | Garder le bundle initial léger. |

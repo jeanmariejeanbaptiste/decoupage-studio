@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles/fonts';
 import './styles/tokens.css';
 import './styles/paper.css';
+import './styles/print.css';
 import { App } from './app/App';
 import { checkInvariants } from './domain/ops';
 import { useProjectStore } from './store/projectStore';
