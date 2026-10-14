@@ -10,6 +10,8 @@ import { IntentionPage } from '../features/intention/IntentionPage';
 import { ScenarioPage } from '../features/scenario/ScenarioPage';
 import { StoryboardPage } from '../features/storyboard/StoryboardPage';
 import { FloorPlanPage } from '../features/floorplan/FloorPlanPage';
+import { SchedulePage } from '../features/schedule/SchedulePage';
+import { CallSheetPage } from '../features/callsheet/CallSheetPage';
 import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
 import { RegistryPage } from '../features/registry/RegistryPage';
@@ -204,6 +206,8 @@ function Page({ route }: { route: Route }) {
   if (route === 'scenario') return <ScenarioPage doc={doc} />;
   if (route === 'storyboard') return <StoryboardPage doc={doc} />;
   if (route === 'floorplan') return <FloorPlanPage doc={doc} />;
+  if (route === 'schedule') return <SchedulePage doc={doc} />;
+  if (route === 'callsheet') return <CallSheetPage doc={doc} />;
   if (route === 'equipment') return <EquipmentPage doc={doc} />;
   const step = PREP_STEPS.find((p) => p.route === route);
   return (

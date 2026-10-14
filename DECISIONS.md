@@ -41,3 +41,4 @@
 | 2026-10-14 | Une séquence vide propose « Ajouter un plan » dans la grille. | Les séquences créées par le scénario n'ont pas de plan. |
 | 2026-10-14 | Service worker écrit à la main (pas de plugin PWA) ; non enregistré sous WebDriver pour ne pas perturber les tests. | Zéro dépendance supplémentaire ; tests reproductibles. |
 | 2026-10-14 | Plans au sol stockés dans `ProjectDoc.floorPlans` (champ optionnel, rétrocompatible) ; repère 1000 × 640 unités, grille de 20. | Pas de migration de schéma nécessaire. |
+| 2026-10-14 | Le plan de travail s'appuie sur `Shot.shootingDay` (existant) + `ProjectDoc.schedule` (dates, heures, ordre) ; la durée par jour est la durée d'écran des plans du jour. | Un seul champ fait foi pour le jour d'un plan (grille, registre, feuille de service). |

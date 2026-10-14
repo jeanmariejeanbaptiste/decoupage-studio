@@ -196,6 +196,8 @@ export interface ProjectDoc {
   intention?: string;
   /** Plans au sol, par séquence (§15.2). */
   floorPlans?: Record<ID, import('./floorplan').FloorPlan>;
+  /** Plan de travail : jours de tournage et ordre des séquences (§15.3). */
+  schedule?: import('./schedule').Schedule & { order?: ID[] };
 }
 
 export const SCHEMA_VERSION = 1;
