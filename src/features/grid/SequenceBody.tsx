@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
+import { addShot } from '../../domain/ops';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { sequenceNumber } from '../../domain/numbering';
@@ -68,7 +69,10 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
         <tr>
           <td className={s.gutter} />
           <td className={s.emptySeq} colSpan={columns.length}>
-            <strong>{sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase()}</strong> — <span className="hand">séquence vide</span>
+            <strong>{sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase()}</strong> — <span className="hand">séquence vide</span>{' '}
+            <button type="button" className={s.addInEmpty} onClick={() => mutateDoc((d) => void addShot(d, seq.seqId))}>
+              Ajouter un plan
+            </button>
           </td>
         </tr>
         <tr className={s.spacer} aria-hidden="true">

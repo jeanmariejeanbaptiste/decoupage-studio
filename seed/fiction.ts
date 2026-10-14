@@ -14,6 +14,43 @@ export const FICTION: SeedProject = {
     { name: 'Marc', kind: 'principal', color: '#2E4263', actor: '' },
     { name: 'Guichetier', kind: 'secondaire', color: '#5E7B4C' },
   ],
+  scenario: `Title: La Consigne
+Credit: Scénario de démonstration
+
+INT. GARE — HALL - JOUR
+
+Le hall bruisse, les annonces se succèdent.
+
+Léa traverse le hall en tirant une valise cabossée dont une roue grince à chaque pas.
+
+INT. GARE — CONSIGNE - JOUR
+
+Léa pose la valise sur le comptoir.
+
+GUICHETIER
+C'est pour combien de temps ?
+
+LÉA
+Je ne sais pas encore. Une nuit, peut-être deux.
+
+GUICHETIER
+Alors on dira trois.
+
+Elle hésite, puis glisse le ticket dans sa poche intérieure.
+
+EXT. PARVIS DE LA GARE - NUIT
+
+Marc attend sous la pluie, une cigarette éteinte aux lèvres.
+
+Léa le rejoint.
+
+MARC
+Tu l'as laissée ?
+
+LÉA
+(sans le regarder)
+Elle est en sécurité. Pour l'instant.
+`,
   sequences: [
     {
       label: 'GARE — HALL',

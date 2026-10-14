@@ -1,6 +1,7 @@
 import { addCharacter, addShot, addSequence } from '../src/domain/ops';
 import { createProjectDoc, newId } from '../src/domain/factory';
 import { parseRange } from '../src/domain/timecode';
+import { scenesOf } from '../src/domain/fountain';
 import { parseTokens } from '../src/domain/tokens';
 import type { CharacterKind, ColumnKey, Effect, IntExt, ProjectDoc, ProjectFormat, ProjectSettings, ShotStatus } from '../src/domain/types';
 
@@ -43,6 +44,7 @@ export interface SeedProject {
   settings?: Partial<ProjectSettings>;
   characters: Array<{ name: string; kind: CharacterKind; aliases?: string[]; color?: string; actor?: string }>;
   sequences: SeedSequence[];
+  scenario?: string;
 }
 
 export function buildSeed(spec: SeedProject): ProjectDoc {
@@ -86,5 +88,19 @@ export function buildSeed(spec: SeedProject): ProjectDoc {
       }
     }
   }
+  if (spec.scenario) linkScenario(doc, spec.scenario);
   return doc;
+}
+
+/** Ancre chaque séquence sur son en-tête et chaque action sur son passage du scénario. */
+function linkScenario(doc: ProjectDoc, scenario: string) {
+  doc.scenario = scenario;
+  scenesOf(scenario).forEach((sc, k) => {
+    const seq = doc.sequences[doc.project.sequenceIds[k]];
+    if (seq) seq.scenarioAnchor = { start: sc.start, end: sc.end };
+  });
+  for (const b of Object.values(doc.blocks)) {
+    const i = b.text ? scenario.indexOf(b.text) : -1;
+    if (i >= 0) b.scenarioAnchor = { start: i, end: i + b.text.length };
+  }
 }

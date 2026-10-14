@@ -36,3 +36,6 @@
 | 2026-10-14 | Registre accessible depuis la section « Base du projet » de la sidebar (hors des 10 étapes de préparation). | La spec ne place pas le Registre dans les étapes. |
 | 2026-10-14 | Durées estimées du seed fiction choisies pour illustrer les trois niveaux d'écart (≤ 10 %, ≤ 25 %, > 25 %). | §12 : « valeurs plausibles pour illustrer les écarts ». |
 | 2026-10-14 | Steadicam / gimbal, épaule et drone sont rangés au poste Image ; rails, grue, potence au poste Machinerie. | Répartition usuelle des postes en France. |
+| 2026-10-14 | Le scénario s'édite en Fountain brut (zone de saisie) avec un calque de surlignage ; la vue « Page » formate le texte. Le lien grille → scénario passe par l'inspecteur (passage lié) et le panneau latéral du scénario. | Fiabilité de la sélection (positions exactes de la zone de saisie) ; la grille et le scénario sont deux pages distinctes. |
+| 2026-10-14 | La k-ième scène du scénario met à jour la k-ième séquence ; les séquences en surplus ne sont jamais supprimées. | « La numérotation des séquences suit le scénario » sans perte de travail. |
+| 2026-10-14 | Une séquence vide propose « Ajouter un plan » dans la grille. | Les séquences créées par le scénario n'ont pas de plan. |

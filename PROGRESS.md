@@ -105,6 +105,15 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Revue visuelle : `da-truby.png` absente du dépôt ; revue faite contre la description du §11 (topbar fine, sidebar kraft 260 px à grain, numéros cerclés, entrée active en carte blanche, « bientôt » manuscrit, titres Cormorant avec chiffre en rouille, cartes à filet `--rule`)
 - [x] Tests : `progress.test.ts` + `e2e/shell.spec.ts` (4 parcours)
 
-## P11 — Scénario & liaison
+## P11 — Scénario & liaison ✅
+- [x] Analyseur Fountain (`domain/fountain.ts`) : page de titre, en-têtes (forcés « . »), personnages (« @ », extensions), dialogues, parenthèses, transitions, centré, sections, synopsis, sauts de page, commentaires ; positions dans la source
+- [x] Synchronisation automatique (débounce 900 ms, appliquée aussi en quittant la page) : séquence par en-tête (libellé = lieu, INT/EXT, effet, décor), fiche par personnage parlant
+- [x] Éditeur Fountain en Courier Prime avec surlignage des passages liés (fond calqué sous la zone de saisie) + vue « Page » formatée
+- [x] Sélection → clic droit (ou bouton) « Créer un plan avec cette action » : plan dans la bonne séquence, action pré-remplie, répliques dans `dialogue` (« NOM : réplique »), sujet = personnage qui parle
+- [x] Survol d'un plan (panneau latéral) → surligne son passage ; curseur dans un passage → surligne le plan ; l'inspecteur de la grille affiche le passage lié
+- [x] Recalage des ancres quand le texte change ; import `.fountain`/`.txt`, export `.fountain`
+- [x] Seed fiction doté d'un scénario ancré
+- [x] Tests : `fountain.test.ts` (10) + `e2e/scenario.spec.ts` (5)
+
 ## P12 — Modèles de séquence
 ## P13 — Déploiement

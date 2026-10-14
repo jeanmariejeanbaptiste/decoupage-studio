@@ -10,7 +10,7 @@ export interface PrepStep {
 /** Étapes de préparation, dans l'ordre réel de la production (§11). */
 export const PREP_STEPS: readonly PrepStep[] = [
   { n: 1, label: "Note d'intention", route: 'intention', available: true },
-  { n: 2, label: 'Scénario', route: 'scenario', available: false },
+  { n: 2, label: 'Scénario', route: 'scenario', available: true },
   { n: 3, label: 'Dépouillement', route: 'breakdown', available: false },
   { n: 4, label: 'Découpage technique', route: 'grid', available: true },
   { n: 5, label: 'Storyboard', route: 'storyboard', available: false },

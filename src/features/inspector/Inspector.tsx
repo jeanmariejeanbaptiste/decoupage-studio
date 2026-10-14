@@ -67,6 +67,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
   const zoom = isZoom(shot.movement);
   const focals = [shot.focal.from, zoom ? shot.focal.to : undefined].filter((f): f is number => f !== undefined);
   const equipment = deduceEquipment(shot);
+  const block = doc.blocks[shot.actionBlockId];
   const update = (fn: (d: ProjectDoc) => void) => mutateDoc(fn);
 
   const dropImage = async (file: File | undefined) => {
@@ -113,6 +114,15 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
           </label>
         )}
       </div>
+
+      {block?.scenarioAnchor && doc.scenario && (
+        <section className={s.block}>
+          <h3>Passage du scénario</h3>
+          <blockquote className={s.passage} data-testid="inspector-passage">
+            {doc.scenario.slice(block.scenarioAnchor.start, block.scenarioAnchor.end)}
+          </blockquote>
+        </section>
+      )}
 
       <section className={s.block}>
         <h3>Angle de champ</h3>

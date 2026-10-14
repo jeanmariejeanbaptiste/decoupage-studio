@@ -7,6 +7,7 @@ import { ChecksPage } from '../features/checks/ChecksPage';
 import { EquipmentPage } from '../features/equipment/EquipmentPage';
 import { ExportPage } from '../features/export/ExportPage';
 import { IntentionPage } from '../features/intention/IntentionPage';
+import { ScenarioPage } from '../features/scenario/ScenarioPage';
 import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
 import { RegistryPage } from '../features/registry/RegistryPage';
@@ -198,6 +199,7 @@ function Page({ route }: { route: Route }) {
   if (route === 'settings') return <SettingsPage doc={doc} />;
   if (route === 'checks') return <ChecksPage doc={doc} />;
   if (route === 'intention') return <IntentionPage doc={doc} />;
+  if (route === 'scenario') return <ScenarioPage doc={doc} />;
   if (route === 'equipment') return <EquipmentPage doc={doc} />;
   const step = PREP_STEPS.find((p) => p.route === route);
   return (

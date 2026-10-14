@@ -38,3 +38,4 @@
 .issues li { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-left: 3px solid var(--ochre); background: var(--paper); font-size: 12.5px; }
 .issues li.info { border-left-color: var(--navy); }
 .issues button { align-self: flex-end; border: 0; background: none; font-family: var(--font-hand); color: var(--rust); font-size: 15px; padding: 0; }
+.passage { margin: 0; padding: 6px 10px; border-left: 3px solid var(--rust); background: var(--tint); font-family: var(--font-script); font-size: 12px; white-space: pre-wrap; }
