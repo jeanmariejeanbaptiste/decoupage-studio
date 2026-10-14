@@ -1,0 +1,453 @@
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { Camera, DoorOpen, Lamp, MousePointer2, Minus, Square, Trash2, TrainTrack, User } from 'lucide-react';
+import { sortedCharacters } from '../../domain/characters';
+import {
+  addFloorItem,
+  cameraCone,
+  moveFloorItem,
+  PLAN_H,
+  PLAN_W,
+  planOf,
+  removeFloorItem,
+  snap,
+  updateFloorItem,
+  GRID,
+  type FloorItem,
+  type FloorKind,
+  type Point,
+} from '../../domain/floorplan';
+import { formatFocal } from '../../domain/focal';
+import { sequenceHeading, shotCode } from '../../domain/numbering';
+import type { ID, ProjectDoc } from '../../domain/types';
+import { isZoom } from '../../domain/vocabulary';
+import { mutateDoc } from '../../store/projectStore';
+import { Button } from '../../ui/Button';
+import { Hand } from '../../ui/Hand';
+import s from './FloorPlanPage.module.css';
+
+type Tool = 'select' | FloorKind;
+const IC = { size: 15, strokeWidth: 1.25 } as const;
+const TOOLS: Array<{ key: Tool; label: string; icon: JSX.Element }> = [
+  { key: 'select', label: 'Sélection', icon: <MousePointer2 {...IC} /> },
+  { key: 'camera', label: 'Caméra', icon: <Camera {...IC} /> },
+  { key: 'actor', label: 'Comédien', icon: <User {...IC} /> },
+  { key: 'wall', label: 'Mur', icon: <Minus {...IC} /> },
+  { key: 'rail', label: 'Rails', icon: <TrainTrack {...IC} /> },
+  { key: 'door', label: 'Porte', icon: <DoorOpen {...IC} /> },
+  { key: 'window', label: 'Fenêtre', icon: <Square {...IC} /> },
+  { key: 'light', label: 'Lumière', icon: <Lamp {...IC} /> },
+];
+
+type Drag =
+  | { mode: 'move'; id: ID; from: Point; to: Point }
+  | { mode: 'rotate'; id: ID; to: Point }
+  | { mode: 'path'; id: ID; to: Point }
+  | { mode: 'line'; kind: 'wall' | 'rail'; from: Point; to: Point };
+
+const deg = (a: Point, b: Point) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+
+/** Plan au sol par séquence (§15.2). */
+export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
+  const [seqId, setSeqId] = useState<ID | undefined>(doc.project.sequenceIds[0]);
+  const [tool, setTool] = useState<Tool>('select');
+  const [selected, setSelected] = useState<ID | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (!seqId || !doc.sequences[seqId]) setSeqId(doc.project.sequenceIds[0]);
+  }, [doc, seqId]);
+
+  const items = useMemo(() => (seqId ? planOf(doc, seqId).items : []), [doc, seqId]);
+  const sel = items.find((i) => i.id === selected);
+
+  if (!seqId || !doc.sequences[seqId]) {
+    return (
+      <div className="page">
+        <p className="page-kicker">Étape 6 · Plan au sol</p>
+        <h1 className="page-title">Plan au sol</h1>
+        <div className="card empty">
+          <span className="hand">Aucune séquence</span>
+          <p>Créez d’abord une séquence dans le découpage.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const toSvg = (e: { clientX: number; clientY: number }): Point => {
+    const svg = svgRef.current!;
+    const m = svg.getScreenCTM()!.inverse();
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m);
+    return { x: p.x, y: p.y };
+  };
+
+  const mutate = (fn: (d: ProjectDoc) => void) => mutateDoc(fn);
+
+  const onCanvasDown = (e: PointerEvent<SVGSVGElement>) => {
+    if (tool === 'select') {
+      if (e.target === svgRef.current || (e.target as Element).getAttribute('data-bg')) setSelected(null);
+      return;
+    }
+    const p = toSvg(e);
+    if (tool === 'wall' || tool === 'rail') {
+      svgRef.current?.setPointerCapture(e.pointerId);
+      setDrag({ mode: 'line', kind: tool, from: p, to: p });
+      return;
+    }
+    const id = mutateDoc((d) => addFloorItem(d, seqId, tool, p));
+    if (id) setSelected(id);
+    setTool('select');
+  };
+
+  const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' = 'move') => {
+    if (tool !== 'select') return;
+    e.stopPropagation();
+    svgRef.current?.setPointerCapture(e.pointerId);
+    setSelected(id);
+    const p = toSvg(e);
+    setDrag(mode === 'move' ? { mode, id, from: p, to: p } : { mode, id, to: p });
+  };
+
+  const onMove = (e: PointerEvent) => {
+    if (!drag) return;
+    setDrag({ ...drag, to: toSvg(e) });
+  };
+
+  const onUp = () => {
+    const d0 = drag;
+    setDrag(null);
+    if (!d0) return;
+    if (d0.mode === 'line') {
+      if (Math.hypot(d0.to.x - d0.from.x, d0.to.y - d0.from.y) < GRID) return;
+      const id = mutateDoc((d) => addFloorItem(d, seqId, d0.kind, d0.from, d0.to));
+      if (id) setSelected(id);
+      setTool('select');
+      return;
+    }
+    const item = items.find((i) => i.id === d0.id);
+    if (!item) return;
+    if (d0.mode === 'move') {
+      const dx = snap(d0.to.x - d0.from.x);
+      const dy = snap(d0.to.y - d0.from.y);
+      if (dx || dy) mutate((d) => moveFloorItem(d, seqId, item.id, dx, dy));
+    } else if (d0.mode === 'rotate') {
+      const rot = Math.round(deg(item, d0.to) / 5) * 5;
+      mutate((d) => updateFloorItem(d, seqId, item.id, { rot } as Partial<FloorItem>));
+    } else {
+      mutate((d) => updateFloorItem(d, seqId, item.id, { to: { x: snap(d0.to.x), y: snap(d0.to.y) } } as Partial<FloorItem>));
+    }
+  };
+
+  const onKey = (e: KeyboardEvent) => {
+    if (!sel) return;
+    const step = e.shiftKey ? GRID * 5 : GRID;
+    const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (moves[e.key]) {
+      e.preventDefault();
+      const [dx, dy] = moves[e.key];
+      mutate((d) => moveFloorItem(d, seqId, sel.id, dx, dy));
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      mutate((d) => removeFloorItem(d, seqId, sel.id));
+      setSelected(null);
+    } else if ((e.key === 'r' || e.key === 'R') && 'rot' in sel) {
+      e.preventDefault();
+      mutate((d) => updateFloorItem(d, seqId, sel.id, { rot: sel.rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>));
+    } else if (e.key === 'Escape') setSelected(null);
+  };
+
+  // Aperçu d'un élément pendant le glissement.
+  const preview = (item: FloorItem): FloorItem => {
+    if (!drag || drag.mode === 'line' || drag.id !== item.id) return item;
+    if (drag.mode === 'move') {
+      const dx = snap(drag.to.x - drag.from.x);
+      const dy = snap(drag.to.y - drag.from.y);
+      const moved = { ...item, x: item.x + dx, y: item.y + dy } as FloorItem;
+      if (moved.kind === 'wall' || moved.kind === 'rail') Object.assign(moved, { x2: moved.x2 + dx, y2: moved.y2 + dy });
+      if (moved.kind === 'actor' && moved.to) moved.to = { x: moved.to.x + dx, y: moved.to.y + dy };
+      return moved;
+    }
+    if (drag.mode === 'rotate' && 'rot' in item) return { ...item, rot: Math.round(deg(item, drag.to) / 5) * 5 } as FloorItem;
+    if (drag.mode === 'path' && item.kind === 'actor') return { ...item, to: { x: snap(drag.to.x), y: snap(drag.to.y) } };
+    return item;
+  };
+
+  const seq = doc.sequences[seqId];
+
+  return (
+    <div className="page page--wide">
+      <header className="page-head">
+        <div>
+          <p className="page-kicker">Étape 6 · Plan au sol</p>
+          <h1 className="page-title">{sequenceHeading(doc, seqId)}</h1>
+        </div>
+        <label className={s.seqPick}>
+          <span>Séquence</span>
+          <select
+            value={seqId}
+            onChange={(e) => {
+              setSeqId(e.target.value);
+              setSelected(null);
+            }}
+            aria-label="Séquence du plan au sol"
+          >
+            {doc.project.sequenceIds.map((id) => (
+              <option key={id} value={id}>
+                {sequenceHeading(doc, id)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </header>
+
+      <div className={s.layout}>
+        <div>
+          <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol">
+            {TOOLS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={[s.tool, tool === t.key ? s.on : ''].join(' ')}
+                aria-pressed={tool === t.key}
+                onClick={() => setTool(t.key)}
+                data-testid={`tool-${t.key}`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+            <Hand className={s.toolHint}>{tool === 'select' ? 'glisser pour déplacer · R pour pivoter · Suppr pour retirer' : tool === 'wall' || tool === 'rail' ? 'cliquer-glisser pour tracer' : 'cliquer pour placer'}</Hand>
+          </div>
+          <svg
+            ref={svgRef}
+            className={[s.canvas, tool !== 'select' ? s.placing : ''].join(' ')}
+            viewBox={`0 0 ${PLAN_W} ${PLAN_H}`}
+            onPointerDown={onCanvasDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onKeyDown={onKey}
+            tabIndex={0}
+            role="application"
+            aria-label={`Plan au sol de la séquence ${sequenceHeading(doc, seqId)}`}
+            data-testid="floorplan"
+          >
+            <defs>
+              <pattern id="fp-grid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
+                <path d={`M ${GRID} 0 L 0 0 0 ${GRID}`} fill="none" stroke="var(--rule)" strokeWidth="0.6" />
+              </pattern>
+              <marker id="fp-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--navy)" />
+              </marker>
+            </defs>
+            <rect data-bg="1" width={PLAN_W} height={PLAN_H} fill="url(#fp-grid)" />
+            {items.map((raw) => {
+              const item = preview(raw);
+              return <ItemShape key={item.id} doc={doc} item={item} selected={item.id === selected} onDown={onItemDown} />;
+            })}
+            {drag?.mode === 'line' && (
+              <line x1={snap(drag.from.x)} y1={snap(drag.from.y)} x2={snap(drag.to.x)} y2={snap(drag.to.y)} className={drag.kind === 'wall' ? s.wall : s.rail} />
+            )}
+          </svg>
+        </div>
+
+        <aside className={['card', s.panel].join(' ')} aria-label="Propriétés">
+          {!sel ? (
+            <>
+              <h2 className={s.h2}>Plans de la séquence</h2>
+              <ul className={s.shotList}>
+                {seq.shotIds.map((id) => {
+                  const cams = items.filter((i) => i.kind === 'camera' && i.shotIds.includes(id)).map((c) => (c.kind === 'camera' ? c.label : ''));
+                  const sh = doc.shots[id];
+                  return (
+                    <li key={id}>
+                      <b>{shotCode(doc, id)}</b> {sh.subject} · {sh.value} · {formatFocal(sh.focal, isZoom(sh.movement))}
+                      {cams.length > 0 ? <em>{cams.join(', ')}</em> : <em className={s.none}>sans caméra</em>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          ) : (
+            <Properties doc={doc} seqId={seqId} item={sel} onDelete={() => setSelected(null)} />
+          )}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: FloorItem; selected: boolean; onDown: (e: PointerEvent, id: ID, mode?: 'move' | 'rotate' | 'path') => void }) {
+  const cls = [s.item, selected ? s.sel : ''].join(' ');
+  const handle = (rot: number, r = 46) => {
+    const a = (rot * Math.PI) / 180;
+    return { cx: item.x + Math.cos(a) * r, cy: item.y + Math.sin(a) * r };
+  };
+  switch (item.kind) {
+    case 'camera': {
+      const cone = cameraCone(doc, item);
+      const h = handle(item.rot, 54);
+      return (
+        <g className={cls} data-testid="fp-camera">
+          <polygon points={cone.points.map((p) => `${p.x},${p.y}`).join(' ')} className={s.cone} />
+          <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
+            <rect x={item.x - 16} y={item.y - 11} width={28} height={22} rx={3} className={s.camBody} />
+            <polygon points={`${item.x + 12},${item.y - 6} ${item.x + 22},${item.y - 11} ${item.x + 22},${item.y + 11} ${item.x + 12},${item.y + 6}`} className={s.camBody} />
+          </g>
+          <text x={item.x} y={item.y + 32} className={s.label}>
+            {item.label}
+            {cone.focal ? ` · ${cone.focal}mm · ${Math.round(cone.fov)}°` : ''}
+          </text>
+          {selected && <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} data-testid="fp-rotate" />}
+        </g>
+      );
+    }
+    case 'actor':
+      return (
+        <g className={cls} data-testid="fp-actor">
+          {item.to && (
+            <>
+              <line x1={item.x} y1={item.y} x2={item.to.x} y2={item.to.y} className={s.path} markerEnd="url(#fp-arrow)" />
+              {selected && <circle cx={item.to.x} cy={item.to.y} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'path')} />}
+            </>
+          )}
+          <g onPointerDown={(e) => onDown(e, item.id)}>
+            <circle cx={item.x} cy={item.y} r={16} className={s.actor} />
+            <text x={item.x} y={item.y + 5} className={s.actorText}>
+              {item.label}
+            </text>
+          </g>
+          {item.characterId && doc.characters[item.characterId] && (
+            <text x={item.x} y={item.y + 32} className={s.label}>
+              {doc.characters[item.characterId].name}
+            </text>
+          )}
+        </g>
+      );
+    case 'wall':
+    case 'rail':
+      return (
+        <g className={cls} onPointerDown={(e) => onDown(e, item.id)}>
+          <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
+          <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={item.kind === 'wall' ? s.wall : s.rail} />
+        </g>
+      );
+    case 'door':
+    case 'window': {
+      const h = handle(item.rot + 90, 40);
+      return (
+        <g className={cls}>
+          <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
+            {item.kind === 'door' ? (
+              <>
+                <line x1={item.x} y1={item.y} x2={item.x + item.width} y2={item.y} className={s.doorGap} />
+                <path d={`M ${item.x} ${item.y} L ${item.x} ${item.y + item.width} A ${item.width} ${item.width} 0 0 0 ${item.x + item.width} ${item.y}`} className={s.door} />
+              </>
+            ) : (
+              <rect x={item.x} y={item.y - 4} width={item.width} height={8} className={s.window} />
+            )}
+          </g>
+          {selected && <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} />}
+        </g>
+      );
+    }
+    case 'light': {
+      const h = handle(item.rot, 44);
+      return (
+        <g className={cls}>
+          <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
+            <path d={`M ${item.x} ${item.y} L ${item.x + 70} ${item.y - 28} L ${item.x + 70} ${item.y + 28} Z`} className={s.beam} />
+            <circle cx={item.x} cy={item.y} r={12} className={s.light} />
+          </g>
+          <text x={item.x} y={item.y + 28} className={s.label}>
+            {item.label}
+          </text>
+          {selected && <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} />}
+        </g>
+      );
+    }
+  }
+}
+
+const KIND_LABEL: Record<FloorKind, string> = {
+  camera: 'Caméra',
+  actor: 'Comédien',
+  wall: 'Mur',
+  rail: 'Rails',
+  door: 'Porte',
+  window: 'Fenêtre',
+  light: 'Source de lumière',
+};
+
+function Properties({ doc, seqId, item, onDelete }: { doc: ProjectDoc; seqId: ID; item: FloorItem; onDelete: () => void }) {
+  const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, seqId, item.id, patch));
+  const seq = doc.sequences[seqId];
+  return (
+    <div className={s.props} data-testid="fp-properties">
+      <h2 className={s.h2}>{KIND_LABEL[item.kind]}</h2>
+      {(item.kind === 'camera' || item.kind === 'light' || item.kind === 'actor') && (
+        <label className={s.field}>
+          <span>Repère</span>
+          <input value={item.label ?? ''} onChange={(e) => update({ label: e.target.value } as Partial<FloorItem>)} />
+        </label>
+      )}
+      {item.kind === 'camera' && (
+        <>
+          <p className={s.note}>
+            {(() => {
+              const c = cameraCone(doc, item);
+              return c.focal ? `${c.focal} mm → angle horizontal ${c.fov.toFixed(1).replace('.', ',')}°` : 'Liez un plan pour calculer le cône (60° par défaut).';
+            })()}
+          </p>
+          <fieldset className={s.links}>
+            <legend>Plans couverts</legend>
+            {seq.shotIds.map((id) => (
+              <label key={id}>
+                <input
+                  type="checkbox"
+                  checked={item.shotIds.includes(id)}
+                  onChange={(e) => update({ shotIds: e.target.checked ? [...item.shotIds, id] : item.shotIds.filter((x) => x !== id) } as Partial<FloorItem>)}
+                />
+                <b>{shotCode(doc, id)}</b> {doc.shots[id].value} · {formatFocal(doc.shots[id].focal, isZoom(doc.shots[id].movement)) || '—'}
+              </label>
+            ))}
+          </fieldset>
+        </>
+      )}
+      {item.kind === 'actor' && (
+        <>
+          <label className={s.field}>
+            <span>Personnage</span>
+            <select value={item.characterId ?? ''} onChange={(e) => update({ characterId: e.target.value || undefined } as Partial<FloorItem>)}>
+              <option value="">—</option>
+              {sortedCharacters(doc).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button variant="outline" size="sm" onClick={() => update({ to: item.to ? undefined : { x: Math.min(PLAN_W, item.x + 120), y: item.y } } as Partial<FloorItem>)}>
+            {item.to ? 'Retirer le déplacement' : 'Ajouter un déplacement'}
+          </Button>
+        </>
+      )}
+      {(item.kind === 'door' || item.kind === 'window') && (
+        <label className={s.field}>
+          <span>Largeur</span>
+          <input type="number" min={20} step={10} value={item.width} onChange={(e) => update({ width: Math.max(20, Number(e.target.value) || 20) } as Partial<FloorItem>)} />
+        </label>
+      )}
+      <Button
+        variant="danger"
+        size="sm"
+        icon={<Trash2 size={13} />}
+        onClick={() => {
+          mutateDoc((d) => removeFloorItem(d, seqId, item.id));
+          onDelete();
+        }}
+      >
+        Retirer
+      </Button>
+    </div>
+  );
+}

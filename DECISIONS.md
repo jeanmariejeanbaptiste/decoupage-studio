@@ -40,3 +40,4 @@
 | 2026-10-14 | La k-ième scène du scénario met à jour la k-ième séquence ; les séquences en surplus ne sont jamais supprimées. | « La numérotation des séquences suit le scénario » sans perte de travail. |
 | 2026-10-14 | Une séquence vide propose « Ajouter un plan » dans la grille. | Les séquences créées par le scénario n'ont pas de plan. |
 | 2026-10-14 | Service worker écrit à la main (pas de plugin PWA) ; non enregistré sous WebDriver pour ne pas perturber les tests. | Zéro dépendance supplémentaire ; tests reproductibles. |
+| 2026-10-14 | Plans au sol stockés dans `ProjectDoc.floorPlans` (champ optionnel, rétrocompatible) ; repère 1000 × 640 unités, grille de 20. | Pas de migration de schéma nécessaire. |

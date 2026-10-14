@@ -15,6 +15,7 @@ import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { FovCone } from './FovCone';
+import { camerasForShot } from '../../domain/floorplan';
 import s from './Inspector.module.css';
 
 const SOUND = ['IN', 'OFF', 'V.O.', 'Musique diégétique', 'Musique extradiégétique', 'Playback'];
@@ -120,6 +121,11 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
           </div>
         ) : (
           <p className={s.muted}>Renseignez la focale pour calculer l’angle de champ.</p>
+        )}
+        {camerasForShot(doc, shot.id).length > 0 && (
+          <p className={s.muted} data-testid="inspector-cameras">
+            Plan au sol : {camerasForShot(doc, shot.id).join(', ')}
+          </p>
         )}
       </section>
 

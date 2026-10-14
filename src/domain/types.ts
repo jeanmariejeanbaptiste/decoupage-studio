@@ -194,6 +194,8 @@ export interface ProjectDoc {
   manualEquipment: ManualEquipment[];
   scenario?: string;
   intention?: string;
+  /** Plans au sol, par séquence (§15.2). */
+  floorPlans?: Record<ID, import('./floorplan').FloorPlan>;
 }
 
 export const SCHEMA_VERSION = 1;

@@ -128,3 +128,4 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 
 ## §15 — Si tu as encore du temps
 - [x] §15.1 Storyboard : cartes par séquence (vignette 16:9, code, valeur · focale · mouvement, sujet, action, durée), réordonnables (dnd-kit, garde-fou inter-séquences), dépôt d'image sur le cadre, planche PDF 2 / 4 / 6 par page (`e2e/storyboard.spec.ts`)
+- [x] §15.2 Plan au sol : éditeur SVG par séquence (grille aimantée, caméras avec cône calculé depuis la focale du plan lié et le capteur, comédiens numérotés liés aux personnages avec déplacement fléché, murs, rails, portes, fenêtres, sources de lumière ; déplacer, pivoter, supprimer au clavier) ; caméras liées aux plans, rappel dans l'inspecteur (`floorplan.test.ts`, `e2e/floorplan.spec.ts`)
