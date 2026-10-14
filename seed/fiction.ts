@@ -19,7 +19,7 @@ export const FICTION: SeedProject = {
       label: 'GARE — HALL',
       intExt: 'INT',
       effect: 'JOUR',
-      est: 25,
+      est: 13,
       summary: 'Léa arrive à la consigne avec une valise trop lourde.',
       shots: [
         { s: 'Hall de gare', v: 'Général', a: 'Face, Plongée', m: 'Fixe', f: 24 },
@@ -36,7 +36,7 @@ export const FICTION: SeedProject = {
       label: 'GARE — CONSIGNE',
       intExt: 'INT',
       effect: 'JOUR',
-      est: 40,
+      est: 21,
       shots: [
         { s: 'Léa, Guichetier', v: 'Américain', a: 'Profil droit, Hauteur regard', m: 'Fixe', f: 35 },
         { s: 'Guichetier', v: 'Rapproché', a: '3/4 Face, Hauteur regard', m: 'Fixe', f: 85 },
@@ -57,7 +57,7 @@ export const FICTION: SeedProject = {
       label: 'PARVIS DE LA GARE',
       intExt: 'EXT',
       effect: 'NUIT',
-      est: 20,
+      est: 16,
       shots: [
         { s: 'Marc', v: 'Ensemble', a: 'Dos, Hauteur regard', m: 'Steadicam', f: 24 },
         { s: 'Léa, Marc', v: 'Moyen', a: 'Profil gauche, Hauteur regard', m: 'Trav latéral droit', f: 35 },

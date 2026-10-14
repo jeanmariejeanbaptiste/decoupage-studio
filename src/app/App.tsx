@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
+import { runChecks } from '../domain/lint';
+import { computeTiming } from '../domain/timing';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
+import { ChecksPage } from '../features/checks/ChecksPage';
+import { EquipmentPage } from '../features/equipment/EquipmentPage';
 import { ExportPage } from '../features/export/ExportPage';
 import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
@@ -94,6 +98,7 @@ export function App() {
   }
 
   const title = doc?.project.title ?? '';
+  const checkCount = doc ? runChecks(doc, computeTiming(doc)).length : 0;
   const step = PREP_STEPS.find((p) => p.route === route);
   const stepValidated = !!step && !!doc?.validatedSteps.includes(step.n);
   const showSidebar = route !== 'home' && !!doc;
@@ -136,6 +141,7 @@ export function App() {
             progress={{}}
             extraLinks={[
               { label: 'Registre', route: 'registry', count: doc.project.sequenceIds.length },
+              { label: 'Vérifications', route: 'checks', count: checkCount },
             ]}
           />}
         <main className={s.main}>{booted && <Page route={route} />}</main>
@@ -167,6 +173,8 @@ function Page({ route }: { route: Route }) {
   if (route === 'export') return <ExportPage doc={doc} />;
   if (route === 'registry') return <RegistryPage doc={doc} />;
   if (route === 'settings') return <SettingsPage doc={doc} />;
+  if (route === 'checks') return <ChecksPage doc={doc} />;
+  if (route === 'equipment') return <EquipmentPage doc={doc} />;
   const step = PREP_STEPS.find((p) => p.route === route);
   return (
     <div className="page">

@@ -46,7 +46,8 @@ describe('minutage cumulatif (fiction)', () => {
     expect(c.range.in).toBe(b.range.out);
     expect(t.totalSec).toBe(c.range.out);
     expect(a.label).toMatch(/^0:00 - 0:\d\d$/);
-    expect(t.totalEstimatedSec).toBe(85);
+    expect(t.totalEstimatedSec).toBe(50);
+    expect([...t.sequences.values()].map((x) => x.gap?.level)).toEqual(['ok', 'warn', 'bad']);
     expect(t.totalGap).toBeDefined();
   });
   it('une action couverte par plusieurs plans ne compte qu’une fois', () => {

@@ -34,3 +34,5 @@
 | 2026-10-14 | ExcelJS est chargé dynamiquement au clic. | Garder le bundle initial léger. |
 | 2026-10-14 | Playwright reconstruit toujours l'application (`reuseExistingServer: false`). | Éviter de tester une version périmée. |
 | 2026-10-14 | Registre accessible depuis la section « Base du projet » de la sidebar (hors des 10 étapes de préparation). | La spec ne place pas le Registre dans les étapes. |
+| 2026-10-14 | Durées estimées du seed fiction choisies pour illustrer les trois niveaux d'écart (≤ 10 %, ≤ 25 %, > 25 %). | §12 : « valeurs plausibles pour illustrer les écarts ». |
+| 2026-10-14 | Steadicam / gimbal, épaule et drone sont rangés au poste Image ; rails, grue, potence au poste Machinerie. | Répartition usuelle des postes en France. |

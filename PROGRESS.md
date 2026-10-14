@@ -87,7 +87,15 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Taux de couverture de la piste dans le pied de grille (plages fusionnées)
 - [x] Tests : `waveform.test.ts` + `e2e/timing.spec.ts` (4 parcours, dont un WAV généré)
 
-## P9 — Inspecteur & matériel
+## P9 — Inspecteur & matériel ✅
+- [x] Inspecteur repliable (ouvert par défaut au-delà de 1600 px) : code, séquence, décor, effet ; vignette storyboard (glisser / choisir, IndexedDB)
+- [x] Angle de champ horizontal et diagonal, équivalent plein format, schéma en cône SVG (deux cônes pour un zoom)
+- [x] Matériel déduit rangé par poste (Image, Machinerie, Lumière, Son) ; champs Son, Lumière, Notes de raccord, statut, jour
+- [x] Pastilles de vérification dans la marge de la grille ; « ignorer ici » dans l'inspecteur
+- [x] Page « Vérifications » (sidebar, compteur) : groupée par séquence, cliquable, ignorer / rétablir
+- [x] Page « Listes de matériel » (étape 7) : agrégation par chef de poste, plans concernés cliquables, ajouts manuels, export CSV et PDF (impression)
+- [x] Tests : `e2e/inspector.spec.ts` (3 parcours)
+
 ## P10 — Finitions DA
 ## P11 — Scénario & liaison
 ## P12 — Modèles de séquence

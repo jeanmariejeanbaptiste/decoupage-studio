@@ -56,7 +56,7 @@ export const useUi = create<UiState>()((set) => ({
   toasts: [],
   theme: initialTheme(),
   printView: false,
-  inspectorOpen: true,
+  inspectorOpen: typeof window !== 'undefined' && window.innerWidth >= 1600,
   paletteOpen: false,
   helpOpen: false,
   saveStatus: 'idle',

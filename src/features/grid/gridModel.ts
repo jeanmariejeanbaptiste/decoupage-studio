@@ -1,4 +1,5 @@
 import { isEditable } from '../../domain/cells';
+import { runChecks, type Issue } from '../../domain/lint';
 import type { MergeMap, MergeRow } from '../../domain/merge';
 import { repeatedFlags } from '../../domain/merge';
 import { sequenceMerges } from '../../domain/rows';
@@ -22,6 +23,7 @@ export interface SeqModel {
 }
 
 export interface GridModel {
+  issues: Map<ID, Issue[]>;
   columns: ColumnKey[];
   rows: FlatRow[];
   seqs: SeqModel[];
@@ -44,7 +46,12 @@ export function buildGridModel(doc: ProjectDoc): GridModel {
     for (const c of columns) repeated[c] = repeatedFlags(merges.get(c) ?? [], mrows.length);
     seqs.push({ seqId, firstRow, rows: mrows, merges, repeated });
   });
-  return { columns, rows, seqs, bySeq: new Map(seqs.map((s) => [s.seqId, s])), timing };
+  const issues = new Map<ID, Issue[]>();
+  for (const issue of runChecks(doc, timing)) {
+    if (!issue.shotId) continue;
+    issues.set(issue.shotId, [...(issues.get(issue.shotId) ?? []), issue]);
+  }
+  return { issues, columns, rows, seqs, bySeq: new Map(seqs.map((s) => [s.seqId, s])), timing };
 }
 
 export type SpanKind = 'sequence' | 'block' | 'row';

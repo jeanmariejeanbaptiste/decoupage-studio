@@ -13,3 +13,5 @@
 .menuItem em { margin-left: auto; font-size: 11px; color: var(--ink-soft); }
 .printPreview { overflow: auto; border-radius: 10px; box-shadow: 0 1px 0 var(--rule); }
 .printPreview > div { border-radius: 10px; min-width: 1000px; }
+.workspace { display: flex; gap: 14px; align-items: flex-start; }
+.main { flex: 1; min-width: 0; }

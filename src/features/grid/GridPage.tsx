@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Eye, Link2, Plus, Rows3, Unlink2 } from 'lucide-react';
+import { Columns3, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
+import { Inspector } from '../inspector/Inspector';
 import { COLUMN_DEFS } from '../../domain/columns';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
@@ -20,6 +21,9 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   const { displayDoc: doc, wrap } = useGridDnd(storeDoc);
   const model = useMemo(() => buildGridModel(doc), [doc]);
   const printView = useUi((u) => u.printView);
+  const inspectorOpen = useUi((u) => u.inspectorOpen);
+  const focusRow = useUi((u) => u.selection?.focus.row);
+  const selectedShot = focusRow !== undefined ? model.rows[focusRow]?.shotId : undefined;
   const setUi = useUi((u) => u.set);
   const nSeq = doc.project.sequenceIds.length;
   const createFirst = useRef<HTMLButtonElement>(null);
@@ -61,6 +65,15 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           <span className={s.sep} />
           <ColumnsMenu doc={doc} />
           <Button
+            icon={<PanelRight {...IC} />}
+            aria-pressed={inspectorOpen}
+            onClick={() => setUi({ inspectorOpen: !inspectorOpen })}
+            title="Afficher ou masquer l’inspecteur du plan"
+            disabled={printView}
+          >
+            Inspecteur
+          </Button>
+          <Button
             variant={printView ? 'primary' : 'outline'}
             icon={<Eye {...IC} />}
             aria-pressed={printView}
@@ -87,8 +100,13 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
       ) : (
         <>
           {doc.project.settings.tcMode === 'piste' && <TrackBar doc={storeDoc} />}
-          {wrap(<Grid doc={doc} model={model} />)}
-          <GridFooter sequences={nSeq} shots={model.rows.length} timing={model.timing} mode={doc.project.settings.tcMode} />
+          <div className={s.workspace}>
+            <div className={s.main}>
+              {wrap(<Grid doc={doc} model={model} />)}
+              <GridFooter sequences={nSeq} shots={model.rows.length} timing={model.timing} mode={doc.project.settings.tcMode} />
+            </div>
+            {inspectorOpen && <Inspector doc={storeDoc} shotId={selectedShot} />}
+          </div>
         </>
       )}
     </div>

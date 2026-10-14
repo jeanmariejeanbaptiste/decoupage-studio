@@ -11,6 +11,7 @@ import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import type { CellPos, UiState } from '../../store/uiStore';
 import { CellEditor, type CommitMove } from './CellEditor';
 import { cellSpan, spanKind, type GridModel, type SeqModel } from './gridModel';
+import type { Issue } from '../../domain/lint';
 import s from './Grid.module.css';
 
 interface Props {
@@ -24,6 +25,20 @@ interface Props {
   onCellDoubleClick: (pos: CellPos) => void;
   onCommit: (text: string, move: CommitMove) => void;
   onCancel: () => void;
+}
+
+function IssueDot({ issues }: { issues: Issue[] | undefined }) {
+  if (!issues?.length) return null;
+  const warn = issues.some((i) => i.level === 'warn');
+  return (
+    <span
+      className={[s.issueDot, warn ? s.issueWarn : s.issueInfo].join(' ')}
+      title={issues.map((i) => `• ${i.message}`).join('\n')}
+      aria-label={`${issues.length} vérification${issues.length > 1 ? 's' : ''}`}
+      role="img"
+      data-testid="issue-dot"
+    />
+  );
 }
 
 function onTcContextMenu(e: MouseEvent, shotId: string) {
@@ -72,6 +87,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
           <DroppableRow key={r.shotId} shotId={r.shotId} className={s.row} data-shot={r.shotId} data-testid="shot-row">
             <td className={s.gutter}>
               <ShotHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} />
+              <IssueDot issues={model.issues.get(r.shotId)} />
             </td>
             {columns.map((col) => {
               const kind = spanKind(doc, col);
