@@ -8,17 +8,18 @@
 - [x] Coquille : topbar + sidebar kraft + zone principale
 - [x] CLAUDE.md, PROGRESS.md, DECISIONS.md
 
-## P1 — Domaine pur
-- [ ] Types §3 + ColumnKey + mergeBreak
-- [ ] vocabulary.ts + recherche de suggestions
-- [ ] timecode (parse / format)
-- [ ] durées, plages, couverture piste
-- [ ] numérotation dérivée
-- [ ] computeMerges + test seed RAV3
-- [ ] normalisation des jetons
-- [ ] equipment.ts
-- [ ] lint (contrôles §9)
-- [ ] couverture ≥ 90 %
+## P1 — Domaine pur ✅
+- [x] Types §3 + ColumnKey + mergeBreak
+- [x] vocabulary.ts + recherche de suggestions
+- [x] timecode (parse / format)
+- [x] durées, plages, couverture piste
+- [x] numérotation dérivée
+- [x] computeMerges + test seed RAV3
+- [x] normalisation des jetons
+- [x] equipment.ts
+- [x] lint (contrôles §9)
+- [x] couverture ≥ 90 %
+- Couverture `src/domain` : 99 % lignes, 90,8 % branches (102 tests).
 
 ## P2 — Grille éditable
 - [ ] Store Zustand + immer + zundo
