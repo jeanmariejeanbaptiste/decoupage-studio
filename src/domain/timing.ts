@@ -139,7 +139,6 @@ export function computeTiming(doc: ProjectDoc): Timing {
       sequences,
       totalSec: trackSec,
       totalEstimatedSec,
-      totalGap: anyEstimate ? computeGap(trackSec, totalEstimatedSec) : undefined,
       coveragePct: trackSec > 0 ? Math.min(100, (covered / trackSec) * 100) : 0,
       trackSec,
     };

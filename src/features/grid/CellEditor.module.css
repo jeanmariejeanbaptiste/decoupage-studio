@@ -1,0 +1,55 @@
+.input {
+  width: 100%;
+  min-height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--ink);
+  resize: none;
+  line-height: 1.35;
+  display: block;
+}
+.upper { text-transform: uppercase; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.tokens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-height: 22px;
+  cursor: text;
+}
+.conflict .chip { text-decoration: underline dotted var(--ochre); text-underline-offset: 3px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 3px 0 6px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  font-size: 12.5px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.chip button { border: 0; background: none; padding: 0 1px; color: var(--ink-soft); display: inline-flex; }
+.tokenInput { flex: 1; min-width: 50px; border: 0; outline: none; background: transparent; padding: 0; font: inherit; }
+.focal { display: flex; align-items: center; gap: 4px; }
+.num {
+  width: 3.4em;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  outline: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.zoom { animation: grow var(--t-med) var(--ease); }
+.word { font-family: var(--font-hand); color: var(--rust); font-size: 15px; }
+.mm { color: var(--ink-soft); font-size: 12px; user-select: none; }
+@keyframes grow { from { opacity: 0.4; transform: scaleX(0.92); transform-origin: left; } }

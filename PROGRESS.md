@@ -21,14 +21,15 @@
 - [x] couverture ≥ 90 %
 - Couverture `src/domain` : 99 % lignes, 90,8 % branches (102 tests).
 
-## P2 — Grille éditable
-- [ ] Store Zustand + immer + zundo
-- [ ] Rendu séquences/plans, fusion SÉQUENCE, séparateurs
-- [ ] Édition des cellules + navigation clavier
-- [ ] Ajout/suppression plans et séquences, toasts
-- [ ] Aperçu 〃 + vue impression
-- [ ] Pied de total
-- [ ] Test Playwright 2 × 5 au clavier
+## P2 — Grille éditable ✅
+- [x] Store Zustand + immer + zundo
+- [x] Rendu séquences/plans, fusion SÉQUENCE, séparateurs
+- [x] Édition des cellules + navigation clavier
+- [x] Ajout/suppression plans et séquences, toasts
+- [x] Aperçu 〃 + vue impression
+- [x] Pied de total
+- [x] Test Playwright 2 × 5 au clavier
+- Test Playwright `e2e/grid.spec.ts` : 2 séquences × 5 plans saisis au clavier seul ; suppression / annulation / rétablissement.
 
 ## P3 — Saisie intelligente
 ## P4 — Couverture & réordonnancement

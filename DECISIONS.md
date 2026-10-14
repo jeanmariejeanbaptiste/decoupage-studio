@@ -17,3 +17,10 @@
 | 2026-10-14 | Séquence 6 du seed : l'angle « Face, Hauteur regard » fusionne 5-10 (aucune coupure forcée). | Seule la séquence 2 est signalée comme nécessitant `mergeBreak` dans la spec. |
 | 2026-10-14 | En mode piste, chaque bloc d'action du seed porte la plage de sa séquence (ex. 0:00 - 0:35 sur les 4 blocs de la séquence 1) ; la colonne TC fusionne alors par valeur identique. | Le modèle place le TC sur l'ActionBlock ; §8.1 fusionne le TC piste par valeurs identiques. |
 | 2026-10-14 | « Durée du plan » (colonne optionnelle) = durée de l'action répartie entre les plans qui la couvrent. | Indication de pré-minutage sans double comptage. |
+| 2026-10-14 | Dans la grille, ACTION et DIALOGUE sont fusionnées par bloc d'action, TC par séquence (cumulatif + granularité séquence) ou par bloc ; les autres colonnes restent une ligne par plan avec l'aperçu « 〃 ». | §4.3 + §4.4 : éditer chaque plan, mais une action liée est une seule cellule. |
+| 2026-10-14 | Suggestions : aucune n'est présélectionnée ; ↓/↑ pour choisir, Entrée/Tab valide la suggestion choisie, sinon le texte libre. Elles n'apparaissent qu'après le début de la frappe. | Texte libre toujours accepté (« Plongé ») ; Échap doit pouvoir annuler l'édition. |
+| 2026-10-14 | Tab et la validation (Entrée/Tab) sautent les colonnes en lecture seule (N°, Personnages, Machinerie, Durée) ; les flèches les visitent. | Saisie fluide façon tableur. |
+| 2026-10-14 | ⌘⌫ supprime le(s) plan(s) sélectionné(s) ; Suppr/Retour arrière vide les cellules sélectionnées. | La spec ne fixe pas la touche de suppression d'un plan. |
+| 2026-10-14 | Alt+↑/↓ déplace le plan dans sa séquence uniquement ; changer de séquence passe par le glisser-déposer (avec confirmation). | Garde-fou §4.5. |
+| 2026-10-14 | En mode piste, le pied de grille n'affiche pas d'écart global (la somme des durées estimées des séquences n'est pas comparable à la durée de la piste) ; il affiche la couverture. | Les séquences d'un clip se chevauchent dans le morceau. |
+| 2026-10-14 | Paramètre d'URL `?seed=rav3` / `?seed=fiction` pour charger un projet de démonstration (tests, démos). | Tests Playwright reproductibles. |
