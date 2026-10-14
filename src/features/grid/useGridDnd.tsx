@@ -9,7 +9,6 @@ import {
   useSensor,
   useSensors,
   type CollisionDetection,
-  type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
@@ -76,7 +75,7 @@ export function useGridDnd(doc: ProjectDoc) {
     }
   };
 
-  const onDragEnd = (_e: DragEndEvent) => {
+  const onDragEnd = () => {
     const d = drag;
     setDrag(null);
     if (!d?.target) return;
