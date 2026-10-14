@@ -13,6 +13,7 @@ import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
 import { useGridDnd } from './useGridDnd';
 import { TemplatesMenu } from './TemplatesMenu';
+import { AssistantButton } from '../assistant/AssistantButton';
 import { navigate } from '../../app/router';
 import { TrackBar } from './TrackBar';
 import s from './GridPage.module.css';
@@ -58,6 +59,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
             Séquence
           </Button>
           <TemplatesMenu doc={doc} />
+          <AssistantButton doc={doc} />
           <span className={s.sep} />
           <Button icon={<Link2 {...IC} />} onClick={linkSelection} title="Lier l’action des plans sélectionnés" disabled={printView}>
             Lier l’action

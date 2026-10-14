@@ -9,6 +9,7 @@ import { vocabularyFor, type VocabKind } from '../../domain/vocabulary';
 import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
+import { ASSISTANT_MODEL, getApiKey, setApiKey } from '../assistant/aiClient';
 import s from './SettingsPage.module.css';
 
 const set = <K extends keyof ProjectSettings>(k: K, v: ProjectSettings[K]) =>
@@ -203,6 +204,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         </Section>
 
         <VocabularySection doc={doc} />
+        <AssistantSection />
       </div>
     </div>
   );
@@ -272,6 +274,47 @@ function VocabularySection({ doc }: { doc: ProjectDoc }) {
           Ajouter
         </Button>
       </form>
+    </Section>
+  );
+}
+
+function AssistantSection() {
+  const [key, setKey] = useState(getApiKey());
+  const [saved, setSaved] = useState(!!getApiKey());
+  return (
+    <Section title="Assistant IA" kicker="facultatif">
+      <p className={s.note}>
+        Propose un découpage de départ pour une séquence, dans le vocabulaire de l’application. La clé reste dans ce navigateur : elle n’est jamais
+        enregistrée dans le projet ni exportée. Sans clé, l’assistant est désactivé.
+      </p>
+      <form
+        className={s.row}
+        onSubmit={(e) => {
+          e.preventDefault();
+          setApiKey(key);
+          setSaved(!!key.trim());
+        }}
+      >
+        <label className={s.field}>
+          <span>Clé API Anthropic</span>
+          <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-ant-…" aria-label="Clé API Anthropic" />
+        </label>
+        <Button type="submit" variant="outline">
+          {saved ? 'Mettre à jour' : 'Enregistrer'}
+        </Button>
+        {saved && (
+          <Button
+            onClick={() => {
+              setApiKey('');
+              setKey('');
+              setSaved(false);
+            }}
+          >
+            Oublier la clé
+          </Button>
+        )}
+      </form>
+      <p className={s.note}>{saved ? `Assistant actif (modèle ${ASSISTANT_MODEL}).` : 'Assistant désactivé.'}</p>
     </Section>
   );
 }
