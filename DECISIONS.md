@@ -39,3 +39,4 @@
 | 2026-10-14 | Le scénario s'édite en Fountain brut (zone de saisie) avec un calque de surlignage ; la vue « Page » formate le texte. Le lien grille → scénario passe par l'inspecteur (passage lié) et le panneau latéral du scénario. | Fiabilité de la sélection (positions exactes de la zone de saisie) ; la grille et le scénario sont deux pages distinctes. |
 | 2026-10-14 | La k-ième scène du scénario met à jour la k-ième séquence ; les séquences en surplus ne sont jamais supprimées. | « La numérotation des séquences suit le scénario » sans perte de travail. |
 | 2026-10-14 | Une séquence vide propose « Ajouter un plan » dans la grille. | Les séquences créées par le scénario n'ont pas de plan. |
+| 2026-10-14 | Service worker écrit à la main (pas de plugin PWA) ; non enregistré sous WebDriver pour ne pas perturber les tests. | Zéro dépendance supplémentaire ; tests reproductibles. |

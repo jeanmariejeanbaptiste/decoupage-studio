@@ -120,4 +120,10 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Menu « Modèle » dans la barre d'outils et dans l'état vide (modèles du format suggérés en premier) ; insertion après la séquence courante, annulable
 - [x] Tests : vocabulaire strictement conforme au §5, structure, invariants (`templates.test.ts`) + `e2e/templates.spec.ts`
 
-## P13 — Déploiement
+## P13 — Déploiement ✅
+- [x] `.github/workflows/deploy.yml` : tests + build (`BASE_PATH` configurable, `/<dépôt>/` par défaut) → GitHub Pages ; `404.html` de secours
+- [x] `.github/workflows/ci.yml` : lint, tests unitaires, build, Playwright sur chaque PR
+- [x] PWA : manifeste, icônes (dont masquable), service worker (réseau d'abord pour les pages, cache d'abord pour les ressources) → hors ligne et installable
+- [x] README illustré en français (`docs/screenshots/*.jpg`)
+
+## §15 — Si tu as encore du temps
