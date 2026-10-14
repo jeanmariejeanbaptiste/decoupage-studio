@@ -11,6 +11,7 @@ import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
 import { useGridDnd } from './useGridDnd';
+import { TrackBar } from './TrackBar';
 import s from './GridPage.module.css';
 
 const IC = { size: 15, strokeWidth: 1.25 } as const;
@@ -85,6 +86,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
         </div>
       ) : (
         <>
+          {doc.project.settings.tcMode === 'piste' && <TrackBar doc={storeDoc} />}
           {wrap(<Grid doc={doc} model={model} />)}
           <GridFooter sequences={nSeq} shots={model.rows.length} timing={model.timing} mode={doc.project.settings.tcMode} />
         </>

@@ -80,7 +80,13 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Plans : liste à plat filtrable (valeur, focale, mouvement, personnage, décor, statut, jour) + recherche
 - [x] Tests : `registry.test.ts` + `e2e/registry.spec.ts` (4 parcours)
 
-## P8 — Minutage avancé
+## P8 — Minutage avancé ✅
+- [x] Page Réglages : projet, minutage (mode, granularité, coefficients, minimum) avec aperçu « ce texte de n mots = m:ss », capteur et recadrage, libellés et code des plans, vocabulaire personnalisé (valeurs / angles / mouvements)
+- [x] Override manuel « ✎ » ; clic droit → « Revenir au calcul automatique » (menu contextuel)
+- [x] Mode piste : import audio (IndexedDB), forme d'onde (canvas, pics normalisés), graduations, plages de toutes les actions, calage in/out par glisser, écoute de l'extrait, tête de lecture
+- [x] Taux de couverture de la piste dans le pied de grille (plages fusionnées)
+- [x] Tests : `waveform.test.ts` + `e2e/timing.spec.ts` (4 parcours, dont un WAV généré)
+
 ## P9 — Inspecteur & matériel
 ## P10 — Finitions DA
 ## P11 — Scénario & liaison

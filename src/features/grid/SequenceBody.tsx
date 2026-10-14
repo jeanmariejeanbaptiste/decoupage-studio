@@ -1,6 +1,8 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
-import { editableText } from '../../domain/cells';
+import { editableText, setCellText } from '../../domain/cells';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { useUi } from '../../store/uiStore';
 import { sequenceNumber } from '../../domain/numbering';
 import { formatGap } from '../../domain/timing';
 import { focalTooltip } from '../../domain/focal';
@@ -22,6 +24,19 @@ interface Props {
   onCellDoubleClick: (pos: CellPos) => void;
   onCommit: (text: string, move: CommitMove) => void;
   onCancel: () => void;
+}
+
+function onTcContextMenu(e: MouseEvent, shotId: string) {
+  const d = useProjectStore.getState().doc;
+  if (!d || d.project.settings.tcMode !== 'cumulatif' || !editableText(d, shotId, 'tc')) return;
+  e.preventDefault();
+  useUi.getState().set({
+    menu: {
+      x: e.clientX,
+      y: e.clientY,
+      items: [{ label: 'Revenir au calcul automatique', action: () => mutateDoc((x) => void setCellText(x, shotId, 'tc', '')) }],
+    },
+  });
 }
 
 export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMouseDown, onCellDoubleClick, onCommit, onCancel }: Props) {
@@ -97,7 +112,8 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                     conflict ? s.conflict : '',
                   ].join(' ')}
                   title={tip || undefined}
-                  onMouseDown={(e) => onCellMouseDown(e, pos)}
+                  onMouseDown={(e) => e.button === 0 && onCellMouseDown(e, pos)}
+                  onContextMenu={col === 'tc' ? (e) => onTcContextMenu(e, r.shotId) : undefined}
                   onDoubleClick={() => onCellDoubleClick(pos)}
                 >
                   {isEditing ? (

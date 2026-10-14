@@ -6,6 +6,7 @@ import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
 import { RegistryPage } from '../features/registry/RegistryPage';
 import { HomePage } from '../features/shell/HomePage';
+import { SettingsPage } from '../features/shell/SettingsPage';
 import { Sidebar } from '../features/shell/Sidebar';
 import { PREP_STEPS } from '../features/shell/steps';
 import { Topbar } from '../features/shell/Topbar';
@@ -13,6 +14,7 @@ import { lastProjectId, openDoc, openStoredProject, saveToFile, startAutosave } 
 import { mutateDoc, redo, undo, useDoc, useHistory } from '../store/projectStore';
 import { useUi } from '../store/uiStore';
 import { Button } from '../ui/Button';
+import { ContextMenuHost } from '../ui/ContextMenu';
 import { DialogHost } from '../ui/Modal';
 import { Toasts } from '../ui/Toasts';
 import { navigate, useLocation, type Route } from './router';
@@ -140,6 +142,7 @@ export function App() {
       </div>
       <Toasts />
       <DialogHost />
+      <ContextMenuHost />
     </div>
   );
 }
@@ -163,6 +166,7 @@ function Page({ route }: { route: Route }) {
   if (route === 'grid') return <GridPage doc={doc} />;
   if (route === 'export') return <ExportPage doc={doc} />;
   if (route === 'registry') return <RegistryPage doc={doc} />;
+  if (route === 'settings') return <SettingsPage doc={doc} />;
   const step = PREP_STEPS.find((p) => p.route === route);
   return (
     <div className="page">

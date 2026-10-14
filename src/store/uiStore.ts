@@ -14,7 +14,13 @@ export interface Toast {
   tone?: 'info' | 'warn';
 }
 
+export interface MenuItem {
+  label: string;
+  action: () => void;
+}
+
 export interface UiState {
+  menu: { x: number; y: number; items: MenuItem[] } | null;
   selection: { anchor: CellPos; focus: CellPos } | null;
   editing: { pos: CellPos; initial?: string } | null;
   toasts: Toast[];
@@ -44,6 +50,7 @@ function initialTheme(): 'papier' | 'encre' {
 }
 
 export const useUi = create<UiState>()((set) => ({
+  menu: null,
   selection: null,
   editing: null,
   toasts: [],
