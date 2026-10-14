@@ -37,3 +37,12 @@ test('storyboard : image déposée depuis l’inspecteur visible sur la carte', 
   await page.getByRole('button', { name: /Storyboard/ }).click();
   await expect(page.getByTestId('storyboard-card').first().getByRole('img', { name: 'Storyboard du plan 1.1' })).toBeVisible();
 });
+
+test('storyboard : importer une image depuis la carte', async ({ page }) => {
+  await page.goto('/#/storyboard?seed=fiction');
+  const card = page.getByTestId('storyboard-card').nth(2);
+  await card.getByLabel('Importer une image pour le plan 1.3').setInputFiles({ name: 'c.png', mimeType: 'image/png', buffer: PNG });
+  await expect(card.getByRole('img', { name: 'Storyboard du plan 1.3' })).toBeVisible();
+  await card.getByRole('button', { name: 'Retirer l’image du plan 1.3' }).click();
+  await expect(card.getByRole('img', { name: 'Storyboard du plan 1.3' })).toHaveCount(0);
+});

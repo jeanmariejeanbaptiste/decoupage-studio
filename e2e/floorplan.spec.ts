@@ -28,11 +28,20 @@ test('plan au sol : caméra liée à un plan, comédien, mur', async ({ page }) 
   await page.getByTestId('tool-actor').click();
   p = await at(page, 0.5, 0.4);
   await page.mouse.click(p.x, p.y);
+  // Nommage automatique : le premier personnage de la séquence est attribué.
+  await expect(page.getByTestId('fp-actor')).toContainText('Admiratrice');
   await props.getByLabel('Personnage').selectOption({ label: 'Admiratrice' });
   await props.getByRole('button', { name: 'Ajouter un déplacement' }).click();
   await expect(page.getByTestId('fp-actor')).toContainText('Admiratrice');
   await expect(page.getByTestId('fp-actor').locator('line')).toHaveCount(1);
 
+  // L'outil reste actif : un second comédien se place sans re-sélectionner l'outil.
+  p = await at(page, 0.7, 0.4);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.getByTestId('fp-actor')).toHaveCount(2);
+  await props.getByRole('button', { name: 'Vedette' }).click();
+  await expect(page.getByTestId('fp-actor').nth(1)).toContainText('Vedette');
+  await page.getByTestId('tool-select').click();
   // Déplacer la caméra par glisser puis la retirer au clavier.
   const cam = page.getByTestId('fp-camera').locator('rect');
   const c = (await cam.boundingBox())!;
@@ -45,4 +54,31 @@ test('plan au sol : caméra liée à un plan, comédien, mur', async ({ page }) 
   await page.keyboard.press('Delete');
   await expect(page.getByTestId('fp-camera')).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { __ds: { invariants: () => string[] } }).__ds.invariants())).toEqual([]);
+});
+
+test('plan au sol : lumière, réflecteur et plusieurs plans', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=rav3');
+  await page.getByTestId('tool-light').click();
+  let p = await at(page, 0.2, 0.5);
+  await page.mouse.click(p.x, p.y);
+  const props = page.getByTestId('fp-properties');
+  await props.getByLabel('Repère').fill('L1');
+  await page.getByTestId('floorplan').focus();
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Shift+r');
+  await expect(page.getByTestId('fp-beam')).toHaveCount(1);
+  // Réflecteur tracé en travers du faisceau (lumière orientée vers la droite).
+  await page.getByTestId('tool-reflector').click();
+  p = await at(page, 0.45, 0.35);
+  const q = await at(page, 0.45, 0.65);
+  await page.mouse.move(p.x, p.y);
+  await page.mouse.down();
+  await page.mouse.move(q.x, q.y, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId('fp-reflector')).toHaveCount(1);
+  await expect(page.getByTestId('fp-bounce')).toHaveCount(1);
+  await page.getByTestId('add-plan').click();
+  await expect(page.getByRole('tab', { name: 'Plan 2' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('fp-reflector')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Plan 1' }).click();
+  await expect(page.getByTestId('fp-reflector')).toHaveCount(1);
 });

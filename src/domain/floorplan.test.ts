@@ -57,3 +57,47 @@ describe('plan au sol', () => {
     expect(snap(31)).toBe(40);
   });
 });
+
+describe('plans multiples, lumières et réflecteurs', async () => {
+  const { addPlan, deletePlan, plansOf, renamePlan, reflections, lightBeam, reflectorSize } = await import('./floorplan');
+  const { produce } = await import('immer');
+  const { buildRav3 } = await import('../../seed/rav3');
+  it('gère plusieurs plans par séquence', () => {
+    const doc = buildRav3();
+    const seqId = doc.project.sequenceIds[0];
+    let key = '';
+    const next = produce(doc, (d) => {
+      key = addPlan(d, seqId);
+      renamePlan(d, key, 'Contrechamp');
+      addFloorItem(d, key, 'camera', { x: 100, y: 100 });
+      updateFloorItem(d, key, planOf(d, key).items[0].id, { shotIds: [d.sequences[seqId].shotIds[0]] } as Partial<FloorItem>);
+    });
+    expect(plansOf(next, seqId).map((p) => p.name)).toEqual(['Plan 1', 'Contrechamp']);
+    expect(camerasForShot(next, next.sequences[seqId].shotIds[0])).toEqual(['CAM A']);
+    const removed = produce(next, (d) => {
+      deletePlan(d, key);
+      addFloorItem(d, seqId, 'actor', { x: 1, y: 1 });
+      deletePlan(d, seqId);
+      deletePlan(d, 'absent');
+    });
+    expect(plansOf(removed, seqId)).toHaveLength(1);
+    expect(planOf(removed, seqId).items).toEqual([]);
+  });
+  it('renvoie la lumière sur un réflecteur dans le faisceau', () => {
+    const light = { id: 'l', kind: 'light' as const, x: 0, y: 0, rot: 0, spread: 40, range: 300 };
+    const small = { id: 'r', kind: 'reflector' as const, x: 150, y: -20, x2: 150, y2: 20 };
+    const big = { ...small, id: 'R', y: -100, y2: 100 };
+    const [b] = reflections([light, small]);
+    expect(b.rot).toBeCloseTo(180, 5);
+    expect(b.x).toBe(150);
+    const [B] = reflections([light, big]);
+    expect(B.spread).toBeGreaterThan(b.spread);
+    expect(B.intensity).toBeGreaterThan(b.intensity);
+    expect(reflections([light, { ...small, x: -150, x2: -150 }])).toEqual([]);
+    expect(reflections([{ ...light, range: 100 }, small])).toEqual([]);
+    expect(reflectorSize(big)).toBe(200);
+    expect(lightBeam({ id: 'x', kind: 'light', x: 0, y: 0, rot: 0 }).spread).toBe(50);
+    const angled = reflections([light, { id: 'a', kind: 'reflector', x: 120, y: -40, x2: 180, y2: 40 }]);
+    expect(angled).toHaveLength(1);
+  });
+});

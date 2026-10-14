@@ -135,3 +135,10 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] §15.6 Assistant IA facultatif : clé API saisie dans les Réglages, gardée en localStorage (jamais dans le projet ni l'export) ; « Proposer » un découpage de départ pour la séquence courante via le SDK officiel (`@anthropic-ai/sdk`, chargé à la demande, modèle `claude-opus-5-5`, sorties structurées JSON limitées au vocabulaire §5, repli serveur en cas de refus) ; réponse revalidée côté client ; bouton désactivé sans clé (`assistant.test.ts`, `e2e/assistant.spec.ts` avec API simulée)
 
 **Toutes les phases P0 → P13 et tous les points du §15 sont livrés.**
+
+## Retours utilisateur — lot 1
+- [x] Storyboard : bouton « Importer / Remplacer » et « × » directement sur chaque carte
+- [x] Plan au sol : l'outil choisi reste actif jusqu'à Échap ou au choix d'un autre outil
+- [x] Plan au sol : faisceau lumineux en dégradé (ouverture et portée réglables) ; outil Réflecteur qui renvoie et diffuse la lumière selon sa taille
+- [x] Plan au sol : plusieurs plans par séquence (onglets, nouveau, dupliquer, renommer au double-clic, supprimer)
+- [x] Plan au sol : nommage rapide des comédiens (personnage de la séquence attribué automatiquement + boutons d'un clic)

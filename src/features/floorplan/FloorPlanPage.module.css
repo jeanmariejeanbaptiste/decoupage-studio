@@ -43,3 +43,14 @@
 .links label { display: flex; gap: 6px; align-items: baseline; }
 .links b { color: var(--rust); }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .panel { position: static; } }
+.reflector { stroke: #c8ccd2; stroke-width: 8; stroke-linecap: round; }
+.sel .reflector { stroke: var(--rust); }
+.beamGroup { pointer-events: none; mix-blend-mode: multiply; }
+:root[data-theme='encre'] .beamGroup { mix-blend-mode: screen; }
+.plans { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.plans button { border: 1px solid var(--rule); background: none; border-radius: var(--radius) var(--radius) 0 0; padding: 3px 10px; font-size: 13px; color: var(--ink-soft); display: inline-flex; gap: 4px; align-items: center; }
+.plans .planOn { background: var(--paper-card); color: var(--ink); border-bottom-color: var(--paper-card); font-weight: 600; }
+.plans .planAdd { border-style: dashed; border-radius: var(--radius); font-family: var(--font-hand); color: var(--rust); font-size: 15px; }
+.quick { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
+.quick button { border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 1px 9px; font-size: 12.5px; }
+.quick .quickOn { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }

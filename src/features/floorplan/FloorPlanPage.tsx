@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { Camera, DoorOpen, Lamp, MousePointer2, Minus, Square, Trash2, TrainTrack, User } from 'lucide-react';
-import { sortedCharacters } from '../../domain/characters';
+import { Camera, Copy, RectangleVertical, DoorOpen, Lamp, MousePointer2, Minus, Square, Trash2, TrainTrack, User } from 'lucide-react';
+import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters';
 import {
   addFloorItem,
+  addPlan,
   cameraCone,
+  deletePlan,
+  DEFAULT_RANGE,
+  DEFAULT_SPREAD,
+  lightBeam,
+  plansOf,
+  reflections,
+  reflectorSize,
+  renamePlan,
   moveFloorItem,
   PLAN_H,
   PLAN_W,
@@ -36,13 +45,14 @@ const TOOLS: Array<{ key: Tool; label: string; icon: JSX.Element }> = [
   { key: 'door', label: 'Porte', icon: <DoorOpen {...IC} /> },
   { key: 'window', label: 'Fenêtre', icon: <Square {...IC} /> },
   { key: 'light', label: 'Lumière', icon: <Lamp {...IC} /> },
+  { key: 'reflector', label: 'Réflecteur', icon: <RectangleVertical {...IC} /> },
 ];
 
 type Drag =
   | { mode: 'move'; id: ID; from: Point; to: Point }
   | { mode: 'rotate'; id: ID; to: Point }
   | { mode: 'path'; id: ID; to: Point }
-  | { mode: 'line'; kind: 'wall' | 'rail'; from: Point; to: Point };
+  | { mode: 'line'; kind: 'wall' | 'rail' | 'reflector'; from: Point; to: Point };
 
 const deg = (a: Point, b: Point) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 
@@ -54,11 +64,15 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
+  const [planPick, setPlanPick] = useState<string | undefined>(undefined);
   useEffect(() => {
     if (!seqId || !doc.sequences[seqId]) setSeqId(doc.project.sequenceIds[0]);
   }, [doc, seqId]);
 
-  const items = useMemo(() => (seqId ? planOf(doc, seqId).items : []), [doc, seqId]);
+  const plans = seqId ? plansOf(doc, seqId) : [];
+  const planKey = plans.find((p) => p.key === planPick)?.key ?? seqId ?? '';
+  const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
+  const beams = useMemo(() => [...items.filter((i) => i.kind === 'light').map((l) => lightBeam(l as Parameters<typeof lightBeam>[0])), ...reflections(items)], [items]);
   const sel = items.find((i) => i.id === selected);
 
   if (!seqId || !doc.sequences[seqId]) {
@@ -89,14 +103,22 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       return;
     }
     const p = toSvg(e);
-    if (tool === 'wall' || tool === 'rail') {
+    if (tool === 'wall' || tool === 'rail' || tool === 'reflector') {
       svgRef.current?.setPointerCapture(e.pointerId);
       setDrag({ mode: 'line', kind: tool, from: p, to: p });
       return;
     }
-    const id = mutateDoc((d) => addFloorItem(d, seqId, tool, p));
+    const id = mutateDoc((d) => {
+      const nid = addFloorItem(d, planKey, tool, p);
+      if (tool === 'actor') {
+        // Nommage rapide : le premier personnage de la séquence pas encore placé.
+        const placed = planOf(d, planKey).items.map((i) => (i.kind === 'actor' ? i.characterId : undefined));
+        const next = sequenceCharacterIds(d, seqId).find((c) => !placed.includes(c));
+        if (next) updateFloorItem(d, planKey, nid, { characterId: next } as Partial<FloorItem>);
+      }
+      return nid;
+    });
     if (id) setSelected(id);
-    setTool('select');
   };
 
   const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' = 'move') => {
@@ -119,9 +141,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     if (!d0) return;
     if (d0.mode === 'line') {
       if (Math.hypot(d0.to.x - d0.from.x, d0.to.y - d0.from.y) < GRID) return;
-      const id = mutateDoc((d) => addFloorItem(d, seqId, d0.kind, d0.from, d0.to));
+      const id = mutateDoc((d) => addFloorItem(d, planKey, d0.kind, d0.from, d0.to));
       if (id) setSelected(id);
-      setTool('select');
       return;
     }
     const item = items.find((i) => i.id === d0.id);
@@ -129,31 +150,38 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     if (d0.mode === 'move') {
       const dx = snap(d0.to.x - d0.from.x);
       const dy = snap(d0.to.y - d0.from.y);
-      if (dx || dy) mutate((d) => moveFloorItem(d, seqId, item.id, dx, dy));
+      if (dx || dy) mutate((d) => moveFloorItem(d, planKey, item.id, dx, dy));
     } else if (d0.mode === 'rotate') {
       const rot = Math.round(deg(item, d0.to) / 5) * 5;
-      mutate((d) => updateFloorItem(d, seqId, item.id, { rot } as Partial<FloorItem>));
+      mutate((d) => updateFloorItem(d, planKey, item.id, { rot } as Partial<FloorItem>));
     } else {
-      mutate((d) => updateFloorItem(d, seqId, item.id, { to: { x: snap(d0.to.x), y: snap(d0.to.y) } } as Partial<FloorItem>));
+      mutate((d) => updateFloorItem(d, planKey, item.id, { to: { x: snap(d0.to.x), y: snap(d0.to.y) } } as Partial<FloorItem>));
     }
   };
 
   const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && !sel) {
+      setTool('select');
+      return;
+    }
     if (!sel) return;
     const step = e.shiftKey ? GRID * 5 : GRID;
     const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
     if (moves[e.key]) {
       e.preventDefault();
       const [dx, dy] = moves[e.key];
-      mutate((d) => moveFloorItem(d, seqId, sel.id, dx, dy));
+      mutate((d) => moveFloorItem(d, planKey, sel.id, dx, dy));
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      mutate((d) => removeFloorItem(d, seqId, sel.id));
+      mutate((d) => removeFloorItem(d, planKey, sel.id));
       setSelected(null);
     } else if ((e.key === 'r' || e.key === 'R') && 'rot' in sel) {
       e.preventDefault();
-      mutate((d) => updateFloorItem(d, seqId, sel.id, { rot: sel.rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>));
-    } else if (e.key === 'Escape') setSelected(null);
+      mutate((d) => updateFloorItem(d, planKey, sel.id, { rot: sel.rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>));
+    } else if (e.key === 'Escape') {
+      setSelected(null);
+      setTool('select');
+    }
   };
 
   // Aperçu d'un élément pendant le glissement.
@@ -163,7 +191,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       const dx = snap(drag.to.x - drag.from.x);
       const dy = snap(drag.to.y - drag.from.y);
       const moved = { ...item, x: item.x + dx, y: item.y + dy } as FloorItem;
-      if (moved.kind === 'wall' || moved.kind === 'rail') Object.assign(moved, { x2: moved.x2 + dx, y2: moved.y2 + dy });
+      if (moved.kind === 'wall' || moved.kind === 'rail' || moved.kind === 'reflector') Object.assign(moved, { x2: moved.x2 + dx, y2: moved.y2 + dy });
       if (moved.kind === 'actor' && moved.to) moved.to = { x: moved.to.x + dx, y: moved.to.y + dy };
       return moved;
     }
@@ -187,6 +215,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             value={seqId}
             onChange={(e) => {
               setSeqId(e.target.value);
+              setPlanPick(undefined);
               setSelected(null);
             }}
             aria-label="Séquence du plan au sol"
@@ -202,6 +231,67 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
 
       <div className={s.layout}>
         <div>
+          <div className={s.plans} role="tablist" aria-label="Plans au sol de la séquence">
+            {plans.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                role="tab"
+                aria-selected={p.key === planKey}
+                className={p.key === planKey ? s.planOn : ''}
+                onClick={() => {
+                  setPlanPick(p.key);
+                  setSelected(null);
+                }}
+                onDoubleClick={() => {
+                  const name = window.prompt('Nom du plan au sol', p.name);
+                  if (name !== null) mutateDoc((d) => renamePlan(d, p.key, name));
+                }}
+                title="Double-cliquer pour renommer"
+              >
+                {p.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={s.planAdd}
+              onClick={() => {
+                const key = mutateDoc((d) => addPlan(d, seqId));
+                if (key) setPlanPick(key);
+                setSelected(null);
+              }}
+              data-testid="add-plan"
+            >
+              + Nouveau plan
+            </button>
+            <button
+              type="button"
+              className={s.planAdd}
+              title="Dupliquer ce plan"
+              onClick={() => {
+                const key = mutateDoc((d) => {
+                  const k = addPlan(d, seqId);
+                  d.floorPlans![k].items = JSON.parse(JSON.stringify(planOf(d, planKey).items));
+                  return k;
+                });
+                if (key) setPlanPick(key);
+              }}
+            >
+              <Copy size={12} /> Dupliquer
+            </button>
+            {planKey !== seqId && (
+              <button
+                type="button"
+                className={s.planAdd}
+                onClick={() => {
+                  mutateDoc((d) => deletePlan(d, planKey));
+                  setPlanPick(undefined);
+                }}
+              >
+                Supprimer ce plan
+              </button>
+            )}
+          </div>
           <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol">
             {TOOLS.map((t) => (
               <button
@@ -216,7 +306,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 {t.label}
               </button>
             ))}
-            <Hand className={s.toolHint}>{tool === 'select' ? 'glisser pour déplacer · R pour pivoter · Suppr pour retirer' : tool === 'wall' || tool === 'rail' ? 'cliquer-glisser pour tracer' : 'cliquer pour placer'}</Hand>
+            <Hand className={s.toolHint}>{tool === 'select' ? 'glisser pour déplacer · R pour pivoter · Suppr pour retirer' : tool === 'wall' || tool === 'rail' || tool === 'reflector' ? 'cliquer-glisser pour tracer · Échap pour finir' : 'cliquer pour placer · Échap pour finir'}</Hand>
           </div>
           <svg
             ref={svgRef}
@@ -240,12 +330,24 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               </marker>
             </defs>
             <rect data-bg="1" width={PLAN_W} height={PLAN_H} fill="url(#fp-grid)" />
+            {beams.map((b, i) => (
+              <g key={`beam-${b.sourceId}-${i}`} className={s.beamGroup} data-testid={b.intensity < 1 ? 'fp-bounce' : 'fp-beam'}>
+                <defs>
+                  <radialGradient id={`fp-light-${i}`} cx={b.x} cy={b.y} r={b.range} gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stopColor="var(--ochre)" stopOpacity={0.55 * b.intensity} />
+                    <stop offset="0.6" stopColor="var(--ochre)" stopOpacity={0.22 * b.intensity} />
+                    <stop offset="1" stopColor="var(--ochre)" stopOpacity="0" />
+                  </radialGradient>
+                </defs>
+                <polygon points={b.points.map((p) => `${p.x},${p.y}`).join(' ')} fill={`url(#fp-light-${i})`} />
+              </g>
+            ))}
             {items.map((raw) => {
               const item = preview(raw);
               return <ItemShape key={item.id} doc={doc} item={item} selected={item.id === selected} onDown={onItemDown} />;
             })}
             {drag?.mode === 'line' && (
-              <line x1={snap(drag.from.x)} y1={snap(drag.from.y)} x2={snap(drag.to.x)} y2={snap(drag.to.y)} className={drag.kind === 'wall' ? s.wall : s.rail} />
+              <line x1={snap(drag.from.x)} y1={snap(drag.from.y)} x2={snap(drag.to.x)} y2={snap(drag.to.y)} className={drag.kind === 'wall' ? s.wall : drag.kind === 'rail' ? s.rail : s.reflector} />
             )}
           </svg>
         </div>
@@ -268,7 +370,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               </ul>
             </>
           ) : (
-            <Properties doc={doc} seqId={seqId} item={sel} onDelete={() => setSelected(null)} />
+            <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} onDelete={() => setSelected(null)} />
           )}
         </aside>
       </div>
@@ -323,6 +425,16 @@ function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: Flo
           )}
         </g>
       );
+    case 'reflector':
+      return (
+        <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid="fp-reflector">
+          <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
+          <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.reflector} />
+          <text x={(item.x + item.x2) / 2} y={(item.y + item.y2) / 2 - 10} className={s.label}>
+            {item.label}
+          </text>
+        </g>
+      );
     case 'wall':
     case 'rail':
       return (
@@ -351,11 +463,11 @@ function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: Flo
       );
     }
     case 'light': {
-      const h = handle(item.rot, 44);
+      const h = handle(item.rot, 40);
       return (
         <g className={cls}>
           <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
-            <path d={`M ${item.x} ${item.y} L ${item.x + 70} ${item.y - 28} L ${item.x + 70} ${item.y + 28} Z`} className={s.beam} />
+            <rect x={item.x + 8} y={item.y - 9} width={10} height={18} rx={2} className={s.light} />
             <circle cx={item.x} cy={item.y} r={12} className={s.light} />
           </g>
           <text x={item.x} y={item.y + 28} className={s.label}>
@@ -376,15 +488,16 @@ const KIND_LABEL: Record<FloorKind, string> = {
   door: 'Porte',
   window: 'Fenêtre',
   light: 'Source de lumière',
+  reflector: 'Réflecteur',
 };
 
-function Properties({ doc, seqId, item, onDelete }: { doc: ProjectDoc; seqId: ID; item: FloorItem; onDelete: () => void }) {
-  const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, seqId, item.id, patch));
+function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; seqId: ID; planKey: string; item: FloorItem; onDelete: () => void }) {
+  const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, planKey, item.id, patch));
   const seq = doc.sequences[seqId];
   return (
     <div className={s.props} data-testid="fp-properties">
       <h2 className={s.h2}>{KIND_LABEL[item.kind]}</h2>
-      {(item.kind === 'camera' || item.kind === 'light' || item.kind === 'actor') && (
+      {(item.kind === 'camera' || item.kind === 'light' || item.kind === 'actor' || item.kind === 'reflector') && (
         <label className={s.field}>
           <span>Repère</span>
           <input value={item.label ?? ''} onChange={(e) => update({ label: e.target.value } as Partial<FloorItem>)} />
@@ -426,10 +539,43 @@ function Properties({ doc, seqId, item, onDelete }: { doc: ProjectDoc; seqId: ID
               ))}
             </select>
           </label>
+          <div className={s.quick} aria-label="Nommer rapidement">
+            {sequenceCharacterIds(doc, seqId)
+              .concat(sortedCharacters(doc).map((c) => c.id).filter((id) => !sequenceCharacterIds(doc, seqId).includes(id)))
+              .slice(0, 12)
+              .map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={item.characterId === id ? s.quickOn : ''}
+                  onClick={() => update({ characterId: id } as Partial<FloorItem>)}
+                >
+                  {doc.characters[id]?.name}
+                </button>
+              ))}
+          </div>
           <Button variant="outline" size="sm" onClick={() => update({ to: item.to ? undefined : { x: Math.min(PLAN_W, item.x + 120), y: item.y } } as Partial<FloorItem>)}>
             {item.to ? 'Retirer le déplacement' : 'Ajouter un déplacement'}
           </Button>
         </>
+      )}
+      {item.kind === 'light' && (
+        <>
+          <label className={s.field}>
+            <span>Ouverture du faisceau : {item.spread ?? DEFAULT_SPREAD}°</span>
+            <input type="range" min={10} max={160} step={5} value={item.spread ?? DEFAULT_SPREAD} onChange={(e) => update({ spread: Number(e.target.value) } as Partial<FloorItem>)} aria-label="Ouverture du faisceau" />
+          </label>
+          <label className={s.field}>
+            <span>Portée</span>
+            <input type="range" min={80} max={700} step={20} value={item.range ?? DEFAULT_RANGE} onChange={(e) => update({ range: Number(e.target.value) } as Partial<FloorItem>)} aria-label="Portée" />
+          </label>
+          <p className={s.note}>Orientez la lumière vers un réflecteur : il renvoie et diffuse la lumière.</p>
+        </>
+      )}
+      {item.kind === 'reflector' && (
+        <p className={s.note}>
+          Taille {Math.round(reflectorSize(item) / 20) * 20} unités. Plus il est grand, plus la lumière renvoyée est large et douce. Pour le redimensionner, retracez-le.
+        </p>
       )}
       {(item.kind === 'door' || item.kind === 'window') && (
         <label className={s.field}>
@@ -442,7 +588,7 @@ function Properties({ doc, seqId, item, onDelete }: { doc: ProjectDoc; seqId: ID
         size="sm"
         icon={<Trash2 size={13} />}
         onClick={() => {
-          mutateDoc((d) => removeFloorItem(d, seqId, item.id));
+          mutateDoc((d) => removeFloorItem(d, planKey, item.id));
           onDelete();
         }}
       >

@@ -91,7 +91,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
           })}
         </DndContext>
         <p className={s.hint}>
-          <Hand>glisser une carte pour réordonner · déposer une image sur un cadre pour l’illustrer</Hand>
+          <Hand>glisser une carte pour réordonner · « Importer » ou déposer une image sur un cadre pour l’illustrer</Hand>
         </p>
       </div>
 
@@ -136,13 +136,15 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
   const [over, setOver] = useState(false);
   const block = doc.blocks[shot.actionBlockId];
   const meta = [valueLabel(shot.value, doc.project.settings.labelStyle), formatFocal(shot.focal, isZoom(shot.movement)), renderTokens(shot.movement, shot.movementSep)].filter(Boolean).join(' · ');
-  const drop = async (e: DragEvent) => {
-    e.preventDefault();
-    setOver(false);
-    const f = e.dataTransfer.files[0];
+  const importImage = async (f: File | undefined) => {
     if (!f?.type.startsWith('image/')) return;
     const key = await putBlob(doc.project.id, f.name, f);
     mutateDoc((d) => void (d.shots[shot.id].storyboard = { blobKey: key }));
+  };
+  const drop = async (e: DragEvent) => {
+    e.preventDefault();
+    setOver(false);
+    await importImage(e.dataTransfer.files[0]);
   };
   return (
     <article className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')} data-testid={printing ? undefined : 'storyboard-card'}>
@@ -159,6 +161,33 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
       >
         {url ? <img src={url} alt={`Storyboard du plan ${shotCode(doc, shot.id)}`} /> : !printing && <ImagePlus size={20} strokeWidth={1} aria-hidden="true" />}
         <span className={s.code}>{shotCode(doc, shot.id)}</span>
+        {!printing && (
+          <label className={s.import} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} title={url ? 'Remplacer l’image' : 'Importer une image'}>
+            <ImagePlus size={13} strokeWidth={1.5} />
+            {url ? 'Remplacer' : 'Importer'}
+            <input
+              type="file"
+              accept="image/*"
+              className="visually-hidden"
+              aria-label={`Importer une image pour le plan ${shotCode(doc, shot.id)}`}
+              onChange={(e) => {
+                void importImage(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </label>
+        )}
+        {!printing && url && (
+          <button
+            type="button"
+            className={s.remove}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => mutateDoc((d) => void (d.shots[shot.id].storyboard = undefined))}
+            aria-label={`Retirer l’image du plan ${shotCode(doc, shot.id)}`}
+          >
+            ×
+          </button>
+        )}
       </div>
       <div className={s.body}>
         <p className={s.meta}>{meta || '—'}</p>
