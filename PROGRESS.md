@@ -72,7 +72,14 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - Pagination A4 : 3 pages (séquences 1-3, 4-6, 7) sans coupure, en-tête répété, pied de page numéroté.
 - Écarts possibles non vérifiables sans l'image : hauteur exacte des lignes, graisse précise du titre, présence ou non du pied de page dans la référence (désactivable).
 
-## P7 — Registre
+## P7 — Registre ✅
+- [x] Table générique triable / filtrable / éditable en ligne (`ui/DataTable`)
+- [x] Séquences : n° (saut vers la grille), libellé, décor (création à la volée), INT/EXT, effet, personnages (puces + ajout manuel), plans, estimée (éditable), calculée, écart coloré, avancement
+- [x] Personnages : nom, type, couleur, comédien·ne, compteurs, liste des séquences ; fusion des doublons par glisser-déposer ou menu (alias conservés)
+- [x] Décors : nom, INT/EXT, adresse, séquences, durée totale à tourner
+- [x] Plans : liste à plat filtrable (valeur, focale, mouvement, personnage, décor, statut, jour) + recherche
+- [x] Tests : `registry.test.ts` + `e2e/registry.spec.ts` (4 parcours)
+
 ## P8 — Minutage avancé
 ## P9 — Inspecteur & matériel
 ## P10 — Finitions DA

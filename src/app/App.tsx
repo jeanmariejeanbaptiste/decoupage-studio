@@ -4,6 +4,7 @@ import { buildRav3 } from '../../seed/rav3';
 import { ExportPage } from '../features/export/ExportPage';
 import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
+import { RegistryPage } from '../features/registry/RegistryPage';
 import { HomePage } from '../features/shell/HomePage';
 import { Sidebar } from '../features/shell/Sidebar';
 import { PREP_STEPS } from '../features/shell/steps';
@@ -126,7 +127,15 @@ export function App() {
         }
       />
       <div className={s.body}>
-        {showSidebar && doc && <Sidebar projectTitle={title} activeRoute={route} validated={doc.validatedSteps} progress={{}} />}
+        {showSidebar && doc && <Sidebar
+            projectTitle={title}
+            activeRoute={route}
+            validated={doc.validatedSteps}
+            progress={{}}
+            extraLinks={[
+              { label: 'Registre', route: 'registry', count: doc.project.sequenceIds.length },
+            ]}
+          />}
         <main className={s.main}>{booted && <Page route={route} />}</main>
       </div>
       <Toasts />
@@ -153,6 +162,7 @@ function Page({ route }: { route: Route }) {
   }
   if (route === 'grid') return <GridPage doc={doc} />;
   if (route === 'export') return <ExportPage doc={doc} />;
+  if (route === 'registry') return <RegistryPage doc={doc} />;
   const step = PREP_STEPS.find((p) => p.route === route);
   return (
     <div className="page">

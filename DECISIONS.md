@@ -32,3 +32,5 @@
 | 2026-10-14 | Le CSV utilise le séparateur « ; » et un BOM UTF-8. | Ouverture directe dans Excel en français. |
 | 2026-10-14 | Import CSV : une nouvelle séquence à chaque changement de libellé ; les actions identiques consécutives sont liées. | Réimport fidèle d'un export CSV. |
 | 2026-10-14 | ExcelJS est chargé dynamiquement au clic. | Garder le bundle initial léger. |
+| 2026-10-14 | Playwright reconstruit toujours l'application (`reuseExistingServer: false`). | Éviter de tester une version périmée. |
+| 2026-10-14 | Registre accessible depuis la section « Base du projet » de la sidebar (hors des 10 étapes de préparation). | La spec ne place pas le Registre dans les étapes. |
