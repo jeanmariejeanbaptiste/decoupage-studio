@@ -17,7 +17,7 @@ export function Sidebar({ projectTitle, activeRoute, validated, progress, extraL
   const nValid = validated.length;
   const total = PREP_STEPS.length;
   return (
-    <aside className={s.sidebar} aria-label="Processus de préparation">
+    <aside className={[s.sidebar, 'no-print'].join(' ')} aria-label="Processus de préparation">
       <div className={s.head}>
         <h2 className={s.project}>{projectTitle}</h2>
         <Hand>

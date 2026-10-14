@@ -25,7 +25,7 @@ interface Props {
 
 export function Topbar(p: Props) {
   return (
-    <header className={s.topbar}>
+    <header className={[s.topbar, 'no-print'].join(' ')}>
       <div className={s.left}>
         <Button variant="icon" aria-label="Accueil" title="Accueil" onClick={() => navigate('home')} icon={<Home {...IC} />} />
         <Button variant="icon" aria-label="Enregistrer (⌘S)" title="Enregistrer (⌘S)" onClick={p.onSave} icon={<Save {...IC} />} />

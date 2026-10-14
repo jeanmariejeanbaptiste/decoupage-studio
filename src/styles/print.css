@@ -5,5 +5,7 @@
   html[data-print='papier'], html[data-print='papier'] body { background: #fbf8f2 !important; }
   body::before { display: none !important; }
   .no-print { display: none !important; }
+  main { overflow: visible !important; }
+  .skip-link { display: none !important; }
   #root { height: auto; }
 }

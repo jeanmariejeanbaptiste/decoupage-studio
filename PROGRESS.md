@@ -127,3 +127,4 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] README illustré en français (`docs/screenshots/*.jpg`)
 
 ## §15 — Si tu as encore du temps
+- [x] §15.1 Storyboard : cartes par séquence (vignette 16:9, code, valeur · focale · mouvement, sujet, action, durée), réordonnables (dnd-kit, garde-fou inter-séquences), dépôt d'image sur le cadre, planche PDF 2 / 4 / 6 par page (`e2e/storyboard.spec.ts`)

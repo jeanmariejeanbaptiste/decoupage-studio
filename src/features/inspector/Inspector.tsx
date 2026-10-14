@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
+import { useBlobUrl } from '../../ui/useBlobUrl';
 import { ImagePlus, PanelRightClose, Trash2 } from 'lucide-react';
 import { setCellText } from '../../domain/cells';
 import { deduceEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
@@ -8,7 +9,7 @@ import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc, ShotStatus } from '../../domain/types';
 import { computeTiming } from '../../domain/timing';
 import { isZoom } from '../../domain/vocabulary';
-import { getBlob, putBlob } from '../../store/db';
+import { putBlob } from '../../store/db';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
@@ -18,27 +19,6 @@ import s from './Inspector.module.css';
 
 const SOUND = ['IN', 'OFF', 'V.O.', 'Musique diégétique', 'Musique extradiégétique', 'Playback'];
 const STATUSES: ShotStatus[] = ['à tourner', 'tourné', 'abandonné'];
-
-function useBlobUrl(key: string | undefined) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    let u: string | null = null;
-    setUrl(null);
-    if (key)
-      void getBlob(key).then((b) => {
-        if (b && alive) {
-          u = URL.createObjectURL(b);
-          setUrl(u);
-        }
-      });
-    return () => {
-      alive = false;
-      if (u) URL.revokeObjectURL(u);
-    };
-  }, [key]);
-  return url;
-}
 
 export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undefined }) {
   const set = useUi((u) => u.set);
