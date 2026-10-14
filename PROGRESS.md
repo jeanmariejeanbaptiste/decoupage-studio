@@ -49,7 +49,14 @@
 - [x] Scission automatique des blocs + toast « Annuler »
 - [x] Tests : invariants unitaires après chaque opération (`ops.test.ts`) + `e2e/dnd.spec.ts` (7 parcours, invariants vérifiés via `window.__ds`)
 
-## P5 — Persistance
+## P5 — Persistance ✅
+- [x] Dexie : tables `projects` et `blobs` ; sauvegarde automatique (débounce 600 ms) + indicateur manuscrit
+- [x] Accueil : liste des projets (format, version, compteurs, date), suppression confirmée, démonstrations
+- [x] Assistant « Nouveau projet » en 2 étapes (titre/format → minutage, avec aperçu « ce texte de n mots = m:ss »)
+- [x] Fichier `.decoupage` : ⌘S (File System Access API, sinon téléchargement), ouverture (sélecteur natif ou `<input type=file>`), validation + migration
+- [x] Bouton « Valider l'étape » (topbar) relié à `validatedSteps` et à la barre de progression
+- [x] Tests : `serialize.test.ts` (aller-retour sans perte, migration, erreurs) + `e2e/persistence.spec.ts` (rechargement, aller-retour fichier)
+
 ## P6 — Export
 ## P7 — Registre
 ## P8 — Minutage avancé

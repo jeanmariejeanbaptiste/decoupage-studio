@@ -8,7 +8,14 @@ async function typeCell(page: Page, text: string, then: 'Tab' | 'Enter' = 'Tab')
 }
 
 test('saisir 2 séquences × 5 plans au clavier seul', async ({ page }) => {
-  await page.goto('/#/grid');
+  await page.goto('/#/');
+  // Nouveau projet au clavier : Tab jusqu'au bouton, assistant en deux étapes validé par Entrée.
+  await page.getByTestId('new-project').focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Test clavier');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('wizard-next')).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.getByTestId('create-first')).toBeFocused();
   await page.keyboard.press('Enter');
   const grid = page.getByTestId('grid');

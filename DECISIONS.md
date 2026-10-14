@@ -24,3 +24,6 @@
 | 2026-10-14 | Alt+↑/↓ déplace le plan dans sa séquence uniquement ; changer de séquence passe par le glisser-déposer (avec confirmation). | Garde-fou §4.5. |
 | 2026-10-14 | En mode piste, le pied de grille n'affiche pas d'écart global (la somme des durées estimées des séquences n'est pas comparable à la durée de la piste) ; il affiche la couverture. | Les séquences d'un clip se chevauchent dans le morceau. |
 | 2026-10-14 | Paramètre d'URL `?seed=rav3` / `?seed=fiction` pour charger un projet de démonstration (tests, démos). | Tests Playwright reproductibles. |
+| 2026-10-14 | Au démarrage : seed via URL, sinon dernier projet ouvert (localStorage), sinon accueil. Une route projet sans projet ouvert propose de revenir à l'accueil. | Local-first, pas de compte. |
+| 2026-10-14 | Ouvrir une démonstration crée/écrase le projet de démonstration (identifiant fixe `seed-rav3` / `seed-fiction`). | Démo toujours restaurable dans son état d'origine. |
+| 2026-10-14 | Le bouton primaire marine de la barre supérieure est « Valider l'étape » (bascule `validatedSteps`). | §11 demande un bouton primaire ; il alimente « n étapes validées sur N ». |
