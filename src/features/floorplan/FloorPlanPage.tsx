@@ -33,6 +33,8 @@ import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import s from './FloorPlanPage.module.css';
+import { TabExport } from '../export/TabExport';
+import { floorPlanSvg } from '../../domain/exports';
 
 type Tool = 'select' | FloorKind;
 const IC = { size: 15, strokeWidth: 1.25 } as const;
@@ -209,6 +211,14 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           <p className="page-kicker">Étape 6 · Plan au sol</p>
           <h1 className="page-title">{sequenceHeading(doc, seqId)}</h1>
         </div>
+        <TabExport
+          file={{
+            label: 'SVG',
+            type: 'image/svg+xml',
+            name: `${doc.project.title || 'projet'}-plan-au-sol.svg`,
+            content: () => floorPlanSvg(doc, planKey, `${sequenceHeading(doc, seqId)} — ${plans.find((p) => p.key === planKey)?.name ?? ''}`),
+          }}
+        />
         <label className={s.seqPick}>
           <span>Séquence</span>
           <select

@@ -13,6 +13,8 @@ import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { ask } from '../../ui/dialogStore';
 import s from './SchedulePage.module.css';
+import { TabExport } from '../export/TabExport';
+import { scheduleCsv } from '../../domain/exports';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -74,6 +76,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           </h1>
         </div>
         <div className={s.toolbar}>
+          <TabExport file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
           <label className={s.cap}>
             <span>plans / jour</span>
             <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value) || 1))} aria-label="Plans par jour au maximum" />

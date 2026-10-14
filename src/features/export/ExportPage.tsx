@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Braces, FileSpreadsheet, FileText, FileUp, Printer, Table2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Braces, FolderArchive, FileSpreadsheet, FileText, FileUp, Printer, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { COLUMN_DEFS } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
@@ -52,6 +52,20 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
       </header>
 
       <section className={s.formats}>
+        <button
+          type="button"
+          className={['card', s.format, s.zip].join(' ')}
+          onClick={async () => {
+            toast({ message: 'Préparation du dossier de production…' });
+            const { buildProductionZip } = await import('./productionZip');
+            downloadBlob(await buildProductionZip(doc), `${base}-dossier-de-production.zip`);
+          }}
+          data-testid="export-zip"
+        >
+          <FolderArchive {...IC} />
+          <strong>Dossier de production complet</strong>
+          <span>Une archive .zip rangée par étape : projet, scénario, dépouillement, découpage Excel, storyboard, plans au sol, matériel, plan de travail, feuilles de service, registre.</span>
+        </button>
         <button type="button" className={['card', s.format].join(' ')} onClick={() => navigate('print', { auto: '1' })} data-testid="export-pdf">
           <Printer {...IC} />
           <strong>Exporter PDF</strong>
@@ -143,6 +157,18 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
               }
             />
             Pied de page : titre · version · date · page x / y
+          </label>
+          <label className={s.check}>
+            <input
+              type="checkbox"
+              checked={!!settings.exportInkSaver}
+              onChange={(e) =>
+                mutateDoc((d) => {
+                  d.project.settings.exportInkSaver = e.target.checked;
+                })
+              }
+            />
+            Économie d’encre : aucun aplat de couleur (en couleur avec Mauve ou Papier, en noir et blanc avec Sobre)
           </label>
         </section>
 

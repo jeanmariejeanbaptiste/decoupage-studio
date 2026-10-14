@@ -18,6 +18,8 @@ import { DataTable, type Column } from '../../ui/DataTable';
 import { ask } from '../../ui/dialogStore';
 import { rowOfShot } from '../grid/actions';
 import s from './RegistryPage.module.css';
+import { TabExport } from '../export/TabExport';
+import { charactersCsv, decorsCsv, sequencesCsv, shotsCsv } from '../../domain/exports';
 
 type Tab = 'sequences' | 'characters' | 'decors' | 'shots';
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -61,6 +63,14 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
             Les <em>{counts[tab]}</em> {TABS.find((t) => t.key === tab)?.label.toLowerCase()}
           </h1>
         </div>
+        <TabExport
+          print={true}
+          file={{
+            label: 'CSV',
+            name: `${doc.project.title || 'projet'}-${tab}.csv`,
+            content: () => ({ sequences: sequencesCsv, characters: charactersCsv, decors: decorsCsv, shots: shotsCsv })[tab](doc),
+          }}
+        />
         <label className={s.search}>
           <Search size={15} strokeWidth={1.25} />
           <input type="search" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher dans le registre" />

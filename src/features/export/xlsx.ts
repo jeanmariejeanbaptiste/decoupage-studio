@@ -36,7 +36,9 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Découpage Studio';
   wb.title = `${doc.project.title} — découpage technique`;
-  const p = PALETTES[theme];
+  const base = PALETTES[theme];
+  // Économie d'encre : pas d'aplats, seulement le texte coloré et les filets.
+  const p = doc.project.settings.exportInkSaver ? { ...base, bg: 'FFFFFF', head: 'FFFFFF' } : base;
   const timing = computeTiming(doc);
   const ws = wb.addWorksheet('Découpage', {
     pageSetup: {

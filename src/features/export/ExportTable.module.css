@@ -98,3 +98,9 @@
   .sheet { padding: 0 12mm; }
   .sheet::before { position: fixed; }
 }
+
+/* Économie d'encre : fond blanc, aucun aplat ; seuls le texte et les filets restent. */
+.inkSaver { --x-bg: #fff; }
+.inkSaver::before { display: none; }
+.inkSaver .table th { background: none; border-bottom-width: 2px; }
+.inkSaver .spacer td { background: none; height: 2.5mm; border-left: 0; border-right: 0; }

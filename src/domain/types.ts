@@ -61,6 +61,8 @@ export interface ProjectSettings {
   /** Colonnes à ne jamais fusionner à l'export (Réglages → Export). */
   neverMerge: ColumnKey[];
   exportPaper: 'A4' | 'A3';
+  /** Économie d'encre : aucun aplat de couleur à l'impression (texte et filets seulement). */
+  exportInkSaver?: boolean;
   exportFooter: boolean;
 }
 

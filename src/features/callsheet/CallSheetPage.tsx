@@ -14,6 +14,8 @@ import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import s from './CallSheetPage.module.css';
+import { TabExport } from '../export/TabExport';
+import { callSheetCsv } from '../../domain/exports';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -68,6 +70,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               ))}
             </select>
           </label>
+          <TabExport print={false} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-feuille-de-service-J${day.n}.csv`, content: () => callSheetCsv(doc, day.n) }} />
           <Button variant="primary" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()}>
             Exporter PDF
           </Button>

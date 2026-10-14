@@ -52,3 +52,36 @@ test('import CSV avec correspondance des colonnes', async ({ page }) => {
   await expect(page.locator('[data-cell="0:action"]')).toContainText('lié · 2 plans');
   await expect(page.locator('tbody[data-seq]')).toHaveCount(2);
 });
+
+test('dossier de production complet (.zip)', async ({ page }) => {
+  await page.goto('/#/export?seed=fiction');
+  const dl = page.waitForEvent('download');
+  await page.getByTestId('export-zip').click();
+  const d = await dl;
+  expect(d.suggestedFilename()).toBe('la-consigne-v1-dossier-de-production.zip');
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(readFileSync(await d.path()));
+  const names = Object.keys(zip.files).join('\n');
+  for (const part of ['00 Projet/la-consigne-v1.decoupage', '02 Scénario/Scénario.fountain', '04 Découpage/Découpage technique.xlsx', '10 Registre/Plans.csv', 'LISEZ-MOI.txt'])
+    expect(names).toContain(part);
+});
+
+test('économie d’encre : aucun aplat de couleur', async ({ page }) => {
+  await page.goto('/#/print?seed=rav3');
+  await page.getByTestId('ink-saver').check();
+  const sheet = page.getByTestId('print-sheet').locator('div').first();
+  expect(await sheet.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+  expect(await page.locator('thead th').first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+  expect(await page.locator('tbody td').nth(3).evaluate((el) => getComputedStyle(el).color)).toBe('rgb(122, 46, 31)');
+});
+
+test('exports individuels par onglet', async ({ page }) => {
+  await page.goto('/#/registry?seed=rav3&tab=characters');
+  const dl = page.waitForEvent('download');
+  await page.getByTestId('tab-export-file').click();
+  expect((await dl).suggestedFilename()).toBe('RAV3-characters.csv');
+  await page.goto('/#/floorplan');
+  const dl2 = page.waitForEvent('download');
+  await page.getByTestId('tab-export-file').click();
+  expect((await dl2).suggestedFilename()).toBe('RAV3-plan-au-sol.svg');
+});

@@ -142,3 +142,8 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Plan au sol : faisceau lumineux en dégradé (ouverture et portée réglables) ; outil Réflecteur qui renvoie et diffuse la lumière selon sa taille
 - [x] Plan au sol : plusieurs plans par séquence (onglets, nouveau, dupliquer, renommer au double-clic, supprimer)
 - [x] Plan au sol : nommage rapide des comédiens (personnage de la séquence attribué automatiquement + boutons d'un clic)
+
+## Retours utilisateur — lot 2
+- [x] Économie d'encre pour le PDF et l'Excel : aucun aplat (couleur avec Mauve / Papier, noir et blanc avec Sobre)
+- [x] Dossier de production complet (.zip) rangé par étape : projet, intention, scénario, dépouillement, découpage (xlsx + csv), images du storyboard, plans au sol (SVG), matériel, plan de travail, feuilles de service, registre
+- [x] Exports individuels par onglet : Registre (CSV de l'onglet), Dépouillement, Plan de travail, Feuille de service (CSV), Plan au sol (SVG), Note d'intention (texte) + PDF par impression

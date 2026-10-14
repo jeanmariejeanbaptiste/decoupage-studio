@@ -29,11 +29,11 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
   const footerText = `${doc.project.title} · ${doc.project.version} · ${dateFmt.format(new Date())}`;
 
   useEffect(() => {
-    document.documentElement.dataset.print = theme;
+    document.documentElement.dataset.print = settings.exportInkSaver ? 'eco' : theme;
     return () => {
       delete document.documentElement.dataset.print;
     };
-  }, [theme]);
+  }, [theme, settings.exportInkSaver]);
 
   useEffect(() => {
     if (params.get('auto') !== '1') return;
@@ -46,7 +46,8 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
     };
   }, [params]);
 
-  const pageBg = theme === 'mauve' ? '#c98bb4' : theme === 'papier' ? '#fbf8f2' : '#ffffff';
+  const inkSaver = !!settings.exportInkSaver;
+  const pageBg = inkSaver ? '#ffffff' : theme === 'mauve' ? '#c98bb4' : theme === 'papier' ? '#fbf8f2' : '#ffffff';
   const pageCss = `@page { size: ${paper} landscape; margin: 11mm 0 ${footer ? '11mm' : '9mm'} 0; background: ${pageBg};${
     footer
       ? ` @bottom-center { content: ${cssString(footerText + ' · page ')} counter(page) " / " counter(pages); font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 8pt; color: #000; }`
@@ -108,6 +109,19 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
             }
           />
           Pied de page
+        </label>
+        <label className={s.check}>
+          <input
+            type="checkbox"
+            checked={inkSaver}
+            onChange={(e) =>
+              mutateDoc((d) => {
+                d.project.settings.exportInkSaver = e.target.checked;
+              })
+            }
+            data-testid="ink-saver"
+          />
+          Économie d’encre
         </label>
         <Button variant="primary" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()} data-testid="print-now">
           Imprimer / PDF

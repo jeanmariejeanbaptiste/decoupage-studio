@@ -24,7 +24,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true }: Props) {
   );
 
   return (
-    <div className={[s.sheet, s[`theme_${th}`]].join(' ')} data-theme-export={th}>
+    <div className={[s.sheet, s[`theme_${th}`], doc.project.settings.exportInkSaver ? s.inkSaver : ''].join(' ')} data-theme-export={th}>
       {showTitle && <h1 className={s.title}>Découpage technique</h1>}
       <table className={s.table} data-testid="export-table">
         <colgroup>
