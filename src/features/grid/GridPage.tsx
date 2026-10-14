@@ -12,6 +12,8 @@ import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
 import { useGridDnd } from './useGridDnd';
+import { TemplatesMenu } from './TemplatesMenu';
+import { navigate } from '../../app/router';
 import { TrackBar } from './TrackBar';
 import s from './GridPage.module.css';
 
@@ -55,6 +57,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           <Button icon={<Rows3 {...IC} />} onClick={newSequenceAfter} title="Nouvelle séquence (⌘⇧↵)" disabled={printView}>
             Séquence
           </Button>
+          <TemplatesMenu doc={doc} />
           <span className={s.sep} />
           <Button icon={<Link2 {...IC} />} onClick={linkSelection} title="Lier l’action des plans sélectionnés" disabled={printView}>
             Lier l’action
@@ -89,9 +92,15 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
         <div className="card empty">
           <span className="hand">Aucune séquence pour l’instant</span>
           <p>Créez la première, ou importez un scénario.</p>
-          <Button ref={createFirst} variant="primary" autoFocus onClick={newSequenceAfter} data-testid="create-first">
-            Créer la première séquence
-          </Button>
+          <div className={s.emptyActions}>
+            <Button ref={createFirst} variant="primary" autoFocus onClick={newSequenceAfter} data-testid="create-first">
+              Créer la première séquence
+            </Button>
+            <TemplatesMenu doc={doc} variant="outline" />
+            <Button variant="outline" onClick={() => navigate('scenario')}>
+              Écrire ou importer un scénario
+            </Button>
+          </div>
         </div>
       ) : printView ? (
         <div className={s.printPreview}>

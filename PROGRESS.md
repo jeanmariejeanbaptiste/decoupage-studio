@@ -115,5 +115,9 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Seed fiction doté d'un scénario ancré
 - [x] Tests : `fountain.test.ts` (10) + `e2e/scenario.spec.ts` (5)
 
-## P12 — Modèles de séquence
+## P12 — Modèles de séquence ✅
+- [x] `domain/templates.ts` : Documentaire (exposition → arrivée → action → plans de coupe → interview → beauty → fin), Interview institutionnelle, Clip performance (TOUT en mode piste), Clip narratif ; actions groupées en blocs liés
+- [x] Menu « Modèle » dans la barre d'outils et dans l'état vide (modèles du format suggérés en premier) ; insertion après la séquence courante, annulable
+- [x] Tests : vocabulaire strictement conforme au §5, structure, invariants (`templates.test.ts`) + `e2e/templates.spec.ts`
+
 ## P13 — Déploiement
