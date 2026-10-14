@@ -10,11 +10,13 @@ import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from '
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
+import { useGridDnd } from './useGridDnd';
 import s from './GridPage.module.css';
 
 const IC = { size: 15, strokeWidth: 1.25 } as const;
 
-export function GridPage({ doc }: { doc: ProjectDoc }) {
+export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
+  const { displayDoc: doc, wrap } = useGridDnd(storeDoc);
   const model = useMemo(() => buildGridModel(doc), [doc]);
   const printView = useUi((u) => u.printView);
   const setUi = useUi((u) => u.set);
@@ -83,7 +85,7 @@ export function GridPage({ doc }: { doc: ProjectDoc }) {
         </div>
       ) : (
         <>
-          <Grid doc={doc} model={model} />
+          {wrap(<Grid doc={doc} model={model} />)}
           <GridFooter sequences={nSeq} shots={model.rows.length} timing={model.timing} mode={doc.project.settings.tcMode} />
         </>
       )}

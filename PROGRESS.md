@@ -41,7 +41,14 @@
 - [x] Tests Playwright `e2e/smart-input.spec.ts` (6 parcours)
 - Note : l'ajout de termes personnalisés (Réglages → Vocabulaire) est livré avec la page Réglages (P8).
 
-## P4 — Couverture & réordonnancement
+## P4 — Couverture & réordonnancement ✅
+- [x] Lier / délier l'action (barre d'outils), cellule ACTION fusionnée « lié · n plans »
+- [x] Glisser-déposer dnd-kit des plans (poignée 6 points) avec renumérotation en direct (document d'aperçu)
+- [x] Glisser-déposer des séquences entières (poignée sur la cellule SÉQUENCE)
+- [x] Garde-fou inter-séquences (modale + « Ne plus demander pour cette session »)
+- [x] Scission automatique des blocs + toast « Annuler »
+- [x] Tests : invariants unitaires après chaque opération (`ops.test.ts`) + `e2e/dnd.spec.ts` (7 parcours, invariants vérifiés via `window.__ds`)
+
 ## P5 — Persistance
 ## P6 — Export
 ## P7 — Registre

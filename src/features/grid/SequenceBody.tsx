@@ -1,4 +1,5 @@
-import type { CSSProperties, MouseEvent, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
+import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
 import { editableText } from '../../domain/cells';
 import { sequenceNumber } from '../../domain/numbering';
 import { formatGap } from '../../domain/timing';
@@ -21,20 +22,19 @@ interface Props {
   onCellDoubleClick: (pos: CellPos) => void;
   onCommit: (text: string, move: CommitMove) => void;
   onCancel: () => void;
-  rowGutter?: (row: number) => ReactNode;
-  seqHandle?: ReactNode;
 }
 
-export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMouseDown, onCellDoubleClick, onCommit, onCancel, rowGutter, seqHandle }: Props) {
+export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMouseDown, onCellDoubleClick, onCommit, onCancel }: Props) {
   const sequence = doc.sequences[seq.seqId];
   const n = seq.rows.length;
   const columns = model.columns;
   const seqTiming = model.timing.sequences.get(seq.seqId);
   const color = sequence?.color;
+  const seqNumber = sequenceNumber(doc, seq.seqId);
 
   if (n === 0) {
     return (
-      <tbody className={s.seq} data-seq={seq.seqId}>
+      <DroppableBody seqId={seq.seqId} className={s.seq}>
         <tr>
           <td className={s.gutter} />
           <td className={s.emptySeq} colSpan={columns.length}>
@@ -44,18 +44,20 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
         <tr className={s.spacer} aria-hidden="true">
           <td colSpan={columns.length + 1} />
         </tr>
-      </tbody>
+      </DroppableBody>
     );
   }
 
   return (
-    <tbody className={s.seq} data-seq={seq.seqId} style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}>
+    <DroppableBody seqId={seq.seqId} className={s.seq} style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}>
       {seq.rows.map((r, i) => {
         const row = seq.firstRow + i;
         const shot = doc.shots[r.shotId];
         return (
-          <tr key={r.shotId} className={s.row} data-shot={r.shotId} data-testid="shot-row">
-            <td className={s.gutter}>{rowGutter?.(row)}</td>
+          <DroppableRow key={r.shotId} shotId={r.shotId} className={s.row} data-shot={r.shotId} data-testid="shot-row">
+            <td className={s.gutter}>
+              <ShotHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} />
+            </td>
             {columns.map((col) => {
               const kind = spanKind(doc, col);
               let span = 1;
@@ -110,7 +112,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                     />
                   ) : col === 'sequence' ? (
                     <div className={s.seqCell}>
-                      {seqHandle}
+                      <SeqHandle seqId={seq.seqId} label={`${seqNumber}`} />
                       <span className={s.seqLabel}>
                         {sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
                       </span>
@@ -148,12 +150,12 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                 </td>
               );
             })}
-          </tr>
+          </DroppableRow>
         );
       })}
       <tr className={s.spacer} aria-hidden="true">
         <td colSpan={columns.length + 1} />
       </tr>
-    </tbody>
+    </DroppableBody>
   );
 }

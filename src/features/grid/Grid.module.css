@@ -118,3 +118,26 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .spacer td { height: 7px; padding: 0; background: color-mix(in srgb, var(--kraft) 40%, var(--paper)); border-bottom: 1px solid var(--rule); }
 .emptySeq { padding: 12px; color: var(--ink-soft); border-bottom: 1px solid var(--rule); }
 .conflict { text-decoration: underline dotted var(--ochre); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.handle, .seqHandle {
+  border: 0; background: none; padding: 4px 6px; margin: 0;
+  color: var(--ink-soft); opacity: 0; cursor: grab; display: inline-flex; touch-action: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.handle svg, .seqHandle svg { fill: currentColor; }
+.row:hover .handle, .seq:hover .seqHandle, .handle:focus-visible, .dragging { opacity: 0.8; }
+.handle:active, .seqHandle:active { cursor: grabbing; }
+.seqHandle { position: absolute; left: -2px; top: 50%; transform: translateY(-50%); }
+.over .cell { box-shadow: inset 0 2px 0 var(--rust); }
+.overSeq .c_sequence { box-shadow: inset 0 0 0 2px var(--rust); }
+.draggingRow .cell { background: var(--tint) !important; }
+.dragCard {
+  display: inline-block;
+  padding: 6px 12px;
+  background: var(--paper-card);
+  border: 1px solid var(--rust);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 20px rgba(42, 40, 36, 0.18);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: grabbing;
+}
