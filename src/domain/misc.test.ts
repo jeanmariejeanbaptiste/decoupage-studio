@@ -99,3 +99,14 @@ describe('colonnes et cellules', () => {
     expect(cellText(doc, t, shot, 'value', 0)).toBe('Plan taille');
   });
 });
+
+describe('info-bulle de focale', () => {
+  it('donne angles horizontal et diagonal, et l’équivalent plein format', async () => {
+    const { focalTooltip } = await import('./focal');
+    expect(focalTooltip({ from: 50 }, 'FF', 1)).toBe('50 mm : angle horizontal 39,6° · diagonal 46,8° (plein format)');
+    const aps = focalTooltip({ from: 50 }, 'APSC', 1.6);
+    expect(aps).toContain('équivalent plein format 80 mm (× 1,6)');
+    expect(focalTooltip({ from: 24, to: 70 }, 'FF', 1).split('\n')).toHaveLength(2);
+    expect(focalTooltip({}, 'FF', 1)).toBe('');
+  });
+});

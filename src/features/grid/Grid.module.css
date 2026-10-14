@@ -117,3 +117,4 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 
 .spacer td { height: 7px; padding: 0; background: color-mix(in srgb, var(--kraft) 40%, var(--paper)); border-bottom: 1px solid var(--rule); }
 .emptySeq { padding: 12px; color: var(--ink-soft); border-bottom: 1px solid var(--rule); }
+.conflict { text-decoration: underline dotted var(--ochre); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }

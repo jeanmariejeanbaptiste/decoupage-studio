@@ -2,6 +2,8 @@ import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { editableText } from '../../domain/cells';
 import { sequenceNumber } from '../../domain/numbering';
 import { formatGap } from '../../domain/timing';
+import { focalTooltip } from '../../domain/focal';
+import { hasAngleConflict } from '../../domain/vocabulary';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import type { CellPos, UiState } from '../../store/uiStore';
 import { CellEditor, type CommitMove } from './CellEditor';
@@ -69,6 +71,13 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
               const repeated = seq.repeated[col]?.[i] ?? false;
               const text = r.cells[col] ?? '';
               const linked = col === 'action' && span > 1;
+              const conflict = col === 'angle' && hasAngleConflict(shot.angle);
+              const tip =
+                col === 'focal'
+                  ? focalTooltip(shot.focal, doc.project.settings.sensor, doc.project.settings.cropFactor)
+                  : conflict
+                    ? 'Deux axes ou deux hauteurs incompatibles'
+                    : undefined;
               return (
                 <td
                   key={col}
@@ -83,7 +92,9 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                     isFocus ? s.focus : '',
                     isEditing ? s.editing : '',
                     linked ? s.linked : '',
+                    conflict ? s.conflict : '',
                   ].join(' ')}
+                  title={tip || undefined}
                   onMouseDown={(e) => onCellMouseDown(e, pos)}
                   onDoubleClick={() => onCellDoubleClick(pos)}
                 >

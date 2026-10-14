@@ -31,7 +31,16 @@
 - [x] Test Playwright 2 × 5 au clavier
 - Test Playwright `e2e/grid.spec.ts` : 2 séquences × 5 plans saisis au clavier seul ; suppression / annulation / rétablissement.
 
-## P3 — Saisie intelligente
+## P3 — Saisie intelligente ✅
+- [x] Popover de suggestions (préfixe puis sous-chaîne, sans accents, alias), ↑/↓ + Entrée/Tab
+- [x] TokenInput angle / mouvement (virgule, « + » préservé, retour arrière, avertissement d'incompatibilité)
+- [x] Focale « mm » verrouillée, dédoublement automatique « de … à … » si zoom, `to` conservé masqué
+- [x] Info-bulle angle de champ horizontal + diagonal, équivalent plein format
+- [x] Sujet ↔ personnages (reconnaissance + toast « Créer le personnage »)
+- [x] Saisie tolérante du TC (cumulatif : override ✎ ; piste : plages et TOUT)
+- [x] Tests Playwright `e2e/smart-input.spec.ts` (6 parcours)
+- Note : l'ajout de termes personnalisés (Réglages → Vocabulaire) est livré avec la page Réglages (P8).
+
 ## P4 — Couverture & réordonnancement
 ## P5 — Persistance
 ## P6 — Export
