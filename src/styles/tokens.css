@@ -1,0 +1,57 @@
+:root {
+  --paper: #f2ece1;
+  --paper-card: #fbf8f2;
+  --kraft: #d8c7a3;
+  --kraft-deep: #c9b48b;
+  --ink: #2a2824;
+  --ink-soft: #6e675b;
+  --rule: #d3c8b4;
+  --rust: #9c3d2b;
+  --navy: #2e4263;
+  --sage: #5e7b4c;
+  --ochre: #b88a2e;
+  --focus: #2e4263;
+  --radius: 4px;
+
+  --tint: rgba(156, 61, 43, 0.06);
+  --hover: rgba(42, 40, 36, 0.04);
+  --selected: rgba(46, 66, 99, 0.09);
+  --on-navy: #f6f1e7;
+  --grain-opacity: 0.04;
+  --kraft-grain-opacity: 0.12;
+
+  --font-display: 'Cormorant Garamond', 'Times New Roman', serif;
+  --font-ui: 'Source Serif 4', Georgia, serif;
+  --font-hand: 'Caveat', 'Bradley Hand', cursive;
+  --font-script: 'Courier Prime', 'Courier New', monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-export-title: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  --font-export: 'Barlow Semi Condensed', 'Arial Narrow', sans-serif;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --t-fast: 120ms;
+  --t-med: 180ms;
+  --sidebar-w: 260px;
+  --topbar-h: 48px;
+}
+
+:root[data-theme='encre'] {
+  --paper: #1e1b17;
+  --paper-card: #26221d;
+  --kraft: #2c271f;
+  --kraft-deep: #3a3328;
+  --ink: #ede5d6;
+  --ink-soft: #a89e8c;
+  --rule: #433b30;
+  --rust: #d47a62;
+  --navy: #8fa6cc;
+  --sage: #8fae79;
+  --ochre: #d9ad55;
+  --focus: #8fa6cc;
+  --tint: rgba(212, 122, 98, 0.08);
+  --hover: rgba(237, 229, 214, 0.05);
+  --selected: rgba(143, 166, 204, 0.14);
+  --on-navy: #1e1b17;
+  --grain-opacity: 0.05;
+  --kraft-grain-opacity: 0.08;
+}
