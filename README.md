@@ -28,6 +28,8 @@ Application 100 % navigateur, *local-first* : aucun compte, aucun serveur. Les p
 - **Inspecteur du plan** : cône d’angle de champ, matériel déduit, storyboard, son, lumière, notes de raccord, passage du scénario lié.
 - **Scénario Fountain** : chaque en-tête crée une séquence, chaque personnage parlant une fiche ; sélectionner un passage puis clic droit → « Créer un plan avec cette action ».
 - **Modèles de séquence** : documentaire, interview institutionnelle, clip (performance, narratif).
+- **Toute la chaîne de préparation** : dépouillement par séquence (accessoires détectés dans les actions), storyboard en cartes avec planche PDF 2/4/6, plan au sol SVG (caméras liées aux plans avec cône de champ, comédiens et déplacements, décor, lumières, rails), plan de travail par jours (suggestion décor → comédiens → axes), feuille de service imprimable.
+- **Assistant IA facultatif** : avec votre clé API (gardée dans le navigateur, jamais exportée), propose un découpage de départ pour une séquence, strictement dans le vocabulaire de l’outil.
 - **Confort** : palette de commandes `⌘K`, aide des raccourcis `?`, thème sombre « Encre », application installable et utilisable hors ligne.
 
 | | |
