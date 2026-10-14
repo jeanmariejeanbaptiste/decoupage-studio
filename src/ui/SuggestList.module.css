@@ -1,0 +1,28 @@
+.list {
+  position: fixed;
+  z-index: 100;
+  max-height: 240px;
+  max-width: 340px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--paper-card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(42, 40, 36, 0.12);
+  font-size: 13.5px;
+  animation: pop var(--t-fast) var(--ease);
+}
+.list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.list li em { color: var(--ink-soft); font-size: 12px; }
+.active { background: var(--selected); }
+@keyframes pop { from { opacity: 0; transform: translateY(-2px); } }

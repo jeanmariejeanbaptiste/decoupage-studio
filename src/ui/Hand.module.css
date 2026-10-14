@@ -1,0 +1,3 @@
+.hand { position: relative; display: inline-block; font-family: var(--font-hand); color: var(--rust); font-size: 17px; line-height: 1.1; }
+.line { position: absolute; left: 0; right: 0; bottom: -3px; width: 100%; height: 6px; overflow: visible; }
+.line path { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: 0.8; }

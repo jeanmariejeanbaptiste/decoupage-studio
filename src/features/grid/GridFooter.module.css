@@ -1,0 +1,17 @@
+.footer {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  padding: 10px 14px;
+  margin-top: -1px;
+  border: 1px solid var(--rule);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--paper);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.footer b { color: var(--ink); font-weight: 600; font-variant-numeric: oldstyle-nums tabular-nums; }
+.tc { font-family: var(--font-mono); font-size: 12.5px; font-weight: 400 !important; }
+.dot { opacity: 0.5; }
+.gap { font-family: var(--font-mono); font-size: 12px; }
+.ok { color: var(--sage); }
+.warn { color: var(--ochre); }
+.bad { color: var(--rust); }

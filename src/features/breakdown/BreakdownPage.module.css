@@ -1,0 +1,32 @@
+.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+.seqs { display: flex; flex-direction: column; padding: 6px; position: sticky; top: 12px; }
+.seqs button { display: flex; justify-content: space-between; gap: 6px; text-align: left; border: 0; background: none; padding: 7px 9px; border-radius: 3px; font-size: 13px; }
+.seqs button:hover { background: var(--hover); }
+.seqs .on { background: var(--selected); font-weight: 600; }
+.seqs em { font-family: var(--font-hand); color: var(--rust); font-size: 15px; font-style: normal; }
+.summary { margin: 0 0 12px; font-style: italic; color: var(--ink-soft); }
+.suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 12px; border: 1px dashed var(--rust); border-radius: var(--radius); background: var(--tint); }
+.sugList { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.sug { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--rule); background: var(--paper-card); border-radius: 12px; padding: 2px 10px; font-size: 13px; }
+.sug:hover { border-color: var(--rust); }
+.sug em { color: var(--ink-soft); font-size: 11px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.cat { padding: 12px 14px; border-top: 4px solid var(--rule); }
+.cat h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+.cat ul { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.cat li { display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px 1px 9px; border: 1px solid var(--rule); border-radius: 10px; font-size: 12.5px; background: var(--paper); }
+.cat li button { border: 0; background: none; padding: 0 2px; color: var(--ink-soft); display: inline-flex; }
+.derived { font-style: italic; padding-right: 9px !important; border-style: dashed !important; }
+.cat input { width: 100%; font: inherit; font-size: 13px; padding: 3px 7px; border: 1px dashed var(--rule); border-radius: var(--radius); background: transparent; color: var(--ink); }
+/* Couleurs usuelles des feuilles de dépouillement. */
+.c_personnages { border-top-color: #c0392b; }
+.c_figurants { border-top-color: #e5a33d; }
+.c_accessoires { border-top-color: #7b4fa0; }
+.c_costumes { border-top-color: #3a7bbf; }
+.c_maquillage { border-top-color: #d86c9a; }
+.c_effets { border-top-color: #2f8f83; }
+.c_vehicules { border-top-color: #8a6d3b; }
+.c_machinerie { border-top-color: var(--ink-soft); }
+.c_lumiere { border-top-color: var(--ochre); }
+.c_son { border-top-color: var(--navy); }
+@media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } .seqs { position: static; } }

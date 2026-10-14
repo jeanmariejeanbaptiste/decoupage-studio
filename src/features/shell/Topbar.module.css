@@ -1,0 +1,26 @@
+.topbar {
+  height: var(--topbar-h);
+  flex: 0 0 var(--topbar-h);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+  position: relative;
+  z-index: 5;
+}
+.left, .right { display: flex; align-items: center; gap: 2px; }
+.right { justify-content: flex-end; gap: 6px; }
+.status { margin-left: 10px; font-size: 16px; white-space: nowrap; }
+.center { display: flex; align-items: baseline; gap: 8px; font-size: 14px; white-space: nowrap; }
+.app { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.sep { color: var(--ink-soft); }
+.title { color: var(--ink-soft); font-style: italic; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; }
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--ink);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 15px; font-weight: 600;
+  margin-right: 4px;
+}

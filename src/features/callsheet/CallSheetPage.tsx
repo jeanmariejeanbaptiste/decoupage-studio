@@ -1,0 +1,218 @@
+import { useMemo, useState } from 'react';
+import { Printer } from 'lucide-react';
+import { navigate } from '../../app/router';
+import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
+import { formatFocal } from '../../domain/focal';
+import { sequenceHeading, shotCode } from '../../domain/numbering';
+import { dayStats, scheduleDays, stripsByDay, updateDay } from '../../domain/schedule';
+import { formatTc } from '../../domain/timecode';
+import { computeTiming } from '../../domain/timing';
+import { renderTokens } from '../../domain/tokens';
+import type { ProjectDoc } from '../../domain/types';
+import { isZoom } from '../../domain/vocabulary';
+import { mutateDoc } from '../../store/projectStore';
+import { Button } from '../../ui/Button';
+import { Hand } from '../../ui/Hand';
+import s from './CallSheetPage.module.css';
+
+const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+/** Feuille de service d'un jour de tournage (§15.4). */
+export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
+  const days = scheduleDays(doc);
+  const [n, setN] = useState<number | undefined>(days[0]?.n);
+  const day = days.find((d) => d.n === n) ?? days[0];
+  const timing = useMemo(() => computeTiming(doc), [doc]);
+
+  if (!day) {
+    return (
+      <div className="page">
+        <p className="page-kicker">Étape 9 · Feuille de service</p>
+        <h1 className="page-title">Feuille de service</h1>
+        <div className="card empty">
+          <span className="hand">Aucun jour de tournage</span>
+          <p>Bâtissez d’abord le plan de travail pour générer les feuilles de service.</p>
+          <Button variant="primary" onClick={() => navigate('schedule')}>
+            Ouvrir le plan de travail
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const stats = dayStats(doc, timing, day.n);
+  const strips = stripsByDay(doc).get(day.n) ?? [];
+  const shotIds = strips.flatMap((x) => x.shotIds);
+  const equipment = aggregateEquipment(doc);
+  const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
+  const cast = stats.characterIds.map((id) => doc.characters[id]).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+  return (
+    <div className="page">
+      <header className="page-head no-print">
+        <div>
+          <p className="page-kicker">Étape 9 · Feuille de service</p>
+          <h1 className="page-title">
+            Jour <em>{day.n}</em>
+          </h1>
+        </div>
+        <div className={s.toolbar}>
+          <label className={s.pick}>
+            <span>Jour</span>
+            <select value={day.n} onChange={(e) => setN(Number(e.target.value))} aria-label="Jour de tournage">
+              {days.map((d) => (
+                <option key={d.n} value={d.n}>
+                  Jour {d.n}
+                  {d.date ? ` — ${d.date}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button variant="primary" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()}>
+            Exporter PDF
+          </Button>
+        </div>
+      </header>
+
+      <article className={['card', s.sheet].join(' ')} data-testid="callsheet">
+        <header className={s.head}>
+          <div>
+            <p className={s.kicker}>Feuille de service</p>
+            <h2 className={s.title}>{doc.project.title}</h2>
+            <p className={s.meta}>
+              {doc.project.version}
+              {doc.project.director ? ` · Réalisation : ${doc.project.director}` : ''}
+              {doc.project.dop ? ` · Image : ${doc.project.dop}` : ''}
+            </p>
+          </div>
+          <div className={s.dayBox}>
+            <span className={s.dayN}>Jour {day.n}</span>
+            <span>{day.date ? dateFmt.format(new Date(`${day.date}T12:00`)) : <em>date à préciser</em>}</span>
+            <label className={s.call}>
+              Rendez-vous
+              <input type="time" value={day.callTime ?? ''} onChange={(e) => set({ callTime: e.target.value || undefined })} aria-label="Heure de rendez-vous" />
+            </label>
+          </div>
+        </header>
+
+        <section className={s.block}>
+          <h3>Décors</h3>
+          {stats.decorIds.length === 0 ? (
+            <p className={s.muted}>Aucun décor renseigné pour les séquences du jour.</p>
+          ) : (
+            <ul className={s.decors}>
+              {stats.decorIds.map((id) => (
+                <li key={id}>
+                  <strong>{doc.decors[id]?.name}</strong> {doc.decors[id]?.intExt && <span>{doc.decors[id].intExt}</span>}
+                  <em>{doc.decors[id]?.address || 'adresse à compléter dans le Registre'}</em>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={s.block}>
+          <h3>Convocations</h3>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>Rôle</th>
+                <th>Comédien·ne</th>
+                <th>Type</th>
+                <th>Convocation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cast.length === 0 && (
+                <tr>
+                  <td colSpan={4} className={s.muted}>
+                    Aucun personnage reconnu dans les plans du jour.
+                  </td>
+                </tr>
+              )}
+              {cast.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.name}</td>
+                  <td>{c.actor || '—'}</td>
+                  <td>{c.kind}</td>
+                  <td>
+                    <input
+                      type="time"
+                      value={day.calls?.[c.id] ?? ''}
+                      onChange={(e) => set({ calls: { ...(day.calls ?? {}), [c.id]: e.target.value } })}
+                      aria-label={`Convocation de ${c.name}`}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section className={s.block}>
+          <h3>
+            Plans du jour <span className={s.count}>{shotIds.length} plans · {formatTc(stats.screenSec)} d’écran</span>
+          </h3>
+          <table className={s.table} data-testid="callsheet-shots">
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th>Séquence</th>
+                <th>Sujet</th>
+                <th>Valeur</th>
+                <th>Angle</th>
+                <th>Mouvement</th>
+                <th>Focale</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {strips.flatMap((st) =>
+                st.shotIds.map((id) => {
+                  const sh = doc.shots[id];
+                  return (
+                    <tr key={id}>
+                      <td className={s.code}>{shotCode(doc, id)}</td>
+                      <td>{sequenceHeading(doc, st.seqId)}</td>
+                      <td>{sh.subject}</td>
+                      <td>{sh.value}</td>
+                      <td>{renderTokens(sh.angle)}</td>
+                      <td>{renderTokens(sh.movement, sh.movementSep)}</td>
+                      <td>{formatFocal(sh.focal, isZoom(sh.movement))}</td>
+                      <td>{doc.blocks[sh.actionBlockId]?.text}</td>
+                    </tr>
+                  );
+                }),
+              )}
+            </tbody>
+          </table>
+        </section>
+
+        <section className={s.block}>
+          <h3>Matériel requis</h3>
+          <div className={s.equip}>
+            {EQUIPMENT_CATEGORIES.map((c) => {
+              const lines = equipment[c].filter((l) => l.manual || l.shotIds.some((id) => shotIds.includes(id)));
+              return (
+                <div key={c}>
+                  <Hand>{c}</Hand>
+                  <ul>
+                    {lines.length === 0 && <li className={s.muted}>—</li>}
+                    {lines.map((l) => (
+                      <li key={l.key}>{l.label}</li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className={s.block}>
+          <h3>Notes</h3>
+          <textarea className={s.notes} rows={3} value={day.notes ?? ''} onChange={(e) => set({ notes: e.target.value || undefined })} placeholder="Cantine, parking, consignes de sécurité, météo…" aria-label="Notes de la feuille de service" />
+        </section>
+      </article>
+    </div>
+  );
+}
