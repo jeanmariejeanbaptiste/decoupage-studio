@@ -198,6 +198,8 @@ export interface ProjectDoc {
   floorPlans?: Record<ID, import('./floorplan').FloorPlan>;
   /** Plan de travail : jours de tournage et ordre des séquences (§15.3). */
   schedule?: import('./schedule').Schedule & { order?: ID[] };
+  /** Dépouillement manuel par séquence (§15.5). */
+  breakdown?: Record<ID, import('./breakdown').SequenceBreakdown>;
 }
 
 export const SCHEMA_VERSION = 1;
