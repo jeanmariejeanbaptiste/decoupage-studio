@@ -6,10 +6,14 @@ import { buildRav3 } from '../../seed/rav3';
 import { ChecksPage } from '../features/checks/ChecksPage';
 import { EquipmentPage } from '../features/equipment/EquipmentPage';
 import { ExportPage } from '../features/export/ExportPage';
+import { IntentionPage } from '../features/intention/IntentionPage';
 import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
 import { RegistryPage } from '../features/registry/RegistryPage';
+import { CommandPalette } from '../features/shell/CommandPalette';
+import { HelpDialog } from '../features/shell/HelpDialog';
 import { HomePage } from '../features/shell/HomePage';
+import { stepProgress } from '../domain/progress';
 import { SettingsPage } from '../features/shell/SettingsPage';
 import { Sidebar } from '../features/shell/Sidebar';
 import { PREP_STEPS } from '../features/shell/steps';
@@ -77,7 +81,18 @@ export function App() {
         void saveToFile();
         return;
       }
+      if (mod && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setUi({ paletteOpen: !useUi.getState().paletteOpen });
+        return;
+      }
+      if (e.key === 'Escape' && useUi.getState().helpOpen) setUi({ helpOpen: false });
       if (e.defaultPrevented || isTextTarget(e.target)) return;
+      if (e.key === '?' && !mod) {
+        e.preventDefault();
+        setUi({ helpOpen: true });
+        return;
+      }
       if (mod && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -86,7 +101,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [setUi]);
 
   if (route === 'print' && doc && booted) {
     return (
@@ -105,6 +120,12 @@ export function App() {
 
   return (
     <div className={s.app}>
+      <a className="skip-link" href="#contenu" onClick={(e) => {
+        e.preventDefault();
+        document.getElementById('contenu')?.focus();
+      }}>
+        Aller au contenu
+      </a>
       <Topbar
         projectTitle={route === 'home' ? undefined : title}
         saveStatus={doc ? SAVE_LABEL[saveStatus] : ''}
@@ -138,17 +159,19 @@ export function App() {
             projectTitle={title}
             activeRoute={route}
             validated={doc.validatedSteps}
-            progress={{}}
+            progress={stepProgress(doc)}
             extraLinks={[
               { label: 'Registre', route: 'registry', count: doc.project.sequenceIds.length },
               { label: 'Vérifications', route: 'checks', count: checkCount },
             ]}
           />}
-        <main className={s.main}>{booted && <Page route={route} />}</main>
+        <main className={s.main} id="contenu" tabIndex={-1}>{booted && <Page route={route} />}</main>
       </div>
       <Toasts />
       <DialogHost />
       <ContextMenuHost />
+      <CommandPalette />
+      <HelpDialog />
     </div>
   );
 }
@@ -174,6 +197,7 @@ function Page({ route }: { route: Route }) {
   if (route === 'registry') return <RegistryPage doc={doc} />;
   if (route === 'settings') return <SettingsPage doc={doc} />;
   if (route === 'checks') return <ChecksPage doc={doc} />;
+  if (route === 'intention') return <IntentionPage doc={doc} />;
   if (route === 'equipment') return <EquipmentPage doc={doc} />;
   const step = PREP_STEPS.find((p) => p.route === route);
   return (

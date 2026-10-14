@@ -66,3 +66,9 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }
+.skip-link {
+  position: absolute; left: 12px; top: -60px; z-index: 300;
+  padding: 8px 14px; background: var(--navy); color: var(--on-navy); border-radius: var(--radius);
+  text-decoration: none; transition: top var(--t-fast) var(--ease);
+}
+.skip-link:focus { top: 8px; }

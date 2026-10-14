@@ -11,6 +11,6 @@
   animation: rise var(--t-med) var(--ease);
 }
 .warn { border-left: 3px solid var(--ochre); }
-.action { background: none; border: 0; color: #f0c2a8; font-family: var(--font-hand); font-size: 18px; padding: 0 4px; text-decoration: underline; text-underline-offset: 3px; }
+.action { background: none; border: 0; color: var(--toast-accent); font-family: var(--font-hand); font-size: 18px; padding: 0 4px; text-decoration: underline; text-underline-offset: 3px; }
 .close { background: none; border: 0; color: inherit; opacity: 0.6; display: inline-flex; padding: 2px; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }

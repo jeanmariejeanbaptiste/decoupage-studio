@@ -18,6 +18,7 @@
   --selected: rgba(46, 66, 99, 0.09);
   --on-navy: #f6f1e7;
   --grain-opacity: 0.04;
+  --toast-accent: #f0c2a8;
   --kraft-grain-opacity: 0.12;
 
   --font-display: 'Cormorant Garamond', 'Times New Roman', serif;
@@ -53,5 +54,6 @@
   --selected: rgba(143, 166, 204, 0.14);
   --on-navy: #1e1b17;
   --grain-opacity: 0.05;
+  --toast-accent: #8a3322;
   --kraft-grain-opacity: 0.08;
 }

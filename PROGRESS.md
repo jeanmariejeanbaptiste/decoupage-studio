@@ -96,7 +96,15 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Page « Listes de matériel » (étape 7) : agrégation par chef de poste, plans concernés cliquables, ajouts manuels, export CSV et PDF (impression)
 - [x] Tests : `e2e/inspector.spec.ts` (3 parcours)
 
-## P10 — Finitions DA
+## P10 — Finitions DA ✅
+- [x] Sidebar : avancement réel par étape (`domain/progress.ts`), coches sauge des étapes validées, compteurs Registre / Vérifications
+- [x] Page « Note d'intention » (étape 1), états vides manuscrits partout
+- [x] Thème « Encre » (lune / soleil, mémorisé), contraste des toasts adapté
+- [x] Palette de commandes ⌘K (navigation, grille, fichier, affichage) et aide des raccourcis « ? »
+- [x] Accessibilité : lien d'évitement, `role="grid"` + `aria-selected`, dialogues `aria-modal`, toasts `aria-live`, focus marine 2 px, libellés des boutons-icônes, `prefers-reduced-motion`
+- [x] Revue visuelle : `da-truby.png` absente du dépôt ; revue faite contre la description du §11 (topbar fine, sidebar kraft 260 px à grain, numéros cerclés, entrée active en carte blanche, « bientôt » manuscrit, titres Cormorant avec chiffre en rouille, cartes à filet `--rule`)
+- [x] Tests : `progress.test.ts` + `e2e/shell.spec.ts` (4 parcours)
+
 ## P11 — Scénario & liaison
 ## P12 — Modèles de séquence
 ## P13 — Déploiement
