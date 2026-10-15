@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { ChevronDown, ChevronRight, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { setSlot, stripsByTime, addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay, type Strip } from '../../domain/schedule';
+import { stripRange, stripsByTime, addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay, type Strip } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -35,6 +36,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const strips = useMemo(() => stripsByDay(doc), [doc]);
   const days = scheduleDays(doc);
   const [capacity, setCapacity] = useState(20);
+  const [openDays, setOpenDays] = useState<number[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   const toast = useUi((u) => u.toast);
 
@@ -102,7 +104,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           {days.map((d) => {
             const st = dayStats(doc, timing, d.n);
             return (
-              <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} days={days.map((x) => x.n)}>
+              <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} days={days.map((x) => x.n)} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
                 <div className={s.dayHead}>
                   <strong>Jour {d.n}</strong>
                   <input
@@ -119,6 +121,16 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                   <span className={s.stats} data-testid={`day-stats-${d.n}`}>
                     {st.shots} plan{st.shots > 1 ? 's' : ''} · <span className="mono">{formatTc(st.screenSec)}</span> d’écran · {st.decorIds.length} décor{st.decorIds.length > 1 ? 's' : ''}
                   </span>
+                  <Button
+                    size="sm"
+                    variant={openDays.includes(d.n) ? 'primary' : 'outline'}
+                    icon={<Clock size={13} strokeWidth={1.5} />}
+                    aria-expanded={openDays.includes(d.n)}
+                    onClick={() => setOpenDays(openDays.includes(d.n) ? openDays.filter((x) => x !== d.n) : [...openDays, d.n])}
+                    data-testid={`timeline-toggle-${d.n}`}
+                  >
+                    Emploi du temps
+                  </Button>
                   <Button
                     variant="icon"
                     size="sm"
@@ -142,7 +154,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-function Band({ day, doc, strips, days, children }: { day: number; doc: ProjectDoc; strips: Strip[]; days: number[]; children: React.ReactNode }) {
+function Band({ day, doc, strips, days, children, extra }: { day: number; doc: ProjectDoc; strips: Strip[]; days: number[]; children: React.ReactNode; extra?: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` });
   return (
     <section ref={setNodeRef} className={[s.band, day === 0 ? s.unplanned : '', isOver ? s.over : ''].join(' ')} data-testid={`band-${day}`}>
@@ -153,6 +165,7 @@ function Band({ day, doc, strips, days, children }: { day: number; doc: ProjectD
           <StripRow key={st.seqId} doc={doc} day={day} strip={st} days={days} />
         ))}
       </div>
+      {extra}
     </section>
   );
 }
@@ -164,7 +177,7 @@ function StripRow({ doc, day, strip, days }: { doc: ProjectDoc; day: number; str
   const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
   const cast = sequenceCharacterIds(doc, strip.seqId).map((id) => doc.characters[id]?.name).filter(Boolean);
   const totalInSeq = seq?.shotIds.length ?? 0;
-  const slot = scheduleDays(doc).find((x) => x.n === day)?.slots?.[strip.seqId];
+  const range = day > 0 ? stripRange(doc, day, strip) : undefined;
   return (
     <div
       ref={setNodeRef}
@@ -178,29 +191,12 @@ function StripRow({ doc, day, strip, days }: { doc: ProjectDoc; day: number; str
         <span className={s.label}>{seq?.label.toUpperCase()}</span>
         <span className={s.decor}>{decor && decor.name.toUpperCase() !== seq?.label.toUpperCase() ? decor.name : ''}</span>
         <span className={s.cast}>{cast.join(', ')}</span>
+        <span className={s.when}>{range ? `${range.start}–${range.end}` : ''}</span>
         <span className={s.count}>
           {strip.shotIds.length}
           {strip.shotIds.length !== totalInSeq ? ` / ${totalInSeq}` : ''} pl.
         </span>
       </div>
-      {day > 0 && (
-        <span className={s.slot}>
-          <input
-            type="time"
-            value={slot?.start ?? ''}
-            onChange={(e) => mutateDoc((d) => setSlot(d, day, strip.seqId, { start: e.target.value || undefined }))}
-            aria-label={`Début de la séquence ${sequenceNumber(doc, strip.seqId)}`}
-            data-testid="slot-start"
-          />
-          –
-          <input
-            type="time"
-            value={slot?.end ?? ''}
-            onChange={(e) => mutateDoc((d) => setSlot(d, day, strip.seqId, { end: e.target.value || undefined }))}
-            aria-label={`Fin de la séquence ${sequenceNumber(doc, strip.seqId)}`}
-          />
-        </span>
-      )}
       <button type="button" className={s.toggle} aria-expanded={open} aria-label="Détail des plans" onClick={() => setOpen(!open)}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>

@@ -17,6 +17,7 @@
 .decors li { display: flex; gap: 10px; align-items: baseline; }
 .decors span { font-size: 11px; color: var(--ink-soft); }
 .decors em { color: var(--ink-soft); font-size: 13px; }
+.address { width: 100%; font: inherit; font-size: 12.5px; padding: 2px 6px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
 .table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .table th { text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 1px solid var(--ink); padding: 4px 6px; }
 .table td { border-bottom: 1px solid var(--rule); padding: 4px 6px; vertical-align: top; }
@@ -27,6 +28,6 @@
 .notes { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); resize: vertical; color: var(--ink); }
 @media print {
   .sheet { border: 0; padding: 0; background: #fff; }
-  .call input, .table input, .notes { border: 0; background: none; }
+  .call input, .table input, .address, .notes { border: 0; background: none; }
 }
 .time { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }

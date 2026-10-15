@@ -56,3 +56,47 @@ describe('plan de travail', () => {
     expect(scheduleDays(empty)).toEqual([]);
   });
 });
+
+describe('emploi du temps horaire', async () => {
+  const { placeShot, placeSequence, unplaceShot, resizeShot, timelineOf, toMin, fromMin, stripRange, stripsByDay } = await import('./schedule');
+  it('place, enchaîne, chevauche, redimensionne et retire', () => {
+    const doc = buildRav3();
+    const s1 = doc.sequences[doc.project.sequenceIds[0]].shotIds;
+    const next = produce(doc, (d) => {
+      placeSequence(d, 1, s1.slice(0, 3), '08:00');
+      placeShot(d, 1, s1[3], '08:15', 60);
+      resizeShot(d, 1, s1[0], 15);
+      resizeShot(d, 1, s1[1], -120);
+      placeShot(d, 2, s1[2], '10:00');
+      unplaceShot(d, 1, s1[3]);
+      resizeShot(d, 1, 'absent', 15);
+    });
+    const tl = timelineOf(next, 1);
+    expect(tl.map((e) => [fromMin(e.start), fromMin(e.end), e.lane])).toEqual([
+      ['08:00', '08:45', 0],
+      ['08:30', '08:45', 1],
+    ]);
+    expect(next.shots[s1[2]].shootingDay).toBe(2);
+    expect(timelineOf(next, 2)).toHaveLength(1);
+    expect(stripRange(next, 1, stripsByDay(next).get(1)![0])).toEqual({ start: '08:00', end: '08:45' });
+    expect(toMin('25:99')).toBe(25 * 60 + 99);
+    expect(fromMin(-5)).toBe('00:00');
+  });
+
+  it('déroulé par lieu avec plages et adresse du jour', async () => {
+    const { dayItinerary } = await import('./schedule');
+    const doc = buildRav3();
+    const [a, b] = doc.project.sequenceIds;
+    const next = produce(doc, (d) => {
+      const dec = Object.keys(d.decors);
+      d.sequences[a].decorId = dec[0];
+      d.sequences[b].decorId = dec[1] ?? dec[0];
+      placeSequence(d, 1, d.sequences[b].shotIds.slice(0, 1), '14:00');
+      placeSequence(d, 1, d.sequences[a].shotIds.slice(0, 2), '08:00');
+      updateDay(d, 1, { addresses: { [dec[0]]: '12 rue des Lilas' } });
+    });
+    const it1 = dayItinerary(next, 1);
+    expect(it1[0]).toMatchObject({ address: '12 rue des Lilas', start: '08:00', end: '09:00', seqIds: [a] });
+    expect(it1[it1.length - 1]).toMatchObject({ start: '14:00', end: '14:30' });
+  });
+});

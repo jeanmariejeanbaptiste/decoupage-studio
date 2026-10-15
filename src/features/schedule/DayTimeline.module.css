@@ -1,0 +1,26 @@
+.wrap { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; margin-top: 10px; border-top: 1px dashed var(--rule); padding-top: 10px; }
+.pool { display: flex; flex-direction: column; gap: 8px; align-self: start; position: sticky; top: 8px; }
+.hint { margin: 0; font-family: var(--font-hand); color: var(--rust); font-size: 15px; }
+.group { display: flex; flex-direction: column; gap: 4px; }
+.seqChip { display: block; padding: 4px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); font-size: 12.5px; font-weight: 600; cursor: grab; touch-action: none; }
+.seqChip em { font-weight: 400; font-style: normal; color: var(--ink-soft); font-size: 11.5px; margin-left: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 3px; padding-left: 8px; }
+.shotChip { padding: 1px 7px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper-card); font-size: 12px; cursor: grab; touch-action: none; }
+.shotChip b { color: var(--rust); }
+.disabled { opacity: 0.5; cursor: default; }
+.dragging { opacity: 0.9; box-shadow: 0 6px 16px rgba(42, 40, 36, 0.2); cursor: grabbing; }
+.range { display: flex; gap: 10px; font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+.range input { font-family: var(--font-mono); font-size: 12px; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper); color: var(--ink); }
+.grid { position: relative; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); }
+.slot { position: relative; border-top: 1px dotted color-mix(in srgb, var(--rule) 70%, transparent); margin-left: 52px; }
+.hour { border-top: 1px solid var(--rule); }
+.over { background: var(--tint); box-shadow: inset 0 0 0 1px var(--rust); }
+.label { position: absolute; left: -48px; top: -7px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
+.block { position: absolute; z-index: 2; display: flex; flex-direction: column; gap: 1px; padding: 2px 6px; overflow: hidden; border-radius: 3px; background: color-mix(in srgb, var(--navy) 14%, var(--paper-card)); border-left: 3px solid var(--navy); font-size: 11.5px; cursor: grab; touch-action: none; }
+.blockHead { font-family: var(--font-mono); font-size: 11px; white-space: nowrap; }
+.blockHead b { color: var(--rust); font-family: var(--font-ui); }
+.blockText { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tools { position: absolute; right: 3px; top: 2px; display: inline-flex; gap: 1px; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.block:hover .tools, .block:focus-within .tools { opacity: 1; }
+.tools button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: 3px; padding: 0 2px; display: inline-flex; cursor: pointer; }
+@media (max-width: 1000px) { .wrap { grid-template-columns: 1fr; } .pool { position: static; } }

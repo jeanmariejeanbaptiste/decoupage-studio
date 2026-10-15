@@ -9,7 +9,7 @@ import { allFloorPlans } from './exports';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { dayStats, scheduleDays, stripsByTime } from './schedule';
+import { dayItinerary, dayStats, scheduleDays, shotSlot, stripRange, stripsByTime } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -116,7 +116,7 @@ export function scheduleDocument(doc: ProjectDoc): DocPage {
           }</h2><table><thead><tr><th>Horaire</th><th>Séq.</th><th>INT/EXT</th><th>Décor</th><th>Personnages</th><th>Plans</th></tr></thead><tbody>${strips
             .map((s) => {
               const seq = doc.sequences[s.seqId];
-              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(d.slots?.[s.seqId]))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(sequenceCharacterIds(doc, s.seqId).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td></tr>`;
+              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(stripRange(doc, d.n, s)))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(sequenceCharacterIds(doc, s.seqId).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td></tr>`;
             })
             .join('')}</tbody></table><p class="muted">${st.shots} plans · ${formatTc(st.screenSec)} d’écran · ${st.decorIds.length} décor(s)</p></section>`;
         })
@@ -130,17 +130,19 @@ export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
   const st = dayStats(doc, computeTiming(doc), day);
   const strips = stripsByTime(doc, day);
   const body = `<div class="grid"><div><h3>Rendez-vous</h3><p class="time" style="font-size:14pt">${esc(d?.callTime || '—')}</p></div><div><h3>Date</h3><p>${esc(d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'à préciser')}</p></div></div>
-<h3>Décors</h3><table><tbody>${st.decorIds.map((id) => `<tr><td><b>${esc(doc.decors[id]?.name)}</b> ${esc(doc.decors[id]?.intExt)}</td><td>${esc(doc.decors[id]?.address || 'adresse à compléter')}</td></tr>`).join('') || '<tr><td class="muted">—</td></tr>'}</tbody></table>
+<h3>Lieux et horaires</h3><table><thead><tr><th>Horaire</th><th>Lieu</th><th>Adresse</th><th>Séquences</th></tr></thead><tbody>${dayItinerary(doc, day)
+    .map((p) => `<tr><td class="time">${p.start ? `${p.start} – ${p.end}` : '—'}</td><td><b>${esc(p.decorId ? doc.decors[p.decorId]?.name : 'Décor non renseigné')}</b> ${esc(p.decorId ? doc.decors[p.decorId]?.intExt : '')}</td><td>${esc(p.address || 'à préciser')}</td><td>${esc(p.seqIds.map((id) => sequenceHeading(doc, id)).join(' · '))}</td></tr>`)
+    .join('') || '<tr><td class="muted">—</td></tr>'}</tbody></table>
 <h3>Convocations</h3><table><thead><tr><th>Rôle</th><th>Comédien·ne</th><th>Convocation</th></tr></thead><tbody>${st.characterIds
     .map((id) => `<tr><td>${esc(doc.characters[id]?.name)}</td><td>${esc(doc.characters[id]?.actor || '—')}</td><td class="time">${esc(d?.calls?.[id] || '—')}</td></tr>`)
     .join('')}</tbody></table>
 <h3>Plans du jour</h3><table><thead><tr><th>Horaire</th><th>Plan</th><th>Sujet</th><th>Valeur</th><th>Angle</th><th>Mouvement</th><th>Focale</th><th>Action</th></tr></thead><tbody>${strips
-    .flatMap((s) =>
-      s.shotIds.map((id, i) => {
+    .flatMap((s) => s.shotIds)
+    .sort((a, b) => (shotSlot(doc, day, a)?.start ?? '99').localeCompare(shotSlot(doc, day, b)?.start ?? '99'))
+    .map((id) => {
         const sh = doc.shots[id];
-        return `<tr><td class="time">${i === 0 ? esc(slotText(d?.slots?.[s.seqId])) : ''}</td><td class="code">${esc(shotCode(doc, id))}</td><td>${esc(sh.subject)}</td><td>${esc(sh.value)}</td><td>${esc(renderTokens(sh.angle))}</td><td>${esc(renderTokens(sh.movement, sh.movementSep))}</td><td>${esc(formatFocal(sh.focal, isZoom(sh.movement)))}</td><td>${esc(doc.blocks[sh.actionBlockId]?.text)}</td></tr>`;
-      }),
-    )
+        return `<tr><td class="time">${esc(slotText(shotSlot(doc, day, id)))}</td><td class="code">${esc(shotCode(doc, id))}</td><td>${esc(sh.subject)}</td><td>${esc(sh.value)}</td><td>${esc(renderTokens(sh.angle))}</td><td>${esc(renderTokens(sh.movement, sh.movementSep))}</td><td>${esc(formatFocal(sh.focal, isZoom(sh.movement)))}</td><td>${esc(doc.blocks[sh.actionBlockId]?.text)}</td></tr>`;
+      })
     .join('')}</tbody></table>
 ${d?.notes ? `<h3>Notes</h3><p class="text">${esc(d.notes)}</p>` : ''}`;
   return shell(doc, 'Étape 9', `Feuille de service — Jour ${day}`, body);

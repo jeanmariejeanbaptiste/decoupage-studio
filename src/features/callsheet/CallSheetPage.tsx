@@ -3,7 +3,7 @@ import { navigate } from '../../app/router';
 import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
-import { dayStats, scheduleDays, stripsByTime, updateDay } from '../../domain/schedule';
+import { dayItinerary, dayStats, scheduleDays, shotSlot, stripsByTime, updateDay } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
@@ -43,6 +43,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   }
 
   const stats = dayStats(doc, timing, day.n);
+  const itinerary = dayItinerary(doc, day.n);
   const strips = stripsByTime(doc, day.n);
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
@@ -96,18 +97,51 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
         </header>
 
         <section className={s.block}>
-          <h3>Décors</h3>
-          {stats.decorIds.length === 0 ? (
-            <p className={s.muted}>Aucun décor renseigné pour les séquences du jour.</p>
+          <h3>Lieux et horaires</h3>
+          {itinerary.length === 0 ? (
+            <p className={s.muted}>Aucune séquence prévue ce jour.</p>
           ) : (
-            <ul className={s.decors}>
-              {stats.decorIds.map((id) => (
-                <li key={id}>
-                  <strong>{doc.decors[id]?.name}</strong> {doc.decors[id]?.intExt && <span>{doc.decors[id].intExt}</span>}
-                  <em>{doc.decors[id]?.address || 'adresse à compléter dans le Registre'}</em>
-                </li>
-              ))}
-            </ul>
+            <table className={s.table} data-testid="itinerary">
+              <thead>
+                <tr>
+                  <th>Horaire</th>
+                  <th>Lieu</th>
+                  <th>Adresse</th>
+                  <th>Séquences</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itinerary.map((stop, i) => {
+                  const decor = stop.decorId ? doc.decors[stop.decorId] : undefined;
+                  return (
+                    <tr key={i}>
+                      <td className={s.code}>{stop.start ? `${stop.start} – ${stop.end}` : '—'}</td>
+                      <td>
+                        <strong>{decor?.name ?? 'Décor non renseigné'}</strong> {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
+                      </td>
+                      <td>
+                        {stop.decorId ? (
+                          <input
+                            className={s.address}
+                            value={stop.address}
+                            placeholder="Adresse du lieu ce jour-là"
+                            aria-label={`Adresse pour ${decor?.name ?? 'ce lieu'}`}
+                            data-testid="stop-address"
+                            onChange={(e) => {
+                              const id = stop.decorId!;
+                              set({ addresses: { ...day.addresses, [id]: e.target.value } });
+                            }}
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>{stop.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </section>
 
@@ -169,12 +203,12 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
             </thead>
             <tbody>
               {strips.flatMap((st) =>
-                st.shotIds.map((id, i) => {
+                st.shotIds.map((id) => {
                   const sh = doc.shots[id];
-                  const slot = day.slots?.[st.seqId];
+                  const slot = shotSlot(doc, day.n, id);
                   return (
                     <tr key={id}>
-                      <td className={s.time}>{i === 0 && (slot?.start || slot?.end) ? `${slot.start ?? '…'} – ${slot.end ?? '…'}` : ''}</td>
+                      <td className={s.time}>{slot ? `${slot.start} – ${slot.end}` : ''}</td>
                       <td className={s.code}>{shotCode(doc, id)}</td>
                       <td>{sequenceHeading(doc, st.seqId)}</td>
                       <td>{sh.subject}</td>

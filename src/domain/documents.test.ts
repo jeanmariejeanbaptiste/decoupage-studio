@@ -3,14 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { breakdownDocument, callSheetDocument, equipmentDocument, floorPlansDocument, intentionDocument, registryDocument, scheduleDocument } from './documents';
 import { addFloorItem } from './floorplan';
-import { setSlot, stripsByTime, suggestSchedule } from './schedule';
+import { placeSequence, placeShot, stripsByTime, suggestSchedule } from './schedule';
 
 describe('documents imprimables', () => {
   const doc = produce(buildFiction(), (d) => {
     suggestSchedule(d, 20);
     const [s1, s2] = d.project.sequenceIds;
-    setSlot(d, 1, s2, { start: '09:00', end: '11:00' });
-    setSlot(d, 1, s1, { start: '14:00' });
+    placeShot(d, 1, d.sequences[s2].shotIds[0], '09:00', 120);
+    placeSequence(d, 1, d.sequences[s1].shotIds.slice(0, 1), '14:00');
     d.intention = 'Un film <sobre>.';
     addFloorItem(d, s1, 'camera', { x: 100, y: 100 });
   });
@@ -25,7 +25,7 @@ describe('documents imprimables', () => {
     const [s1, s2] = doc.project.sequenceIds;
     expect(stripsByTime(doc, 1).map((s) => s.seqId).slice(0, 2)).toEqual([s2, s1]);
     expect(callSheetDocument(doc, 1).html).toContain('09:00 – 11:00');
-    expect(scheduleDocument(doc).html).toContain('14:00 – …');
+    expect(scheduleDocument(doc).html).toContain('14:00 – 14:30');
   });
   it('liste le matériel avec ou sans les plans, et échappe le texte', () => {
     expect(equipmentDocument(doc, true).html).toContain('Plans concernés');
