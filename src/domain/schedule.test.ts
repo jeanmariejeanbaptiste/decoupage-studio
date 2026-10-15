@@ -93,10 +93,11 @@ describe('emploi du temps horaire', async () => {
       d.sequences[b].decorId = dec[1] ?? dec[0];
       placeSequence(d, 1, d.sequences[b].shotIds.slice(0, 1), '14:00');
       placeSequence(d, 1, d.sequences[a].shotIds.slice(0, 2), '08:00');
-      updateDay(d, 1, { addresses: { [dec[0]]: '12 rue des Lilas' } });
+      d.sequences[b].decorId = dec[0];
+      updateDay(d, 1, { addresses: { [dec[0]]: '12 rue des Lilas' }, seqAddresses: { [b]: 'Chez mamie' } });
     });
     const it1 = dayItinerary(next, 1);
     expect(it1[0]).toMatchObject({ address: '12 rue des Lilas', start: '08:00', end: '09:00', seqIds: [a] });
-    expect(it1[it1.length - 1]).toMatchObject({ start: '14:00', end: '14:30' });
+    expect(it1[it1.length - 1]).toMatchObject({ address: 'Chez mamie', start: '14:00', end: '14:30', seqIds: [b] });
   });
 });

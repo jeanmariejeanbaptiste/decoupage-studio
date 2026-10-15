@@ -16,6 +16,8 @@ export interface ShootingDay {
   slots?: Record<ID, { start?: string; end?: string }>;
   /** Adresse propre à ce jour pour un décor (sinon celle du Registre). */
   addresses?: Record<ID, string>;
+  /** Adresse de tournage propre à une séquence ce jour-là (prioritaire). */
+  seqAddresses?: Record<ID, string>;
   /** Emploi du temps de la journée : créneau de chaque plan (« HH:MM »). */
   timeline?: Record<ID, { start: string; end: string }>;
   /** Amplitude affichée de la journée. */
@@ -289,24 +291,14 @@ export interface ItineraryStop {
   seqIds: ID[];
 }
 
-/** Déroulé de la journée : étapes successives par décor, dans l’ordre horaire, avec leurs plages. */
+/** Déroulé de la journée : une étape par séquence, dans l’ordre horaire, avec sa plage et son adresse
+ *  (adresse du jour pour la séquence, sinon du décor ce jour-là, sinon celle du Registre). */
 export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
   const d = doc.schedule?.days.find((x) => x.n === day);
-  const out: ItineraryStop[] = [];
-  for (const strip of stripsByTime(doc, day)) {
+  return stripsByTime(doc, day).map((strip) => {
     const decorId = doc.sequences[strip.seqId]?.decorId;
     const r = stripRange(doc, day, strip);
-    const last = out[out.length - 1];
-    if (last && last.decorId === decorId) {
-      last.seqIds.push(strip.seqId);
-      if (r) {
-        last.start = !last.start || r.start < last.start ? r.start : last.start;
-        last.end = !last.end || r.end > last.end ? r.end : last.end;
-      }
-      continue;
-    }
-    const address = (decorId && (d?.addresses?.[decorId] ?? doc.decors[decorId]?.address)) || '';
-    out.push({ decorId, address, start: r?.start, end: r?.end, seqIds: [strip.seqId] });
-  }
-  return out;
+    const address = d?.seqAddresses?.[strip.seqId] ?? (decorId ? (d?.addresses?.[decorId] ?? doc.decors[decorId]?.address) : undefined) ?? '';
+    return { decorId, address, start: r?.start, end: r?.end, seqIds: [strip.seqId] };
+  });
 }

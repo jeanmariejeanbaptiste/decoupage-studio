@@ -3,7 +3,14 @@ import { navigate } from '../../app/router';
 import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
-import { dayItinerary, dayStats, scheduleDays, shotSlot, stripsByTime, updateDay } from '../../domain/schedule';
+import {
+  dayItinerary,
+  dayStats,
+  scheduleDays,
+  shotSlot,
+  stripsByTime,
+  updateDay,
+} from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
@@ -17,7 +24,12 @@ import { TabExport } from '../export/TabExport';
 import { callSheetCsv } from '../../domain/exports';
 import { callSheetDocument } from '../../domain/documents';
 
-const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const dateFmt = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
 
 /** Feuille de service d'un jour de tournage (§15.4). */
 export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
@@ -48,7 +60,10 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
-  const cast = stats.characterIds.map((id) => doc.characters[id]).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  const cast = stats.characterIds
+    .map((id) => doc.characters[id])
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 
   return (
     <div className="page">
@@ -62,7 +77,11 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
         <div className={s.toolbar}>
           <label className={s.pick}>
             <span>Jour</span>
-            <select value={day.n} onChange={(e) => setN(Number(e.target.value))} aria-label="Jour de tournage">
+            <select
+              value={day.n}
+              onChange={(e) => setN(Number(e.target.value))}
+              aria-label="Jour de tournage"
+            >
               {days.map((d) => (
                 <option key={d.n} value={d.n}>
                   Jour {d.n}
@@ -71,7 +90,15 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               ))}
             </select>
           </label>
-          <TabExport doc={() => callSheetDocument(doc, day.n)} fileBase={`${doc.project.title || 'projet'}-feuille-de-service-J${day.n}`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-feuille-de-service-J${day.n}.csv`, content: () => callSheetCsv(doc, day.n) }} />
+          <TabExport
+            doc={() => callSheetDocument(doc, day.n)}
+            fileBase={`${doc.project.title || 'projet'}-feuille-de-service-J${day.n}`}
+            file={{
+              label: 'CSV',
+              name: `${doc.project.title || 'projet'}-feuille-de-service-J${day.n}.csv`,
+              content: () => callSheetCsv(doc, day.n),
+            }}
+          />
         </div>
       </header>
 
@@ -91,7 +118,12 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
             <span>{day.date ? dateFmt.format(new Date(`${day.date}T12:00`)) : <em>date à préciser</em>}</span>
             <label className={s.call}>
               Rendez-vous
-              <input type="time" value={day.callTime ?? ''} onChange={(e) => set({ callTime: e.target.value || undefined })} aria-label="Heure de rendez-vous" />
+              <input
+                type="time"
+                value={day.callTime ?? ''}
+                onChange={(e) => set({ callTime: e.target.value || undefined })}
+                aria-label="Heure de rendez-vous"
+              />
             </label>
           </div>
         </header>
@@ -107,7 +139,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   <th>Horaire</th>
                   <th>Lieu</th>
                   <th>Adresse</th>
-                  <th>Séquences</th>
+                  <th>Séquence</th>
                 </tr>
               </thead>
               <tbody>
@@ -117,24 +149,20 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                     <tr key={i}>
                       <td className={s.code}>{stop.start ? `${stop.start} – ${stop.end}` : '—'}</td>
                       <td>
-                        <strong>{decor?.name ?? 'Décor non renseigné'}</strong> {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
+                        <strong>{decor?.name ?? 'Décor non renseigné'}</strong>{' '}
+                        {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
                       </td>
                       <td>
-                        {stop.decorId ? (
-                          <input
-                            className={s.address}
-                            value={stop.address}
-                            placeholder="Adresse du lieu ce jour-là"
-                            aria-label={`Adresse pour ${decor?.name ?? 'ce lieu'}`}
-                            data-testid="stop-address"
-                            onChange={(e) => {
-                              const id = stop.decorId!;
-                              set({ addresses: { ...day.addresses, [id]: e.target.value } });
-                            }}
-                          />
-                        ) : (
-                          '—'
-                        )}
+                        <input
+                          className={s.address}
+                          value={stop.address}
+                          placeholder="Adresse du lieu ce jour-là"
+                          aria-label={`Adresse pour ${sequenceHeading(doc, stop.seqIds[0])}`}
+                          data-testid="stop-address"
+                          onChange={(e) =>
+                            set({ seqAddresses: { ...day.seqAddresses, [stop.seqIds[0]]: e.target.value } })
+                          }
+                        />
                       </td>
                       <td>{stop.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')}</td>
                     </tr>
@@ -185,7 +213,10 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
 
         <section className={s.block}>
           <h3>
-            Plans du jour <span className={s.count}>{shotIds.length} plans · {formatTc(stats.screenSec)} d’écran</span>
+            Plans du jour{' '}
+            <span className={s.count}>
+              {shotIds.length} plans · {formatTc(stats.screenSec)} d’écran
+            </span>
           </h3>
           <table className={s.table} data-testid="callsheet-shots">
             <thead>
@@ -229,7 +260,9 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           <h3>Matériel requis</h3>
           <div className={s.equip}>
             {EQUIPMENT_CATEGORIES.map((c) => {
-              const lines = equipment[c].filter((l) => l.manual || l.shotIds.some((id) => shotIds.includes(id)));
+              const lines = equipment[c].filter(
+                (l) => l.manual || l.shotIds.some((id) => shotIds.includes(id)),
+              );
               return (
                 <div key={c}>
                   <Hand>{c}</Hand>
@@ -247,7 +280,14 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
 
         <section className={s.block}>
           <h3>Notes</h3>
-          <textarea className={s.notes} rows={3} value={day.notes ?? ''} onChange={(e) => set({ notes: e.target.value || undefined })} placeholder="Cantine, parking, consignes de sécurité, météo…" aria-label="Notes de la feuille de service" />
+          <textarea
+            className={s.notes}
+            rows={3}
+            value={day.notes ?? ''}
+            onChange={(e) => set({ notes: e.target.value || undefined })}
+            placeholder="Cantine, parking, consignes de sécurité, météo…"
+            aria-label="Notes de la feuille de service"
+          />
         </section>
       </article>
     </div>
