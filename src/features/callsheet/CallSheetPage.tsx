@@ -4,11 +4,12 @@ import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import {
+  callSheetStrips,
   dayItinerary,
   dayStats,
+  stripsByDay,
   scheduleDays,
   shotSlot,
-  stripsByTime,
   updateDay,
 } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
@@ -54,9 +55,12 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
     );
   }
 
-  const stats = dayStats(doc, timing, day.n);
+  const strips = callSheetStrips(doc, day.n);
+  const stats = dayStats(doc, timing, day.n, strips);
   const itinerary = dayItinerary(doc, day.n);
-  const strips = stripsByTime(doc, day.n);
+  const leftOut =
+    (stripsByDay(doc).get(day.n) ?? []).reduce((n, x) => n + x.shotIds.length, 0) -
+    strips.reduce((n, x) => n + x.shotIds.length, 0);
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
@@ -269,20 +273,19 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                 return (
                   <>
                     {placed.map(line)}
-                    {placed.length > 0 && rest.length > 0 && (
-                      <tr data-testid="unplaced-separator">
-                        <td colSpan={9} className={s.muted}>
-                          Sans horaire — {rest.length} plan{rest.length > 1 ? 's' : ''} encore à placer dans
-                          l’emploi du temps
-                        </td>
-                      </tr>
-                    )}
                     {rest.map(line)}
                   </>
                 );
               })()}
             </tbody>
           </table>
+          {leftOut > 0 && (
+            <p className={[s.muted, 'no-print'].join(' ')} data-testid="left-out">
+              {leftOut} plan{leftOut > 1 ? 's' : ''} affecté{leftOut > 1 ? 's' : ''} à ce jour mais absent
+              {leftOut > 1 ? 's' : ''} de l’emploi du temps ne figure{leftOut > 1 ? 'nt' : ''} pas sur la
+              feuille.
+            </p>
+          )}
         </section>
 
         <section className={s.block}>

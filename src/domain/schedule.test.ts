@@ -100,4 +100,13 @@ describe('emploi du temps horaire', async () => {
     expect(it1[0]).toMatchObject({ address: '12 rue des Lilas', start: '08:00', end: '09:00', seqIds: [a] });
     expect(it1[it1.length - 1]).toMatchObject({ address: 'Chez mamie', start: '14:00', end: '14:30', seqIds: [b] });
   });
+  it('feuille de service : seuls les plans placés comptent une fois l’emploi du temps entamé', async () => {
+    const { callSheetStrips, assignShots: assign } = await import('./schedule');
+    const doc = buildRav3();
+    const s1 = doc.sequences[doc.project.sequenceIds[0]].shotIds;
+    const before = produce(doc, (d) => assign(d, s1.slice(0, 4), 1));
+    expect(callSheetStrips(before, 1).flatMap((s) => s.shotIds)).toHaveLength(4);
+    const after = produce(before, (d) => placeShot(d, 1, s1[2], '09:00'));
+    expect(callSheetStrips(after, 1).flatMap((s) => s.shotIds)).toEqual([s1[2]]);
+  });
 });

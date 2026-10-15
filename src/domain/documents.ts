@@ -9,7 +9,7 @@ import { allFloorPlans } from './exports';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { dayItinerary, dayStats, scheduleDays, shotSlot, stripRange, stripsByTime } from './schedule';
+import { callSheetStrips, dayItinerary, dayStats, scheduleDays, shotSlot, stripRange, stripsByTime } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -127,8 +127,8 @@ export function scheduleDocument(doc: ProjectDoc): DocPage {
 
 export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
   const d = scheduleDays(doc).find((x) => x.n === day);
-  const st = dayStats(doc, computeTiming(doc), day);
-  const strips = stripsByTime(doc, day);
+  const strips = callSheetStrips(doc, day);
+  const st = dayStats(doc, computeTiming(doc), day, strips);
   const body = `<div class="grid"><div><h3>Rendez-vous</h3><p class="time" style="font-size:14pt">${esc(d?.callTime || '—')}</p></div><div><h3>Date</h3><p>${esc(d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'à préciser')}</p></div></div>
 <h3>Lieux et horaires</h3><table><thead><tr><th>Horaire</th><th>Lieu</th><th>Adresse</th><th>Séquence</th></tr></thead><tbody>${dayItinerary(doc, day)
     .map((p) => `<tr><td class="time">${p.start ? `${p.start} – ${p.end}` : '—'}</td><td><b>${esc(p.decorId ? doc.decors[p.decorId]?.name : 'Décor non renseigné')}</b> ${esc(p.decorId ? doc.decors[p.decorId]?.intExt : '')}</td><td>${esc(p.address || 'à préciser')}</td><td>${esc(p.seqIds.map((id) => sequenceHeading(doc, id)).join(' · '))}</td></tr>`)

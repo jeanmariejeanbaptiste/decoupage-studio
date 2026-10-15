@@ -38,7 +38,8 @@ export interface Strip {
 export function scheduleDays(doc: ProjectDoc): ShootingDay[] {
   const map = new Map<number, ShootingDay>();
   for (const d of doc.schedule?.days ?? []) map.set(d.n, d);
-  for (const s of Object.values(doc.shots)) if (s.shootingDay !== undefined && !map.has(s.shootingDay)) map.set(s.shootingDay, { n: s.shootingDay });
+  for (const s of Object.values(doc.shots))
+    if (s.shootingDay !== undefined && !map.has(s.shootingDay)) map.set(s.shootingDay, { n: s.shootingDay });
   return [...map.values()].sort((a, b) => a.n - b.n);
 }
 
@@ -106,7 +107,9 @@ function axisKey(doc: ProjectDoc, shotId: ID): string {
  */
 export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
   const cap = Math.max(1, Math.floor(capacity));
-  const seqs = doc.project.sequenceIds.filter((id) => doc.sequences[id]?.shotIds.some((s) => doc.shots[s]?.status !== 'abandonné'));
+  const seqs = doc.project.sequenceIds.filter((id) =>
+    doc.sequences[id]?.shotIds.some((s) => doc.shots[s]?.status !== 'abandonné'),
+  );
   const decorOf = (id: ID) => doc.sequences[id]?.decorId ?? `seq:${id}`;
   // 1. Décors dans l'ordre de première apparition.
   const decors: string[] = [];
@@ -133,7 +136,9 @@ export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
   let lastDecor: string | undefined;
   for (const seqId of ordered) {
     const shots = (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id]?.status !== 'abandonné');
-    const byAxis = [...shots].sort((a, b) => axisKey(doc, a).localeCompare(axisKey(doc, b)) || shots.indexOf(a) - shots.indexOf(b));
+    const byAxis = [...shots].sort(
+      (a, b) => axisKey(doc, a).localeCompare(axisKey(doc, b)) || shots.indexOf(a) - shots.indexOf(b),
+    );
     // Changer de décor en cours de journée : on commence un nouveau jour si le reste ne tient pas.
     if (lastDecor !== undefined && decorOf(seqId) !== lastDecor && used > 0 && used + shots.length > cap) {
       day++;
@@ -165,11 +170,23 @@ export interface DayStats {
   sequenceIds: ID[];
 }
 
-export function dayStats(doc: ProjectDoc, timing: Timing, day: number): DayStats {
-  const strips = stripsByDay(doc).get(day) ?? [];
+export function dayStats(
+  doc: ProjectDoc,
+  timing: Timing,
+  day: number,
+  strips: Strip[] = stripsByDay(doc).get(day) ?? [],
+): DayStats {
   const shotIds = strips.flatMap((s) => s.shotIds);
-  const decorIds = [...new Set(strips.map((s) => doc.sequences[s.seqId]?.decorId).filter((x): x is ID => !!x))];
-  const characterIds = [...new Set(shotIds.flatMap((id) => doc.shots[id]?.characterIds ?? []).concat(strips.flatMap((s) => doc.sequences[s.seqId]?.characterIds ?? [])))];
+  const decorIds = [
+    ...new Set(strips.map((s) => doc.sequences[s.seqId]?.decorId).filter((x): x is ID => !!x)),
+  ];
+  const characterIds = [
+    ...new Set(
+      shotIds
+        .flatMap((id) => doc.shots[id]?.characterIds ?? [])
+        .concat(strips.flatMap((s) => doc.sequences[s.seqId]?.characterIds ?? [])),
+    ),
+  ];
   return {
     shots: shotIds.length,
     screenSec: shotIds.reduce((n, id) => n + shotDurationSec(doc, timing, doc.shots[id]), 0),
@@ -179,7 +196,12 @@ export function dayStats(doc: ProjectDoc, timing: Timing, day: number): DayStats
   };
 }
 
-export function setSlot(doc: ProjectDoc, day: number, seqId: ID, patch: { start?: string; end?: string }): void {
+export function setSlot(
+  doc: ProjectDoc,
+  day: number,
+  seqId: ID,
+  patch: { start?: string; end?: string },
+): void {
   updateDay(doc, day, {});
   const d = ensureSchedule(doc).days.find((x) => x.n === day)!;
   d.slots = { ...(d.slots ?? {}), [seqId]: { ...(d.slots?.[seqId] ?? {}), ...patch } };
@@ -216,12 +238,16 @@ function dayOf(doc: ProjectDoc, day: number): ShootingDay {
 /** Place un plan dans l'emploi du temps du jour (il est affecté à ce jour au passage). */
 export function placeShot(doc: ProjectDoc, day: number, shotId: ID, start: string, minutes?: number): void {
   if (!doc.shots[shotId]) return;
-  for (const d of ensureSchedule(doc).days) if (d.n !== day && d.timeline?.[shotId]) delete d.timeline[shotId];
+  for (const d of ensureSchedule(doc).days)
+    if (d.n !== day && d.timeline?.[shotId]) delete d.timeline[shotId];
   doc.shots[shotId].shootingDay = day;
   const d = dayOf(doc, day);
   const prev = d.timeline?.[shotId];
   const dur = minutes ?? (prev ? toMin(prev.end) - toMin(prev.start) : DEFAULT_SHOT_MIN);
-  d.timeline = { ...(d.timeline ?? {}), [shotId]: { start, end: fromMin(toMin(start) + Math.max(SLOT_MIN, dur)) } };
+  d.timeline = {
+    ...(d.timeline ?? {}),
+    [shotId]: { start, end: fromMin(toMin(start) + Math.max(SLOT_MIN, dur)) },
+  };
 }
 
 /** Enchaîne les plans d'une séquence (non encore placés) à partir d'un horaire. */
@@ -272,15 +298,30 @@ export function timelineOf(doc: ProjectDoc, day: number): TimelineEntry[] {
   return entries;
 }
 
-export function shotSlot(doc: ProjectDoc, day: number, shotId: ID): { start: string; end: string } | undefined {
-  return doc.shots[shotId]?.shootingDay === day ? scheduleDays(doc).find((x) => x.n === day)?.timeline?.[shotId] : undefined;
+export function shotSlot(
+  doc: ProjectDoc,
+  day: number,
+  shotId: ID,
+): { start: string; end: string } | undefined {
+  return doc.shots[shotId]?.shootingDay === day
+    ? scheduleDays(doc).find((x) => x.n === day)?.timeline?.[shotId]
+    : undefined;
 }
 
 /** Créneau couvert par une bande (du premier début au dernier fin de ses plans). */
-export function stripRange(doc: ProjectDoc, day: number, strip: Strip): { start: string; end: string } | undefined {
-  const slots = strip.shotIds.map((id) => shotSlot(doc, day, id)).filter((x): x is { start: string; end: string } => !!x);
+export function stripRange(
+  doc: ProjectDoc,
+  day: number,
+  strip: Strip,
+): { start: string; end: string } | undefined {
+  const slots = strip.shotIds
+    .map((id) => shotSlot(doc, day, id))
+    .filter((x): x is { start: string; end: string } => !!x);
   if (!slots.length) return undefined;
-  return { start: fromMin(Math.min(...slots.map((s) => toMin(s.start)))), end: fromMin(Math.max(...slots.map((s) => toMin(s.end)))) };
+  return {
+    start: fromMin(Math.min(...slots.map((s) => toMin(s.start)))),
+    end: fromMin(Math.max(...slots.map((s) => toMin(s.end)))),
+  };
 }
 
 export interface ItineraryStop {
@@ -295,10 +336,24 @@ export interface ItineraryStop {
  *  (adresse du jour pour la séquence, sinon du décor ce jour-là, sinon celle du Registre). */
 export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
   const d = doc.schedule?.days.find((x) => x.n === day);
-  return stripsByTime(doc, day).map((strip) => {
+  return callSheetStrips(doc, day).map((strip) => {
     const decorId = doc.sequences[strip.seqId]?.decorId;
     const r = stripRange(doc, day, strip);
-    const address = d?.seqAddresses?.[strip.seqId] ?? (decorId ? (d?.addresses?.[decorId] ?? doc.decors[decorId]?.address) : undefined) ?? '';
+    const address =
+      d?.seqAddresses?.[strip.seqId] ??
+      (decorId ? (d?.addresses?.[decorId] ?? doc.decors[decorId]?.address) : undefined) ??
+      '';
     return { decorId, address, start: r?.start, end: r?.end, seqIds: [strip.seqId] };
   });
+}
+
+/** Plans retenus pour la feuille de service : dès que l’emploi du temps du jour est entamé,
+ *  seuls les plans placés comptent (les autres peuvent glisser vers un autre jour). */
+export function callSheetStrips(doc: ProjectDoc, day: number): Strip[] {
+  const strips = stripsByTime(doc, day);
+  const tl = doc.schedule?.days.find((x) => x.n === day)?.timeline ?? {};
+  if (!Object.keys(tl).length) return strips;
+  return strips
+    .map((s) => ({ ...s, shotIds: s.shotIds.filter((id) => tl[id]) }))
+    .filter((s) => s.shotIds.length);
 }

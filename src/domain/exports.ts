@@ -8,7 +8,7 @@ import { cameraCone, lightBeam, planOf, plansOf, reflections, PLAN_W, PLAN_H, ty
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { dayStats, scheduleDays, stripsByDay } from './schedule';
+import { callSheetStrips, dayStats, scheduleDays, stripsByDay } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -108,7 +108,8 @@ export function scheduleCsv(doc: ProjectDoc): string {
 
 export function callSheetCsv(doc: ProjectDoc, day: number): string {
   const d = scheduleDays(doc).find((x) => x.n === day);
-  const st = dayStats(doc, computeTiming(doc), day);
+  const strips = callSheetStrips(doc, day);
+  const st = dayStats(doc, computeTiming(doc), day, strips);
   const rows: Array<Array<string | number | undefined>> = [
     ['Feuille de service', doc.project.title, `Jour ${day}`, d?.date ?? '', d?.callTime ? `RDV ${d.callTime}` : ''],
     [],
@@ -119,7 +120,7 @@ export function callSheetCsv(doc: ProjectDoc, day: number): string {
     ...st.characterIds.map((id) => [doc.characters[id]?.name, doc.characters[id]?.actor, d?.calls?.[id]]),
     [],
     ['Plan', 'Séquence', 'Sujet', 'Valeur', 'Focale', 'Action'],
-    ...(stripsByDay(doc).get(day) ?? []).flatMap((s) =>
+    ...strips.flatMap((s) =>
       s.shotIds.map((id) => {
         const sh = doc.shots[id];
         return [shotCode(doc, id), sequenceHeading(doc, s.seqId), sh.subject, sh.value, formatFocal(sh.focal, isZoom(sh.movement)), doc.blocks[sh.actionBlockId]?.text];
