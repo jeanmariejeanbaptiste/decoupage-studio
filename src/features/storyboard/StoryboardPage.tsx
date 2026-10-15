@@ -16,7 +16,7 @@ import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { useBlobUrl } from '../../ui/useBlobUrl';
-import { dropShot } from '../grid/actions';
+import { deleteShotById, dropShot } from '../grid/actions';
 import { goToShot } from '../registry/RegistryPage';
 import s from './StoryboardPage.module.css';
 
@@ -196,9 +196,21 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
         <p className={s.foot}>
           <span className="mono">{formatTc(shotDurationSec(doc, timing, shot))}</span>
           {!printing && (
-            <button type="button" className={s.open} onPointerDown={(e) => e.stopPropagation()} onClick={() => goToShot(doc, shot.id)}>
-              ouvrir
-            </button>
+            <span>
+              <button type="button" className={s.open} onPointerDown={(e) => e.stopPropagation()} onClick={() => goToShot(doc, shot.id)}>
+                ouvrir
+              </button>{' '}
+              <button
+                type="button"
+                className={s.open}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => deleteShotById(shot.id)}
+                aria-label={`Supprimer le plan ${shotCode(doc, shot.id)}`}
+                data-testid="storyboard-delete"
+              >
+                supprimer
+              </button>
+            </span>
           )}
         </p>
       </div>

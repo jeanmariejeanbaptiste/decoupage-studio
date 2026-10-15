@@ -33,6 +33,9 @@ export function ExportTable({ doc, columns, theme, showTitle = true }: Props) {
           ))}
         </colgroup>
         <thead>
+          <tr className={s.printSpacer} aria-hidden="true">
+            <td colSpan={cols.length} />
+          </tr>
           <tr>
             {cols.map((c) => (
               <th key={c} className={s[`h_${c}`]}>
@@ -41,6 +44,11 @@ export function ExportTable({ doc, columns, theme, showTitle = true }: Props) {
             ))}
           </tr>
         </thead>
+        <tfoot className={s.printFoot} aria-hidden="true">
+          <tr className={s.printSpacer}>
+            <td colSpan={cols.length} />
+          </tr>
+        </tfoot>
         {sequences.map((seq) => (
           <tbody key={seq.id} className={s.seq}>
             {seq.rows.map((row, i) => (

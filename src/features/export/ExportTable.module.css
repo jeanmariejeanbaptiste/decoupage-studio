@@ -104,3 +104,12 @@
 .inkSaver::before { display: none; }
 .inkSaver .table th { background: none; border-bottom-width: 2px; }
 .inkSaver .spacer td { background: none; height: 2.5mm; border-left: 0; border-right: 0; }
+
+/* Marges d'impression portées par le tableau (en-tête et pied répétés) : la page n'a pas de marge,
+   le navigateur n'y ajoute donc ni adresse ni titre. */
+.printSpacer { display: none; }
+@media print {
+  .table .printSpacer { display: table-row; }
+  .table .printSpacer td { height: 9mm; padding: 0; border: 0 !important; background: transparent !important; }
+  .printFoot { display: table-footer-group; }
+}

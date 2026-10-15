@@ -7,9 +7,9 @@ import type { ProjectDoc } from '../../domain/types';
 import { getBlob } from '../../store/db';
 
 const README = (doc: ProjectDoc) => `DOSSIER DE PRODUCTION — ${doc.project.title} (${doc.project.version})
-Exporté le ${new Date().toLocaleString('fr-FR')} depuis Découpage Studio.
+Exporté le ${new Date().toLocaleString('fr-FR')}.
 
-00 Projet          fichier .decoupage (à rouvrir dans Découpage Studio) et JSON complet
+00 Projet          fichier .decoupage (projet complet, à rouvrir dans l'application)
 01 Intention       note d'intention
 02 Scénario        scénario au format Fountain
 03 Dépouillement   éléments par séquence
@@ -21,7 +21,7 @@ Exporté le ${new Date().toLocaleString('fr-FR')} depuis Découpage Studio.
 09 Feuilles        une feuille de service par jour
 10 Registre        séquences, personnages, décors, plans
 
-Les PDF mis en page s'obtiennent depuis chaque onglet de l'application (bouton PDF / Imprimer).
+Les PDF mis en page s'obtiennent depuis chaque onglet de l'application (bouton PDF).
 `;
 
 const safe = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '-').trim();

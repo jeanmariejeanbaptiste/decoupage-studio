@@ -12,6 +12,8 @@ export interface ShootingDay {
   notes?: string;
   /** Heures de convocation par personnage. */
   calls?: Record<ID, string>;
+  /** Horaires de tournage de chaque séquence du jour. */
+  slots?: Record<ID, { start?: string; end?: string }>;
 }
 
 export interface Schedule {
@@ -166,4 +168,17 @@ export function dayStats(doc: ProjectDoc, timing: Timing, day: number): DayStats
     characterIds,
     sequenceIds: strips.map((s) => s.seqId),
   };
+}
+
+export function setSlot(doc: ProjectDoc, day: number, seqId: ID, patch: { start?: string; end?: string }): void {
+  updateDay(doc, day, {});
+  const d = ensureSchedule(doc).days.find((x) => x.n === day)!;
+  d.slots = { ...(d.slots ?? {}), [seqId]: { ...(d.slots?.[seqId] ?? {}), ...patch } };
+}
+
+/** Bandes du jour triées par horaire de début (les bandes sans horaire gardent leur ordre, à la fin). */
+export function stripsByTime(doc: ProjectDoc, day: number): Strip[] {
+  const slots = scheduleDays(doc).find((d) => d.n === day)?.slots ?? {};
+  const list = stripsByDay(doc).get(day) ?? [];
+  return [...list].sort((a, b) => (slots[a.seqId]?.start ?? '99') .localeCompare(slots[b.seqId]?.start ?? '99'));
 }

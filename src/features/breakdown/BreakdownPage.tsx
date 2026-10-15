@@ -18,6 +18,7 @@ import { Hand } from '../../ui/Hand';
 import s from './BreakdownPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { breakdownCsv } from '../../domain/exports';
+import { breakdownDocument } from '../../domain/documents';
 
 /** Dépouillement par séquence (§15.5). */
 export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
@@ -48,7 +49,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           <p className="page-kicker">Étape 3 · Dépouillement</p>
           <h1 className="page-title">{sequenceHeading(doc, seqId)}</h1>
         </div>
-        <TabExport file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-depouillement.csv`, content: () => breakdownCsv(doc) }} />
+        <TabExport doc={() => breakdownDocument(doc)} fileBase={`${doc.project.title || 'projet'}-depouillement`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-depouillement.csv`, content: () => breakdownCsv(doc) }} />
       </header>
       <div className={s.layout}>
         <nav className={['card', s.seqs].join(' ')} aria-label="Séquences">

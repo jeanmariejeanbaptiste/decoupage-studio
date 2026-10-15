@@ -17,7 +17,7 @@
   table-layout: fixed;
   font-variant-numeric: tabular-nums;
 }
-.gutterCol { width: 34px; }
+.gutterCol { width: 44px; }
 .col_sequence { width: 14%; }
 .col_number { width: 36px; }
 .col_subject { width: 9%; }
@@ -148,3 +148,6 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .issueInfo { background: var(--navy); opacity: 0.6; }
 .row .gutter { position: sticky; }
 .addInEmpty { margin-left: 8px; border: 1px solid var(--rule); background: var(--paper); border-radius: var(--radius); padding: 2px 10px; font-size: 12.5px; }
+.rowDel, .seqDel { border: 0; background: none; color: var(--rust); opacity: 0; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; transition: opacity var(--t-fast) var(--ease); }
+.row:hover .rowDel, .seq:hover .seqDel, .rowDel:focus-visible, .seqDel:focus-visible { opacity: 0.85; }
+.seqDel { position: absolute; right: -4px; top: -2px; }

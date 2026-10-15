@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Printer } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
-import { dayStats, scheduleDays, stripsByDay, updateDay } from '../../domain/schedule';
+import { dayStats, scheduleDays, stripsByTime, updateDay } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
@@ -16,6 +15,7 @@ import { Hand } from '../../ui/Hand';
 import s from './CallSheetPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { callSheetCsv } from '../../domain/exports';
+import { callSheetDocument } from '../../domain/documents';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -43,7 +43,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   }
 
   const stats = dayStats(doc, timing, day.n);
-  const strips = stripsByDay(doc).get(day.n) ?? [];
+  const strips = stripsByTime(doc, day.n);
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
@@ -70,10 +70,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               ))}
             </select>
           </label>
-          <TabExport print={false} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-feuille-de-service-J${day.n}.csv`, content: () => callSheetCsv(doc, day.n) }} />
-          <Button variant="primary" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()}>
-            Exporter PDF
-          </Button>
+          <TabExport doc={() => callSheetDocument(doc, day.n)} fileBase={`${doc.project.title || 'projet'}-feuille-de-service-J${day.n}`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-feuille-de-service-J${day.n}.csv`, content: () => callSheetCsv(doc, day.n) }} />
         </div>
       </header>
 
@@ -159,6 +156,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           <table className={s.table} data-testid="callsheet-shots">
             <thead>
               <tr>
+                <th>Horaire</th>
                 <th>Plan</th>
                 <th>Séquence</th>
                 <th>Sujet</th>
@@ -171,10 +169,12 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
             </thead>
             <tbody>
               {strips.flatMap((st) =>
-                st.shotIds.map((id) => {
+                st.shotIds.map((id, i) => {
                   const sh = doc.shots[id];
+                  const slot = day.slots?.[st.seqId];
                   return (
                     <tr key={id}>
+                      <td className={s.time}>{i === 0 && (slot?.start || slot?.end) ? `${slot.start ?? '…'} – ${slot.end ?? '…'}` : ''}</td>
                       <td className={s.code}>{shotCode(doc, id)}</td>
                       <td>{sequenceHeading(doc, st.seqId)}</td>
                       <td>{sh.subject}</td>

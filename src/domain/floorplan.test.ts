@@ -72,7 +72,7 @@ describe('plans multiples, lumières et réflecteurs', async () => {
       addFloorItem(d, key, 'camera', { x: 100, y: 100 });
       updateFloorItem(d, key, planOf(d, key).items[0].id, { shotIds: [d.sequences[seqId].shotIds[0]] } as Partial<FloorItem>);
     });
-    expect(plansOf(next, seqId).map((p) => p.name)).toEqual(['Plan 1', 'Contrechamp']);
+    expect(plansOf(next, seqId).map((p) => p.name)).toEqual(['Vue 1', 'Contrechamp']);
     expect(camerasForShot(next, next.sequences[seqId].shotIds[0])).toEqual(['CAM A']);
     const removed = produce(next, (d) => {
       deletePlan(d, key);

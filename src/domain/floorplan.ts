@@ -31,15 +31,15 @@ export interface PlanRef {
 
 /** Plans au sol d'une séquence : le plan par défaut (clé = séquence) puis les plans ajoutés. */
 export function plansOf(doc: ProjectDoc, seqId: ID): PlanRef[] {
-  const out: PlanRef[] = [{ key: seqId, name: doc.floorPlans?.[seqId]?.name ?? 'Plan 1' }];
-  for (const [key, p] of Object.entries(doc.floorPlans ?? {})) if (p.seqId === seqId && key !== seqId) out.push({ key, name: p.name ?? 'Plan' });
+  const out: PlanRef[] = [{ key: seqId, name: doc.floorPlans?.[seqId]?.name ?? 'Vue 1' }];
+  for (const [key, p] of Object.entries(doc.floorPlans ?? {})) if (p.seqId === seqId && key !== seqId) out.push({ key, name: p.name ?? 'Vue' });
   return out;
 }
 
 export function addPlan(doc: ProjectDoc, seqId: ID): string {
   const key = newId();
   doc.floorPlans ??= {};
-  doc.floorPlans[key] = { items: [], seqId, name: `Plan ${plansOf(doc, seqId).length + 1}` };
+  doc.floorPlans[key] = { items: [], seqId, name: `Vue ${plansOf(doc, seqId).length + 1}` };
   return key;
 }
 

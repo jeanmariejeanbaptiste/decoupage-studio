@@ -3,7 +3,7 @@ import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, 
 import { ChevronDown, ChevronRight, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay, type Strip } from '../../domain/schedule';
+import { setSlot, stripsByTime, addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay, type Strip } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -15,6 +15,7 @@ import { ask } from '../../ui/dialogStore';
 import s from './SchedulePage.module.css';
 import { TabExport } from '../export/TabExport';
 import { scheduleCsv } from '../../domain/exports';
+import { scheduleDocument } from '../../domain/documents';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -76,7 +77,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           </h1>
         </div>
         <div className={s.toolbar}>
-          <TabExport file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
+          <TabExport doc={() => scheduleDocument(doc)} fileBase={`${doc.project.title || 'projet'}-plan-de-travail`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
           <label className={s.cap}>
             <span>plans / jour</span>
             <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value) || 1))} aria-label="Plans par jour au maximum" />
@@ -101,7 +102,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           {days.map((d) => {
             const st = dayStats(doc, timing, d.n);
             return (
-              <Band key={d.n} day={d.n} doc={doc} strips={strips.get(d.n) ?? []} days={days.map((x) => x.n)}>
+              <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} days={days.map((x) => x.n)}>
                 <div className={s.dayHead}>
                   <strong>Jour {d.n}</strong>
                   <input
@@ -111,6 +112,10 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     aria-label={`Date du jour ${d.n}`}
                   />
                   {d.date && <span className={s.date}>{dateFmt.format(new Date(`${d.date}T12:00`))}</span>}
+                  <label className={s.rdv}>
+                    RDV
+                    <input type="time" value={d.callTime ?? ''} onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { callTime: e.target.value || undefined }))} aria-label={`Rendez-vous du jour ${d.n}`} />
+                  </label>
                   <span className={s.stats} data-testid={`day-stats-${d.n}`}>
                     {st.shots} plan{st.shots > 1 ? 's' : ''} · <span className="mono">{formatTc(st.screenSec)}</span> d’écran · {st.decorIds.length} décor{st.decorIds.length > 1 ? 's' : ''}
                   </span>
@@ -159,6 +164,7 @@ function StripRow({ doc, day, strip, days }: { doc: ProjectDoc; day: number; str
   const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
   const cast = sequenceCharacterIds(doc, strip.seqId).map((id) => doc.characters[id]?.name).filter(Boolean);
   const totalInSeq = seq?.shotIds.length ?? 0;
+  const slot = scheduleDays(doc).find((x) => x.n === day)?.slots?.[strip.seqId];
   return (
     <div
       ref={setNodeRef}
@@ -177,6 +183,24 @@ function StripRow({ doc, day, strip, days }: { doc: ProjectDoc; day: number; str
           {strip.shotIds.length !== totalInSeq ? ` / ${totalInSeq}` : ''} pl.
         </span>
       </div>
+      {day > 0 && (
+        <span className={s.slot}>
+          <input
+            type="time"
+            value={slot?.start ?? ''}
+            onChange={(e) => mutateDoc((d) => setSlot(d, day, strip.seqId, { start: e.target.value || undefined }))}
+            aria-label={`Début de la séquence ${sequenceNumber(doc, strip.seqId)}`}
+            data-testid="slot-start"
+          />
+          –
+          <input
+            type="time"
+            value={slot?.end ?? ''}
+            onChange={(e) => mutateDoc((d) => setSlot(d, day, strip.seqId, { end: e.target.value || undefined }))}
+            aria-label={`Fin de la séquence ${sequenceNumber(doc, strip.seqId)}`}
+          />
+        </span>
+      )}
       <button type="button" className={s.toggle} aria-expanded={open} aria-label="Détail des plans" onClick={() => setOpen(!open)}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>

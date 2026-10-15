@@ -13,3 +13,4 @@
 .add { display: flex; gap: 4px; margin-top: 10px; }
 .add input { flex: 1; font: inherit; font-size: 13px; padding: 4px 8px; border: 1px dashed var(--rule); border-radius: var(--radius); background: var(--paper); }
 @media print { .grid { grid-template-columns: 1fr 1fr; } }
+.toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-soft); margin-right: 6px; }

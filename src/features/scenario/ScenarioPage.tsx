@@ -6,7 +6,9 @@ import { shotCode } from '../../domain/numbering';
 import { addShot } from '../../domain/ops';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { downloadBlob, pickFile } from '../../store/persistence';
-import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
+import { ask } from '../../ui/dialogStore';
+import { readScenarioFile } from './readScenarioFile';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
@@ -119,12 +121,22 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   };
 
   const importFile = async () => {
-    const f = await pickFile('.fountain,.txt,.spmd,text/plain', false);
+    const f = await pickFile('.fountain,.txt,.spmd,.md,.markdown,.pdf,.docx,.doc,text/plain,application/pdf', false);
     if (!f) return;
-    const content = await f.text();
-    setText(content);
-    commitScenario(content);
-    toast({ message: `Scénario « ${f.name} » importé.` });
+    if (text.trim()) {
+      const r = await ask({ title: 'Remplacer le scénario actuel ?', body: `Le texte de « ${f.name} » remplacera le scénario en cours (annulable).`, confirmLabel: 'Remplacer' });
+      if (!r.ok) return;
+    }
+    try {
+      toast({ message: `Lecture de « ${f.name} »…` });
+      const content = await readScenarioFile(f);
+      setText(content);
+      commitScenario(content);
+      const n = scenesOf(content).length;
+      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''} détectée${n > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
+    } catch (e) {
+      toast({ message: (e as Error).message || 'Ce fichier n’a pas pu être lu.', tone: 'warn' });
+    }
   };
 
   const highlighted = hoverBlock ?? caretBlock;
@@ -176,7 +188,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
             Créer un plan
           </Button>
           <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile}>
-            Importer
+            Importer (PDF, Word, MD…)
           </Button>
           <Button
             variant="outline"

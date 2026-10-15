@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
-import { newId } from '../../domain/factory';
+import { defaultSettings, newId } from '../../domain/factory';
+import { useUi } from '../../store/uiStore';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
 import type { ProjectDoc, ProjectFormat, ProjectSettings, Sensor, ShotCodeFormat } from '../../domain/types';
@@ -99,7 +100,16 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
             <Radio<ProjectFormat>
               name="Format"
               value={p.format}
-              onChange={(v) => mutateDoc((d) => void (d.project.format = v))}
+              onChange={(v) => {
+                // Le format pilote le minutage : clip / pub = TC sur la piste, sinon cumulatif.
+                mutateDoc((d) => {
+                  const def = defaultSettings(v);
+                  d.project.format = v;
+                  d.project.settings.tcMode = def.tcMode;
+                  d.project.settings.tcGranularity = def.tcGranularity;
+                });
+                useUi.getState().toast({ message: `Projet passé en ${v} : minutage ${v === 'clip' || v === 'pub' ? 'calé sur la piste' : 'cumulatif'}.` });
+              }}
               options={[
                 ['fiction', 'Fiction'],
                 ['clip', 'Clip'],

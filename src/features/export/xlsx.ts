@@ -34,7 +34,6 @@ const fill = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as 
 export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.project.settings.exportColumns, theme: ExportTheme = doc.project.settings.exportTheme): Promise<Workbook> {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Découpage Studio';
   wb.title = `${doc.project.title} — découpage technique`;
   const base = PALETTES[theme];
   // Économie d'encre : pas d'aplats, seulement le texte coloré et les filets.

@@ -34,7 +34,7 @@ describe('exports par onglet', () => {
     });
     const plans = allFloorPlans(next);
     expect(plans).toHaveLength(1);
-    expect(plans[0].name).toBe('Séquence 1 — Plan 1');
+    expect(plans[0].name).toBe('Séquence 1 — Vue 1');
     expect(plans[0].svg).toMatch(/^<svg xmlns/);
     expect(plans[0].svg).toContain('CAM A · 16mm');
   });

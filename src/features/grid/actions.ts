@@ -155,10 +155,22 @@ export function deleteCurrentShots(): void {
   ui().toast({ message: label, actionLabel: 'Annuler', action: undo });
 }
 
-export async function deleteSequenceOf(shotId?: ID): Promise<void> {
+/** Supprime un plan précis (bouton de la ligne), annulable. */
+export function deleteShotById(shotId: ID): void {
+  const d = doc();
+  if (!d?.shots[shotId]) return;
+  const label = `Plan ${shotCode(d, shotId)} supprimé`;
+  mutateDoc((x) => deleteShot(x, shotId));
+  ui().toast({ message: label, actionLabel: 'Annuler', action: undo });
+}
+
+/** Seuil à partir duquel la suppression d'une séquence demande une confirmation renforcée. */
+export const BIG_SEQUENCE = 10;
+
+export async function deleteSequenceOf(shotId?: ID, seqIdArg?: ID): Promise<void> {
   const d = doc();
   const id = shotId ?? currentShotId();
-  const seqId = id ? d?.shots[id]?.sequenceId : undefined;
+  const seqId = seqIdArg ?? (id ? d?.shots[id]?.sequenceId : undefined);
   if (!d || !seqId) return;
   const n = d.sequences[seqId].shotIds.length;
   const res = await ask({
@@ -166,8 +178,13 @@ export async function deleteSequenceOf(shotId?: ID): Promise<void> {
     body: `${n} plan${n > 1 ? 's' : ''} ser${n > 1 ? 'ont' : 'a'} supprimé${n > 1 ? 's' : ''}. L’opération reste annulable (⌘Z).`,
     confirmLabel: 'Supprimer la séquence',
     danger: true,
+    checkbox: n >= BIG_SEQUENCE ? `Oui, je supprime ces ${n} plans` : undefined,
   });
   if (!res.ok) return;
+  if (n >= BIG_SEQUENCE && !res.checked) {
+    ui().toast({ message: 'Suppression annulée : cochez la case pour confirmer.', tone: 'warn' });
+    return;
+  }
   mutateDoc((x) => deleteSequence(x, seqId));
   ui().setSelection(null);
   ui().toast({ message: 'Séquence supprimée', actionLabel: 'Annuler', action: undo });

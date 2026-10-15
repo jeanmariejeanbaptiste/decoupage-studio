@@ -59,8 +59,9 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('button', { name: '.fountain' }).click();
     expect((await dl).suggestedFilename()).toBe('La Consigne.fountain');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Importer' }).click();
+    await page.getByRole('button', { name: /^Importer/ }).click();
     await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('EXT. TOIT - AUBE\n\nLe soleil se lève.\n') });
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
     await expect(page.locator('h1')).toContainText('1 séquence');
     await expect(page.getByTestId('scenario-page')).toContainText('Le soleil se lève.');
   });

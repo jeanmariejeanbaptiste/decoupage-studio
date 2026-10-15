@@ -48,7 +48,7 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
 
   const inkSaver = !!settings.exportInkSaver;
   const pageBg = inkSaver ? '#ffffff' : theme === 'mauve' ? '#c98bb4' : theme === 'papier' ? '#fbf8f2' : '#ffffff';
-  const pageCss = `@page { size: ${paper} landscape; margin: 11mm 0 ${footer ? '11mm' : '9mm'} 0; background: ${pageBg};${
+  const pageCss = `@page { size: ${paper} landscape; margin: 0 0 ${footer ? '10mm' : '0'} 0; background: ${pageBg};${
     footer
       ? ` @bottom-center { content: ${cssString(footerText + ' · page ')} counter(page) " / " counter(pages); font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 8pt; color: #000; }`
       : ''

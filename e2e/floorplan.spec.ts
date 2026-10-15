@@ -77,8 +77,8 @@ test('plan au sol : lumière, réflecteur et plusieurs plans', async ({ page }) 
   await expect(page.getByTestId('fp-reflector')).toHaveCount(1);
   await expect(page.getByTestId('fp-bounce')).toHaveCount(1);
   await page.getByTestId('add-plan').click();
-  await expect(page.getByRole('tab', { name: 'Plan 2' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Vue 2' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('fp-reflector')).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Plan 1' }).click();
+  await page.getByRole('tab', { name: 'Vue 1' }).click();
   await expect(page.getByTestId('fp-reflector')).toHaveCount(1);
 });

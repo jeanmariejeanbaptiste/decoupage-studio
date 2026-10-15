@@ -5,6 +5,7 @@ import {
   addFloorItem,
   addPlan,
   cameraCone,
+  camerasForShot,
   deletePlan,
   DEFAULT_RANGE,
   DEFAULT_SPREAD,
@@ -34,7 +35,8 @@ import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import s from './FloorPlanPage.module.css';
 import { TabExport } from '../export/TabExport';
-import { floorPlanSvg } from '../../domain/exports';
+import { allFloorPlans } from '../../domain/exports';
+import { floorPlansDocument } from '../../domain/documents';
 
 type Tool = 'select' | FloorKind;
 const IC = { size: 15, strokeWidth: 1.25 } as const;
@@ -212,11 +214,17 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           <h1 className="page-title">{sequenceHeading(doc, seqId)}</h1>
         </div>
         <TabExport
+          doc={() => floorPlansDocument(doc)}
+          fileBase={`${doc.project.title || 'projet'}-plans-au-sol`}
           file={{
-            label: 'SVG',
-            type: 'image/svg+xml',
-            name: `${doc.project.title || 'projet'}-plan-au-sol.svg`,
-            content: () => floorPlanSvg(doc, planKey, `${sequenceHeading(doc, seqId)} — ${plans.find((p) => p.key === planKey)?.name ?? ''}`),
+            label: 'SVG (toutes les vues)',
+            name: `${doc.project.title || 'projet'}-plans-au-sol.zip`,
+            content: async () => {
+              const { default: JSZip } = await import('jszip');
+              const zip = new JSZip();
+              for (const p of allFloorPlans(doc)) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
+              return zip.generateAsync({ type: 'blob' });
+            },
           }}
         />
         <label className={s.seqPick}>
@@ -241,7 +249,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
 
       <div className={s.layout}>
         <div>
-          <div className={s.plans} role="tablist" aria-label="Plans au sol de la séquence">
+          <div className={s.plans} role="tablist" aria-label="Vues du plan au sol">
             {plans.map((p) => (
               <button
                 key={p.key}
@@ -254,7 +262,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   setSelected(null);
                 }}
                 onDoubleClick={() => {
-                  const name = window.prompt('Nom du plan au sol', p.name);
+                  const name = window.prompt('Nom de la vue', p.name);
                   if (name !== null) mutateDoc((d) => renamePlan(d, p.key, name));
                 }}
                 title="Double-cliquer pour renommer"
@@ -272,12 +280,12 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               }}
               data-testid="add-plan"
             >
-              + Nouveau plan
+              + Nouvelle vue
             </button>
             <button
               type="button"
               className={s.planAdd}
-              title="Dupliquer ce plan"
+              title="Dupliquer cette vue"
               onClick={() => {
                 const key = mutateDoc((d) => {
                   const k = addPlan(d, seqId);
@@ -298,7 +306,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   setPlanPick(undefined);
                 }}
               >
-                Supprimer ce plan
+                Supprimer cette vue
               </button>
             )}
           </div>
@@ -363,25 +371,25 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
         </div>
 
         <aside className={['card', s.panel].join(' ')} aria-label="Propriétés">
-          {!sel ? (
-            <>
-              <h2 className={s.h2}>Plans de la séquence</h2>
+          {sel && <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} onDelete={() => setSelected(null)} />}
+          <div className={sel ? s.coverage : undefined}>
+              <h2 className={s.h2}>Plans du découpage</h2>
+              <p className={s.note}>
+                {seq.shotIds.filter((id) => camerasForShot(doc, id).length > 0).length} / {seq.shotIds.length} plans reliés à une caméra (toutes vues). Relier une caméra est facultatif.
+              </p>
               <ul className={s.shotList}>
                 {seq.shotIds.map((id) => {
-                  const cams = items.filter((i) => i.kind === 'camera' && i.shotIds.includes(id)).map((c) => (c.kind === 'camera' ? c.label : ''));
+                  const cams = camerasForShot(doc, id);
                   const sh = doc.shots[id];
                   return (
-                    <li key={id}>
+                    <li key={id} data-testid="fp-shot" className={cams.length ? undefined : s.unassigned}>
                       <b>{shotCode(doc, id)}</b> {sh.subject} · {sh.value} · {formatFocal(sh.focal, isZoom(sh.movement))}
-                      {cams.length > 0 ? <em>{cams.join(', ')}</em> : <em className={s.none}>sans caméra</em>}
+                      {cams.length > 0 ? <em>{cams.join(', ')}</em> : <em className={s.none}>non assigné</em>}
                     </li>
                   );
                 })}
               </ul>
-            </>
-          ) : (
-            <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} onDelete={() => setSelected(null)} />
-          )}
+          </div>
         </aside>
       </div>
     </div>

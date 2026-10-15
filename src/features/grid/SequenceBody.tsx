@@ -1,4 +1,5 @@
 import type { CSSProperties, MouseEvent } from 'react';
+import { deleteSequenceOf, deleteShotById } from './actions';
 import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { addShot } from '../../domain/ops';
@@ -72,6 +73,9 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
             <strong>{sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase()}</strong> — <span className="hand">séquence vide</span>{' '}
             <button type="button" className={s.addInEmpty} onClick={() => mutateDoc((d) => void addShot(d, seq.seqId))}>
               Ajouter un plan
+            </button>{' '}
+            <button type="button" className={s.addInEmpty} onClick={() => void deleteSequenceOf(undefined, seq.seqId)}>
+              Supprimer la séquence
             </button>
           </td>
         </tr>
@@ -91,6 +95,9 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
           <DroppableRow key={r.shotId} shotId={r.shotId} className={s.row} data-shot={r.shotId} data-testid="shot-row">
             <td className={s.gutter}>
               <ShotHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} />
+              <button type="button" className={s.rowDel} aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`} title="Supprimer ce plan" onClick={() => deleteShotById(r.shotId)} tabIndex={-1} data-testid="delete-shot">
+                ×
+              </button>
               <IssueDot issues={model.issues.get(r.shotId)} />
             </td>
             {columns.map((col) => {
@@ -149,6 +156,18 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                   ) : col === 'sequence' ? (
                     <div className={s.seqCell}>
                       <SeqHandle seqId={seq.seqId} label={`${seqNumber}`} />
+                      <button
+                        type="button"
+                        className={s.seqDel}
+                        aria-label={`Supprimer la séquence ${seqNumber}`}
+                        title="Supprimer cette séquence"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={() => void deleteSequenceOf(undefined, seq.seqId)}
+                        tabIndex={-1}
+                        data-testid="delete-sequence"
+                      >
+                        ×
+                      </button>
                       <span className={s.seqLabel}>
                         {sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
                       </span>

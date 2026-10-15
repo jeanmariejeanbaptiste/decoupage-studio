@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Download, Plus, Printer, Trash2 } from 'lucide-react';
+import { Download, Plus, Trash2 } from 'lucide-react';
+import { TabExport } from '../export/TabExport';
+import { equipmentDocument } from '../../domain/documents';
 import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
 import { newId } from '../../domain/factory';
 import { shotCode } from '../../domain/numbering';
@@ -21,6 +23,7 @@ const LEAD: Record<EquipmentCategory, string> = {
 /** Listes de matériel par chef de poste (§10). */
 export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const lists = useMemo(() => aggregateEquipment(doc), [doc]);
+  const [showShots, setShowShots] = useState(true);
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
   const total = EQUIPMENT_CATEGORIES.reduce((n, c) => n + lists[c].length, 0);
 
@@ -41,11 +44,13 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
           </h1>
         </div>
         <div className={[s.actions, 'no-print'].join(' ')}>
-          <Button variant="outline" icon={<Download size={15} strokeWidth={1.25} />} onClick={csv}>
+          <label className={s.toggle}>
+            <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />
+            Afficher les plans concernés
+          </label>
+          <TabExport doc={() => equipmentDocument(doc, showShots)} fileBase={`${doc.project.title || 'projet'}-materiel`} />
+          <Button variant="ghost" icon={<Download size={15} strokeWidth={1.25} />} onClick={csv}>
             CSV
-          </Button>
-          <Button variant="outline" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()}>
-            PDF
           </Button>
         </div>
       </header>
@@ -61,14 +66,15 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                 {lists[c].map((l) => (
                   <li key={l.key}>
                     <span className={s.label}>{l.label}</span>
+                    {showShots && (
                     <span className={s.shots}>
-                      {l.shotIds.slice(0, 18).map((id) => (
+                      {l.shotIds.map((id) => (
                         <button key={id} type="button" onClick={() => goToShot(doc, id)}>
                           {shotCode(doc, id)}
                         </button>
                       ))}
-                      {l.shotIds.length > 18 && <em>+{l.shotIds.length - 18}</em>}
                     </span>
+                    )}
                     {l.manual && (
                       <Button
                         variant="icon"

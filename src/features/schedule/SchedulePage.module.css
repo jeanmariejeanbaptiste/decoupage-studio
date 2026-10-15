@@ -14,7 +14,7 @@
 .strips { display: flex; flex-direction: column; gap: 3px; min-height: 30px; }
 .empty { margin: 4px 0; font-style: italic; color: var(--ink-soft); font-size: 13px; }
 .strip { position: relative; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 2px; }
-.stripMain { display: grid; grid-template-columns: 36px 110px minmax(160px, 1.4fr) minmax(80px, 1fr) minmax(120px, 1.4fr) 70px; gap: 10px; align-items: center; padding: 5px 34px 5px 10px; cursor: grab; font-size: 13px; touch-action: none; }
+.stripMain { display: grid; grid-template-columns: 36px 110px minmax(160px, 1.4fr) minmax(80px, 1fr) minmax(120px, 1.4fr) 70px; gap: 10px; align-items: center; padding: 5px 200px 5px 10px; cursor: grab; font-size: 13px; touch-action: none; }
 .stripMain:active { cursor: grabbing; }
 .dragging { opacity: 0.85; box-shadow: 0 8px 20px rgba(42, 40, 36, 0.2); }
 .num { font-weight: 700; font-variant-numeric: oldstyle-nums; color: var(--rust); }
@@ -34,3 +34,6 @@
 .tExtNight { background: color-mix(in srgb, #a9c99a 50%, var(--paper-card)); }
 .tTwilight { background: color-mix(in srgb, #eab59e 50%, var(--paper-card)); }
 @media (max-width: 1100px) { .stripMain { grid-template-columns: 30px 90px 1fr 60px; } .decor, .cast { display: none; } }
+.slot { position: absolute; right: 30px; top: 4px; display: inline-flex; gap: 4px; align-items: center; font-size: 12px; color: var(--ink-soft); }
+.slot input, .rdv input { font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 1px 3px; border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--paper-card) 80%, transparent); color: var(--ink); }
+.rdv { display: inline-flex; gap: 6px; align-items: center; font-family: var(--font-hand); color: var(--rust); font-size: 16px; }

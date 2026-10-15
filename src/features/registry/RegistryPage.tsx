@@ -19,6 +19,7 @@ import { ask } from '../../ui/dialogStore';
 import { rowOfShot } from '../grid/actions';
 import s from './RegistryPage.module.css';
 import { TabExport } from '../export/TabExport';
+import { registryDocument } from '../../domain/documents';
 import { charactersCsv, decorsCsv, sequencesCsv, shotsCsv } from '../../domain/exports';
 
 type Tab = 'sequences' | 'characters' | 'decors' | 'shots';
@@ -64,9 +65,10 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
           </h1>
         </div>
         <TabExport
-          print={true}
+          doc={() => registryDocument(doc)}
+          fileBase={`${doc.project.title || 'projet'}-registre`}
           file={{
-            label: 'CSV',
+            label: 'CSV de l’onglet',
             name: `${doc.project.title || 'projet'}-${tab}.csv`,
             content: () => ({ sequences: sequencesCsv, characters: charactersCsv, decors: decorsCsv, shots: shotsCsv })[tab](doc),
           }}

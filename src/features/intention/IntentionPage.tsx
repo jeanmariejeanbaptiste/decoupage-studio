@@ -5,6 +5,7 @@ import { mutateDoc } from '../../store/projectStore';
 import { Hand } from '../../ui/Hand';
 import s from './IntentionPage.module.css';
 import { TabExport } from '../export/TabExport';
+import { intentionDocument } from '../../domain/documents';
 
 /** Note d'intention : un texte libre, enregistré dans le projet (validé au bout de la frappe). */
 export function IntentionPage({ doc }: { doc: ProjectDoc }) {
@@ -27,7 +28,7 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
           <Hand>
             {words} mot{words > 1 ? 's' : ''}
           </Hand>
-          <TabExport file={{ label: 'Texte', type: 'text/plain;charset=utf-8', name: `${doc.project.title || 'projet'}-note-d-intention.txt`, content: () => text }} />
+          <TabExport doc={() => intentionDocument({ ...doc, intention: text })} fileBase={`${doc.project.title || 'projet'}-note-d-intention`} file={{ label: 'Texte', type: 'text/plain;charset=utf-8', name: `${doc.project.title || 'projet'}-note-d-intention.txt`, content: () => text }} />
         </span>
       </header>
       <div className={['card', s.sheet].join(' ')}>

@@ -147,3 +147,14 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Économie d'encre pour le PDF et l'Excel : aucun aplat (couleur avec Mauve / Papier, noir et blanc avec Sobre)
 - [x] Dossier de production complet (.zip) rangé par étape : projet, intention, scénario, dépouillement, découpage (xlsx + csv), images du storyboard, plans au sol (SVG), matériel, plan de travail, feuilles de service, registre
 - [x] Exports individuels par onglet : Registre (CSV de l'onglet), Dépouillement, Plan de travail, Feuille de service (CSV), Plan au sol (SVG), Note d'intention (texte) + PDF par impression
+
+## Retours utilisateur — lot 3
+- [x] Import de scénario PDF, Word (.docx), Markdown, texte, Fountain → conversion Fountain (en-têtes INT./EXT., répliques centrées ou en retrait, nom au-dessus, parenthèses, transitions)
+- [x] Documents mis en page (PDF sans interface ni nom d'outil, et Word) : dépouillement, matériel, plan de travail, feuilles de service, registre, plans au sol (toutes les vues), note d'intention ; CSV conservés en données brutes
+- [x] Aucun nom d'outil ni lien dans les exports ; marges d'impression sans en-tête automatique du navigateur
+- [x] Changer le type de projet change le minutage (clip / pub → piste, sinon cumulatif)
+- [x] Suppression visible des plans et séquences (grille et storyboard), confirmation renforcée au-delà de 10 plans
+- [x] Storyboard : impression paysage corrigée (page nommée), suppression de plans depuis les cartes
+- [x] Plan au sol : « Vue 1, 2… », export de toutes les vues (PDF, Word, zip SVG), couverture caméra des plans toujours visible (facultative)
+- [x] Matériel : plans concernés affichables / masquables, liste complète sans abréviation
+- [x] Plan de travail : rendez-vous du jour, horaires de début et fin par séquence (tri par horaire), repris dans la feuille de service

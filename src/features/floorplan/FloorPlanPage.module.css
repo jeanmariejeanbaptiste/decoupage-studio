@@ -54,3 +54,5 @@
 .quick { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
 .quick button { border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 1px 9px; font-size: 12.5px; }
 .quick .quickOn { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
+.coverage { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.unassigned { opacity: 0.75; }

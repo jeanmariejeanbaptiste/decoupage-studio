@@ -26,7 +26,7 @@
 .equip ul { margin: 4px 0 0; padding-left: 16px; font-size: 12.5px; }
 .notes { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); resize: vertical; color: var(--ink); }
 @media print {
-  @page { size: A4 portrait; margin: 12mm; }
   .sheet { border: 0; padding: 0; background: #fff; }
   .call input, .table input, .notes { border: 0; background: none; }
 }
+.time { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }

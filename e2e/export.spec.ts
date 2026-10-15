@@ -83,5 +83,5 @@ test('exports individuels par onglet', async ({ page }) => {
   await page.goto('/#/floorplan');
   const dl2 = page.waitForEvent('download');
   await page.getByTestId('tab-export-file').click();
-  expect((await dl2).suggestedFilename()).toBe('RAV3-plan-au-sol.svg');
+  expect((await dl2).suggestedFilename()).toBe('RAV3-plans-au-sol.zip');
 });

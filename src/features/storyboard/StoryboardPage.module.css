@@ -27,10 +27,16 @@
 @media print { .import, .remove { display: none; } }
 .print { display: none; }
 
+@page storyboard { size: A4 landscape; margin: 0; }
 @media print {
-  @page { size: A4 landscape; margin: 10mm; }
+  :global(.page) { padding: 0 !important; }
   .print { display: block; }
-  .sheet { break-after: page; height: 188mm; display: flex; flex-direction: column; gap: 4mm; }
+  .sheet { page: storyboard; break-after: page; width: 297mm; height: 209mm; padding: 10mm 12mm; overflow: hidden; display: flex; flex-direction: column; gap: 4mm; box-sizing: border-box; }
+  .sheetGrid { min-height: 0; }
+  .sheetGrid .card { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .sheetGrid .frame { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; }
+  .sheetGrid .body { flex: 0 0 auto; padding: 4px 8px 6px; }
+  .sheetGrid .action { font-size: 10px; line-height: 1.25; max-height: 3.8em; overflow: hidden; }
   .sheet:last-child { break-after: auto; }
   .sheetHead { display: flex; justify-content: space-between; font-size: 10pt; border-bottom: 1px solid #999; padding-bottom: 2mm; }
   .sheetGrid { flex: 1; display: grid; gap: 5mm; }
