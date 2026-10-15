@@ -173,17 +173,21 @@ export async function deleteSequenceOf(shotId?: ID, seqIdArg?: ID): Promise<void
   const seqId = seqIdArg ?? (id ? d?.shots[id]?.sequenceId : undefined);
   if (!d || !seqId) return;
   const n = d.sequences[seqId].shotIds.length;
-  const res = await ask({
-    title: `Supprimer la séquence ${sequenceHeading(d, seqId)} ?`,
-    body: `${n} plan${n > 1 ? 's' : ''} ser${n > 1 ? 'ont' : 'a'} supprimé${n > 1 ? 's' : ''}. L’opération reste annulable (⌘Z).`,
-    confirmLabel: 'Supprimer la séquence',
-    danger: true,
-    checkbox: n >= BIG_SEQUENCE ? `Oui, je supprime ces ${n} plans` : undefined,
-  });
-  if (!res.ok) return;
-  if (n >= BIG_SEQUENCE && !res.checked) {
-    ui().toast({ message: 'Suppression annulée : cochez la case pour confirmer.', tone: 'warn' });
-    return;
+  // Garde-fou seulement pour les séquences volumineuses ; sinon suppression directe, annulable.
+  if (n >= BIG_SEQUENCE) {
+    const label = d.sequences[seqId].label.trim();
+    const res = await ask({
+      title: `Supprimer la séquence ${d.project.sequenceIds.indexOf(seqId) + 1}${label ? `, ${label.toUpperCase()}` : ''} ?`,
+      body: `${n} plans seront supprimés. L’opération reste annulable (⌘Z).`,
+      confirmLabel: 'Supprimer la séquence',
+      danger: true,
+      checkbox: `Oui, je supprime ces ${n} plans`,
+    });
+    if (!res.ok) return;
+    if (!res.checked) {
+      ui().toast({ message: 'Suppression annulée : cochez la case pour confirmer.', tone: 'warn' });
+      return;
+    }
   }
   mutateDoc((x) => deleteSequence(x, seqId));
   ui().setSelection(null);
