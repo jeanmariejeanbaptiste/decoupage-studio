@@ -52,12 +52,15 @@ export function stripsByDay(doc: ProjectDoc): Map<number, Strip[]> {
     return i >= 0 ? i : order.length + doc.project.sequenceIds.indexOf(id);
   };
   const seqs = [...doc.project.sequenceIds].sort((a, b) => seqRank(a) - seqRank(b));
+  // Un jour dont l'emploi du temps est entamé ne retient que les plans qui y sont placés.
+  const timelines = new Map((doc.schedule?.days ?? []).filter((d) => d.timeline && Object.keys(d.timeline).length).map((d) => [d.n, d.timeline!]));
   for (const seqId of seqs) {
     const byDay = new Map<number, ID[]>();
     for (const shotId of doc.sequences[seqId]?.shotIds ?? []) {
       const shot = doc.shots[shotId];
       if (!shot || shot.status === 'abandonné') continue;
-      const day = shot.shootingDay ?? 0;
+      let day = shot.shootingDay ?? 0;
+      if (timelines.has(day) && !timelines.get(day)![shotId]) day = 0;
       byDay.set(day, [...(byDay.get(day) ?? []), shotId]);
     }
     for (const [day, shotIds] of byDay) out.set(day, [...(out.get(day) ?? []), { seqId, shotIds }]);
@@ -264,6 +267,8 @@ export function placeSequence(doc: ProjectDoc, day: number, shotIds: readonly ID
 export function unplaceShot(doc: ProjectDoc, day: number, shotId: ID): void {
   const d = ensureSchedule(doc).days.find((x) => x.n === day);
   if (d?.timeline) delete d.timeline[shotId];
+  const shot = doc.shots[shotId];
+  if (shot?.shootingDay === day) shot.shootingDay = undefined;
 }
 
 /** Allonge ou raccourcit un créneau (au moins un pas de 15 min). */
@@ -347,13 +352,7 @@ export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
   });
 }
 
-/** Plans retenus pour la feuille de service : dès que l’emploi du temps du jour est entamé,
- *  seuls les plans placés comptent (les autres peuvent glisser vers un autre jour). */
+/** Plans retenus pour la feuille de service (ceux du jour, dans l’ordre horaire). */
 export function callSheetStrips(doc: ProjectDoc, day: number): Strip[] {
-  const strips = stripsByTime(doc, day);
-  const tl = doc.schedule?.days.find((x) => x.n === day)?.timeline ?? {};
-  if (!Object.keys(tl).length) return strips;
-  return strips
-    .map((s) => ({ ...s, shotIds: s.shotIds.filter((id) => tl[id]) }))
-    .filter((s) => s.shotIds.length);
+  return stripsByTime(doc, day);
 }

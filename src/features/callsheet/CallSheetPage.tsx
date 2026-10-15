@@ -7,7 +7,6 @@ import {
   callSheetStrips,
   dayItinerary,
   dayStats,
-  stripsByDay,
   scheduleDays,
   shotSlot,
   updateDay,
@@ -58,9 +57,6 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const strips = callSheetStrips(doc, day.n);
   const stats = dayStats(doc, timing, day.n, strips);
   const itinerary = dayItinerary(doc, day.n);
-  const leftOut =
-    (stripsByDay(doc).get(day.n) ?? []).reduce((n, x) => n + x.shotIds.length, 0) -
-    strips.reduce((n, x) => n + x.shotIds.length, 0);
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
@@ -279,13 +275,6 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               })()}
             </tbody>
           </table>
-          {leftOut > 0 && (
-            <p className={[s.muted, 'no-print'].join(' ')} data-testid="left-out">
-              {leftOut} plan{leftOut > 1 ? 's' : ''} affecté{leftOut > 1 ? 's' : ''} à ce jour mais absent
-              {leftOut > 1 ? 's' : ''} de l’emploi du temps ne figure{leftOut > 1 ? 'nt' : ''} pas sur la
-              feuille.
-            </p>
-          )}
         </section>
 
         <section className={s.block}>

@@ -92,6 +92,7 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await page.mouse.move(dst!.x + 40, dst!.y + 6, { steps: 10 });
   await page.mouse.up();
   await expect(page.getByTestId('timeline-block')).toHaveCount(1);
+  await expect(page.getByTestId('timeline-move')).toContainText('Lieu 08:30');
   await page.getByTestId('tab-export-pdf').click();
   const frame = page.frameLocator('iframe[aria-hidden="true"]');
   await expect(frame.locator('h1')).toHaveText('Plan de travail');

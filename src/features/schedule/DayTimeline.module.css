@@ -1,5 +1,13 @@
 .wrap { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; margin-top: 10px; border-top: 1px dashed var(--rule); padding-top: 10px; }
-.pool { display: flex; flex-direction: column; gap: 8px; align-self: start; position: sticky; top: 8px; }
+.pool { display: flex; flex-direction: column; gap: 8px; align-self: start; position: sticky; top: 8px; padding: 4px; border-radius: var(--radius); }
+.search { font: inherit; font-size: 12.5px; padding: 4px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
+.scroll { display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; padding-right: 4px; }
+.shotCard { display: flex; flex-direction: column; gap: 1px; padding: 4px 8px; border: 1px solid var(--rule); border-left: 3px solid var(--rust); border-radius: 3px; background: var(--paper-card); font-size: 12px; cursor: grab; touch-action: none; }
+.cardHead b { color: var(--rust); margin-right: 2px; }
+.cardHead span { color: var(--ink-soft); }
+.cardTech { font-size: 11.5px; color: var(--ink-soft); }
+.cardAction { font-size: 11.5px; font-style: italic; color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ghost { opacity: 0.35; }
 .hint { margin: 0; font-family: var(--font-hand); color: var(--rust); font-size: 15px; }
 .group { display: flex; flex-direction: column; gap: 4px; }
 .seqChip { display: block; padding: 4px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); font-size: 12.5px; font-weight: 600; cursor: grab; touch-action: none; }
@@ -24,3 +32,5 @@
 .block:hover .tools, .block:focus-within .tools { opacity: 1; }
 .tools button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: 3px; padding: 0 2px; display: inline-flex; cursor: pointer; }
 @media (max-width: 1000px) { .wrap { grid-template-columns: 1fr; } .pool { position: static; } }
+.move { position: absolute; left: 52px; right: 0; z-index: 3; border-top: 2px solid var(--rust); pointer-events: none; }
+.move span { position: absolute; right: 4px; top: -9px; padding: 0 6px; border-radius: 8px; background: var(--rust); color: var(--paper); font-size: 10.5px; white-space: nowrap; max-width: 70%; overflow: hidden; text-overflow: ellipsis; }
