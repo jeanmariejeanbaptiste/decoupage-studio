@@ -12,7 +12,16 @@ export type FloorItem =
   | { id: ID; kind: 'actor'; x: number; y: number; characterId?: ID; label: string; to?: Point }
   | { id: ID; kind: 'wall' | 'rail'; x: number; y: number; x2: number; y2: number }
   | { id: ID; kind: 'door' | 'window'; x: number; y: number; rot: number; width: number }
-  | { id: ID; kind: 'light'; x: number; y: number; rot: number; label?: string; spread?: number; range?: number }
+  | {
+      id: ID;
+      kind: 'light';
+      x: number;
+      y: number;
+      rot: number;
+      label?: string;
+      spread?: number;
+      range?: number;
+    }
   | { id: ID; kind: 'reflector'; x: number; y: number; x2: number; y2: number; label?: string };
 
 export type FloorKind = FloorItem['kind'];
@@ -32,7 +41,8 @@ export interface PlanRef {
 /** Plans au sol d'une séquence : le plan par défaut (clé = séquence) puis les plans ajoutés. */
 export function plansOf(doc: ProjectDoc, seqId: ID): PlanRef[] {
   const out: PlanRef[] = [{ key: seqId, name: doc.floorPlans?.[seqId]?.name ?? 'Vue 1' }];
-  for (const [key, p] of Object.entries(doc.floorPlans ?? {})) if (p.seqId === seqId && key !== seqId) out.push({ key, name: p.name ?? 'Vue' });
+  for (const [key, p] of Object.entries(doc.floorPlans ?? {}))
+    if (p.seqId === seqId && key !== seqId) out.push({ key, name: p.name ?? 'Vue' });
   return out;
 }
 
@@ -49,10 +59,24 @@ export function renamePlan(doc: ProjectDoc, key: string, name: string): void {
 
 /** Supprime un plan ajouté ; le plan par défaut est seulement vidé. */
 export function deletePlan(doc: ProjectDoc, key: string): void {
-  const p = doc.floorPlans?.[key];
-  if (!p) return;
-  if (p.seqId && doc.floorPlans) delete doc.floorPlans[key];
-  else p.items = [];
+  const plans = doc.floorPlans;
+  const p = plans?.[key];
+  if (!plans || (!p && !doc.sequences[key])) return;
+  if (p?.seqId) {
+    delete plans[key];
+    return;
+  }
+  // Vue principale (clé = séquence) : la vue suivante prend sa place ; sinon elle est vidée.
+  const next = Object.entries(plans).find(([k, x]) => x.seqId === key && k !== key);
+  if (!next) {
+    if (p) {
+      p.items = [];
+      p.name = undefined;
+    }
+    return;
+  }
+  plans[key] = { ...next[1], seqId: undefined };
+  delete plans[next[0]];
 }
 
 export const PLAN_W = 1000;
@@ -60,7 +84,10 @@ export const PLAN_H = 640;
 export const GRID = 20;
 
 export const snap = (v: number, step = GRID) => Math.round(v / step) * step;
-export const clampPoint = (p: Point): Point => ({ x: Math.max(0, Math.min(PLAN_W, p.x)), y: Math.max(0, Math.min(PLAN_H, p.y)) });
+export const clampPoint = (p: Point): Point => ({
+  x: Math.max(0, Math.min(PLAN_W, p.x)),
+  y: Math.max(0, Math.min(PLAN_H, p.y)),
+});
 
 export function planOf(doc: ProjectDoc, seqId: ID): FloorPlan {
   return doc.floorPlans?.[seqId] ?? { items: [] };
@@ -89,7 +116,11 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
     case 'rail':
     case 'reflector': {
       const e = clampPoint(end ? { x: snap(end.x), y: snap(end.y) } : { x: p.x + 160, y: p.y });
-      plan.items.push(kind === 'reflector' ? { id, kind, ...p, x2: e.x, y2: e.y, label: `R${n}` } : { id, kind, ...p, x2: e.x, y2: e.y });
+      plan.items.push(
+        kind === 'reflector'
+          ? { id, kind, ...p, x2: e.x, y2: e.y, label: `R${n}` }
+          : { id, kind, ...p, x2: e.x, y2: e.y },
+      );
       break;
     }
     case 'door':
@@ -97,7 +128,15 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
       plan.items.push({ id, kind, ...p, rot: 0, width: kind === 'door' ? 80 : 120 });
       break;
     case 'light':
-      plan.items.push({ id, kind, ...p, rot: 90, label: `L${n}`, spread: DEFAULT_SPREAD, range: DEFAULT_RANGE });
+      plan.items.push({
+        id,
+        kind,
+        ...p,
+        rot: 90,
+        label: `L${n}`,
+        spread: DEFAULT_SPREAD,
+        range: DEFAULT_RANGE,
+      });
       break;
   }
   return id;
@@ -127,7 +166,10 @@ export function removeFloorItem(doc: ProjectDoc, seqId: ID, id: ID): void {
 }
 
 /** Focale de la caméra : celle du premier plan lié (départ du zoom le cas échéant). */
-export function cameraFocal(doc: ProjectDoc, cam: Extract<FloorItem, { kind: 'camera' }>): number | undefined {
+export function cameraFocal(
+  doc: ProjectDoc,
+  cam: Extract<FloorItem, { kind: 'camera' }>,
+): number | undefined {
   for (const id of cam.shotIds) {
     const f = doc.shots[id]?.focal.from ?? doc.shots[id]?.focal.to;
     if (f) return f;
@@ -136,7 +178,14 @@ export function cameraFocal(doc: ProjectDoc, cam: Extract<FloorItem, { kind: 'ca
 }
 
 /** Polygone du cône de champ (vue de dessus) : sommet, puis arc échantillonné. */
-export function conePoints(x: number, y: number, rotDeg: number, fovDeg: number, length: number, steps = 12): Point[] {
+export function conePoints(
+  x: number,
+  y: number,
+  rotDeg: number,
+  fovDeg: number,
+  length: number,
+  steps = 12,
+): Point[] {
   const pts: Point[] = [{ x, y }];
   const half = Math.min(170, fovDeg) / 2;
   for (let i = 0; i <= steps; i++) {
@@ -146,7 +195,11 @@ export function conePoints(x: number, y: number, rotDeg: number, fovDeg: number,
   return pts;
 }
 
-export function cameraCone(doc: ProjectDoc, cam: Extract<FloorItem, { kind: 'camera' }>, length = 260): { points: Point[]; fov: number; focal?: number } {
+export function cameraCone(
+  doc: ProjectDoc,
+  cam: Extract<FloorItem, { kind: 'camera' }>,
+  length = 260,
+): { points: Point[]; fov: number; focal?: number } {
   const focal = cameraFocal(doc, cam);
   const fov = focal ? horizontalFov(focal, doc.project.settings.cropFactor) : 60;
   return { points: conePoints(cam.x, cam.y, cam.rot, fov, length), fov, focal };
@@ -158,7 +211,9 @@ export function camerasForShot(doc: ProjectDoc, shotId: ID): string[] {
   if (!seqId) return [];
   return plansOf(doc, seqId)
     .flatMap((ref) => planOf(doc, ref.key).items)
-    .filter((i): i is Extract<FloorItem, { kind: 'camera' }> => i.kind === 'camera' && i.shotIds.includes(shotId))
+    .filter(
+      (i): i is Extract<FloorItem, { kind: 'camera' }> => i.kind === 'camera' && i.shotIds.includes(shotId),
+    )
     .map((c) => c.label ?? 'CAM');
 }
 
@@ -186,7 +241,16 @@ export interface Beam {
 export function lightBeam(l: Light): Beam {
   const spread = l.spread ?? DEFAULT_SPREAD;
   const range = l.range ?? DEFAULT_RANGE;
-  return { sourceId: l.id, x: l.x, y: l.y, rot: l.rot, spread, range, intensity: 1, points: conePoints(l.x, l.y, l.rot, spread, range) };
+  return {
+    sourceId: l.id,
+    x: l.x,
+    y: l.y,
+    rot: l.rot,
+    spread,
+    range,
+    intensity: 1,
+    points: conePoints(l.x, l.y, l.rot, spread, range),
+  };
 }
 
 /** Taille d'un réflecteur (longueur du segment). */
@@ -211,7 +275,7 @@ export function reflections(items: readonly FloorItem[]): Beam[] {
       const size = reflectorSize(r);
       if (d < 1 || d > b.range || size < 1) continue;
       const toRefl = (Math.atan2(dy, dx) * 180) / Math.PI;
-      const off = Math.abs((((toRefl - b.rot) % 360) + 540) % 360 - 180);
+      const off = Math.abs(((((toRefl - b.rot) % 360) + 540) % 360) - 180);
       if (off > b.spread / 2) continue;
       const ix = dx / d;
       const iy = dy / d;
@@ -232,7 +296,16 @@ export function reflections(items: readonly FloorItem[]): Beam[] {
       const range = Math.max(60, (b.range - d) * 0.7 + size * 0.5);
       // Plus le réflecteur est grand par rapport à la distance, plus il renvoie de lumière.
       const intensity = Math.max(0.15, Math.min(0.7, (size / d) * 0.9));
-      out.push({ sourceId: r.id, x: mx, y: my, rot, spread, range, intensity, points: conePoints(mx, my, rot, spread, range) });
+      out.push({
+        sourceId: r.id,
+        x: mx,
+        y: my,
+        rot,
+        spread,
+        range,
+        intensity,
+        points: conePoints(mx, my, rot, spread, range),
+      });
     }
   }
   return out;

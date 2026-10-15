@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { Camera, Copy, RectangleVertical, DoorOpen, Lamp, MousePointer2, Minus, Square, Trash2, TrainTrack, User } from 'lucide-react';
+import {
+  Camera,
+  Copy,
+  RectangleVertical,
+  DoorOpen,
+  Lamp,
+  MousePointer2,
+  Minus,
+  Square,
+  Trash2,
+  TrainTrack,
+  User,
+} from 'lucide-react';
 import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters';
 import {
   addFloorItem,
@@ -76,7 +88,13 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const plans = seqId ? plansOf(doc, seqId) : [];
   const planKey = plans.find((p) => p.key === planPick)?.key ?? seqId ?? '';
   const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
-  const beams = useMemo(() => [...items.filter((i) => i.kind === 'light').map((l) => lightBeam(l as Parameters<typeof lightBeam>[0])), ...reflections(items)], [items]);
+  const beams = useMemo(
+    () => [
+      ...items.filter((i) => i.kind === 'light').map((l) => lightBeam(l as Parameters<typeof lightBeam>[0])),
+      ...reflections(items),
+    ],
+    [items],
+  );
   const sel = items.find((i) => i.id === selected);
 
   if (!seqId || !doc.sequences[seqId]) {
@@ -159,7 +177,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       const rot = Math.round(deg(item, d0.to) / 5) * 5;
       mutate((d) => updateFloorItem(d, planKey, item.id, { rot } as Partial<FloorItem>));
     } else {
-      mutate((d) => updateFloorItem(d, planKey, item.id, { to: { x: snap(d0.to.x), y: snap(d0.to.y) } } as Partial<FloorItem>));
+      mutate((d) =>
+        updateFloorItem(d, planKey, item.id, {
+          to: { x: snap(d0.to.x), y: snap(d0.to.y) },
+        } as Partial<FloorItem>),
+      );
     }
   };
 
@@ -170,7 +192,12 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     }
     if (!sel) return;
     const step = e.shiftKey ? GRID * 5 : GRID;
-    const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    const moves: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
     if (moves[e.key]) {
       e.preventDefault();
       const [dx, dy] = moves[e.key];
@@ -181,7 +208,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       setSelected(null);
     } else if ((e.key === 'r' || e.key === 'R') && 'rot' in sel) {
       e.preventDefault();
-      mutate((d) => updateFloorItem(d, planKey, sel.id, { rot: sel.rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>));
+      mutate((d) =>
+        updateFloorItem(d, planKey, sel.id, { rot: sel.rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>),
+      );
     } else if (e.key === 'Escape') {
       setSelected(null);
       setTool('select');
@@ -195,12 +224,15 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       const dx = snap(drag.to.x - drag.from.x);
       const dy = snap(drag.to.y - drag.from.y);
       const moved = { ...item, x: item.x + dx, y: item.y + dy } as FloorItem;
-      if (moved.kind === 'wall' || moved.kind === 'rail' || moved.kind === 'reflector') Object.assign(moved, { x2: moved.x2 + dx, y2: moved.y2 + dy });
+      if (moved.kind === 'wall' || moved.kind === 'rail' || moved.kind === 'reflector')
+        Object.assign(moved, { x2: moved.x2 + dx, y2: moved.y2 + dy });
       if (moved.kind === 'actor' && moved.to) moved.to = { x: moved.to.x + dx, y: moved.to.y + dy };
       return moved;
     }
-    if (drag.mode === 'rotate' && 'rot' in item) return { ...item, rot: Math.round(deg(item, drag.to) / 5) * 5 } as FloorItem;
-    if (drag.mode === 'path' && item.kind === 'actor') return { ...item, to: { x: snap(drag.to.x), y: snap(drag.to.y) } };
+    if (drag.mode === 'rotate' && 'rot' in item)
+      return { ...item, rot: Math.round(deg(item, drag.to) / 5) * 5 } as FloorItem;
+    if (drag.mode === 'path' && item.kind === 'actor')
+      return { ...item, to: { x: snap(drag.to.x), y: snap(drag.to.y) } };
     return item;
   };
 
@@ -222,7 +254,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             content: async () => {
               const { default: JSZip } = await import('jszip');
               const zip = new JSZip();
-              for (const p of allFloorPlans(doc)) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
+              for (const p of allFloorPlans(doc))
+                zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
               return zip.generateAsync({ type: 'blob' });
             },
           }}
@@ -297,18 +330,29 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             >
               <Copy size={12} /> Dupliquer
             </button>
-            {planKey !== seqId && (
-              <button
-                type="button"
-                className={s.planAdd}
-                onClick={() => {
-                  mutateDoc((d) => deletePlan(d, planKey));
-                  setPlanPick(undefined);
-                }}
-              >
-                Supprimer cette vue
-              </button>
-            )}
+            <button
+              type="button"
+              className={s.planAdd}
+              data-testid="delete-plan"
+              title={
+                plans.length > 1
+                  ? 'Supprimer cette vue'
+                  : 'Vider cette vue (une séquence garde toujours une vue)'
+              }
+              onClick={() => {
+                const name = plans.find((p) => p.key === planKey)?.name ?? 'cette vue';
+                if (
+                  planOf(doc, planKey).items.length &&
+                  !window.confirm(`Supprimer « ${name} » et son contenu ? (annulable avec ⌘Z)`)
+                )
+                  return;
+                mutateDoc((d) => deletePlan(d, planKey));
+                setPlanPick(undefined);
+                setSelected(null);
+              }}
+            >
+              <Trash2 size={12} /> {plans.length > 1 ? 'Supprimer cette vue' : 'Vider la vue'}
+            </button>
           </div>
           <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol">
             {TOOLS.map((t) => (
@@ -324,7 +368,13 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 {t.label}
               </button>
             ))}
-            <Hand className={s.toolHint}>{tool === 'select' ? 'glisser pour déplacer · R pour pivoter · Suppr pour retirer' : tool === 'wall' || tool === 'rail' || tool === 'reflector' ? 'cliquer-glisser pour tracer · Échap pour finir' : 'cliquer pour placer · Échap pour finir'}</Hand>
+            <Hand className={s.toolHint}>
+              {tool === 'select'
+                ? 'glisser pour déplacer · R pour pivoter · Suppr pour retirer'
+                : tool === 'wall' || tool === 'rail' || tool === 'reflector'
+                  ? 'cliquer-glisser pour tracer · Échap pour finir'
+                  : 'cliquer pour placer · Échap pour finir'}
+            </Hand>
           </div>
           <svg
             ref={svgRef}
@@ -343,52 +393,97 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               <pattern id="fp-grid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
                 <path d={`M ${GRID} 0 L 0 0 0 ${GRID}`} fill="none" stroke="var(--rule)" strokeWidth="0.6" />
               </pattern>
-              <marker id="fp-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <marker
+                id="fp-arrow"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
                 <path d="M0 0 L10 5 L0 10 z" fill="var(--navy)" />
               </marker>
             </defs>
             <rect data-bg="1" width={PLAN_W} height={PLAN_H} fill="url(#fp-grid)" />
             {beams.map((b, i) => (
-              <g key={`beam-${b.sourceId}-${i}`} className={s.beamGroup} data-testid={b.intensity < 1 ? 'fp-bounce' : 'fp-beam'}>
+              <g
+                key={`beam-${b.sourceId}-${i}`}
+                className={s.beamGroup}
+                data-testid={b.intensity < 1 ? 'fp-bounce' : 'fp-beam'}
+              >
                 <defs>
-                  <radialGradient id={`fp-light-${i}`} cx={b.x} cy={b.y} r={b.range} gradientUnits="userSpaceOnUse">
+                  <radialGradient
+                    id={`fp-light-${i}`}
+                    cx={b.x}
+                    cy={b.y}
+                    r={b.range}
+                    gradientUnits="userSpaceOnUse"
+                  >
                     <stop offset="0" stopColor="var(--ochre)" stopOpacity={0.55 * b.intensity} />
                     <stop offset="0.6" stopColor="var(--ochre)" stopOpacity={0.22 * b.intensity} />
                     <stop offset="1" stopColor="var(--ochre)" stopOpacity="0" />
                   </radialGradient>
                 </defs>
-                <polygon points={b.points.map((p) => `${p.x},${p.y}`).join(' ')} fill={`url(#fp-light-${i})`} />
+                <polygon
+                  points={b.points.map((p) => `${p.x},${p.y}`).join(' ')}
+                  fill={`url(#fp-light-${i})`}
+                />
               </g>
             ))}
             {items.map((raw) => {
               const item = preview(raw);
-              return <ItemShape key={item.id} doc={doc} item={item} selected={item.id === selected} onDown={onItemDown} />;
+              return (
+                <ItemShape
+                  key={item.id}
+                  doc={doc}
+                  item={item}
+                  selected={item.id === selected}
+                  onDown={onItemDown}
+                />
+              );
             })}
             {drag?.mode === 'line' && (
-              <line x1={snap(drag.from.x)} y1={snap(drag.from.y)} x2={snap(drag.to.x)} y2={snap(drag.to.y)} className={drag.kind === 'wall' ? s.wall : drag.kind === 'rail' ? s.rail : s.reflector} />
+              <line
+                x1={snap(drag.from.x)}
+                y1={snap(drag.from.y)}
+                x2={snap(drag.to.x)}
+                y2={snap(drag.to.y)}
+                className={drag.kind === 'wall' ? s.wall : drag.kind === 'rail' ? s.rail : s.reflector}
+              />
             )}
           </svg>
         </div>
 
         <aside className={['card', s.panel].join(' ')} aria-label="Propriétés">
-          {sel && <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} onDelete={() => setSelected(null)} />}
+          {sel && (
+            <Properties
+              doc={doc}
+              seqId={seqId}
+              planKey={planKey}
+              item={sel}
+              onDelete={() => setSelected(null)}
+            />
+          )}
           <div className={sel ? s.coverage : undefined}>
-              <h2 className={s.h2}>Plans du découpage</h2>
-              <p className={s.note}>
-                {seq.shotIds.filter((id) => camerasForShot(doc, id).length > 0).length} / {seq.shotIds.length} plans reliés à une caméra (toutes vues). Relier une caméra est facultatif.
-              </p>
-              <ul className={s.shotList}>
-                {seq.shotIds.map((id) => {
-                  const cams = camerasForShot(doc, id);
-                  const sh = doc.shots[id];
-                  return (
-                    <li key={id} data-testid="fp-shot" className={cams.length ? undefined : s.unassigned}>
-                      <b>{shotCode(doc, id)}</b> {sh.subject} · {sh.value} · {formatFocal(sh.focal, isZoom(sh.movement))}
-                      {cams.length > 0 ? <em>{cams.join(', ')}</em> : <em className={s.none}>non assigné</em>}
-                    </li>
-                  );
-                })}
-              </ul>
+            <h2 className={s.h2}>Plans du découpage</h2>
+            <p className={s.note}>
+              {seq.shotIds.filter((id) => camerasForShot(doc, id).length > 0).length} / {seq.shotIds.length}{' '}
+              plans reliés à une caméra (toutes vues). Relier une caméra est facultatif.
+            </p>
+            <ul className={s.shotList}>
+              {seq.shotIds.map((id) => {
+                const cams = camerasForShot(doc, id);
+                const sh = doc.shots[id];
+                return (
+                  <li key={id} data-testid="fp-shot" className={cams.length ? undefined : s.unassigned}>
+                    <b>{shotCode(doc, id)}</b> {sh.subject} · {sh.value} ·{' '}
+                    {formatFocal(sh.focal, isZoom(sh.movement))}
+                    {cams.length > 0 ? <em>{cams.join(', ')}</em> : <em className={s.none}>non assigné</em>}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </aside>
       </div>
@@ -396,7 +491,17 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: FloorItem; selected: boolean; onDown: (e: PointerEvent, id: ID, mode?: 'move' | 'rotate' | 'path') => void }) {
+function ItemShape({
+  doc,
+  item,
+  selected,
+  onDown,
+}: {
+  doc: ProjectDoc;
+  item: FloorItem;
+  selected: boolean;
+  onDown: (e: PointerEvent, id: ID, mode?: 'move' | 'rotate' | 'path') => void;
+}) {
   const cls = [s.item, selected ? s.sel : ''].join(' ');
   const handle = (rot: number, r = 46) => {
     const a = (rot * Math.PI) / 180;
@@ -411,13 +516,24 @@ function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: Flo
           <polygon points={cone.points.map((p) => `${p.x},${p.y}`).join(' ')} className={s.cone} />
           <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
             <rect x={item.x - 16} y={item.y - 11} width={28} height={22} rx={3} className={s.camBody} />
-            <polygon points={`${item.x + 12},${item.y - 6} ${item.x + 22},${item.y - 11} ${item.x + 22},${item.y + 11} ${item.x + 12},${item.y + 6}`} className={s.camBody} />
+            <polygon
+              points={`${item.x + 12},${item.y - 6} ${item.x + 22},${item.y - 11} ${item.x + 22},${item.y + 11} ${item.x + 12},${item.y + 6}`}
+              className={s.camBody}
+            />
           </g>
           <text x={item.x} y={item.y + 32} className={s.label}>
             {item.label}
             {cone.focal ? ` · ${cone.focal}mm · ${Math.round(cone.fov)}°` : ''}
           </text>
-          {selected && <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} data-testid="fp-rotate" />}
+          {selected && (
+            <circle
+              {...h}
+              r={7}
+              className={s.handle}
+              onPointerDown={(e) => onDown(e, item.id, 'rotate')}
+              data-testid="fp-rotate"
+            />
+          )}
         </g>
       );
     }
@@ -426,8 +542,23 @@ function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: Flo
         <g className={cls} data-testid="fp-actor">
           {item.to && (
             <>
-              <line x1={item.x} y1={item.y} x2={item.to.x} y2={item.to.y} className={s.path} markerEnd="url(#fp-arrow)" />
-              {selected && <circle cx={item.to.x} cy={item.to.y} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'path')} />}
+              <line
+                x1={item.x}
+                y1={item.y}
+                x2={item.to.x}
+                y2={item.to.y}
+                className={s.path}
+                markerEnd="url(#fp-arrow)"
+              />
+              {selected && (
+                <circle
+                  cx={item.to.x}
+                  cy={item.to.y}
+                  r={7}
+                  className={s.handle}
+                  onPointerDown={(e) => onDown(e, item.id, 'path')}
+                />
+              )}
             </>
           )}
           <g onPointerDown={(e) => onDown(e, item.id)}>
@@ -458,7 +589,13 @@ function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: Flo
       return (
         <g className={cls} onPointerDown={(e) => onDown(e, item.id)}>
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
-          <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={item.kind === 'wall' ? s.wall : s.rail} />
+          <line
+            x1={item.x}
+            y1={item.y}
+            x2={item.x2}
+            y2={item.y2}
+            className={item.kind === 'wall' ? s.wall : s.rail}
+          />
         </g>
       );
     case 'door':
@@ -470,13 +607,18 @@ function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: Flo
             {item.kind === 'door' ? (
               <>
                 <line x1={item.x} y1={item.y} x2={item.x + item.width} y2={item.y} className={s.doorGap} />
-                <path d={`M ${item.x} ${item.y} L ${item.x} ${item.y + item.width} A ${item.width} ${item.width} 0 0 0 ${item.x + item.width} ${item.y}`} className={s.door} />
+                <path
+                  d={`M ${item.x} ${item.y} L ${item.x} ${item.y + item.width} A ${item.width} ${item.width} 0 0 0 ${item.x + item.width} ${item.y}`}
+                  className={s.door}
+                />
               </>
             ) : (
               <rect x={item.x} y={item.y - 4} width={item.width} height={8} className={s.window} />
             )}
           </g>
-          {selected && <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} />}
+          {selected && (
+            <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} />
+          )}
         </g>
       );
     }
@@ -491,7 +633,9 @@ function ItemShape({ doc, item, selected, onDown }: { doc: ProjectDoc; item: Flo
           <text x={item.x} y={item.y + 28} className={s.label}>
             {item.label}
           </text>
-          {selected && <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} />}
+          {selected && (
+            <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} />
+          )}
         </g>
       );
     }
@@ -509,16 +653,34 @@ const KIND_LABEL: Record<FloorKind, string> = {
   reflector: 'Réflecteur',
 };
 
-function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; seqId: ID; planKey: string; item: FloorItem; onDelete: () => void }) {
+function Properties({
+  doc,
+  seqId,
+  planKey,
+  item,
+  onDelete,
+}: {
+  doc: ProjectDoc;
+  seqId: ID;
+  planKey: string;
+  item: FloorItem;
+  onDelete: () => void;
+}) {
   const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, planKey, item.id, patch));
   const seq = doc.sequences[seqId];
   return (
     <div className={s.props} data-testid="fp-properties">
       <h2 className={s.h2}>{KIND_LABEL[item.kind]}</h2>
-      {(item.kind === 'camera' || item.kind === 'light' || item.kind === 'actor' || item.kind === 'reflector') && (
+      {(item.kind === 'camera' ||
+        item.kind === 'light' ||
+        item.kind === 'actor' ||
+        item.kind === 'reflector') && (
         <label className={s.field}>
           <span>Repère</span>
-          <input value={item.label ?? ''} onChange={(e) => update({ label: e.target.value } as Partial<FloorItem>)} />
+          <input
+            value={item.label ?? ''}
+            onChange={(e) => update({ label: e.target.value } as Partial<FloorItem>)}
+          />
         </label>
       )}
       {item.kind === 'camera' && (
@@ -526,7 +688,9 @@ function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; 
           <p className={s.note}>
             {(() => {
               const c = cameraCone(doc, item);
-              return c.focal ? `${c.focal} mm → angle horizontal ${c.fov.toFixed(1).replace('.', ',')}°` : 'Liez un plan pour calculer le cône (60° par défaut).';
+              return c.focal
+                ? `${c.focal} mm → angle horizontal ${c.fov.toFixed(1).replace('.', ',')}°`
+                : 'Liez un plan pour calculer le cône (60° par défaut).';
             })()}
           </p>
           <fieldset className={s.links}>
@@ -536,9 +700,16 @@ function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; 
                 <input
                   type="checkbox"
                   checked={item.shotIds.includes(id)}
-                  onChange={(e) => update({ shotIds: e.target.checked ? [...item.shotIds, id] : item.shotIds.filter((x) => x !== id) } as Partial<FloorItem>)}
+                  onChange={(e) =>
+                    update({
+                      shotIds: e.target.checked
+                        ? [...item.shotIds, id]
+                        : item.shotIds.filter((x) => x !== id),
+                    } as Partial<FloorItem>)
+                  }
                 />
-                <b>{shotCode(doc, id)}</b> {doc.shots[id].value} · {formatFocal(doc.shots[id].focal, isZoom(doc.shots[id].movement)) || '—'}
+                <b>{shotCode(doc, id)}</b> {doc.shots[id].value} ·{' '}
+                {formatFocal(doc.shots[id].focal, isZoom(doc.shots[id].movement)) || '—'}
               </label>
             ))}
           </fieldset>
@@ -548,7 +719,10 @@ function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; 
         <>
           <label className={s.field}>
             <span>Personnage</span>
-            <select value={item.characterId ?? ''} onChange={(e) => update({ characterId: e.target.value || undefined } as Partial<FloorItem>)}>
+            <select
+              value={item.characterId ?? ''}
+              onChange={(e) => update({ characterId: e.target.value || undefined } as Partial<FloorItem>)}
+            >
               <option value="">—</option>
               {sortedCharacters(doc).map((c) => (
                 <option key={c.id} value={c.id}>
@@ -559,7 +733,11 @@ function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; 
           </label>
           <div className={s.quick} aria-label="Nommer rapidement">
             {sequenceCharacterIds(doc, seqId)
-              .concat(sortedCharacters(doc).map((c) => c.id).filter((id) => !sequenceCharacterIds(doc, seqId).includes(id)))
+              .concat(
+                sortedCharacters(doc)
+                  .map((c) => c.id)
+                  .filter((id) => !sequenceCharacterIds(doc, seqId).includes(id)),
+              )
               .slice(0, 12)
               .map((id) => (
                 <button
@@ -572,7 +750,15 @@ function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; 
                 </button>
               ))}
           </div>
-          <Button variant="outline" size="sm" onClick={() => update({ to: item.to ? undefined : { x: Math.min(PLAN_W, item.x + 120), y: item.y } } as Partial<FloorItem>)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              update({
+                to: item.to ? undefined : { x: Math.min(PLAN_W, item.x + 120), y: item.y },
+              } as Partial<FloorItem>)
+            }
+          >
             {item.to ? 'Retirer le déplacement' : 'Ajouter un déplacement'}
           </Button>
         </>
@@ -581,24 +767,49 @@ function Properties({ doc, seqId, planKey, item, onDelete }: { doc: ProjectDoc; 
         <>
           <label className={s.field}>
             <span>Ouverture du faisceau : {item.spread ?? DEFAULT_SPREAD}°</span>
-            <input type="range" min={10} max={160} step={5} value={item.spread ?? DEFAULT_SPREAD} onChange={(e) => update({ spread: Number(e.target.value) } as Partial<FloorItem>)} aria-label="Ouverture du faisceau" />
+            <input
+              type="range"
+              min={10}
+              max={160}
+              step={5}
+              value={item.spread ?? DEFAULT_SPREAD}
+              onChange={(e) => update({ spread: Number(e.target.value) } as Partial<FloorItem>)}
+              aria-label="Ouverture du faisceau"
+            />
           </label>
           <label className={s.field}>
             <span>Portée</span>
-            <input type="range" min={80} max={700} step={20} value={item.range ?? DEFAULT_RANGE} onChange={(e) => update({ range: Number(e.target.value) } as Partial<FloorItem>)} aria-label="Portée" />
+            <input
+              type="range"
+              min={80}
+              max={700}
+              step={20}
+              value={item.range ?? DEFAULT_RANGE}
+              onChange={(e) => update({ range: Number(e.target.value) } as Partial<FloorItem>)}
+              aria-label="Portée"
+            />
           </label>
           <p className={s.note}>Orientez la lumière vers un réflecteur : il renvoie et diffuse la lumière.</p>
         </>
       )}
       {item.kind === 'reflector' && (
         <p className={s.note}>
-          Taille {Math.round(reflectorSize(item) / 20) * 20} unités. Plus il est grand, plus la lumière renvoyée est large et douce. Pour le redimensionner, retracez-le.
+          Taille {Math.round(reflectorSize(item) / 20) * 20} unités. Plus il est grand, plus la lumière
+          renvoyée est large et douce. Pour le redimensionner, retracez-le.
         </p>
       )}
       {(item.kind === 'door' || item.kind === 'window') && (
         <label className={s.field}>
           <span>Largeur</span>
-          <input type="number" min={20} step={10} value={item.width} onChange={(e) => update({ width: Math.max(20, Number(e.target.value) || 20) } as Partial<FloorItem>)} />
+          <input
+            type="number"
+            min={20}
+            step={10}
+            value={item.width}
+            onChange={(e) =>
+              update({ width: Math.max(20, Number(e.target.value) || 20) } as Partial<FloorItem>)
+            }
+          />
         </label>
       )}
       <Button

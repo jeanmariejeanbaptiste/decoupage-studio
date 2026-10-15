@@ -82,6 +82,10 @@ describe('plans multiples, lumières et réflecteurs', async () => {
     });
     expect(plansOf(removed, seqId)).toHaveLength(1);
     expect(planOf(removed, seqId).items).toEqual([]);
+    // Supprimer la vue 1 quand une autre existe : la suivante prend sa place.
+    const promoted = produce(next, (d) => deletePlan(d, seqId));
+    expect(plansOf(promoted, seqId).map((p) => p.name)).toEqual(['Contrechamp']);
+    expect(planOf(promoted, seqId).items).toHaveLength(1);
   });
   it('renvoie la lumière sur un réflecteur dans le faisceau', () => {
     const light = { id: 'l', kind: 'light' as const, x: 0, y: 0, rot: 0, spread: 40, range: 300 };

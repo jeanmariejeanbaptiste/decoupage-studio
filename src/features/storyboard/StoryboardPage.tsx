@@ -95,6 +95,8 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
         </p>
       </div>
 
+      {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
+      <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
       <div className={s.print} aria-hidden="true">
         {pages.map((ids, i) => (
           <div key={i} className={[s.sheet, s[`per${perPage}`]].join(' ')}>

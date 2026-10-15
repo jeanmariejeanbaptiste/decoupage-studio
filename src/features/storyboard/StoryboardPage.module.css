@@ -31,7 +31,8 @@
 @media print {
   :global(.page) { padding: 0 !important; }
   .print { display: block; }
-  .sheet { page: storyboard; break-after: page; width: 297mm; height: 209mm; padding: 10mm 12mm; overflow: hidden; display: flex; flex-direction: column; gap: 4mm; box-sizing: border-box; }
+  /* Hauteur prudente : tient aussi quand le navigateur ajoute ses propres marges (en-têtes Safari). */
+  .sheet { page: storyboard; break-after: page; break-inside: avoid; width: 100%; max-width: 297mm; height: 178mm; padding: 6mm 10mm; overflow: hidden; display: flex; flex-direction: column; gap: 4mm; box-sizing: border-box; }
   .sheetGrid { min-height: 0; }
   .sheetGrid .card { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   .sheetGrid .frame { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; }
