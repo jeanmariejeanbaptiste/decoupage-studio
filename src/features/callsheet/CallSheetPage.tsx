@@ -242,15 +242,21 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               </tr>
             </thead>
             <tbody>
-              {strips.flatMap((st) =>
-                st.shotIds.map((id) => {
+              {(() => {
+                const rows = strips.flatMap((st) =>
+                  st.shotIds.map((id) => ({ id, seqId: st.seqId, slot: shotSlot(doc, day.n, id) })),
+                );
+                const placed = rows
+                  .filter((r) => r.slot)
+                  .sort((a, b) => a.slot!.start.localeCompare(b.slot!.start));
+                const rest = rows.filter((r) => !r.slot);
+                const line = ({ id, seqId, slot }: (typeof rows)[number]) => {
                   const sh = doc.shots[id];
-                  const slot = shotSlot(doc, day.n, id);
                   return (
                     <tr key={id}>
                       <td className={s.time}>{slot ? `${slot.start} – ${slot.end}` : ''}</td>
                       <td className={s.code}>{shotCode(doc, id)}</td>
-                      <td>{sequenceHeading(doc, st.seqId)}</td>
+                      <td>{sequenceHeading(doc, seqId)}</td>
                       <td>{sh.subject}</td>
                       <td>{sh.value}</td>
                       <td>{renderTokens(sh.angle)}</td>
@@ -259,8 +265,22 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                       <td>{doc.blocks[sh.actionBlockId]?.text}</td>
                     </tr>
                   );
-                }),
-              )}
+                };
+                return (
+                  <>
+                    {placed.map(line)}
+                    {placed.length > 0 && rest.length > 0 && (
+                      <tr data-testid="unplaced-separator">
+                        <td colSpan={9} className={s.muted}>
+                          Sans horaire — {rest.length} plan{rest.length > 1 ? 's' : ''} encore à placer dans
+                          l’emploi du temps
+                        </td>
+                      </tr>
+                    )}
+                    {rest.map(line)}
+                  </>
+                );
+              })()}
             </tbody>
           </table>
         </section>
