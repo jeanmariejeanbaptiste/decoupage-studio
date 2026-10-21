@@ -1,9 +1,11 @@
+import { createPortal } from 'react-dom';
 import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ImagePlus } from 'lucide-react';
+import { ImagePlus, PenLine } from 'lucide-react';
+import { SketchEditor } from './SketchEditor';
 import { exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
 import { ExportPanel } from '../export/ExportPanel';
 import { formatFocal } from '../../domain/focal';
@@ -227,6 +229,7 @@ function AspectPicker({ doc }: { doc: ProjectDoc }) {
 function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: Shot; timing: Timing; printing?: boolean }) {
   const url = useBlobUrl(shot.storyboard?.blobKey);
   const [over, setOver] = useState(false);
+  const [sketching, setSketching] = useState(false);
   const block = doc.blocks[shot.actionBlockId];
   const ratio = aspectRatio(doc.project.settings.storyboardAspect);
   const meta = [valueLabel(shot.value, doc.project.settings.labelStyle), formatFocal(shot.focal, isZoom(shot.movement)), renderTokens(shot.movement, shot.movementSep)].filter(Boolean).join(' · ');
@@ -273,6 +276,13 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
             />
           </label>
         )}
+        {!printing && (
+          <button type="button" className={s.draw} onPointerDown={(e) => e.stopPropagation()} onClick={() => setSketching(true)} title={url ? 'Dessiner, écrire ou poser des flèches sur l’image' : 'Dessiner la case'} data-testid="storyboard-draw">
+            <PenLine size={13} strokeWidth={1.5} />
+            Dessiner
+          </button>
+        )}
+        {sketching && createPortal(<SketchEditor doc={doc} shotId={shot.id} onClose={() => setSketching(false)} />, document.body)}
         {!printing && url && (
           <button
             type="button"

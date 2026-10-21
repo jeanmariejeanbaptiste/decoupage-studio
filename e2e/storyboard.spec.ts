@@ -48,3 +48,35 @@ test('storyboard : importer une image depuis la carte', async ({ page }) => {
   await card.getByRole('button', { name: 'Retirer l’image du plan 1.3' }).click();
   await expect(card.getByRole('img', { name: 'Storyboard du plan 1.3' })).toHaveCount(0);
 });
+
+test('storyboard : dessiner une case (crayon, flèche, flèche 3D, texte)', async ({ page }) => {
+  await page.goto('/#/storyboard?seed=fiction');
+  const card = page.getByTestId('storyboard-card').first();
+  await card.hover();
+  await card.getByTestId('storyboard-draw').click();
+  const ed = page.getByTestId('sketch-editor');
+  let box = (await ed.getByTestId('sketch-canvas').boundingBox())!;
+  const at = (x: number, y: number) => [box.x + box.width * x, box.y + box.height * y] as const;
+  await page.mouse.move(...at(0.1, 0.2));
+  await page.mouse.down();
+  await page.mouse.move(...at(0.3, 0.4), { steps: 6 });
+  await page.mouse.up();
+  await ed.getByTestId('sketch-arrow').click();
+  await page.mouse.move(...at(0.4, 0.7));
+  await page.mouse.down();
+  await page.mouse.move(...at(0.7, 0.6), { steps: 6 });
+  await page.mouse.up();
+  await ed.getByTestId('sketch-arrow3d').click();
+  // La barre des orientations décale le dessin : on re-mesure.
+  box = (await ed.getByTestId('sketch-canvas').boundingBox())!;
+  await page.mouse.click(...at(0.75, 0.3));
+  await expect(ed.getByLabel('Inclinaison')).toBeVisible();
+  await expect(ed.locator('[data-sketch]')).toHaveCount(3);
+  await ed.getByTestId('sketch-save').click();
+  await expect(ed).toHaveCount(0);
+  await expect(card.getByRole('img', { name: /Storyboard du plan/ })).toBeVisible();
+  // Le dessin reste modifiable : on le retrouve à la réouverture.
+  await card.hover();
+  await card.getByTestId('storyboard-draw').click();
+  await expect(page.getByTestId('sketch-editor').locator('[data-sketch]')).toHaveCount(3);
+});

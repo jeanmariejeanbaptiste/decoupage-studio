@@ -141,7 +141,8 @@ export interface Shot {
   light?: string;
   notes?: string;
   status: ShotStatus;
-  storyboard?: { blobKey: string };
+  /** Image affichée ; `baseKey` = image d'origine sous le dessin, `sketch` = annotations modifiables. */
+  storyboard?: { blobKey: string; baseKey?: string; sketch?: import('./sketch').SketchItem[] };
   shootingDay?: number;
   /** Coupure de fusion forcée avant ce plan, pour les colonnes listées (§12). */
   mergeBreak?: ColumnKey[];
