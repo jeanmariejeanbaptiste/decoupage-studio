@@ -1,8 +1,9 @@
-import { useMemo, useState, type DragEvent } from 'react';
+import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ImagePlus, Printer } from 'lucide-react';
+import { Image as ImageIcon, ImagePlus, Printer } from 'lucide-react';
+import { nodeToPng } from '../export/imageExport';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { shotDurationSec } from '../../domain/rows';
@@ -42,6 +43,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   const pages: ID[][] = [];
   for (let i = 0; i < allShots.length; i += perPage) pages.push(allShots.slice(i, i + perPage));
 
+  const board = useRef<HTMLDivElement>(null);
   return (
     <div className="page page--wide">
       <header className="page-head no-print">
@@ -62,10 +64,19 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
           <Button variant="outline" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()} data-testid="storyboard-print">
             Planche PDF
           </Button>
+          <Button
+            variant="outline"
+            icon={<ImageIcon size={15} strokeWidth={1.25} />}
+            disabled={allShots.length === 0}
+            onClick={() => board.current && void nodeToPng(board.current, `${doc.project.title || 'projet'}-storyboard.png`, '#fbf8f2')}
+            data-testid="storyboard-image"
+          >
+            Image
+          </Button>
         </div>
       </header>
 
-      <div className="no-print">
+      <div className="no-print" ref={board}>
         {allShots.length === 0 && (
           <div className="card empty">
             <span className="hand">Aucun plan pour l’instant</span>

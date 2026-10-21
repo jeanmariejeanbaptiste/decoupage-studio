@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Eye, FileSpreadsheet, Printer, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
+import { Columns3, Eye, FileSpreadsheet, Image as ImageIcon, Printer, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from '../../domain/types';
@@ -9,6 +9,7 @@ import { fileNameFor } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
+import { nodeToPng } from '../export/imageExport';
 import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from './actions';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
@@ -32,6 +33,17 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   const setUi = useUi((u) => u.set);
   const nSeq = doc.project.sequenceIds.length;
   const createFirst = useRef<HTMLButtonElement>(null);
+  // Export image : le rendu d'export est monté hors écran le temps de la capture.
+  const [imaging, setImaging] = useState(false);
+  const imageRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!imaging) return;
+    const node = imageRef.current?.firstElementChild as HTMLElement | null;
+    const bg = node ? getComputedStyle(node).backgroundColor : '#ffffff';
+    const done = () => setImaging(false);
+    if (node) void nodeToPng(node, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-decoupage.png`, bg).finally(done);
+    else done();
+  }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Après la création de la première séquence, la grille prend le focus.
   const hadRows = useRef(model.rows.length > 0);
@@ -95,6 +107,9 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           >
             Excel
           </Button>
+          <Button icon={<ImageIcon {...IC} />} title="Exporter le découpage en image PNG" disabled={nSeq === 0 || imaging} onClick={() => setImaging(true)} data-testid="grid-export-image">
+            Image
+          </Button>
           <Button
             variant={printView ? 'primary' : 'outline'}
             icon={<Eye {...IC} />}
@@ -107,6 +122,11 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
         </div>
       </header>
 
+      {imaging && (
+        <div ref={imageRef} aria-hidden="true" style={{ position: 'fixed', left: -20000, top: 0, width: '297mm' }}>
+          <ExportTable doc={storeDoc} />
+        </div>
+      )}
       {nSeq === 0 ? (
         <div className="card empty">
           <span className="hand">Aucune séquence pour l’instant</span>

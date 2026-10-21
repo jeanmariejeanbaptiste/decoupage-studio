@@ -11,6 +11,7 @@ import {
   Trash2,
   TrainTrack,
   User,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters';
 import {
@@ -47,7 +48,8 @@ import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import s from './FloorPlanPage.module.css';
 import { TabExport } from '../export/TabExport';
-import { allFloorPlans } from '../../domain/exports';
+import { allFloorPlans, floorPlanSvg } from '../../domain/exports';
+import { svgToPng } from '../export/imageExport';
 import { floorPlansDocument } from '../../domain/documents';
 
 type Tool = 'select' | FloorKind;
@@ -245,6 +247,19 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           <p className="page-kicker">Étape 6 · Plan au sol</p>
           <h1 className="page-title">{sequenceHeading(doc, seqId)}</h1>
         </div>
+        <div className={s.exports}>
+        <Button
+          variant="ghost"
+          icon={<ImageIcon size={15} strokeWidth={1.25} />}
+          title="Exporter la vue affichée en image PNG"
+          data-testid="floorplan-image"
+          onClick={() => {
+            const name = plans.find((p) => p.key === planKey)?.name ?? 'Vue';
+            void svgToPng(floorPlanSvg(doc, planKey, `${sequenceHeading(doc, seqId)} — ${name}`), `${doc.project.title || 'projet'}-${sequenceHeading(doc, seqId)}-${name}.png`.replace(/[\\/:*?"<>|]+/g, '-'));
+          }}
+        >
+          Image
+        </Button>
         <TabExport
           doc={() => floorPlansDocument(doc)}
           fileBase={`${doc.project.title || 'projet'}-plans-au-sol`}
@@ -260,6 +275,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             },
           }}
         />
+        </div>
         <label className={s.seqPick}>
           <span>Séquence</span>
           <select

@@ -56,3 +56,5 @@
 .quick .quickOn { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
 .coverage { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--rule); }
 .unassigned { opacity: 0.75; }
+
+.exports { display: flex; gap: 8px; align-items: center; }

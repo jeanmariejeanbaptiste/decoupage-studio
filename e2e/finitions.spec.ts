@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import JSZip from 'jszip';
 
@@ -103,4 +104,19 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await page.getByTestId('stop-address').first().fill('3 quai Voltaire');
   await page.getByTestId('tab-export-pdf').click();
   await expect(page.locator('iframe[aria-hidden="true"]').last().contentFrame().locator('body')).toContainText('3 quai Voltaire');
+});
+
+test('exports en image PNG : découpage, storyboard, plan au sol', async ({ page }) => {
+  for (const [route, id, name] of [
+    ['/#/storyboard?seed=rav3', 'storyboard-image', /-storyboard\.png$/],
+    ['/#/grid?seed=rav3', 'grid-export-image', /-decoupage\.png$/],
+    ['/#/floorplan?seed=rav3', 'floorplan-image', /\.png$/],
+  ] as const) {
+    await page.goto(route);
+    const dl = page.waitForEvent('download', { timeout: 20_000 });
+    await page.getByTestId(id).click();
+    const d = await dl;
+    expect(d.suggestedFilename()).toMatch(name);
+    expect(statSync(await d.path()).size).toBeGreaterThan(5_000);
+  }
 });
