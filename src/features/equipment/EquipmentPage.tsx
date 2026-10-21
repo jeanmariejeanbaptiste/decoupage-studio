@@ -1,3 +1,4 @@
+import { fold } from '../../domain/text';
 import { useMemo, useState } from 'react';
 import { Download, Plus, Trash2 } from 'lucide-react';
 import { TabExport } from '../export/TabExport';
@@ -13,6 +14,8 @@ import { Hand } from '../../ui/Hand';
 import { goToShot } from '../registry/RegistryPage';
 import s from './EquipmentPage.module.css';
 
+const TONE: Record<string, string> = { Image: 'var(--rust)', Machinerie: 'var(--ochre)', Lumière: '#c9a227', Son: 'var(--navy)' };
+
 const LEAD: Record<string, string> = {
   Image: 'chef opérateur',
   Machinerie: 'chef machiniste',
@@ -24,6 +27,11 @@ const LEAD: Record<string, string> = {
 export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const lists = useMemo(() => aggregateEquipment(doc), [doc]);
   const [showShots, setShowShots] = useState(true);
+  const [query, setQuery] = useState('');
+  const [only, setOnly] = useState<string | null>(null);
+  const q = fold(query.trim());
+  const cats = equipmentCategories(doc);
+  const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => shotCode(doc, id).includes(q)));
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
 
   const csv = () => {
@@ -34,9 +42,21 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   };
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <header className="page-head">
+        <nav className={[s.summary, 'no-print'].join(' ')} aria-label="Postes">
+          <button type="button" className={only === null ? s.chipOn : s.chip} onClick={() => setOnly(null)}>
+            Tous <em>{cats.reduce((n, c) => n + lists[c].length, 0)}</em>
+          </button>
+          {cats.map((c) => (
+            <button key={c} type="button" className={only === c ? s.chipOn : s.chip} style={{ '--tone': TONE[c] ?? 'var(--ink-soft)' } as React.CSSProperties} onClick={() => setOnly(only === c ? null : c)}>
+              <i aria-hidden="true" />
+              {c} <em>{lists[c].length}</em>
+            </button>
+          ))}
+        </nav>
         <div className={[s.actions, 'no-print'].join(' ')}>
+          <input className={s.search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher du matériel ou un plan…" aria-label="Rechercher du matériel" />
           <label className={s.toggle}>
             <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />
             Afficher les plans concernés
@@ -59,10 +79,11 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
         </div>
       </header>
       <div className={s.grid}>
-        {equipmentCategories(doc).map((c) => (
-          <section key={c} className={['card', s.list].join(' ')} data-testid={`equipment-${c}`}>
+        {cats.filter((c) => !only || c === only).map((c) => (
+          <section key={c} className={['card', s.list].join(' ')} style={{ '--tone': TONE[c] ?? 'var(--ink-soft)' } as React.CSSProperties} data-testid={`equipment-${c}`}>
             <h2 className={s.h2}>
               {c}
+              <span className={s.count}>{lists[c].length}</span>
               {!(c in LEAD) && (
                 <Button
                   variant="icon"
@@ -81,13 +102,17 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
               )}
             </h2>
             {c in LEAD && <Hand>{LEAD[c]}</Hand>}
-            {lists[c].length === 0 ? (
-              <p className={s.empty}>Rien de déduit pour l’instant.</p>
+            {visible(c).length === 0 ? (
+              <p className={s.empty}>{q ? 'Aucun résultat.' : 'Rien de déduit pour l’instant.'}</p>
             ) : (
               <ul>
-                {lists[c].map((l) => (
+                {visible(c).map((l) => (
                   <li key={l.key}>
-                    <span className={s.label}>{l.label}</span>
+                    <span className={s.label}>
+                      {l.label}
+                      {l.manual && <span className={s.manual}>ajout</span>}
+                    </span>
+                    <span className={s.nb}>{l.shotIds.length ? `${l.shotIds.length} plan${l.shotIds.length > 1 ? 's' : ''}` : ''}</span>
                     {showShots && (
                     <span className={s.shots}>
                       {l.shotIds.map((id) => (
