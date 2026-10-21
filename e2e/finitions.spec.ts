@@ -120,3 +120,34 @@ test('exports en image PNG : découpage, storyboard, plan au sol', async ({ page
     expect(statSync(await d.path()).size).toBeGreaterThan(5_000);
   }
 });
+
+test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  const row = page.locator(ROWS).first();
+  await row.locator('td').first().dispatchEvent('contextmenu', { clientX: 200, clientY: 300, button: 2 });
+  await page.getByRole('menuitem', { name: 'Transformer en plan-séquence' }).click();
+  const editor = page.getByTestId('oneshot-editor');
+  await expect(editor.getByTestId('oneshot-beat')).toHaveCount(2);
+  await editor.getByLabel('Valeur du temps 2').fill('Gros plan');
+  await editor.getByLabel('Sujet du temps 2').fill('Affiche');
+  await editor.getByLabel('Durée minimale du temps 2').fill('10');
+  await editor.getByLabel('Durée maximale du temps 2').fill('20');
+  await editor.getByLabel('Durée maximale du temps 2').blur();
+  await expect(row).toContainText('PLAN-SÉQ.');
+  await expect(row).toContainText('T2 Affiche');
+  await expect(editor).toContainText('0:10 – 0:20');
+  await page.goto('/#/floorplan');
+  await expect(page.getByTestId('fp-beats')).toBeVisible();
+  const canvas = page.getByTestId('floorplan');
+  const box = (await canvas.boundingBox())!;
+  for (const [n, x] of [
+    [1, 0.3],
+    [2, 0.6],
+  ] as const) {
+    await page.getByTestId(`fp-beat-${n}`).click();
+    await page.getByTestId('tool-camera').click();
+    await page.mouse.click(box.x + box.width * x, box.y + box.height * 0.5);
+    await page.keyboard.press('Escape');
+  }
+  await expect(page.getByTestId('fp-choreo')).toHaveCount(1);
+});

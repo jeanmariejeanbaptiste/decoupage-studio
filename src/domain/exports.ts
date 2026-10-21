@@ -4,7 +4,7 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { cameraCone, lightBeam, planOf, plansOf, reflections, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { cameraCone, choreography, lightBeam, planOf, plansOf, reflections, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
@@ -140,7 +140,10 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
   const out: string[] = [];
   const beams = [...items.filter((i) => i.kind === 'light').map((l) => lightBeam(l as Parameters<typeof lightBeam>[0])), ...reflections(items)];
   for (const b of beams) out.push(`<polygon points="${pts(b.points)}" fill="#e8c46a" fill-opacity="${(0.28 * b.intensity).toFixed(2)}"/>`);
+  for (const p of choreography(items))
+    if (p.points.length > 1) out.push(`<polyline points="${pts(p.points)}" fill="none" stroke="${p.kind === 'camera' ? '#a4472c' : '#2c3e5c'}" stroke-width="${p.kind === 'camera' ? 2.5 : 2}" stroke-dasharray="${p.kind === 'camera' ? '10 6' : '3 5'}"/>`);
   for (const i of items as FloorItem[]) {
+    if ((i.kind === 'camera' || i.kind === 'actor') && i.beat) out.push(`<text x="${i.x + 16}" y="${i.y - 16}" font-size="14" font-weight="700" fill="#a4472c">T${i.beat}</text>`);
     switch (i.kind) {
       case 'camera': {
         const c = cameraCone(doc, i);

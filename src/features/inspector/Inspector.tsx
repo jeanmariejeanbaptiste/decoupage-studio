@@ -1,3 +1,5 @@
+import { OneShotEditor } from './OneShotEditor';
+import { toggleOneShot } from '../../domain/oneshot';
 import { useMemo, useState, type DragEvent } from 'react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { ImagePlus, PanelRightClose, Trash2 } from 'lucide-react';
@@ -96,6 +98,8 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
         )}
       </div>
 
+      {shot.oneShot && <OneShotEditor doc={doc} shotId={shot.id} />}
+
       {block?.scenarioAnchor && doc.scenario && (
         <section className={s.block}>
           <h3>Passage du scénario</h3>
@@ -184,6 +188,12 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
           </label>
         </div>
       </section>
+
+      {!shot.oneShot && (
+        <button type="button" className={s.oneShotLink} onClick={() => update((d) => toggleOneShot(d, shot.id))} data-testid="make-oneshot" title="Un seul plan qui enchaîne plusieurs cadrages : chorégraphie en temps successifs">
+          Transformer en plan-séquence
+        </button>
+      )}
 
       {issues.length > 0 && (
         <section className={s.block}>

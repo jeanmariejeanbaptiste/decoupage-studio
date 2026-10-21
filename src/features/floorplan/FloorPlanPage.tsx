@@ -17,6 +17,7 @@ import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters'
 import {
   addFloorItem,
   addPlan,
+  choreography,
   cameraCone,
   camerasForShot,
   deletePlan,
@@ -98,6 +99,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     [items],
   );
   const sel = items.find((i) => i.id === selected);
+  // Plan-séquence : temps choisi (null = tous) et trajectoires caméra / comédiens.
+  const [beat, setBeat] = useState<number | null>(null);
+  const psShots = seqId ? (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id]?.oneShot) : [];
+  const nBeats = Math.max(0, ...psShots.map((id) => doc.shots[id].oneShot!.beats.length));
+  const paths = useMemo(() => choreography(items), [items]);
 
   if (!seqId || !doc.sequences[seqId]) {
     return (
@@ -139,6 +145,15 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
         const placed = planOf(d, planKey).items.map((i) => (i.kind === 'actor' ? i.characterId : undefined));
         const next = sequenceCharacterIds(d, seqId).find((c) => !placed.includes(c));
         if (next) updateFloorItem(d, planKey, nid, { characterId: next } as Partial<FloorItem>);
+      }
+      if (beat && (tool === 'camera' || tool === 'actor')) {
+        const it = planOf(d, planKey).items.find((i) => i.id === nid);
+        const prev = planOf(d, planKey).items.find((i) => i.kind === tool && i.id !== nid && i.beat === beat - 1);
+        const patch: Record<string, unknown> = { beat };
+        // Le comédien du temps précédent est repris ; la caméra couvre le plan-séquence.
+        if (tool === 'actor' && prev?.kind === 'actor') Object.assign(patch, { characterId: prev.characterId, label: prev.label });
+        if (tool === 'camera' && psShots.length === 1) patch.shotIds = [psShots[0]];
+        if (it) updateFloorItem(d, planKey, nid, patch as Partial<FloorItem>);
       }
       return nid;
     });
@@ -392,6 +407,20 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   : 'cliquer pour placer · Échap pour finir'}
             </Hand>
           </div>
+          {psShots.length > 0 && (
+            <div className={s.beats} role="radiogroup" aria-label="Temps du plan-séquence" data-testid="fp-beats">
+              <span>Plan-séquence {psShots.map((id) => shotCode(doc, id)).join(', ')} · temps</span>
+              <button type="button" role="radio" aria-checked={beat === null} className={beat === null ? s.on : ''} onClick={() => setBeat(null)}>
+                Tous
+              </button>
+              {Array.from({ length: nBeats }, (_, i) => i + 1).map((n) => (
+                <button key={n} type="button" role="radio" aria-checked={beat === n} className={beat === n ? s.on : ''} onClick={() => setBeat(n)} data-testid={`fp-beat-${n}`}>
+                  T{n}
+                </button>
+              ))}
+              <em>{beat ? `les caméras et comédiens placés maintenant sont au temps T${beat}` : 'choisissez un temps pour placer caméra et comédiens à chaque étape'}</em>
+            </div>
+          )}
           <svg
             ref={svgRef}
             className={[s.canvas, tool !== 'select' ? s.placing : ''].join(' ')}
@@ -447,16 +476,27 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 />
               </g>
             ))}
+            {paths.map((p) => (
+              <polyline
+                key={p.key}
+                points={p.points.map((q) => `${q.x},${q.y}`).join(' ')}
+                className={p.kind === 'camera' ? s.camPath : s.actorPath}
+                markerEnd={p.points.length > 1 ? 'url(#fp-arrow)' : undefined}
+                data-testid="fp-choreo"
+              />
+            ))}
             {items.map((raw) => {
               const item = preview(raw);
+              const itemBeat = item.kind === 'camera' || item.kind === 'actor' ? item.beat : undefined;
               return (
-                <ItemShape
-                  key={item.id}
-                  doc={doc}
-                  item={item}
-                  selected={item.id === selected}
-                  onDown={onItemDown}
-                />
+                <g key={item.id} opacity={beat !== null && itemBeat !== undefined && itemBeat !== beat ? 0.25 : 1}>
+                  <ItemShape doc={doc} item={item} selected={item.id === selected} onDown={onItemDown} />
+                  {itemBeat !== undefined && (
+                    <text x={item.x + 14} y={item.y - 14} className={s.beatTag}>
+                      T{itemBeat}
+                    </text>
+                  )}
+                </g>
               );
             })}
             {drag?.mode === 'line' && (
@@ -478,6 +518,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               seqId={seqId}
               planKey={planKey}
               item={sel}
+              beats={nBeats}
               onDelete={() => setSelected(null)}
             />
           )}
@@ -674,12 +715,14 @@ function Properties({
   seqId,
   planKey,
   item,
+  beats,
   onDelete,
 }: {
   doc: ProjectDoc;
   seqId: ID;
   planKey: string;
   item: FloorItem;
+  beats: number;
   onDelete: () => void;
 }) {
   const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, planKey, item.id, patch));
@@ -697,6 +740,19 @@ function Properties({
             value={item.label ?? ''}
             onChange={(e) => update({ label: e.target.value } as Partial<FloorItem>)}
           />
+        </label>
+      )}
+      {beats > 0 && (item.kind === 'camera' || item.kind === 'actor') && (
+        <label className={s.field}>
+          <span>Temps</span>
+          <select value={item.beat ?? 0} onChange={(e) => update({ beat: Number(e.target.value) || undefined } as Partial<FloorItem>)} aria-label="Temps du plan-séquence">
+            <option value={0}>fixe (tous les temps)</option>
+            {Array.from({ length: beats }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                T{n}
+              </option>
+            ))}
+          </select>
         </label>
       )}
       {item.kind === 'camera' && (

@@ -139,6 +139,22 @@ export interface Shot {
   shootingDay?: number;
   /** Coupure de fusion forcée avant ce plan, pour les colonnes listées (§12). */
   mergeBreak?: ColumnKey[];
+  /** Plan-séquence : un seul plan découpé en temps chorégraphiques. */
+  oneShot?: { beats: OneShotBeat[] };
+}
+
+/** Un temps du plan-séquence : ce que voit la caméra entre deux repères. */
+export interface OneShotBeat {
+  id: ID;
+  value: string;
+  subject: string;
+  angle: string;
+  movement: string;
+  /** Repères : position caméra, déplacement des comédiens, déclencheur du temps suivant. */
+  cue?: string;
+  /** Fourchette de durée (s) : le jeu des comédiens fait varier le temps réel. */
+  minSec?: number;
+  maxSec?: number;
 }
 
 export interface Character {

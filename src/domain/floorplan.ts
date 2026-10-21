@@ -8,8 +8,8 @@ export interface Point {
 }
 
 export type FloorItem =
-  | { id: ID; kind: 'camera'; x: number; y: number; rot: number; shotIds: ID[]; label?: string }
-  | { id: ID; kind: 'actor'; x: number; y: number; characterId?: ID; label: string; to?: Point }
+  | { id: ID; kind: 'camera'; x: number; y: number; rot: number; shotIds: ID[]; label?: string; beat?: number }
+  | { id: ID; kind: 'actor'; x: number; y: number; characterId?: ID; label: string; to?: Point; beat?: number }
   | { id: ID; kind: 'wall' | 'rail'; x: number; y: number; x2: number; y2: number }
   | { id: ID; kind: 'door' | 'window'; x: number; y: number; rot: number; width: number }
   | {
@@ -309,4 +309,27 @@ export function reflections(items: readonly FloorItem[]): Beam[] {
     }
   }
   return out;
+}
+
+/** Trajectoire d'un plan-séquence : positions successives d'une caméra ou d'un comédien, temps par temps. */
+export interface ChoreoPath {
+  kind: 'camera' | 'actor';
+  key: string;
+  points: Array<Point & { beat: number }>;
+}
+
+/**
+ * Relie, dans l'ordre des temps (T1, T2…), les positions d'une même caméra (même plan couvert)
+ * et d'un même comédien. Les éléments sans temps restent fixes et ne sont pas reliés.
+ */
+export function choreography(items: readonly FloorItem[]): ChoreoPath[] {
+  const groups = new Map<string, ChoreoPath>();
+  for (const it of items) {
+    if ((it.kind !== 'camera' && it.kind !== 'actor') || !it.beat) continue;
+    const key = it.kind === 'camera' ? `cam:${it.shotIds[0] ?? it.label ?? ''}` : `act:${it.characterId ?? it.label}`;
+    const g = groups.get(key) ?? { kind: it.kind, key, points: [] };
+    g.points.push({ x: it.x, y: it.y, beat: it.beat });
+    groups.set(key, g);
+  }
+  return [...groups.values()].map((g) => ({ ...g, points: g.points.sort((a, b) => a.beat - b.beat) })).filter((g) => g.points.length > 0);
 }

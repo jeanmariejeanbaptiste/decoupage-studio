@@ -89,7 +89,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     return (
       <tbody key={key} className={s.seq}>
         {rows.map((row, i) => (
-          <tr key={row.shotId}>
+          <tr key={row.shotId} className={doc.shots[row.shotId]?.oneShot ? s.oneShot : undefined}>
             {cols.map((c) => {
               const span = merges.get(c)?.find((m) => m.startRow === i);
               if (!span) return null;

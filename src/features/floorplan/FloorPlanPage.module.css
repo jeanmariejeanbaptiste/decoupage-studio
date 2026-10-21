@@ -58,3 +58,13 @@
 .unassigned { opacity: 0.75; }
 
 .exports { display: flex; gap: 8px; align-items: center; }
+
+/* Plan-séquence : temps et trajectoires. */
+.beats { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 8px; font-size: 12.5px; }
+.beats > span { color: var(--rust); font-weight: 600; margin-right: 4px; }
+.beats button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: 10px; padding: 1px 9px; font-size: 12px; cursor: pointer; }
+.beats button.on { background: var(--rust); color: var(--paper); border-color: var(--rust); }
+.beats em { color: var(--ink-soft); font-size: 11.5px; margin-left: 6px; }
+.camPath { fill: none; stroke: var(--rust); stroke-width: 2.5; stroke-dasharray: 10 6; pointer-events: none; }
+.actorPath { fill: none; stroke: var(--navy); stroke-width: 2; stroke-dasharray: 3 5; pointer-events: none; }
+.beatTag { font-size: 13px; font-weight: 700; fill: var(--rust); pointer-events: none; }

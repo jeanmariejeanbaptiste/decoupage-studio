@@ -105,3 +105,20 @@ describe('plans multiples, lumières et réflecteurs', async () => {
     expect(angled).toHaveLength(1);
   });
 });
+
+describe('chorégraphie du plan-séquence', async () => {
+  const { choreography } = await import('./floorplan');
+  it('relie les positions par temps, caméra et comédiens séparément', () => {
+    const paths = choreography([
+      { id: 'c2', kind: 'camera', x: 50, y: 0, rot: 0, shotIds: ['s'], beat: 2 },
+      { id: 'c1', kind: 'camera', x: 0, y: 0, rot: 0, shotIds: ['s'], beat: 1 },
+      { id: 'a1', kind: 'actor', x: 9, y: 9, label: 'Léa', beat: 1 },
+      { id: 'fixe', kind: 'camera', x: 1, y: 1, rot: 0, shotIds: ['s'] },
+    ]);
+    expect(paths.map((p) => [p.kind, p.points.map((q) => q.beat)])).toEqual([
+      ['camera', [1, 2]],
+      ['actor', [1]],
+    ]);
+    expect(paths[0].points[0]).toMatchObject({ x: 0, y: 0 });
+  });
+});

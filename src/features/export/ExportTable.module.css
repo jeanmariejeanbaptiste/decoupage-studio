@@ -121,3 +121,7 @@
 .page:last-child { break-after: auto; page-break-after: auto; }
 .page + .page { margin-top: 8mm; }
 @media print { .page + .page { margin-top: 0; } }
+
+/* Plan-séquence : temps listés ligne à ligne, repère visuel discret. */
+.oneShot td { white-space: pre-line; }
+.oneShot td:nth-child(2) { font-weight: 700; }

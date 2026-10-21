@@ -6,12 +6,23 @@ import { formatTc } from './timecode';
 import { shotTcLabel, type Timing } from './timing';
 import { renderTokens } from './tokens';
 import { isZoom, valueLabel } from './vocabulary';
+import { BEAT_COLUMNS, beatColumnText, formatOneShotDuration, oneShotTiming } from './oneshot';
 import type { ColumnKey, ID, ProjectDoc, Shot } from './types';
 
 /** Valeur affichée (et exportée) d'une cellule. */
 export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: ColumnKey, index: number): string {
   const block = doc.blocks[shot.actionBlockId];
   const settings = doc.project.settings;
+  const beats = shot.oneShot?.beats;
+  if (beats) {
+    if (BEAT_COLUMNS.includes(col)) return beatColumnText(beats, col, (v) => valueLabel(v, settings.labelStyle));
+    if (col === 'number') return `${index + 1}\nPLAN-SÉQ.`;
+    if (col === 'action') {
+      const cues = beats.map((b, i) => (b.cue ? `T${i + 1} : ${b.cue}` : '')).filter(Boolean);
+      const dur = formatOneShotDuration(oneShotTiming(beats));
+      return [block?.text ?? '', cues.length ? `Repères — ${cues.join(' · ')}` : '', dur ? `Durée : ${dur}` : ''].filter(Boolean).join('\n');
+    }
+  }
   switch (col) {
     case 'sequence':
       return sequenceHeading(doc, shot.sequenceId);

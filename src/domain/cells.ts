@@ -1,3 +1,4 @@
+import { BEAT_COLUMNS } from './oneshot';
 /**
  * Lecture / écriture d'une cellule de la grille sous forme de texte (saisie, collage, recopie).
  */
@@ -74,6 +75,8 @@ function parseStatus(text: string): ShotStatus | undefined {
 export function setCellText(doc: ProjectDoc, shotId: ID, col: ColumnKey, text: string): boolean {
   const shot = doc.shots[shotId];
   if (!shot || !isEditable(col)) return false;
+  // Plan-séquence : les colonnes de cadrage se modifient temps par temps, dans l'inspecteur.
+  if (shot.oneShot && BEAT_COLUMNS.includes(col)) return false;
   const block = doc.blocks[shot.actionBlockId];
   const seq = doc.sequences[shot.sequenceId];
   const s = doc.project.settings;

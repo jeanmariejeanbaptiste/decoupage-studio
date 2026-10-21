@@ -1,5 +1,6 @@
+import { toggleOneShot } from '../../domain/oneshot';
 import type { CSSProperties, MouseEvent } from 'react';
-import { deleteSequenceOf, deleteShotById } from './actions';
+import { deleteSequenceOf, deleteShotById, rowOfShot } from './actions';
 import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { addShot } from '../../domain/ops';
@@ -56,6 +57,31 @@ function onTcContextMenu(e: MouseEvent, shotId: string) {
   });
 }
 
+/** Entrée discrète du plan-séquence : clic droit dans la marge du plan. */
+function onGutterContextMenu(e: MouseEvent, shotId: string) {
+  const d = useProjectStore.getState().doc;
+  if (!d?.shots[shotId]) return;
+  e.preventDefault();
+  const on = !!d.shots[shotId].oneShot;
+  useUi.getState().set({
+    menu: {
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        {
+          label: on ? 'Revenir à un plan simple' : 'Transformer en plan-séquence',
+          action: () => {
+            mutateDoc((x) => toggleOneShot(x, shotId));
+            const row = rowOfShot(d, shotId);
+            if (row >= 0) useUi.getState().setSelection({ row, col: 'number' });
+            if (!on) useUi.getState().set({ inspectorOpen: true });
+          },
+        },
+      ],
+    },
+  });
+}
+
 export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMouseDown, onCellDoubleClick, onCommit, onCancel }: Props) {
   const sequence = doc.sequences[seq.seqId];
   const n = seq.rows.length;
@@ -92,8 +118,8 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
         const row = seq.firstRow + i;
         const shot = doc.shots[r.shotId];
         return (
-          <DroppableRow key={r.shotId} shotId={r.shotId} className={s.row} data-shot={r.shotId} data-testid="shot-row">
-            <td className={s.gutter}>
+          <DroppableRow key={r.shotId} shotId={r.shotId} className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')} data-shot={r.shotId} data-testid="shot-row">
+            <td className={s.gutter} onContextMenu={(e) => onGutterContextMenu(e, r.shotId)} title="Clic droit : plan-séquence">
               <ShotHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} />
               <button type="button" className={s.rowDel} aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`} title="Supprimer ce plan" onClick={() => deleteShotById(r.shotId)} tabIndex={-1} data-testid="delete-shot">
                 ×

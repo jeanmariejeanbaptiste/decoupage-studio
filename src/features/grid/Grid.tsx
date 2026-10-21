@@ -1,3 +1,4 @@
+import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { useCallback, useEffect, useMemo, useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { editableText, isEditable, parseTsv, toTsv } from '../../domain/cells';
 import { COLUMN_DEFS } from '../../domain/columns';
@@ -65,6 +66,13 @@ export function Grid({ doc, model }: Props) {
 
   const startEdit = (pos: CellPos, initial?: string) => {
     if (!isEditable(pos.col) || !model.rows[pos.row]) return;
+    const sid = model.rows[pos.row].shotId;
+    if (doc.shots[sid]?.oneShot && BEAT_COLUMNS.includes(pos.col)) {
+      setSelection({ row: pos.row, col: pos.col });
+      useUi.getState().set({ inspectorOpen: true });
+      useUi.getState().toast({ message: 'Plan-séquence : chaque temps se règle dans l’inspecteur, à droite.' });
+      return;
+    }
     const anchor = { row: cellSpan(doc, model, pos.row, pos.col).start, col: pos.col };
     setSelection(anchor);
     setEditing({ pos: anchor, initial });
