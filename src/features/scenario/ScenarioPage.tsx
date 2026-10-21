@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { Download, FilePlus2, FileUp, ScrollText, SquarePen } from 'lucide-react';
+import { Download, FilePlus2, FileUp, ListTree, ScrollText, SquarePen } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { parseFountain, sceneAt, scenesOf, shiftAnchors, splitSelection, syncScenario, type ScriptElement } from '../../domain/fountain';
-import { shotCode } from '../../domain/numbering';
-import { addShot } from '../../domain/ops';
+import { importScenes, matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, splitSelection, type ScriptElement } from '../../domain/fountain';
+import { sequenceHeading, shotCode } from '../../domain/numbering';
+import { addSequence, addShot } from '../../domain/ops';
+import { setSequenceDecorByName } from '../../domain/registry';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { downloadBlob, pickFile } from '../../store/persistence';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
@@ -24,17 +25,17 @@ interface Mark {
   color: string;
 }
 
-/** Applique le texte au projet : recale les ancres puis synchronise séquences et personnages. */
+/** Enregistre le texte (indicatif) et recale les ancres des passages liés ; le découpage n'est pas modifié. */
 function commitScenario(text: string) {
   mutateDoc((d) => {
     shiftAnchors(d, d.scenario ?? '', text);
-    syncScenario(d, text);
+    d.scenario = text;
   });
 }
 
 export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const [text, setText] = useState(doc.scenario ?? '');
-  const [mode, setMode] = useState<'edit' | 'page'>('edit');
+  const [mode, setMode] = useState<'edit' | 'page' | 'cut'>('edit');
   const [hoverBlock, setHoverBlock] = useState<ID | null>(null);
   const [caretBlock, setCaretBlock] = useState<ID | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -79,30 +80,42 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     if (text !== (useProjectStore.getState().doc?.scenario ?? '')) commitScenario(text);
   };
 
-  const createShot = (start: number, end: number) => {
+  /** Crée le plan dans la séquence choisie (menu), jamais par déduction silencieuse. */
+  const createShot = (start: number, end: number, at?: { x: number; y: number }) => {
     if (end <= start) {
       toast({ message: 'Sélectionnez d’abord un passage du scénario.', tone: 'warn' });
       return;
     }
     flush();
+    const current = useProjectStore.getState().doc;
+    if (!current) return;
     const sc = sceneAt(scenesOf(text), start);
-    if (!sc) {
-      toast({ message: 'Le passage doit se trouver sous un en-tête de séquence (INT. / EXT.).', tone: 'warn' });
-      return;
-    }
     const split = splitSelection(elements, start, end);
-    const shotId = mutateDoc((d) => {
-      const seqId = d.project.sequenceIds[sc.index];
-      if (!seqId) return undefined;
-      return addShot(d, seqId, {
-        init: { subject: split.speakers[0] ?? '' },
-        action: { text: split.action || (split.dialogue ? '' : text.slice(start, end).trim()), dialogue: split.dialogue || undefined, scenarioAnchor: { start, end } },
+    const make = (seqId: ID | 'new') => {
+      const shotId = mutateDoc((d) => {
+        let target = seqId;
+        if (target === 'new') {
+          target = addSequence(d, undefined, {}, false);
+          const seq = d.sequences[target];
+          seq.label = (sc?.location ?? 'NOUVELLE SÉQUENCE').toUpperCase();
+          seq.intExt = sc?.intExt ?? seq.intExt;
+          seq.effect = sc?.effect ?? seq.effect;
+          if (sc) setSequenceDecorByName(d, target, sc.location);
+        }
+        return addShot(d, target, {
+          init: { subject: split.speakers[0] ?? '' },
+          action: { text: split.action || (split.dialogue ? '' : text.slice(start, end).trim()), dialogue: split.dialogue || undefined, scenarioAnchor: { start, end } },
+        });
       });
-    });
-    const after = useProjectStore.getState().doc;
-    if (shotId && after) {
-      toast({ message: `Plan ${shotCode(after, shotId)} créé avec cette action.`, actionLabel: 'Voir dans la grille', action: () => goToShot(useProjectStore.getState().doc!, shotId) });
-    }
+      const after = useProjectStore.getState().doc;
+      if (shotId && after) toast({ message: `Plan ${shotCode(after, shotId)} créé avec cette action.`, actionLabel: 'Voir dans la grille', action: () => goToShot(useProjectStore.getState().doc!, shotId) });
+    };
+    const suggested = sc ? matchSequence(current, sc) : undefined;
+    const ids = suggested ? [suggested, ...current.project.sequenceIds.filter((id) => id !== suggested)] : current.project.sequenceIds;
+    const items = ids.map((id) => ({ label: `Créer le plan dans ${sequenceHeading(current, id)}${id === suggested ? ' (suggérée)' : ''}`, action: () => make(id) }));
+    items.push({ label: `Créer le plan dans une nouvelle séquence${sc ? ` « ${sc.location.toUpperCase()} »` : ''}`, action: () => make('new') });
+    const pos = at ?? { x: window.innerWidth / 2, y: 160 };
+    setUi({ menu: { x: pos.x, y: pos.y, items } });
   };
 
   const onContextMenu = (e: MouseEvent<HTMLTextAreaElement>) => {
@@ -110,7 +123,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     const { selectionStart: a, selectionEnd: b } = ta;
     if (b <= a) return;
     e.preventDefault();
-    setUi({ menu: { x: e.clientX, y: e.clientY, items: [{ label: 'Créer un plan avec cette action', action: () => createShot(a, b) }] } });
+    createShot(a, b, { x: e.clientX, y: e.clientY });
   };
 
   const onCaret = () => {
@@ -133,7 +146,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
       setText(content);
       commitScenario(content);
       const n = scenesOf(content).length;
-      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''} détectée${n > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
+      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''} détectée${n > 1 ? 's' : ''}. Le découpage n’est pas modifié.`, actionLabel: 'Annuler', action: undo });
     } catch (e) {
       toast({ message: (e as Error).message || 'Ce fichier n’a pas pu être lu.', tone: 'warn' });
     }
@@ -174,12 +187,26 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
             >
               <ScrollText size={14} strokeWidth={1.25} /> Page
             </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mode === 'cut'}
+              className={mode === 'cut' ? s.on : ''}
+              title="Le découpage technique mis en forme comme un scénario (lecture seule)"
+              onClick={() => {
+                flush();
+                setMode('cut');
+              }}
+            >
+              <ListTree size={14} strokeWidth={1.25} /> Découpage
+            </button>
           </div>
           <Button
             icon={<FilePlus2 size={15} strokeWidth={1.25} />}
-            onClick={() => {
+            onClick={(e) => {
               const ta = taRef.current;
-              if (ta) createShot(ta.selectionStart, ta.selectionEnd);
+              const r = e.currentTarget.getBoundingClientRect();
+              if (ta) createShot(ta.selectionStart, ta.selectionEnd, { x: r.left, y: r.bottom + 4 });
             }}
             disabled={mode !== 'edit'}
             title="Créer un plan avec le passage sélectionné (aussi au clic droit)"
@@ -203,7 +230,9 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
 
       <div className={s.layout}>
         <div className={['card', s.paper].join(' ')}>
-          {mode === 'edit' ? (
+          {mode === 'cut' ? (
+            <CutView doc={doc} />
+          ) : mode === 'edit' ? (
             <Editor text={text} onChange={setText} marks={marks} highlighted={highlighted} taRef={taRef} onContextMenu={onContextMenu} onCaret={onCaret} onBlur={flush} />
           ) : (
             <ScriptPage elements={elements} marks={marks} highlighted={highlighted} onHover={setHoverBlock} />
@@ -216,15 +245,29 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               Ouvrir le découpage
             </Button>
           </div>
-          {scenes.length === 0 && <p className={s.muted}>Écrivez un en-tête (INT. LIEU - JOUR) pour créer une séquence.</p>}
-          {scenes.map((sc) => {
-            const seqId = doc.project.sequenceIds[sc.index];
-            const seq = seqId ? doc.sequences[seqId] : undefined;
+          {scenes.some((sc) => !matchSequence(doc, sc)) && (
+            <button
+              type="button"
+              className={s.quiet}
+              data-testid="import-scenes"
+              title="Ajoute à la fin du découpage les séquences du scénario qui n’y figurent pas encore (rien n’est modifié ni réordonné)"
+              onClick={() => {
+                flush();
+                const r = mutateDoc((d) => importScenes(d, latest.current));
+                if (r) toast({ message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.characters} personnage${r.characters > 1 ? 's' : ''} ajouté${r.sequences + r.characters > 1 ? 's' : ''} au découpage.`, actionLabel: 'Annuler', action: undo });
+              }}
+            >
+              + Ajouter au découpage les {scenes.filter((sc) => !matchSequence(doc, sc)).length} séquence(s) absente(s)
+            </button>
+          )}
+          {doc.project.sequenceIds.length === 0 && <p className={s.muted}>Le découpage est vide : sélectionnez un passage puis « Créer un plan ».</p>}
+          {doc.project.sequenceIds.map((seqId) => {
+            const seq = doc.sequences[seqId];
             return (
-              <section key={sc.index} className={s.scene}>
+              <section key={seqId} className={s.scene}>
                 <h3>
-                  {sc.index + 1}, {sc.location.toUpperCase()}
-                  <span>{[sc.intExt, sc.effect].filter(Boolean).join(' · ')}</span>
+                  {sequenceHeading(doc, seqId)}
+                  <span>{[seq?.intExt, seq?.effect].filter(Boolean).join(' · ')}</span>
                 </h3>
                 <ul>
                   {(seq?.shotIds ?? []).map((id) => {
@@ -346,6 +389,37 @@ function ScriptPage({ elements, marks, highlighted, onHover }: { elements: Scrip
           >
             {el.text}
           </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Le découpage mis en forme comme un scénario : lecture seule, toujours à jour. */
+function CutView({ doc }: { doc: ProjectDoc }) {
+  return (
+    <div className={s.cut} data-testid="scenario-cut">
+      <p className={s.muted}>Version découpage, en lecture seule : elle reflète le découpage technique et ne se modifie pas ici.</p>
+      {doc.project.sequenceIds.map((seqId) => {
+        const seq = doc.sequences[seqId];
+        return (
+          <section key={seqId}>
+            <h3>
+              {doc.project.sequenceIds.indexOf(seqId) + 1}. {[seq?.intExt, seq?.label, seq?.effect].filter(Boolean).join(' – ')}
+            </h3>
+            {(seq?.actionBlockIds ?? []).map((bId) => {
+              const b = doc.blocks[bId];
+              const shots = (seq?.shotIds ?? []).filter((id) => doc.shots[id]?.actionBlockId === bId);
+              if (!b) return null;
+              return (
+                <div key={bId} className={s.cutBlock}>
+                  <span className={s.cutShots}>{shots.map((id) => shotCode(doc, id)).join(', ')}</span>
+                  {b.text && <p>{b.text}</p>}
+                  {b.dialogue && <p className={s.cutDialogue}>{b.dialogue}</p>}
+                </div>
+              );
+            })}
+          </section>
         );
       })}
     </div>

@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
-import { characterName, diffRange, shiftAnchors, shiftOffset, displayName, parseFountain, parseHeading, sceneAt, scenesOf, splitSelection, syncScenario } from './fountain';
+import { characterName, diffRange, shiftAnchors, shiftOffset, displayName, parseFountain, parseHeading, sceneAt, scenesOf, splitSelection, importScenes } from './fountain';
 import { checkInvariants } from './ops';
 
 const SCRIPT = `Title: La Consigne
@@ -80,7 +80,7 @@ describe('Fountain', () => {
     const base = createProjectDoc({ title: 'x', format: 'fiction' });
     let res = { sequences: 0, characters: 0 };
     const doc = produce(base, (d) => {
-      res = syncScenario(d, SCRIPT);
+      res = importScenes(d, SCRIPT);
     });
     expect(res).toEqual({ sequences: 3, characters: 3 });
     const labels = doc.project.sequenceIds.map((id) => doc.sequences[id].label);
@@ -90,10 +90,12 @@ describe('Fountain', () => {
     expect(Object.keys(doc.decors)).toHaveLength(3);
     // Deuxième passage : rien n'est recréé.
     const again = produce(doc, (d) => {
-      res = syncScenario(d, SCRIPT.replace('PARVIS', 'QUAI'));
+      res = importScenes(d, SCRIPT.replace('PARVIS', 'QUAI'));
     });
-    expect(res).toEqual({ sequences: 0, characters: 0 });
-    expect(again.sequences[again.project.sequenceIds[1]].label).toBe('QUAI DE LA GARE');
+    // Le lieu renommé n'écrase pas la séquence existante : une nouvelle est ajoutée à la fin.
+    expect(res).toEqual({ sequences: 1, characters: 0 });
+    expect(again.sequences[again.project.sequenceIds[1]].label).toBe('PARVIS DE LA GARE');
+    expect(again.sequences[again.project.sequenceIds[3]].label).toBe('QUAI DE LA GARE');
     expect(checkInvariants(again)).toEqual([]);
   });
   it('sépare action et répliques d’une sélection', () => {
@@ -119,7 +121,7 @@ describe('ancres du scénario', () => {
   });
   it('recale les ancres des blocs et séquences', () => {
     const doc = produce(createProjectDoc({ title: 'x', format: 'fiction' }), (d) => {
-      syncScenario(d, SCRIPT);
+      importScenes(d, SCRIPT);
       const b = Object.values(d.blocks)[0];
       void b;
     });
@@ -140,7 +142,7 @@ describe('seed fiction et scénario', () => {
     const labels = doc.project.sequenceIds.map((id) => doc.sequences[id].label);
     let res = { sequences: -1, characters: -1 };
     const next = produce(doc, (d) => {
-      res = syncScenario(d, d.scenario!);
+      res = importScenes(d, d.scenario!);
     });
     expect(res).toEqual({ sequences: 0, characters: 0 });
     expect(next.project.sequenceIds.map((id) => next.sequences[id].label)).toEqual(labels);

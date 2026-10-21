@@ -5,7 +5,7 @@
 import { addCharacter, addSequence } from './ops';
 import { setSequenceDecorByName } from './registry';
 import { fold } from './text';
-import type { Effect, IntExt, ProjectDoc } from './types';
+import type { Effect, ID, IntExt, ProjectDoc } from './types';
 
 export type ElementType =
   | 'heading'
@@ -210,23 +210,32 @@ export function sceneAt(scenes: readonly Scene[], offset: number): Scene | undef
  * (libellé = lieu, INT/EXT, effet, décor), chaque personnage parlant obtient une fiche.
  * Renvoie le nombre de séquences créées et de personnages créés.
  */
-export function syncScenario(doc: ProjectDoc, source: string): { sequences: number; characters: number } {
+/** Séquence du découpage dont le libellé correspond au lieu de la scène (sans accents ni casse). */
+export function matchSequence(doc: ProjectDoc, scene: Pick<Scene, 'location'>): ID | undefined {
+  const key = fold(scene.location);
+  return doc.project.sequenceIds.find((id) => fold(doc.sequences[id]?.label ?? '') === key);
+}
+
+/**
+ * Le scénario est indicatif : il ne modifie jamais les séquences existantes.
+ * Sur demande seulement, crée les séquences absentes du découpage (à la fin) et les personnages parlants.
+ */
+export function importScenes(doc: ProjectDoc, source: string): { sequences: number; characters: number } {
   doc.scenario = source;
-  const scenes = scenesOf(source);
   let createdSeq = 0;
   let createdChars = 0;
-  scenes.forEach((sc, k) => {
-    let seqId = doc.project.sequenceIds[k];
+  for (const sc of scenesOf(source)) {
+    let seqId = matchSequence(doc, sc);
     if (!seqId) {
       seqId = addSequence(doc, undefined, {}, false);
+      const seq = doc.sequences[seqId];
+      seq.label = sc.location.toUpperCase();
+      seq.intExt = sc.intExt ?? seq.intExt;
+      seq.effect = sc.effect ?? seq.effect;
+      setSequenceDecorByName(doc, seqId, sc.location);
       createdSeq++;
     }
-    const seq = doc.sequences[seqId];
-    seq.label = sc.location.toUpperCase();
-    seq.intExt = sc.intExt ?? seq.intExt;
-    seq.effect = sc.effect ?? seq.effect;
-    seq.scenarioAnchor = { start: sc.start, end: sc.end };
-    setSequenceDecorByName(doc, seqId, sc.location);
+    doc.sequences[seqId].scenarioAnchor = { start: sc.start, end: sc.end };
     for (const sp of sc.speakers) {
       const name = displayName(sp);
       const exists = Object.values(doc.characters).some((c) => [c.name, ...(c.aliases ?? [])].some((n) => fold(n) === fold(name)));
@@ -235,7 +244,7 @@ export function syncScenario(doc: ProjectDoc, source: string): { sequences: numb
         createdChars++;
       }
     }
-  });
+  }
   return { sequences: createdSeq, characters: createdChars };
 }
 

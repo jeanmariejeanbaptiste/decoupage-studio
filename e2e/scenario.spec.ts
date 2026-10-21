@@ -17,7 +17,8 @@ test.describe('scénario et liaison', () => {
     await page.goto('/#/scenario?seed=fiction');
     await selectText(page, 'Marc attend sous la pluie');
     await page.getByTestId('scenario-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
-    await page.getByRole('menuitem', { name: 'Créer un plan avec cette action' }).click();
+    // Un menu demande la séquence ; celle du passage est proposée en premier.
+    await page.getByRole('menuitem').first().click();
     await expect(page.getByTestId('toast')).toContainText('Plan 3.4 créé');
     await expect(page.getByTestId('scenario-shot').filter({ hasText: '3.4' })).toContainText('Marc attend sous la pluie');
     await page.getByTestId('toast').getByRole('button', { name: 'Voir dans la grille' }).click();
@@ -29,19 +30,24 @@ test.describe('scénario et liaison', () => {
     const src = "GUICHETIER\nC'est pour combien de temps ?";
     await selectText(page, src);
     await page.getByTestId('create-shot-from-selection').click();
+    await expect(page.getByRole('menuitem').first()).toContainText('(suggérée)');
+    await page.getByRole('menuitem').first().click();
     await expect(page.getByTestId('toast')).toContainText('Plan 2.5 créé');
     const doc = await page.evaluate(() => (window as unknown as { __ds: { doc: () => { shots: Record<string, { subject: string; actionBlockId: string }>; blocks: Record<string, { dialogue?: string }> } } }).__ds.doc());
     const shot = Object.values(doc.shots).find((s) => doc.blocks[s.actionBlockId].dialogue === "GUICHETIER : C'est pour combien de temps ?");
     expect(shot?.subject).toBe('Guichetier');
   });
 
-  test('un nouvel en-tête crée la séquence et le personnage parlant', async ({ page }) => {
+  test('un nouvel en-tête ne touche pas le découpage, sauf sur demande', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
     const editor = page.getByTestId('scenario-editor');
     await editor.click();
     await page.keyboard.press('Control+End');
     await page.keyboard.type('\nINT. CAFÉ DE LA GARE - NUIT\n\nNINA\nBonsoir.\n');
     await expect(page.locator('h1')).toContainText('4 séquences');
+    await page.waitForTimeout(900);
+    await expect(page.locator('aside').getByText('4, CAFÉ DE LA GARE')).toHaveCount(0);
+    await page.getByTestId('import-scenes').click();
     await expect(page.locator('aside').getByText('4, CAFÉ DE LA GARE')).toBeVisible();
     await page.getByRole('button', { name: 'Ouvrir le découpage' }).click();
     await expect(page.locator('tbody[data-seq]').nth(3)).toContainText('CAFÉ DE LA GARE');
@@ -53,8 +59,11 @@ test.describe('scénario et liaison', () => {
 
   test('vue page, import et export .fountain', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    await page.getByRole('radio', { name: 'Page' }).click();
+    await page.getByRole('radio', { name: 'Page', exact: true }).click();
     await expect(page.getByTestId('scenario-page')).toContainText('INT. GARE — CONSIGNE - JOUR');
+    await page.getByRole('radio', { name: 'Découpage' }).click();
+    await expect(page.getByTestId('scenario-cut')).toContainText('lecture seule');
+    await page.getByRole('radio', { name: 'Page', exact: true }).click();
     const dl = page.waitForEvent('download');
     await page.getByRole('button', { name: '.fountain' }).click();
     expect((await dl).suggestedFilename()).toBe('La Consigne.fountain');
