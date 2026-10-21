@@ -31,6 +31,8 @@ export interface FloorPlan {
   /** Séquence et nom des plans supplémentaires ; le plan par défaut est rangé sous la clé de la séquence. */
   seqId?: ID;
   name?: string;
+  /** Vue propre à un plan-séquence (clé `ps-<plan>`). */
+  oneShotId?: ID;
 }
 
 export interface PlanRef {
@@ -42,8 +44,19 @@ export interface PlanRef {
 export function plansOf(doc: ProjectDoc, seqId: ID): PlanRef[] {
   const out: PlanRef[] = [{ key: seqId, name: doc.floorPlans?.[seqId]?.name ?? 'Vue 1' }];
   for (const [key, p] of Object.entries(doc.floorPlans ?? {}))
-    if (p.seqId === seqId && key !== seqId) out.push({ key, name: p.name ?? 'Vue' });
+    if (p.seqId === seqId && key !== seqId && !p.oneShotId) out.push({ key, name: p.name ?? 'Vue' });
   return out;
+}
+
+export const oneShotPlanKey = (shotId: ID) => `ps-${shotId}`;
+
+/** Vues de plan-séquence d'une séquence : une par plan-séquence présent dans le découpage. */
+export function oneShotPlansOf(doc: ProjectDoc, seqId: ID): Array<PlanRef & { shotId: ID }> {
+  const seq = doc.sequences[seqId];
+  if (!seq) return [];
+  return seq.shotIds
+    .filter((id) => doc.shots[id]?.oneShot)
+    .map((id) => ({ key: oneShotPlanKey(id), shotId: id, name: `Plan-séquence ${doc.project.sequenceIds.indexOf(seqId) + 1}.${seq.shotIds.indexOf(id) + 1}` }));
 }
 
 export function addPlan(doc: ProjectDoc, seqId: ID): string {
@@ -67,7 +80,7 @@ export function deletePlan(doc: ProjectDoc, key: string): void {
     return;
   }
   // Vue principale (clé = séquence) : la vue suivante prend sa place ; sinon elle est vidée.
-  const next = Object.entries(plans).find(([k, x]) => x.seqId === key && k !== key);
+  const next = Object.entries(plans).find(([k, x]) => x.seqId === key && k !== key && !x.oneShotId);
   if (!next) {
     if (p) {
       p.items = [];
@@ -95,7 +108,10 @@ export function planOf(doc: ProjectDoc, seqId: ID): FloorPlan {
 
 function ensure(doc: ProjectDoc, seqId: ID): FloorPlan {
   doc.floorPlans ??= {};
-  doc.floorPlans[seqId] ??= { items: [] };
+  if (!doc.floorPlans[seqId]) {
+    const shotId = seqId.startsWith('ps-') ? seqId.slice(3) : undefined;
+    doc.floorPlans[seqId] = shotId ? { items: [], oneShotId: shotId, seqId: doc.shots[shotId]?.sequenceId } : { items: [] };
+  }
   return doc.floorPlans[seqId];
 }
 

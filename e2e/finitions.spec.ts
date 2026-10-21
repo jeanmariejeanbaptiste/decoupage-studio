@@ -152,6 +152,9 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
   await expect(row).toContainText('T2 Affiche');
   await expect(editor).toContainText('0:10 – 0:20');
   await page.goto('/#/floorplan');
+  // Les temps n'apparaissent que dans la vue propre au plan-séquence.
+  await expect(page.getByTestId('fp-beats')).toHaveCount(0);
+  await page.getByTestId('fp-oneshot-view').click();
   await expect(page.getByTestId('fp-beats')).toBeVisible();
   const canvas = page.getByTestId('floorplan');
   const box = (await canvas.boundingBox())!;

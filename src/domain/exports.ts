@@ -4,7 +4,7 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { cameraCone, choreography, lightBeam, planOf, plansOf, reflections, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { cameraCone, choreography, lightBeam, oneShotPlansOf, planOf, plansOf, reflections, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
@@ -181,7 +181,7 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
 /** Tous les plans au sol du projet : nom de fichier → SVG. */
 export function allFloorPlans(doc: ProjectDoc): Array<{ name: string; svg: string; seqId: ID }> {
   return doc.project.sequenceIds.flatMap((seqId, i) =>
-    plansOf(doc, seqId)
+    [...plansOf(doc, seqId), ...oneShotPlansOf(doc, seqId)]
       .filter((p) => planOf(doc, p.key).items.length > 0)
       .map((p) => ({ seqId, name: `Séquence ${i + 1} — ${p.name}`, svg: floorPlanSvg(doc, p.key, `${sequenceHeading(doc, seqId)} — ${p.name}`) })),
   );

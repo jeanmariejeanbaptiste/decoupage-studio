@@ -18,6 +18,7 @@ import {
   addFloorItem,
   addPlan,
   choreography,
+  oneShotPlansOf,
   cameraCone,
   camerasForShot,
   deletePlan,
@@ -89,7 +90,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   }, [doc, seqId]);
 
   const plans = seqId ? plansOf(doc, seqId) : [];
-  const planKey = plans.find((p) => p.key === planPick)?.key ?? seqId ?? '';
+  const psPlans = seqId ? oneShotPlansOf(doc, seqId) : [];
+  const planKey = [...plans, ...psPlans].find((p) => p.key === planPick)?.key ?? seqId ?? '';
+  const psView = psPlans.find((p) => p.key === planKey);
   const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
   const beams = useMemo(
     () => [
@@ -101,8 +104,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const sel = items.find((i) => i.id === selected);
   // Plan-séquence : temps choisi (null = tous) et trajectoires caméra / comédiens.
   const [beat, setBeat] = useState<number | null>(null);
-  const psShots = seqId ? (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id]?.oneShot) : [];
-  const nBeats = Math.max(0, ...psShots.map((id) => doc.shots[id].oneShot!.beats.length));
+  // Les temps n'existent que dans la vue propre au plan-séquence.
+  const psShots = psView ? [psView.shotId] : [];
+  const nBeats = psView ? (doc.shots[psView.shotId]?.oneShot?.beats.length ?? 0) : 0;
   const paths = useMemo(() => choreography(items), [items]);
 
   if (!seqId || !doc.sequences[seqId]) {
@@ -146,7 +150,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
         const next = sequenceCharacterIds(d, seqId).find((c) => !placed.includes(c));
         if (next) updateFloorItem(d, planKey, nid, { characterId: next } as Partial<FloorItem>);
       }
-      if (beat && (tool === 'camera' || tool === 'actor')) {
+      if (psView && beat && (tool === 'camera' || tool === 'actor')) {
         const it = planOf(d, planKey).items.find((i) => i.id === nid);
         const prev = planOf(d, planKey).items.find((i) => i.kind === tool && i.id !== nid && i.beat === beat - 1);
         const patch: Record<string, unknown> = { beat };
@@ -337,6 +341,24 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 {p.name}
               </button>
             ))}
+            {psPlans.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                role="tab"
+                aria-selected={p.key === planKey}
+                className={[s.psTab, p.key === planKey ? s.planOn : ''].join(' ')}
+                onClick={() => {
+                  setPlanPick(p.key);
+                  setSelected(null);
+                  setBeat(1);
+                }}
+                title="Vue propre au plan-séquence : caméra et comédiens placés temps par temps"
+                data-testid="fp-oneshot-view"
+              >
+                {p.name}
+              </button>
+            ))}
             <button
               type="button"
               className={s.planAdd}
@@ -385,7 +407,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 setSelected(null);
               }}
             >
-              <Trash2 size={12} /> {plans.length > 1 ? 'Supprimer cette vue' : 'Vider la vue'}
+              <Trash2 size={12} /> {plans.length > 1 && !psView ? 'Supprimer cette vue' : 'Vider la vue'}
             </button>
           </div>
           <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol">
@@ -492,7 +514,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               const item = preview(raw);
               const itemBeat = item.kind === 'camera' || item.kind === 'actor' ? item.beat : undefined;
               return (
-                <g key={item.id} opacity={beat !== null && itemBeat !== undefined && itemBeat !== beat ? 0.25 : 1}>
+                <g key={item.id} opacity={psView && beat !== null && itemBeat !== undefined && itemBeat !== beat ? 0.25 : 1}>
                   <ItemShape doc={doc} item={item} selected={item.id === selected} onDown={onItemDown} />
                   {itemBeat !== undefined && (
                     <text x={item.x + 14} y={item.y - 14} className={s.beatTag}>

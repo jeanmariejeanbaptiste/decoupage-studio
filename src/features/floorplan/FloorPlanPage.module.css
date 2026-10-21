@@ -68,3 +68,4 @@
 .camPath { fill: none; stroke: var(--rust); stroke-width: 2.5; stroke-dasharray: 10 6; pointer-events: none; }
 .actorPath { fill: none; stroke: var(--navy); stroke-width: 2; stroke-dasharray: 3 5; pointer-events: none; }
 .beatTag { font-size: 13px; font-weight: 700; fill: var(--rust); pointer-events: none; }
+.psTab { border-style: dashed !important; color: var(--rust); }
