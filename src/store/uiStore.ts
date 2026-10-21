@@ -27,6 +27,7 @@ export interface UiState {
   theme: 'papier' | 'encre';
   printView: boolean;
   inspectorOpen: boolean;
+  sidebarOpen: boolean;
   paletteOpen: boolean;
   helpOpen: boolean;
   saveStatus: 'saved' | 'saving' | 'dirty' | 'error' | 'idle';
@@ -57,6 +58,13 @@ export const useUi = create<UiState>()((set) => ({
   theme: initialTheme(),
   printView: false,
   inspectorOpen: typeof window !== 'undefined' && window.innerWidth >= 1600,
+  sidebarOpen: (() => {
+    try {
+      return localStorage.getItem('ds-sidebar') !== '0';
+    } catch {
+      return true;
+    }
+  })(),
   paletteOpen: false,
   helpOpen: false,
   saveStatus: 'idle',

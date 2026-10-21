@@ -1,3 +1,4 @@
+import { tcLast } from '../../domain/columns';
 import type { Borders, PaperSize, Workbook, Worksheet } from 'exceljs';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { COLUMN_DEFS, columnWidths } from '../../domain/columns';
@@ -32,6 +33,7 @@ const fill = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as 
 
 /** Construit le classeur : onglet « Découpage » fusionné + onglet « Registre » (§8.3). */
 export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.project.settings.exportColumns, theme: ExportTheme = doc.project.settings.exportTheme): Promise<Workbook> {
+  columns = tcLast(columns);
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   wb.title = `${doc.project.title} — découpage technique`;

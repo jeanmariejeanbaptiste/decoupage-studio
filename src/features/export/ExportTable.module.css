@@ -113,3 +113,11 @@
   .table .printSpacer td { height: 9mm; padding: 0; border: 0 !important; background: transparent !important; }
   .printFoot { display: table-footer-group; }
 }
+
+/* Impression paginée : chaque page est une boîte de la taille du papier, coupée net. */
+.paged { padding: 0; background: none; }
+.paged::before { display: none; }
+.page { position: relative; box-sizing: border-box; overflow: hidden; background: var(--x-bg); break-after: page; page-break-after: always; break-inside: avoid; }
+.page:last-child { break-after: auto; page-break-after: auto; }
+.page + .page { margin-top: 8mm; }
+@media print { .page + .page { margin-top: 0; } }

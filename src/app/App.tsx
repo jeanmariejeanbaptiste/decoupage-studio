@@ -60,6 +60,16 @@ export function App() {
   const doc = useDoc();
   const theme = useUi((u) => u.theme);
   const saveStatus = useUi((u) => u.saveStatus);
+  const sidebarOpen = useUi((u) => u.sidebarOpen);
+  const toggleSidebar = () => {
+    const next = !useUi.getState().sidebarOpen;
+    setUi({ sidebarOpen: next });
+    try {
+      localStorage.setItem('ds-sidebar', next ? '1' : '0');
+    } catch {
+      /* stockage indisponible : le choix vaut pour la session */
+    }
+  };
   const setUi = useUi((u) => u.set);
   const { canUndo, canRedo } = useHistory();
   const [booted, setBooted] = useState(false);
@@ -133,6 +143,8 @@ export function App() {
         Aller au contenu
       </a>
       <Topbar
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={showSidebar ? toggleSidebar : undefined}
         projectTitle={route === 'home' ? undefined : title}
         saveStatus={doc ? SAVE_LABEL[saveStatus] : ''}
         canUndo={canUndo}
@@ -161,7 +173,7 @@ export function App() {
         }
       />
       <div className={s.body}>
-        {showSidebar && doc && <Sidebar
+        {showSidebar && sidebarOpen && doc && <Sidebar
             projectTitle={title}
             activeRoute={route}
             validated={doc.validatedSteps}

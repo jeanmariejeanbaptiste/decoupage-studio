@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
+import { Columns3, Eye, FileSpreadsheet, Printer, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
-import { COLUMN_DEFS } from '../../domain/columns';
+import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
+import { downloadBlob } from '../../store/persistence';
+import { fileNameFor } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
@@ -78,6 +80,21 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           >
             Inspecteur
           </Button>
+          <span className={s.sep} />
+          <Button icon={<Printer {...IC} />} onClick={() => navigate('print', { auto: '1' })} title="Exporter le découpage en PDF (impression)" disabled={nSeq === 0} data-testid="grid-export-pdf">
+            PDF
+          </Button>
+          <Button
+            icon={<FileSpreadsheet {...IC} />}
+            title="Exporter le découpage en Excel"
+            disabled={nSeq === 0}
+            onClick={async () => {
+              const { exportXlsx } = await import('../export/xlsx');
+              downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
+            }}
+          >
+            Excel
+          </Button>
           <Button
             variant={printView ? 'primary' : 'outline'}
             icon={<Eye {...IC} />}
@@ -139,7 +156,7 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
       const g = d.project.settings.gridColumns;
       const all: ColumnKey[] = [...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS];
       const next = g.includes(c) ? g.filter((x) => x !== c) : [...g, c];
-      d.project.settings.gridColumns = all.filter((x) => next.includes(x));
+      d.project.settings.gridColumns = tcLast(all.filter((x) => next.includes(x)));
     });
   return (
     <div className={s.menuWrap} ref={ref}>

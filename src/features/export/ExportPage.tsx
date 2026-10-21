@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Braces, FolderArchive, FileSpreadsheet, FileText, FileUp, Printer, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { COLUMN_DEFS } from '../../domain/columns';
+import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
 import { fileNameFor, serializeDoc } from '../../domain/serialize';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ExportTheme, type ProjectDoc } from '../../domain/types';
@@ -30,7 +30,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
 
   const setCols = (cols: ColumnKey[]) =>
     mutateDoc((d) => {
-      d.project.settings.exportColumns = cols;
+      d.project.settings.exportColumns = tcLast(cols);
     });
   const cols = settings.exportColumns;
   const move = (c: ColumnKey, delta: -1 | 1) => {

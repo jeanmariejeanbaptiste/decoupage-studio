@@ -1,3 +1,4 @@
+import { tcLast } from '../../domain/columns';
 import { isEditable } from '../../domain/cells';
 import { runChecks, type Issue } from '../../domain/lint';
 import type { MergeMap, MergeRow } from '../../domain/merge';
@@ -33,7 +34,7 @@ export interface GridModel {
 
 export function buildGridModel(doc: ProjectDoc): GridModel {
   const timing = computeTiming(doc);
-  const columns = doc.project.settings.gridColumns;
+  const columns = tcLast(doc.project.settings.gridColumns);
   const rows: FlatRow[] = [];
   const seqs: SeqModel[] = [];
   doc.project.sequenceIds.forEach((seqId, seqIndex) => {

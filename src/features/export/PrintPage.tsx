@@ -38,9 +38,14 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
   useEffect(() => {
     if (params.get('auto') !== '1') return;
     let cancelled = false;
-    void document.fonts.ready.then(() => {
-      if (!cancelled) window.print();
-    });
+    // Attend que la pagination soit calculée avant d'ouvrir l'impression.
+    const start = Date.now();
+    const wait = () => {
+      if (cancelled) return;
+      if (document.querySelector('[data-testid="print-page"]') || Date.now() - start > 4000) window.print();
+      else requestAnimationFrame(wait);
+    };
+    void document.fonts.ready.then(wait);
     return () => {
       cancelled = true;
     };
@@ -128,7 +133,7 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
         </Button>
       </div>
       <div className={[s.paper, s[`paper_${paper}`]].join(' ')} data-testid="print-sheet">
-        <ExportTable doc={doc} theme={theme} />
+        <ExportTable doc={doc} theme={theme} paper={paper} footer={footer} />
       </div>
       {footer && <p className={[s.screenFooter, 'no-print'].join(' ')}>{footerText} · page 1 / n</p>}
     </div>

@@ -1,4 +1,4 @@
-import { Home, Moon, Redo2, Save, Settings, Sun, Undo2 } from 'lucide-react';
+import { Home, Moon, PanelLeft, Redo2, Save, Settings, Sun, Undo2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { APP_NAME } from '../../app/config';
 import { navigate } from '../../app/router';
@@ -21,12 +21,17 @@ interface Props {
   onToggleTheme: () => void;
   userInitial: string;
   primary?: ReactNode;
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function Topbar(p: Props) {
   return (
     <header className={[s.topbar, 'no-print'].join(' ')}>
       <div className={s.left}>
+        {p.onToggleSidebar && (
+          <Button variant="icon" aria-label="Afficher ou masquer le menu latéral" title="Afficher ou masquer le menu latéral" aria-pressed={p.sidebarOpen} onClick={p.onToggleSidebar} icon={<PanelLeft {...IC} />} data-testid="toggle-sidebar" />
+        )}
         <Button variant="icon" aria-label="Accueil" title="Accueil" onClick={() => navigate('home')} icon={<Home {...IC} />} />
         <Button variant="icon" aria-label="Enregistrer (⌘S)" title="Enregistrer (⌘S)" onClick={p.onSave} icon={<Save {...IC} />} />
         <Button variant="icon" aria-label="Annuler (⌘Z)" title="Annuler (⌘Z)" disabled={!p.canUndo} onClick={p.onUndo} icon={<Undo2 {...IC} />} />

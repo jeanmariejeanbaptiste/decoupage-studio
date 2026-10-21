@@ -34,3 +34,8 @@ export function columnWidths(columns: readonly ColumnKey[]): Record<string, numb
   const total = columns.reduce((acc, c) => acc + COLUMN_DEFS[c].width, 0) || 1;
   return Object.fromEntries(columns.map((c) => [c, (COLUMN_DEFS[c].width / total) * 100]));
 }
+
+/** La colonne TC reste toujours la dernière, quelles que soient les colonnes ajoutées. */
+export function tcLast<T extends string>(cols: readonly T[]): T[] {
+  return [...cols.filter((c) => c !== 'tc'), ...cols.filter((c) => c === 'tc')];
+}

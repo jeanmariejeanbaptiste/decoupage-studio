@@ -143,10 +143,10 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
             );
           })}
           <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)}>
-            <div className={s.dayHead}>
-              <strong>Non planifié</strong>
-              <span className={s.stats}>{(strips.get(0) ?? []).reduce((n, x) => n + x.shotIds.length, 0)} plans</span>
-            </div>
+            <p className={s.unplannedHead}>
+              Non planifié · {(strips.get(0) ?? []).reduce((n, x) => n + x.shotIds.length, 0)} plans
+              <span> — piochez-les plutôt depuis l’emploi du temps d’un jour</span>
+            </p>
           </Band>
         </div>
       </DndContext>

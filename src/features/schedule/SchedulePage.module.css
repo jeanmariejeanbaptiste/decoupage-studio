@@ -38,3 +38,15 @@
 .slot input, .rdv input { font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 1px 3px; border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--paper-card) 80%, transparent); color: var(--ink); }
 .rdv { display: inline-flex; gap: 6px; align-items: center; font-family: var(--font-hand); color: var(--rust); font-size: 16px; }
 .when { font-family: var(--font-mono); font-size: 12px; color: var(--navy); }
+
+/* Réserve « Non planifié » : liste discrète d'étiquettes, l'emploi du temps reste l'outil principal. */
+.unplanned { padding: 6px 8px; opacity: 0.85; }
+.unplannedHead { margin: 0 0 4px; font-size: 12px; color: var(--ink-soft); }
+.unplannedHead span { font-family: var(--font-hand); color: var(--rust); font-size: 13px; }
+.unplanned .strips { flex-direction: row; flex-wrap: wrap; gap: 4px; min-height: 0; }
+.unplanned .strip { background: var(--paper-card) !important; border-color: var(--rule); border-radius: 10px; }
+.unplanned .stripMain { display: flex; gap: 6px; padding: 1px 24px 1px 8px; font-size: 11.5px; }
+.unplanned .ie, .unplanned .decor, .unplanned .cast, .unplanned .when { display: none; }
+.unplanned .label { font-weight: 500; letter-spacing: 0; }
+.unplanned .toggle { top: 0; right: 2px; }
+.unplanned .shots { position: absolute; z-index: 5; top: 100%; left: 0; min-width: 360px; border: 1px solid var(--rule); box-shadow: 0 6px 16px rgba(42, 40, 36, 0.15); background: var(--paper-card); }

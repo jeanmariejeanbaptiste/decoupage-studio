@@ -5,14 +5,15 @@ test('capture de l’export RAV3 (thème Mauve, A4 paysage)', async ({ page }) =
   await page.setViewportSize({ width: 1123, height: 794 });
   await page.goto('/#/print?seed=rav3');
   const sheet = page.getByTestId('print-sheet');
-  await expect(sheet.locator('tbody')).toHaveCount(7);
+  await expect(sheet.getByTestId('print-page').first()).toBeVisible();
+  await expect(sheet.locator('tbody')).not.toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
   // Structure fusionnée : SÉQUENCE sur toute la hauteur, ACTION par bloc, TC par valeur.
   const first = sheet.locator('tbody').first();
   await expect(first.locator('td[rowspan="6"]').first()).toHaveText('1, CHAMBRE ADMIRATRICE');
   await expect(first.locator('td[rowspan="3"]').filter({ hasText: 'Admiratrice assise' })).toHaveCount(1);
-  await expect(sheet.locator('thead th')).toHaveText(['SÉQUENCE', 'N°', 'Sujet', 'Valeur', 'Angle', 'Mouvement de caméra', 'Focale', 'Action', 'TC MIN']);
-  const bg = await sheet.locator('div').first().evaluate((el) => getComputedStyle(el).backgroundColor);
+  await expect(sheet.locator('table').first().locator('thead th')).toHaveText(['SÉQUENCE', 'N°', 'Sujet', 'Valeur', 'Angle', 'Mouvement de caméra', 'Focale', 'Action', 'TC MIN']);
+  const bg = await sheet.getByTestId('print-page').first().evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).toBe('rgb(201, 139, 180)');
   await page.emulateMedia({ media: 'print' });
   await sheet.screenshot({ path: 'test-results/export-rav3.png' });
@@ -21,6 +22,9 @@ test('capture de l’export RAV3 (thème Mauve, A4 paysage)', async ({ page }) =
   await page.emulateMedia({ media: 'print' });
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true, path: 'test-results/export-rav3.pdf' });
   expect(pdf.byteLength).toBeGreaterThan(10_000);
+  // Autant de pages PDF que de pages calculées : rien ne déborde.
+  const pages = await sheet.getByTestId('print-page').count();
+  expect(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length).toBe(pages);
 });
 
 test('exports Excel, CSV et JSON téléchargeables', async ({ page }) => {
@@ -69,7 +73,7 @@ test('dossier de production complet (.zip)', async ({ page }) => {
 test('économie d’encre : aucun aplat de couleur', async ({ page }) => {
   await page.goto('/#/print?seed=rav3');
   await page.getByTestId('ink-saver').check();
-  const sheet = page.getByTestId('print-sheet').locator('div').first();
+  const sheet = page.getByTestId('print-page').first();
   expect(await sheet.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
   expect(await page.locator('thead th').first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   expect(await page.locator('tbody td').nth(3).evaluate((el) => getComputedStyle(el).color)).toBe('rgb(122, 46, 31)');
