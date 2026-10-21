@@ -11,6 +11,8 @@ import {
   Trash2,
   TrainTrack,
   User,
+  Flag,
+  Grid2x2,
 } from 'lucide-react';
 import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters';
 import {
@@ -27,6 +29,8 @@ import {
   plansOf,
   reflections,
   reflectorSize,
+  isLineKind,
+  LINE_KINDS,
   renamePlan,
   moveFloorItem,
   PLAN_H,
@@ -67,13 +71,15 @@ const TOOLS: Array<{ key: Tool; label: string; icon: JSX.Element }> = [
   { key: 'window', label: 'Fenêtre', icon: <Square {...IC} /> },
   { key: 'light', label: 'Lumière', icon: <Lamp {...IC} /> },
   { key: 'reflector', label: 'Réflecteur', icon: <RectangleVertical {...IC} /> },
+  { key: 'diffuser', label: 'Diffuseur', icon: <Grid2x2 {...IC} /> },
+  { key: 'flag', label: 'Drapeau', icon: <Flag {...IC} /> },
 ];
 
 type Drag =
   | { mode: 'move'; id: ID; from: Point; to: Point }
   | { mode: 'rotate'; id: ID; to: Point }
   | { mode: 'path'; id: ID; to: Point }
-  | { mode: 'line'; kind: 'wall' | 'rail' | 'reflector'; from: Point; to: Point };
+  | { mode: 'line'; kind: (typeof LINE_KINDS)[number]; from: Point; to: Point };
 
 const deg = (a: Point, b: Point) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 
@@ -136,7 +142,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       return;
     }
     const p = toSvg(e);
-    if (tool === 'wall' || tool === 'rail' || tool === 'reflector') {
+    if (isLineKind(tool)) {
       svgRef.current?.setPointerCapture(e.pointerId);
       setDrag({ mode: 'line', kind: tool, from: p, to: p });
       return;
@@ -226,11 +232,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       e.preventDefault();
       mutate((d) => removeFloorItem(d, planKey, sel.id));
       setSelected(null);
-    } else if ((e.key === 'r' || e.key === 'R') && 'rot' in sel) {
+    } else if ((e.key === 'r' || e.key === 'R') && ('rot' in sel || sel.kind === 'actor')) {
       e.preventDefault();
-      mutate((d) =>
-        updateFloorItem(d, planKey, sel.id, { rot: sel.rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>),
-      );
+      const rot = (sel as { rot?: number }).rot ?? 90;
+      mutate((d) => updateFloorItem(d, planKey, sel.id, { rot: rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>));
     } else if (e.key === 'Escape') {
       setSelected(null);
       setTool('select');
@@ -244,12 +249,12 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       const dx = snap(drag.to.x - drag.from.x);
       const dy = snap(drag.to.y - drag.from.y);
       const moved = { ...item, x: item.x + dx, y: item.y + dy } as FloorItem;
-      if (moved.kind === 'wall' || moved.kind === 'rail' || moved.kind === 'reflector')
+      if ('x2' in moved)
         Object.assign(moved, { x2: moved.x2 + dx, y2: moved.y2 + dy });
       if (moved.kind === 'actor' && moved.to) moved.to = { x: moved.to.x + dx, y: moved.to.y + dy };
       return moved;
     }
-    if (drag.mode === 'rotate' && 'rot' in item)
+    if (drag.mode === 'rotate' && ('rot' in item || item.kind === 'actor'))
       return { ...item, rot: Math.round(deg(item, drag.to) / 5) * 5 } as FloorItem;
     if (drag.mode === 'path' && item.kind === 'actor')
       return { ...item, to: { x: snap(drag.to.x), y: snap(drag.to.y) } };
@@ -412,7 +417,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             <Hand className={s.toolHint}>
               {tool === 'select'
                 ? 'glisser pour déplacer · R pour pivoter · Suppr pour retirer'
-                : tool === 'wall' || tool === 'rail' || tool === 'reflector'
+                : isLineKind(tool)
                   ? 'cliquer-glisser pour tracer · Échap pour finir'
                   : 'cliquer pour placer · Échap pour finir'}
             </Hand>
@@ -515,7 +520,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 y1={snap(drag.from.y)}
                 x2={snap(drag.to.x)}
                 y2={snap(drag.to.y)}
-                className={drag.kind === 'wall' ? s.wall : drag.kind === 'rail' ? s.rail : s.reflector}
+                className={s[drag.kind]}
               />
             )}
           </svg>
@@ -628,12 +633,26 @@ function ItemShape({
               )}
             </>
           )}
-          <g onPointerDown={(e) => onDown(e, item.id)}>
-            <circle cx={item.x} cy={item.y} r={16} className={s.actor} />
-            <text x={item.x} y={item.y + 5} className={s.actorText}>
-              {item.label}
-            </text>
+          {/* Vu de dessus : épaules, tête, yeux et nez dans la direction du regard. */}
+          <g transform={`rotate(${(item.rot ?? 90) - 90} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
+            <ellipse cx={item.x} cy={item.y} rx={17} ry={7} className={s.shoulders} />
+            <circle cx={item.x} cy={item.y} r={8.5} className={s.actor} />
+            <circle cx={item.x - 3.2} cy={item.y + 5.6} r={1.3} className={s.eye} />
+            <circle cx={item.x + 3.2} cy={item.y + 5.6} r={1.3} className={s.eye} />
+            <path d={`M ${item.x - 1.6} ${item.y + 8} L ${item.x} ${item.y + 11} L ${item.x + 1.6} ${item.y + 8}`} className={s.nose} />
           </g>
+          <text x={item.x} y={item.y - 13} className={s.actorText}>
+            {item.label}
+          </text>
+          {selected && (
+            <circle
+              {...handle(item.rot ?? 90, 30)}
+              r={6}
+              className={s.handle}
+              onPointerDown={(e) => onDown(e, item.id, 'rotate')}
+              data-testid="fp-actor-rotate"
+            />
+          )}
           {item.characterId && doc.characters[item.characterId] && (
             <text x={item.x} y={item.y + 32} className={s.label}>
               {doc.characters[item.characterId].name}
@@ -642,10 +661,12 @@ function ItemShape({
         </g>
       );
     case 'reflector':
+    case 'diffuser':
+    case 'flag':
       return (
-        <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid="fp-reflector">
+        <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid={`fp-${item.kind}`}>
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
-          <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.reflector} />
+          <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s[item.kind]} />
           <text x={(item.x + item.x2) / 2} y={(item.y + item.y2) / 2 - 10} className={s.label}>
             {item.label}
           </text>
@@ -718,6 +739,8 @@ const KIND_LABEL: Record<FloorKind, string> = {
   window: 'Fenêtre',
   light: 'Source de lumière',
   reflector: 'Réflecteur',
+  diffuser: 'Diffuseur',
+  flag: 'Drapeau (négatif)',
 };
 
 function Properties({
@@ -743,7 +766,9 @@ function Properties({
       {(item.kind === 'camera' ||
         item.kind === 'light' ||
         item.kind === 'actor' ||
-        item.kind === 'reflector') && (
+        item.kind === 'reflector' ||
+        item.kind === 'diffuser' ||
+        item.kind === 'flag') && (
         <label className={s.field}>
           <span>Repère</span>
           <input

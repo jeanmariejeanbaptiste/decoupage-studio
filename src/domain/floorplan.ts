@@ -9,7 +9,7 @@ export interface Point {
 
 export type FloorItem =
   | { id: ID; kind: 'camera'; x: number; y: number; rot: number; shotIds: ID[]; label?: string; beat?: number }
-  | { id: ID; kind: 'actor'; x: number; y: number; characterId?: ID; label: string; to?: Point; beat?: number }
+  | { id: ID; kind: 'actor'; x: number; y: number; characterId?: ID; label: string; to?: Point; beat?: number; rot?: number }
   | { id: ID; kind: 'wall' | 'rail'; x: number; y: number; x2: number; y2: number }
   | { id: ID; kind: 'door' | 'window'; x: number; y: number; rot: number; width: number }
   | {
@@ -22,7 +22,11 @@ export type FloorItem =
       spread?: number;
       range?: number;
     }
-  | { id: ID; kind: 'reflector'; x: number; y: number; x2: number; y2: number; label?: string };
+  | { id: ID; kind: 'reflector' | 'diffuser' | 'flag'; x: number; y: number; x2: number; y2: number; label?: string };
+
+/** Éléments tracés comme un segment (cliquer-glisser). */
+export const LINE_KINDS = ['wall', 'rail', 'reflector', 'diffuser', 'flag'] as const;
+export const isLineKind = (k: string): k is (typeof LINE_KINDS)[number] => (LINE_KINDS as readonly string[]).includes(k);
 
 export type FloorKind = FloorItem['kind'];
 
@@ -126,15 +130,18 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
       plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: `CAM ${String.fromCharCode(64 + n)}` });
       break;
     case 'actor':
-      plan.items.push({ id, kind, ...p, label: String(n) });
+      // Orientation : 90° = regarde vers le bas du plan.
+      plan.items.push({ id, kind, ...p, label: String(n), rot: 90 });
       break;
     case 'wall':
     case 'rail':
-    case 'reflector': {
+    case 'reflector':
+    case 'diffuser':
+    case 'flag': {
       const e = clampPoint(end ? { x: snap(end.x), y: snap(end.y) } : { x: p.x + 160, y: p.y });
       plan.items.push(
-        kind === 'reflector'
-          ? { id, kind, ...p, x2: e.x, y2: e.y, label: `R${n}` }
+        kind === 'reflector' || kind === 'diffuser' || kind === 'flag'
+          ? { id, kind, ...p, x2: e.x, y2: e.y, label: `${kind === 'reflector' ? 'R' : kind === 'diffuser' ? 'D' : 'N'}${n}` }
           : { id, kind, ...p, x2: e.x, y2: e.y },
       );
       break;
@@ -169,7 +176,7 @@ export function moveFloorItem(doc: ProjectDoc, seqId: ID, id: ID, dx: number, dy
   if (!item) return;
   item.x = Math.max(0, Math.min(PLAN_W, item.x + dx));
   item.y = Math.max(0, Math.min(PLAN_H, item.y + dy));
-  if (item.kind === 'wall' || item.kind === 'rail' || item.kind === 'reflector') {
+  if ('x2' in item) {
     item.x2 = Math.max(0, Math.min(PLAN_W, item.x2 + dx));
     item.y2 = Math.max(0, Math.min(PLAN_H, item.y2 + dy));
   }
@@ -239,7 +246,7 @@ export const DEFAULT_SPREAD = 50;
 export const DEFAULT_RANGE = 280;
 
 type Light = Extract<FloorItem, { kind: 'light' }>;
-type Reflector = Extract<FloorItem, { kind: 'reflector' }>;
+type Reflector = Extract<FloorItem, { kind: 'reflector' | 'diffuser' | 'flag' }>;
 
 export interface Beam {
   /** Source du faisceau (lumière ou réflecteur). */

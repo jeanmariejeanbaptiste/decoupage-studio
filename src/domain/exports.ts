@@ -153,18 +153,26 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         break;
       }
       case 'actor':
-        if (i.to) out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.to.x}" y2="${i.to.y}" stroke="#2e4263" stroke-width="2" stroke-dasharray="6 4"/>`);
-        out.push(`<circle cx="${i.x}" cy="${i.y}" r="16" fill="#2e4263"/><text x="${i.x}" y="${i.y + 5}" font-size="14" text-anchor="middle" fill="#fff">${xml(i.label)}</text>`);
+        if (i.to) out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.to.x}" y2="${i.to.y}" stroke="#2e4263" stroke-width="1.2" stroke-dasharray="5 4"/>`);
+        out.push(
+          `<g transform="rotate(${(i.rot ?? 90) - 90} ${i.x} ${i.y})"><ellipse cx="${i.x}" cy="${i.y}" rx="17" ry="7" fill="#8e98ad" stroke="#2e4263"/><circle cx="${i.x}" cy="${i.y}" r="8.5" fill="#2e4263" stroke="#fff"/><circle cx="${i.x - 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/><circle cx="${i.x + 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/></g><text x="${i.x}" y="${i.y - 13}" font-size="11" font-weight="600" text-anchor="middle" fill="#2e4263">${xml(i.label)}</text>`,
+        );
         if (i.characterId && doc.characters[i.characterId]) out.push(`<text x="${i.x}" y="${i.y + 32}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(doc.characters[i.characterId].name)}</text>`);
         break;
       case 'wall':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#2a2824" stroke-width="7"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#2a2824" stroke-width="3.5"/>`);
         break;
       case 'rail':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="9" stroke-dasharray="2 6"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="5" stroke-dasharray="1.5 5"/>`);
         break;
       case 'reflector':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#a9aeb6" stroke-width="8" stroke-linecap="round"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#a9aeb6" stroke-width="4" stroke-linecap="round"/>`);
+        break;
+      case 'diffuser':
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#c9c3b6" stroke-width="4" stroke-dasharray="2 2"/>`);
+        break;
+      case 'flag':
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#1d1b18" stroke-width="4"/>`);
         break;
       case 'door':
       case 'window':

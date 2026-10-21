@@ -12,21 +12,24 @@
 .item { cursor: move; }
 .cone { fill: color-mix(in srgb, var(--rust) 12%, transparent); stroke: var(--rust); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
 .camBody { fill: var(--ink); }
-.sel .camBody, .sel .actor, .sel .light { stroke: var(--rust); stroke-width: 3; }
+.sel .camBody, .sel .shoulders, .sel .light { stroke: var(--rust); stroke-width: 1.5; }
 .sel .wall, .sel .rail { stroke: var(--rust); }
 .label { font-family: var(--font-ui); font-size: 12px; fill: var(--ink-soft); text-anchor: middle; pointer-events: none; }
-.actor { fill: var(--navy); }
-.actorText { font-family: var(--font-ui); font-weight: 600; font-size: 14px; fill: var(--on-navy); text-anchor: middle; pointer-events: none; }
-.path { stroke: var(--navy); stroke-width: 2; stroke-dasharray: 6 4; }
-.wall { stroke: var(--ink); stroke-width: 7; stroke-linecap: square; }
-.rail { stroke: var(--ochre); stroke-width: 9; stroke-dasharray: 2 6; }
+.actor { fill: var(--navy); stroke: var(--paper-card); stroke-width: 1; }
+.shoulders { fill: color-mix(in srgb, var(--navy) 55%, var(--paper-card)); stroke: var(--navy); stroke-width: 1; }
+.eye { fill: var(--paper-card); pointer-events: none; }
+.nose { fill: none; stroke: var(--paper-card); stroke-width: 1; pointer-events: none; }
+.actorText { font-family: var(--font-ui); font-weight: 600; font-size: 11px; fill: var(--navy); text-anchor: middle; pointer-events: none; }
+.path { stroke: var(--navy); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.wall { stroke: var(--ink); stroke-width: 3.5; stroke-linecap: square; }
+.rail { stroke: var(--ochre); stroke-width: 5; stroke-dasharray: 1.5 5; }
 .hit { stroke: transparent; stroke-width: 18; }
 .door { fill: none; stroke: var(--ink); stroke-width: 1.5; }
 .doorGap { stroke: var(--paper-card); stroke-width: 9; }
 .window { fill: var(--paper-card); stroke: var(--ink); stroke-width: 1.5; }
 .light { fill: var(--ochre); }
 .beam { fill: color-mix(in srgb, var(--ochre) 22%, transparent); stroke: var(--ochre); stroke-width: 1; }
-.handle { fill: var(--paper-card); stroke: var(--rust); stroke-width: 2; cursor: grab; }
+.handle { fill: var(--paper-card); stroke: var(--rust); stroke-width: 1.2; cursor: grab; }
 .panel { padding: 14px 16px; position: sticky; top: 12px; max-height: calc(100vh - var(--topbar-h) - 40px); overflow-y: auto; }
 .h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0 0 8px; }
 .shotList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
@@ -43,7 +46,9 @@
 .links label { display: flex; gap: 6px; align-items: baseline; }
 .links b { color: var(--rust); }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .panel { position: static; } }
-.reflector { stroke: #c8ccd2; stroke-width: 8; stroke-linecap: round; }
+.reflector { stroke: #b9bfc8; stroke-width: 4; stroke-linecap: round; }
+.diffuser { stroke: #c9c3b6; stroke-width: 4; stroke-dasharray: 2 2; stroke-linecap: butt; opacity: 0.9; }
+.flag { stroke: #1d1b18; stroke-width: 4; stroke-linecap: square; }
 .sel .reflector { stroke: var(--rust); }
 .beamGroup { pointer-events: none; mix-blend-mode: multiply; }
 :root[data-theme='encre'] .beamGroup { mix-blend-mode: screen; }
@@ -65,7 +70,7 @@
 .beats button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: 10px; padding: 1px 9px; font-size: 12px; cursor: pointer; }
 .beats button.on { background: var(--rust); color: var(--paper); border-color: var(--rust); }
 .beats em { color: var(--ink-soft); font-size: 11.5px; margin-left: 6px; }
-.camPath { fill: none; stroke: var(--rust); stroke-width: 2.5; stroke-dasharray: 10 6; pointer-events: none; }
-.actorPath { fill: none; stroke: var(--navy); stroke-width: 2; stroke-dasharray: 3 5; pointer-events: none; }
+.camPath { fill: none; stroke: var(--rust); stroke-width: 1.4; stroke-dasharray: 8 5; pointer-events: none; }
+.actorPath { fill: none; stroke: var(--navy); stroke-width: 1.2; stroke-dasharray: 2 4; pointer-events: none; }
 .beatTag { font-size: 13px; font-weight: 700; fill: var(--rust); pointer-events: none; }
 .psTab { border-style: dashed !important; color: var(--rust); }
