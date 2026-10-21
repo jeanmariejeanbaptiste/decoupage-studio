@@ -36,3 +36,22 @@ describe('plan-séquence', () => {
     expect(formatOneShotDuration(t)).toBe('1:00 – 1:24 (≈ 1:12 ± 0:05)');
   });
 });
+
+describe('plan-séquence isolé', async () => {
+  const { sequenceMerges } = await import('./rows');
+  const { computeTiming } = await import('./timing');
+  it('ne fusionne aucune cellule avec les plans voisins (sauf la séquence)', () => {
+    const doc = buildRav3();
+    const seqId = doc.project.sequenceIds[0];
+    const id = doc.sequences[seqId].shotIds[1];
+    const ps = produce(doc, (d) => toggleOneShot(d, id));
+    const cols = ps.project.settings.exportColumns;
+    const { merges, rows } = sequenceMerges(ps, computeTiming(ps), seqId, cols);
+    for (const c of cols) {
+      const spans = merges.get(c) ?? [];
+      const crossing = spans.some((m) => m.startRow <= 1 && m.startRow + m.span > 1 && m.span > 1);
+      expect([c, crossing]).toEqual([c, c === 'sequence']);
+    }
+    expect(rows[1].cells.number).toBe('2');
+  });
+});

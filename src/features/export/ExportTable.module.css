@@ -124,4 +124,4 @@
 
 /* Plan-séquence : temps listés ligne à ligne, repère visuel discret. */
 .oneShot td { white-space: pre-line; }
-.oneShot td:nth-child(2) { font-weight: 700; }
+.oneShot td:nth-child(2)::after { content: '°'; color: var(--x-red); }

@@ -6,6 +6,8 @@ export interface MergeRow {
   blockId: ID;
   cells: Partial<Record<ColumnKey, string>>;
   mergeBreak?: readonly ColumnKey[];
+  /** Ligne isolée (plan-séquence) : aucune cellule ne fusionne avec ses voisines, sauf la séquence. */
+  isolated?: boolean;
 }
 
 export interface MergeSpan {
@@ -48,7 +50,7 @@ function mergeColumn(rows: readonly MergeRow[], col: ColumnKey, opts: MergeOptio
   rows.forEach((row, i) => {
     const key = keyFor(row, col, opts);
     const last = spans[spans.length - 1];
-    const forcedBreak = row.mergeBreak?.includes(col) ?? false;
+    const forcedBreak = (row.mergeBreak?.includes(col) ?? false) || (col !== 'sequence' && (!!row.isolated || !!rows[i - 1]?.isolated));
     if (!never && last && key === prevKey && !forcedBreak) last.span += 1;
     else spans.push({ startRow: i, span: 1, value: row.cells[col] ?? '' });
     prevKey = key;

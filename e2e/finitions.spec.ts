@@ -147,7 +147,8 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
   await editor.getByLabel('Durée minimale du temps 2').fill('10');
   await editor.getByLabel('Durée maximale du temps 2').fill('20');
   await editor.getByLabel('Durée maximale du temps 2').blur();
-  await expect(row).toContainText('PLAN-SÉQ.');
+  await expect(row).toHaveClass(/oneShot/);
+  await expect(row.locator('[data-cell$=":number"]')).toHaveText('1');
   await expect(row).toContainText('T2 Affiche');
   await expect(editor).toContainText('0:10 – 0:20');
   await page.goto('/#/floorplan');

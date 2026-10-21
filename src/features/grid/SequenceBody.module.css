@@ -1,4 +1,0 @@
-
-/* Plan-séquence : une ligne par temps dans chaque cellule de cadrage, liseré rouille. */
-.oneShot td { white-space: pre-line; background: color-mix(in srgb, var(--rust) 4%, transparent); }
-.oneShot td:first-child { box-shadow: inset 3px 0 0 var(--rust); }

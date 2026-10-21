@@ -151,3 +151,8 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .rowDel, .seqDel { border: 0; background: none; color: var(--rust); opacity: 0; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; transition: opacity var(--t-fast) var(--ease); }
 .row:hover .rowDel, .seq:hover .seqDel, .rowDel:focus-visible, .seqDel:focus-visible { opacity: 0.85; }
 .seqDel { position: absolute; right: -4px; top: -2px; }
+
+/* Plan-séquence : une ligne par temps dans chaque cellule de cadrage, liseré rouille. */
+.oneShot td { white-space: pre-line; }
+.oneShot .num::after { content: ''; display: inline-block; width: 5px; height: 5px; margin-left: 3px; vertical-align: super; border: 1.5px solid var(--rust); border-radius: 50%; }
+.oneShot td:first-child { box-shadow: inset 3px 0 0 var(--rust); }

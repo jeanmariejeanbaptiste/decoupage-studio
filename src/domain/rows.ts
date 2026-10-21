@@ -16,7 +16,6 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
   const beats = shot.oneShot?.beats;
   if (beats) {
     if (BEAT_COLUMNS.includes(col)) return beatColumnText(beats, col, (v) => valueLabel(v, settings.labelStyle));
-    if (col === 'number') return `${index + 1}\nPLAN-SÉQ.`;
     if (col === 'action') {
       const cues = beats.map((b, i) => (b.cue ? `T${i + 1} : ${b.cue}` : '')).filter(Boolean);
       const dur = formatOneShotDuration(oneShotTiming(beats));
@@ -83,6 +82,7 @@ export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, co
       shotId: shot.id,
       blockId: shot.actionBlockId,
       mergeBreak: shot.mergeBreak,
+      isolated: !!shot.oneShot,
       cells: Object.fromEntries(columns.map((c) => [c, cellText(doc, timing, shot, c, i)])),
     }));
 }
