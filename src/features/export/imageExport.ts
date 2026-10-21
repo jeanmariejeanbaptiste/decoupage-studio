@@ -1,58 +1,38 @@
-import { useUi } from '../../store/uiStore';
+import { buildPdf, type PdfPage } from '../../domain/pdf';
 import { downloadBlob } from '../../store/persistence';
 
-/** Éléments exclus de l'image : boutons, champs et tout ce qui est marqué « no-print ». */
+export type Orientation = 'landscape' | 'portrait';
+export interface PageExportOptions {
+  /** PDF assemblé par l'outil, ou images PNG (dossier compressé si plusieurs pages). */
+  format: 'pdf' | 'images';
+  orientation: Orientation;
+  /** Numéro « n / total » en petit, en bas à droite. */
+  numbers: boolean;
+}
+
+/** Éléments exclus de l'image : boutons, champs et tout ce qui est marqué « no-image ». */
 const clean = (n: Node) => !(n instanceof HTMLElement && (n.tagName === 'BUTTON' || n.tagName === 'INPUT' || n.tagName === 'SELECT' || n.classList.contains('no-image')));
 
-/**
- * Exporte des pages déjà mises en page (une boîte par page, au format exact du papier) :
- * une image PNG pour une page, sinon un dossier compressé de PNG numérotés dans l'ordre.
- */
-export async function pagesToImages(pages: HTMLElement[], base: string, background = '#ffffff'): Promise<number> {
-  const { toBlob } = await import('html-to-image');
+export const a4 = (o: Orientation) => (o === 'portrait' ? { w: 210, h: 297 } : { w: 297, h: 210 });
+
+/** Rend des pages déjà mises en page (une boîte par page, au format exact du papier). */
+export async function exportNodePages(pages: HTMLElement[], base: string, opts: PageExportOptions, background = '#ffffff'): Promise<number> {
+  const { toCanvas } = await import('html-to-image');
   await document.fonts.ready;
-  const blobs: Blob[] = [];
-  for (const node of pages) {
-    const blob = await toBlob(node, { pixelRatio: 3, backgroundColor: background, filter: clean, width: node.offsetWidth, height: node.offsetHeight });
-    if (blob) blobs.push(blob);
-  }
-  await saveImages(blobs, base);
-  return blobs.length;
+  const canvases: HTMLCanvasElement[] = [];
+  for (const node of pages) canvases.push(await toCanvas(node, { pixelRatio: 3, backgroundColor: background, filter: clean, width: node.offsetWidth, height: node.offsetHeight }));
+  await finish(canvases, base, opts);
+  return canvases.length;
 }
 
-/** Attend que des pages apparaissent dans un conteneur (pagination calculée après rendu). */
-export async function waitForPages(root: HTMLElement, selector: string, timeout = 8000): Promise<HTMLElement[]> {
-  const start = Date.now();
-  for (;;) {
-    const found = [...root.querySelectorAll<HTMLElement>(selector)];
-    if (found.length || Date.now() - start > timeout) return found;
-    await new Promise((r) => requestAnimationFrame(r));
-  }
-}
-
-/** Petit menu : format A4 paysage ou portrait. */
-export function askOrientation(e: { clientX: number; clientY: number; currentTarget: Element }, pick: (o: 'landscape' | 'portrait') => void): void {
-  const r = e.currentTarget.getBoundingClientRect();
-  useUi.getState().set({
-    menu: {
-      x: r.left,
-      y: r.bottom + 4,
-      items: [
-        { label: 'Images A4 paysage (une par page)', action: () => pick('landscape') },
-        { label: 'Images A4 portrait (une par page)', action: () => pick('portrait') },
-      ],
-    },
-  });
-}
-
-/** Chaque SVG devient une page A4 (200 dpi) centrée avec marges ; plusieurs pages → dossier compressé. */
-export async function svgPagesToImages(svgs: string[], base: string, orientation: 'landscape' | 'portrait'): Promise<void> {
+/** Chaque SVG devient une page A4 (200 dpi), centrée avec marges. */
+export async function exportSvgPages(svgs: string[], base: string, opts: PageExportOptions): Promise<void> {
   const dpmm = 200 / 25.4;
-  const [w, h] = orientation === 'portrait' ? [210, 297] : [297, 210];
+  const { w, h } = a4(opts.orientation);
   const W = Math.round(w * dpmm);
   const H = Math.round(h * dpmm);
   const margin = Math.round(12 * dpmm);
-  const blobs: Blob[] = [];
+  const canvases: HTMLCanvasElement[] = [];
   for (const svg of svgs) {
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
     try {
@@ -69,25 +49,51 @@ export async function svgPagesToImages(svgs: string[], base: string, orientation
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, W, H);
       const k = Math.min((W - 2 * margin) / img.naturalWidth, (H - 2 * margin) / img.naturalHeight);
-      const dw = img.naturalWidth * k;
-      const dh = img.naturalHeight * k;
-      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-      const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, 'image/png'));
-      if (blob) blobs.push(blob);
+      ctx.drawImage(img, (W - img.naturalWidth * k) / 2, (H - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      canvases.push(canvas);
     } finally {
       URL.revokeObjectURL(url);
     }
   }
-  await saveImages(blobs, base);
+  await finish(canvases, base, opts);
 }
 
-async function saveImages(blobs: Blob[], base: string): Promise<void> {
-  if (blobs.length === 1) downloadBlob(blobs[0], `${base}.png`);
-  else if (blobs.length > 1) {
-    const { default: JSZip } = await import('jszip');
-    const zip = new JSZip();
-    const folder = zip.folder(base)!;
-    blobs.forEach((b, i) => folder.file(`${base}-page-${String(i + 1).padStart(2, '0')}.png`, b));
-    downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
+/** Numérote, puis enregistre en PDF (assemblé ici, sans le module d'impression) ou en images. */
+async function finish(canvases: HTMLCanvasElement[], base: string, opts: PageExportOptions): Promise<void> {
+  if (!canvases.length) return;
+  if (opts.numbers)
+    canvases.forEach((c, i) => {
+      const ctx = c.getContext('2d')!;
+      const mm = c.width / a4(opts.orientation).w;
+      ctx.font = `${Math.round(2.8 * mm)}px "Barlow Semi Condensed", "Helvetica Neue", sans-serif`;
+      ctx.fillStyle = '#555';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(`${i + 1} / ${canvases.length}`, c.width - 6 * mm, c.height - 4.5 * mm);
+    });
+  const blob = (c: HTMLCanvasElement, type: string) => new Promise<Blob>((ok, ko) => c.toBlob((b) => (b ? ok(b) : ko(new Error('Rendu impossible'))), type, 0.92));
+  if (opts.format === 'pdf') {
+    const pages: PdfPage[] = [];
+    for (const c of canvases) pages.push({ jpeg: new Uint8Array(await (await blob(c, 'image/jpeg')).arrayBuffer()), width: c.width, height: c.height });
+    downloadBlob(new Blob([buildPdf(pages, a4(opts.orientation))], { type: 'application/pdf' }), `${base}.pdf`);
+    return;
+  }
+  const blobs: Blob[] = [];
+  for (const c of canvases) blobs.push(await blob(c, 'image/png'));
+  if (blobs.length === 1) return downloadBlob(blobs[0], `${base}.png`);
+  const { default: JSZip } = await import('jszip');
+  const zip = new JSZip();
+  const folder = zip.folder(base)!;
+  blobs.forEach((b, i) => folder.file(`${base}-page-${String(i + 1).padStart(2, '0')}.png`, b));
+  downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
+}
+
+/** Attend que des pages apparaissent dans un conteneur (pagination calculée après rendu). */
+export async function waitForPages(root: HTMLElement, selector: string, timeout = 8000): Promise<HTMLElement[]> {
+  const start = Date.now();
+  for (;;) {
+    const found = [...root.querySelectorAll<HTMLElement>(selector)];
+    if (found.length || Date.now() - start > timeout) return found;
+    await new Promise((r) => requestAnimationFrame(r));
   }
 }

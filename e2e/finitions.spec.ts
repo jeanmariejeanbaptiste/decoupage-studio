@@ -106,28 +106,32 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await expect(page.locator('iframe[aria-hidden="true"]').last().contentFrame().locator('body')).toContainText('3 quai Voltaire');
 });
 
-test('exports en images A4, page par page', async ({ page }) => {
-  for (const [route, id, menu, name, pages] of [
-    ['/#/grid?seed=rav3', 'grid-export', 'Images A4 paysage (une par page)', /-decoupage-A4-paysage\.zip$/, 3],
-    ['/#/grid?seed=rav3', 'grid-export', 'Images A4 portrait (une par page)', /-decoupage-A4-portrait\.zip$/, 0],
-    ['/#/storyboard?seed=rav3', 'storyboard-image', 'Images A4 portrait (une par page)', /-storyboard-A4-portrait\.zip$/, 14],
-    ['/#/floorplan?seed=rav3', 'floorplan-image', 'Images A4 paysage (une par page)', /-plans-au-sol-A4-paysage\.(zip|png)$/, 0],
+test('exports A4 : images page par page et PDF assemblé par l’outil', async ({ page }) => {
+  for (const [route, id, format, ori, name, pages] of [
+    ['/#/grid?seed=rav3', 'grid', 'Images A4', 'Paysage', /-decoupage-A4-paysage\.zip$/, 3],
+    ['/#/grid?seed=rav3', 'grid', 'PDF', 'Portrait', /-decoupage-A4-portrait\.pdf$/, 0],
+    ['/#/storyboard?seed=rav3', 'storyboard', 'Images A4', 'Portrait', /-storyboard-A4-portrait\.zip$/, 14],
+    ['/#/storyboard?seed=rav3', 'storyboard', 'PDF', 'Paysage', /-storyboard-A4-paysage\.pdf$/, 0],
+    ['/#/floorplan?seed=rav3', 'floorplan', 'PDF', 'Paysage', /-plans-au-sol-A4-paysage\.pdf$/, 0],
   ] as const) {
     await page.goto(route);
     const dl = page.waitForEvent('download', { timeout: 30_000 });
-    await page.getByTestId(id).click();
-    if (id === 'grid-export') {
-      // Panneau d'export du découpage : format, orientation, thème, économie d'encre.
-      const panel = page.getByTestId('grid-export-panel');
-      await panel.getByText('Images A4').click();
-      await panel.getByText(menu.includes('portrait') ? 'Portrait' : 'Paysage').click();
-      await panel.getByText(menu.includes('portrait') ? 'Sobre' : 'Mauve').click();
-      await page.getByTestId('grid-export-go').click();
-    } else await page.getByRole('menuitem', { name: menu }).click();
+    await page.getByTestId(`${id}-export`).click();
+    const panel = page.getByTestId(`${id}-export-panel`);
+    await panel.getByText(format, { exact: true }).click();
+    await panel.getByText(ori, { exact: true }).click();
+    if (id === 'grid') await panel.getByText('Sobre').click();
+    await page.getByTestId(`${id}-export-go`).click();
     const d = await dl;
     expect(d.suggestedFilename()).toMatch(name);
     const buf = readFileSync(await d.path());
     expect(buf.byteLength).toBeGreaterThan(5_000);
+    if (format === 'PDF') {
+      // PDF produit par l'outil : pages A4 exactes, sans passer par l'impression du navigateur.
+      const text = buf.toString('latin1');
+      expect(text.startsWith('%PDF')).toBe(true);
+      expect(text).toContain(ori === 'Portrait' ? '/MediaBox [0 0 595.28 841.89]' : '/MediaBox [0 0 841.89 595.28]');
+    }
     if (pages) {
       const { default: JSZip } = await import('jszip');
       const zip = await JSZip.loadAsync(buf);
@@ -137,7 +141,7 @@ test('exports en images A4, page par page', async ({ page }) => {
       // Proportions A4 exactes (largeur / hauteur lues dans l'en-tête PNG).
       const png = await zip.file(files[0])!.async('nodebuffer');
       const ratio = png.readUInt32BE(16) / png.readUInt32BE(20);
-      expect(ratio).toBeCloseTo(name.source.includes('portrait') ? 210 / 297 : 297 / 210, 2);
+      expect(ratio).toBeCloseTo(ori === 'Portrait' ? 210 / 297 : 297 / 210, 2);
     }
   }
 });

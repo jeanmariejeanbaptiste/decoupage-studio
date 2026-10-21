@@ -39,12 +39,10 @@
 .print .sheet:last-child { break-after: auto; }
 .print .sheetHead { display: flex; justify-content: space-between; font-size: 10pt; border-bottom: 1px solid #999; padding-bottom: 2mm; }
 .print .sheetGrid { flex: 1; min-height: 0; display: grid; gap: 5mm; }
-.print .per2 .sheetGrid, .print .per2.sheet .sheetGrid { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
-.print .per4.sheet .sheetGrid { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.print .per6.sheet .sheetGrid { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; }
-.print .portrait.per2 .sheetGrid { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-.print .portrait.per6 .sheetGrid { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); }
 .print .sheetGrid .card { min-height: 0; overflow: hidden; display: flex; flex-direction: column; break-inside: avoid; border-color: #888; }
 .print .sheetGrid .frame { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; border-color: #888; }
 .print .sheetGrid .body { flex: 0 0 auto; padding: 4px 8px 6px; }
 .print .sheetGrid .action { font-size: 10px; line-height: 1.25; max-height: 3.8em; overflow: hidden; }
+.inkCheck { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.print .ink .frame { background: #fff !important; }
+.print .ink .card { background: #fff !important; }

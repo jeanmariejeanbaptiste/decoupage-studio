@@ -65,6 +65,8 @@ export interface ProjectSettings {
   exportInkSaver?: boolean;
   /** Orientation des pages exportées (PDF et images). */
   exportOrientation?: 'landscape' | 'portrait';
+  /** Derniers réglages d'export par page (orientation, numérotation, plans par feuille…). */
+  exportPrefs?: Record<string, { orientation?: 'landscape' | 'portrait'; numbers?: boolean; perPage?: number }>;
   exportFooter: boolean;
 }
 

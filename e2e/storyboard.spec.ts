@@ -22,7 +22,9 @@ test('storyboard : cartes, réordonnancement et planche imprimable', async ({ pa
   await page.emulateMedia({ media: 'print' });
   await expect(page.getByText('planche 3 / 3')).toBeVisible();
   await page.emulateMedia({ media: 'screen' });
-  await page.getByRole('radio', { name: '6 / page' }).click();
+  await page.getByTestId('storyboard-export').click();
+  await page.getByTestId('storyboard-export-panel').getByLabel('6', { exact: true }).check({ force: true });
+  await page.keyboard.press('Escape');
   await page.emulateMedia({ media: 'print' });
   await expect(page.getByText('planche 2 / 2')).toBeVisible();
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });

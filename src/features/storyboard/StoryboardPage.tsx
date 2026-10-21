@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Image as ImageIcon, ImagePlus, Printer } from 'lucide-react';
-import { askOrientation, pagesToImages, waitForPages } from '../export/imageExport';
+import { ImagePlus } from 'lucide-react';
+import { exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
+import { ExportPanel } from '../export/ExportPanel';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { shotDurationSec } from '../../domain/rows';
@@ -14,19 +15,17 @@ import type { ID, ProjectDoc, Shot } from '../../domain/types';
 import { isZoom, valueLabel } from '../../domain/vocabulary';
 import { putBlob } from '../../store/db';
 import { mutateDoc } from '../../store/projectStore';
-import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { deleteShotById, dropShot } from '../grid/actions';
 import { goToShot } from '../registry/RegistryPage';
 import s from './StoryboardPage.module.css';
 
-type PerPage = 2 | 4 | 6;
 
 /** Storyboard (§15.1) : les plans en cartes, réordonnables, planche imprimable 2, 4 ou 6 par page. */
 export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
-  const [perPage, setPerPage] = useState<PerPage>(4);
+  const perPage = doc.project.settings.exportPrefs?.storyboard?.perPage ?? 4;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const allShots = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
 
@@ -43,38 +42,36 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   const pages: ID[][] = [];
   for (let i = 0; i < allShots.length; i += perPage) pages.push(allShots.slice(i, i + perPage));
 
-  const [imaging, setImaging] = useState<'landscape' | 'portrait' | null>(null);
+  const [imaging, setImaging] = useState<PageExportOptions | null>(null);
   const imagesRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!imaging || !imagesRef.current) return;
-    const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging === 'portrait' ? 'portrait' : 'paysage'}`;
+    const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
     void waitForPages(imagesRef.current, '[data-testid="storyboard-sheet"]')
-      .then((p) => pagesToImages(p, base))
+      .then((p) => exportNodePages(p, base, imaging))
       .finally(() => setImaging(null));
   }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="page page--wide">
       <header className="page-head no-print">
         <div className={s.toolbar}>
-          <div className={s.seg} role="radiogroup" aria-label="Plans par page">
-            {([2, 4, 6] as PerPage[]).map((n) => (
-              <button key={n} type="button" role="radio" aria-checked={perPage === n} className={perPage === n ? s.on : ''} onClick={() => setPerPage(n)}>
-                {n} / page
-              </button>
-            ))}
-          </div>
-          <Button variant="outline" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()} data-testid="storyboard-print">
-            Planche PDF
-          </Button>
-          <Button
-            variant="outline"
-            icon={<ImageIcon size={15} strokeWidth={1.25} />}
-            disabled={allShots.length === 0}
-            onClick={(e) => askOrientation(e, setImaging)}
-            data-testid="storyboard-image"
+          <ExportPanel
+            doc={doc}
+            id="storyboard"
+            title="Exporter le storyboard"
+            perPage={[1, 2, 3, 4, 6, 9]}
+            disabled={allShots.length === 0 || !!imaging}
+            onExport={({ format, orientation, numbers }) => setImaging({ format: format as 'pdf' | 'images', orientation, numbers })}
           >
-            Image
-          </Button>
+            <label className={s.inkCheck}>
+              <input
+                type="checkbox"
+                checked={!!doc.project.settings.exportInkSaver}
+                onChange={(e) => mutateDoc((d) => void (d.project.settings.exportInkSaver = e.target.checked))}
+              />
+              Économie d’encre (cadres sans fond)
+            </label>
+          </ExportPanel>
         </div>
       </header>
 
@@ -119,7 +116,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
             perPage={perPage}
             timing={timing}
             className={[s.print, s.imaging].join(' ')}
-            orientation={imaging}
+            orientation={imaging.orientation}
           />
         </div>
       )}
@@ -127,19 +124,28 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   );
 }
 
+/** Grille d'une planche : colonnes × lignes selon le nombre de plans et l'orientation. */
+function sheetGrid(n: number, o: 'landscape' | 'portrait'): React.CSSProperties {
+  const land: Record<number, [number, number]> = { 1: [1, 1], 2: [2, 1], 3: [3, 1], 4: [2, 2], 6: [3, 2], 9: [3, 3] };
+  const port: Record<number, [number, number]> = { 1: [1, 1], 2: [1, 2], 3: [1, 3], 4: [2, 2], 6: [2, 3], 9: [3, 3] };
+  const [c, r] = (o === 'portrait' ? port : land)[n] ?? [2, 2];
+  return { gridTemplateColumns: `repeat(${c}, 1fr)`, gridTemplateRows: `repeat(${r}, 1fr)` };
+}
+
 function Sheets({ doc, pages, perPage, timing, className, orientation }: { doc: ProjectDoc; pages: ID[][]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait' }) {
+  const ink = !!doc.project.settings.exportInkSaver;
   const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
   return (
     <div className={className} aria-hidden="true" style={size as React.CSSProperties | undefined}>
       {pages.map((ids, i) => (
-        <div key={i} className={[s.sheet, s[`per${perPage}`], orientation === 'portrait' ? s.portrait : ''].join(' ')} data-testid="storyboard-sheet">
+        <div key={i} className={[s.sheet, ink ? s.ink : ''].join(' ')} data-testid="storyboard-sheet">
           <header className={s.sheetHead}>
             <strong>{doc.project.title}</strong> · Storyboard · {doc.project.version}
             <span>
               planche {i + 1} / {pages.length}
             </span>
           </header>
-          <div className={s.sheetGrid}>
+          <div className={s.sheetGrid} style={sheetGrid(perPage, orientation ?? 'landscape')}>
             {ids.map((id) => (
               <Card key={id} doc={doc} shot={doc.shots[id]} timing={timing} printing />
             ))}

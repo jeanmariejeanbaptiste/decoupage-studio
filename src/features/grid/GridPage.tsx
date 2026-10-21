@@ -9,8 +9,8 @@ import { fileNameFor } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
-import { pagesToImages, waitForPages } from '../export/imageExport';
-import { GridExportPanel } from './GridExportPanel';
+import { exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
+import { ExportPanel } from '../export/ExportPanel';
 import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from './actions';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
@@ -46,14 +46,14 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
     });
   }, [sel, model, doc]);
   // Export image : le rendu d'export est monté hors écran le temps de la capture.
-  const [imaging, setImaging] = useState<'landscape' | 'portrait' | null>(null);
+  const [imaging, setImaging] = useState<PageExportOptions | null>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!imaging || !imageRef.current) return;
     const root = imageRef.current;
-    const base = `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-decoupage-A4-${imaging === 'portrait' ? 'portrait' : 'paysage'}`;
+    const base = `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-decoupage-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
     void waitForPages(root, '[data-testid="print-page"]')
-      .then((pages) => pagesToImages(pages, base, pages[0] ? getComputedStyle(pages[0]).backgroundColor : '#ffffff'))
+      .then((pages) => exportNodePages(pages, base, imaging, pages[0] ? getComputedStyle(pages[0]).backgroundColor : '#ffffff'))
       .finally(() => setImaging(null));
   }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -108,12 +108,15 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           >
             Aperçu
           </Button>
-          <GridExportPanel
+          <ExportPanel
             doc={storeDoc}
+            id="grid"
+            title="Exporter le découpage"
+            themed
+            extra={[{ key: 'excel', label: 'Excel', hint: 'Classeur avec fusions, couleurs et onglet Registre.' }]}
             disabled={nSeq === 0 || !!imaging}
-            onExport={async (format, orientation) => {
-              if (format === 'pdf') navigate('print', { auto: '1' });
-              else if (format === 'images') setImaging(orientation);
+            onExport={async ({ format, orientation, numbers }) => {
+              if (format === 'pdf' || format === 'images') setImaging({ format, orientation, numbers });
               else {
                 const { exportXlsx } = await import('../export/xlsx');
                 downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
@@ -125,7 +128,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
 
       {imaging && (
         <div ref={imageRef} aria-hidden="true" style={{ position: 'fixed', left: -20000, top: 0 }}>
-          <ExportTable doc={storeDoc} paper="A4" orientation={imaging} safety={0} />
+          <ExportTable doc={storeDoc} paper="A4" orientation={imaging.orientation} safety={0} />
         </div>
       )}
       {nSeq === 0 ? (

@@ -11,7 +11,6 @@ import {
   Trash2,
   TrainTrack,
   User,
-  Image as ImageIcon,
 } from 'lucide-react';
 import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters';
 import {
@@ -49,9 +48,11 @@ import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import s from './FloorPlanPage.module.css';
-import { TabExport } from '../export/TabExport';
 import { allFloorPlans, floorPlanSvg } from '../../domain/exports';
-import { askOrientation, svgPagesToImages } from '../export/imageExport';
+import { exportSvgPages } from '../export/imageExport';
+import { ExportPanel } from '../export/ExportPanel';
+import { downloadWord } from '../export/docExport';
+import { downloadBlob } from '../../store/persistence';
 import { floorPlansDocument } from '../../domain/documents';
 
 type Tool = 'select' | FloorKind;
@@ -260,38 +261,28 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <div className={s.exports}>
-        <Button
-          variant="ghost"
-          icon={<ImageIcon size={15} strokeWidth={1.25} />}
-          title="Exporter toutes les vues en images A4 (une page par vue)"
-          data-testid="floorplan-image"
-          onClick={(e) =>
-            askOrientation(e, (o) => {
-              const all = allFloorPlans(doc);
+        <ExportPanel
+          doc={doc}
+          id="floorplan"
+          title="Exporter les plans au sol (une page par vue)"
+          extra={[
+            { key: 'svg', label: 'SVG', hint: 'Toutes les vues en dessins vectoriels, dans un dossier compressé.' },
+            { key: 'word', label: 'Word', hint: 'Document Word avec toutes les vues.' },
+          ]}
+          onExport={async ({ format, orientation, numbers }) => {
+            const all = allFloorPlans(doc);
+            const base = `${doc.project.title || 'projet'}-plans-au-sol`;
+            if (format === 'pdf' || format === 'images') {
               const svgs = all.length ? all.map((p) => p.svg) : [floorPlanSvg(doc, planKey, sequenceHeading(doc, seqId))];
-              void svgPagesToImages(svgs, `${doc.project.title || 'projet'}-plans-au-sol-A4-${o === 'portrait' ? 'portrait' : 'paysage'}`, o);
-            })
-          }
-        >
-          Image
-        </Button>
-        <TabExport
-          doc={() => floorPlansDocument(doc)}
-          fileBase={`${doc.project.title || 'projet'}-plans-au-sol`}
-          file={{
-            label: 'SVG (toutes les vues)',
-            name: `${doc.project.title || 'projet'}-plans-au-sol.zip`,
-            content: async () => {
-              const { default: JSZip } = await import('jszip');
-              const zip = new JSZip();
-              for (const p of allFloorPlans(doc))
-                zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
-              return zip.generateAsync({ type: 'blob' });
-            },
+              return exportSvgPages(svgs, `${base}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });
+            }
+            if (format === 'word') return downloadWord(floorPlansDocument(doc), base);
+            const { default: JSZip } = await import('jszip');
+            const zip = new JSZip();
+            for (const p of all) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
+            downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
           }}
         />
-        </div>
         <label className={s.seqPick}>
           <span>Séquence</span>
           <select
