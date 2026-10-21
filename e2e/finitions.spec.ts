@@ -116,7 +116,14 @@ test('exports en images A4, page par page', async ({ page }) => {
     await page.goto(route);
     const dl = page.waitForEvent('download', { timeout: 30_000 });
     await page.getByTestId(id).click();
-    await page.getByRole('menuitem', { name: menu }).click();
+    if (id === 'grid-export') {
+      // Panneau d'export du découpage : format, orientation, thème, économie d'encre.
+      const panel = page.getByTestId('grid-export-panel');
+      await panel.getByText('Images A4').click();
+      await panel.getByText(menu.includes('portrait') ? 'Portrait' : 'Paysage').click();
+      await panel.getByText(menu.includes('portrait') ? 'Sobre' : 'Mauve').click();
+      await page.getByTestId('grid-export-go').click();
+    } else await page.getByRole('menuitem', { name: menu }).click();
     const d = await dl;
     expect(d.suggestedFilename()).toMatch(name);
     const buf = readFileSync(await d.path());

@@ -63,6 +63,8 @@ export interface ProjectSettings {
   exportPaper: 'A4' | 'A3';
   /** Économie d'encre : aucun aplat de couleur à l'impression (texte et filets seulement). */
   exportInkSaver?: boolean;
+  /** Orientation des pages exportées (PDF et images). */
+  exportOrientation?: 'landscape' | 'portrait';
   exportFooter: boolean;
 }
 

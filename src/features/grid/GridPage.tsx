@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Download, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
+import { Columns3, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from '../../domain/types';
@@ -10,6 +10,7 @@ import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
 import { pagesToImages, waitForPages } from '../export/imageExport';
+import { GridExportPanel } from './GridExportPanel';
 import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from './actions';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
@@ -107,36 +108,18 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           >
             Aperçu
           </Button>
-          <Button
-            variant="primary"
-            icon={<Download {...IC} />}
+          <GridExportPanel
+            doc={storeDoc}
             disabled={nSeq === 0 || !!imaging}
-            data-testid="grid-export"
-            title="Exporter le découpage : PDF, Excel ou images A4"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              setUi({
-                menu: {
-                  x: r.left,
-                  y: r.bottom + 4,
-                  items: [
-                    { label: 'PDF (impression)', action: () => navigate('print', { auto: '1' }) },
-                    {
-                      label: 'Excel',
-                      action: async () => {
-                        const { exportXlsx } = await import('../export/xlsx');
-                        downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
-                      },
-                    },
-                    { label: 'Images A4 paysage (une par page)', action: () => setImaging('landscape') },
-                    { label: 'Images A4 portrait (une par page)', action: () => setImaging('portrait') },
-                  ],
-                },
-              });
+            onExport={async (format, orientation) => {
+              if (format === 'pdf') navigate('print', { auto: '1' });
+              else if (format === 'images') setImaging(orientation);
+              else {
+                const { exportXlsx } = await import('../export/xlsx');
+                downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
+              }
             }}
-          >
-            Exporter
-          </Button>
+          />
         </div>
       </header>
 
