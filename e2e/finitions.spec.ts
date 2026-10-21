@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import JSZip from 'jszip';
 
@@ -106,18 +106,32 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await expect(page.locator('iframe[aria-hidden="true"]').last().contentFrame().locator('body')).toContainText('3 quai Voltaire');
 });
 
-test('exports en image PNG : découpage, storyboard, plan au sol', async ({ page }) => {
-  for (const [route, id, name] of [
-    ['/#/storyboard?seed=rav3', 'storyboard-image', /-storyboard\.png$/],
-    ['/#/grid?seed=rav3', 'grid-export-image', /-decoupage\.png$/],
-    ['/#/floorplan?seed=rav3', 'floorplan-image', /\.png$/],
+test('exports en images A4, page par page', async ({ page }) => {
+  for (const [route, id, menu, name, pages] of [
+    ['/#/grid?seed=rav3', 'grid-export-image', 'Images A4 paysage (une par page)', /-decoupage-A4-paysage\.zip$/, 3],
+    ['/#/grid?seed=rav3', 'grid-export-image', 'Images A4 portrait (une par page)', /-decoupage-A4-portrait\.zip$/, 0],
+    ['/#/storyboard?seed=rav3', 'storyboard-image', 'Images A4 portrait (une par page)', /-storyboard-A4-portrait\.zip$/, 14],
+    ['/#/floorplan?seed=rav3', 'floorplan-image', 'Images A4 paysage (une par page)', /-plans-au-sol-A4-paysage\.(zip|png)$/, 0],
   ] as const) {
     await page.goto(route);
-    const dl = page.waitForEvent('download', { timeout: 20_000 });
+    const dl = page.waitForEvent('download', { timeout: 30_000 });
     await page.getByTestId(id).click();
+    await page.getByRole('menuitem', { name: menu }).click();
     const d = await dl;
     expect(d.suggestedFilename()).toMatch(name);
-    expect(statSync(await d.path()).size).toBeGreaterThan(5_000);
+    const buf = readFileSync(await d.path());
+    expect(buf.byteLength).toBeGreaterThan(5_000);
+    if (pages) {
+      const { default: JSZip } = await import('jszip');
+      const zip = await JSZip.loadAsync(buf);
+      const files = Object.keys(zip.files).filter((f) => f.endsWith('.png')).sort();
+      expect(files).toHaveLength(pages);
+      expect(files[0]).toMatch(/-page-01\.png$/);
+      // Proportions A4 exactes (largeur / hauteur lues dans l'en-tête PNG).
+      const png = await zip.file(files[0])!.async('nodebuffer');
+      const ratio = png.readUInt32BE(16) / png.readUInt32BE(20);
+      expect(ratio).toBeCloseTo(name.source.includes('portrait') ? 210 / 297 : 297 / 210, 2);
+    }
   }
 });
 

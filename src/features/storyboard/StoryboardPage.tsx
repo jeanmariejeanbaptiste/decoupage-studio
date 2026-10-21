@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Image as ImageIcon, ImagePlus, Printer } from 'lucide-react';
-import { nodeToPng } from '../export/imageExport';
+import { askOrientation, pagesToImages, waitForPages } from '../export/imageExport';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { shotDurationSec } from '../../domain/rows';
@@ -43,7 +43,15 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   const pages: ID[][] = [];
   for (let i = 0; i < allShots.length; i += perPage) pages.push(allShots.slice(i, i + perPage));
 
-  const board = useRef<HTMLDivElement>(null);
+  const [imaging, setImaging] = useState<'landscape' | 'portrait' | null>(null);
+  const imagesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!imaging || !imagesRef.current) return;
+    const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging === 'portrait' ? 'portrait' : 'paysage'}`;
+    void waitForPages(imagesRef.current, '[data-testid="storyboard-sheet"]')
+      .then((p) => pagesToImages(p, base))
+      .finally(() => setImaging(null));
+  }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="page page--wide">
       <header className="page-head no-print">
@@ -68,7 +76,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
             variant="outline"
             icon={<ImageIcon size={15} strokeWidth={1.25} />}
             disabled={allShots.length === 0}
-            onClick={() => board.current && void nodeToPng(board.current, `${doc.project.title || 'projet'}-storyboard.png`, '#fbf8f2')}
+            onClick={(e) => askOrientation(e, setImaging)}
             data-testid="storyboard-image"
           >
             Image
@@ -76,7 +84,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
         </div>
       </header>
 
-      <div className="no-print" ref={board}>
+      <div className="no-print">
         {allShots.length === 0 && (
           <div className="card empty">
             <span className="hand">Aucun plan pour l’instant</span>
@@ -108,23 +116,42 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
 
       {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
       <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
-      <div className={s.print} aria-hidden="true">
-        {pages.map((ids, i) => (
-          <div key={i} className={[s.sheet, s[`per${perPage}`]].join(' ')}>
-            <header className={s.sheetHead}>
-              <strong>{doc.project.title}</strong> · Storyboard · {doc.project.version}
-              <span>
-                planche {i + 1} / {pages.length}
-              </span>
-            </header>
-            <div className={s.sheetGrid}>
-              {ids.map((id) => (
-                <Card key={id} doc={doc} shot={doc.shots[id]} timing={timing} printing />
-              ))}
-            </div>
+      <Sheets doc={doc} pages={pages} perPage={perPage} timing={timing} className={s.print} />
+      {imaging && (
+        <div ref={imagesRef}>
+          <Sheets
+            doc={doc}
+            pages={pages}
+            perPage={perPage}
+            timing={timing}
+            className={[s.print, s.imaging].join(' ')}
+            orientation={imaging}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Sheets({ doc, pages, perPage, timing, className, orientation }: { doc: ProjectDoc; pages: ID[][]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait' }) {
+  const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
+  return (
+    <div className={className} aria-hidden="true" style={size as React.CSSProperties | undefined}>
+      {pages.map((ids, i) => (
+        <div key={i} className={[s.sheet, s[`per${perPage}`], orientation === 'portrait' ? s.portrait : ''].join(' ')} data-testid="storyboard-sheet">
+          <header className={s.sheetHead}>
+            <strong>{doc.project.title}</strong> · Storyboard · {doc.project.version}
+            <span>
+              planche {i + 1} / {pages.length}
+            </span>
+          </header>
+          <div className={s.sheetGrid}>
+            {ids.map((id) => (
+              <Card key={id} doc={doc} shot={doc.shots[id]} timing={timing} printing />
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }

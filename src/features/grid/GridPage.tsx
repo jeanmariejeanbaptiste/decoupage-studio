@@ -9,7 +9,7 @@ import { fileNameFor } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
-import { nodeToPng } from '../export/imageExport';
+import { askOrientation, pagesToImages, waitForPages } from '../export/imageExport';
 import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from './actions';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
@@ -34,15 +34,15 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   const nSeq = doc.project.sequenceIds.length;
   const createFirst = useRef<HTMLButtonElement>(null);
   // Export image : le rendu d'export est monté hors écran le temps de la capture.
-  const [imaging, setImaging] = useState(false);
+  const [imaging, setImaging] = useState<'landscape' | 'portrait' | null>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!imaging) return;
-    const node = imageRef.current?.firstElementChild as HTMLElement | null;
-    const bg = node ? getComputedStyle(node).backgroundColor : '#ffffff';
-    const done = () => setImaging(false);
-    if (node) void nodeToPng(node, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-decoupage.png`, bg).finally(done);
-    else done();
+    if (!imaging || !imageRef.current) return;
+    const root = imageRef.current;
+    const base = `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-decoupage-A4-${imaging === 'portrait' ? 'portrait' : 'paysage'}`;
+    void waitForPages(root, '[data-testid="print-page"]')
+      .then((pages) => pagesToImages(pages, base, pages[0] ? getComputedStyle(pages[0]).backgroundColor : '#ffffff'))
+      .finally(() => setImaging(null));
   }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Après la création de la première séquence, la grille prend le focus.
@@ -107,7 +107,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           >
             Excel
           </Button>
-          <Button icon={<ImageIcon {...IC} />} title="Exporter le découpage en image PNG" disabled={nSeq === 0 || imaging} onClick={() => setImaging(true)} data-testid="grid-export-image">
+          <Button icon={<ImageIcon {...IC} />} title="Exporter le découpage en images A4 (une par page)" disabled={nSeq === 0 || !!imaging} onClick={(e) => askOrientation(e, setImaging)} data-testid="grid-export-image">
             Image
           </Button>
           <Button
@@ -123,8 +123,8 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
       </header>
 
       {imaging && (
-        <div ref={imageRef} aria-hidden="true" style={{ position: 'fixed', left: -20000, top: 0, width: '297mm' }}>
-          <ExportTable doc={storeDoc} />
+        <div ref={imageRef} aria-hidden="true" style={{ position: 'fixed', left: -20000, top: 0 }}>
+          <ExportTable doc={storeDoc} paper="A4" orientation={imaging} safety={0} />
         </div>
       )}
       {nSeq === 0 ? (

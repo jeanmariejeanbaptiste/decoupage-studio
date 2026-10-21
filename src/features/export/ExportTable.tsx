@@ -15,6 +15,9 @@ interface Props {
   /** Impression : pages calculées (aucune ligne ni fusion coupée par le navigateur). */
   paper?: 'A4' | 'A3';
   footer?: boolean;
+  orientation?: 'landscape' | 'portrait';
+  /** Marge de sécurité en bas de page (mm) : utile à l'impression Safari, nulle pour les images. */
+  safety?: number;
 }
 
 const PAPER = { A4: [297, 210], A3: [420, 297] } as const;
@@ -22,7 +25,7 @@ const PAD_Y = 9; // marge haute et basse de chaque page, en mm
 const PX_PER_MM = 96 / 25.4;
 
 /** Rendu fusionné, identique à l'export (§8.2). Lecture seule. */
-export function ExportTable({ doc, columns, theme, showTitle = true, paper, footer }: Props) {
+export function ExportTable({ doc, columns, theme, showTitle = true, paper, footer, orientation = 'landscape', safety = 12 }: Props) {
   const cols = useMemo(() => tcLast(columns ?? doc.project.settings.exportColumns), [columns, doc.project.settings.exportColumns]);
   const th = theme ?? doc.project.settings.exportTheme;
   const timing = useMemo(() => computeTiming(doc), [doc]);
@@ -34,7 +37,8 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   const measure = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<PageSlice[][] | null>(null);
   // Marge de sécurité de 12 mm : Safari ajoute ses en-têtes et pieds de page dans la page.
-  const pageH = paper ? PAPER[paper][1] - (footer ? 10 : 0) - 12 : 0;
+  const [paperW, paperH] = paper ? (orientation === 'portrait' ? [PAPER[paper][1], PAPER[paper][0]] : PAPER[paper]) : [0, 0];
+  const pageH = paper ? paperH - (footer ? 10 : 0) - safety : 0;
 
   // Mesure le rendu continu, puis répartit les lignes en pages.
   useLayoutEffect(() => {
@@ -127,7 +131,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     return (
       <div className={sheetClass} data-theme-export={th}>
         {pages.map((page, p) => (
-          <div key={p} className={s.page} style={{ height: `${pageH}mm`, padding: `${PAD_Y}mm 12mm` }} data-testid="print-page">
+          <div key={p} className={s.page} style={{ width: `${paperW}mm`, height: `${pageH}mm`, padding: `${PAD_Y}mm 12mm` }} data-testid="print-page">
             {p === 0 && title}
             <table className={s.table} data-testid={p === 0 ? 'export-table' : undefined}>
               {head}
@@ -142,7 +146,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     );
 
   return (
-    <div ref={measure} className={sheetClass} data-theme-export={th} style={paper ? { padding: '0 12mm' } : undefined}>
+    <div ref={measure} className={sheetClass} data-theme-export={th} style={paper ? { padding: '0 12mm', width: `${paperW}mm`, boxSizing: 'border-box' } : undefined}>
       {title}
       <table className={s.table} data-testid={paper ? undefined : 'export-table'}>
         {head}

@@ -50,7 +50,7 @@ import { Hand } from '../../ui/Hand';
 import s from './FloorPlanPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { allFloorPlans, floorPlanSvg } from '../../domain/exports';
-import { svgToPng } from '../export/imageExport';
+import { askOrientation, svgPagesToImages } from '../export/imageExport';
 import { floorPlansDocument } from '../../domain/documents';
 
 type Tool = 'select' | FloorKind;
@@ -266,12 +266,15 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
         <Button
           variant="ghost"
           icon={<ImageIcon size={15} strokeWidth={1.25} />}
-          title="Exporter la vue affichée en image PNG"
+          title="Exporter toutes les vues en images A4 (une page par vue)"
           data-testid="floorplan-image"
-          onClick={() => {
-            const name = plans.find((p) => p.key === planKey)?.name ?? 'Vue';
-            void svgToPng(floorPlanSvg(doc, planKey, `${sequenceHeading(doc, seqId)} — ${name}`), `${doc.project.title || 'projet'}-${sequenceHeading(doc, seqId)}-${name}.png`.replace(/[\\/:*?"<>|]+/g, '-'));
-          }}
+          onClick={(e) =>
+            askOrientation(e, (o) => {
+              const all = allFloorPlans(doc);
+              const svgs = all.length ? all.map((p) => p.svg) : [floorPlanSvg(doc, planKey, sequenceHeading(doc, seqId))];
+              void svgPagesToImages(svgs, `${doc.project.title || 'projet'}-plans-au-sol-A4-${o === 'portrait' ? 'portrait' : 'paysage'}`, o);
+            })
+          }
         >
           Image
         </Button>
