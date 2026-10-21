@@ -54,7 +54,8 @@ export interface DocPage {
 
 function shell(doc: ProjectDoc, kicker: string, title: string, body: string, landscape = false): DocPage {
   const date = new Date().toLocaleDateString('fr-FR');
-  const head = `<header class="doc"><div><p class="kicker">${esc(kicker)}</p><h1>${esc(title)}</h1></div><div class="meta">${esc(doc.project.title)} · ${esc(doc.project.version)}<br>${esc(
+  void kicker; // l'étape n'apparaît plus dans les documents (titre seul)
+  const head = `<header class="doc"><div><h1>${esc(title)}</h1></div><div class="meta">${esc(doc.project.title)} · ${esc(doc.project.version)}<br>${esc(
     [doc.project.director && `Réalisation : ${doc.project.director}`, doc.project.dop && `Image : ${doc.project.dop}`].filter(Boolean).join(' · '),
   )}<br>${date}</div></header>`;
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(`${doc.project.title} — ${title}`)}</title><style>${CSS.replace(

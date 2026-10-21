@@ -59,7 +59,7 @@ export async function exportSvgPages(svgs: string[], base: string, opts: PageExp
 }
 
 /** Numérote, puis enregistre en PDF (assemblé ici, sans le module d'impression) ou en images. */
-async function finish(canvases: HTMLCanvasElement[], base: string, opts: PageExportOptions): Promise<void> {
+export async function finish(canvases: HTMLCanvasElement[], base: string, opts: PageExportOptions): Promise<void> {
   if (!canvases.length) return;
   if (opts.numbers)
     canvases.forEach((c, i) => {
@@ -96,4 +96,91 @@ export async function waitForPages(root: HTMLElement, selector: string, timeout 
     if (found.length || Date.now() - start > timeout) return found;
     await new Promise((r) => requestAnimationFrame(r));
   }
+}
+
+/**
+ * Document mis en page (dépouillement, plan de travail, feuille de service…) découpé en pages A4 :
+ * rendu dans un cadre invisible à la largeur du papier, puis coupé entre deux lignes ou blocs,
+ * jamais au milieu, avec des marges de 13 mm.
+ */
+export async function exportDocumentPages(html: string, base: string, opts: PageExportOptions): Promise<void> {
+  const { w, h } = a4(opts.orientation);
+  const px = 96 / 25.4;
+  // Rendu dans la page elle-même (hors écran), styles du document confinés à un conteneur :
+  // les polices de l'application s'appliquent et la capture reste fidèle.
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const css = [...parsed.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
+  const host = document.createElement('div');
+  host.className = 'docroot';
+  host.style.cssText = `width:${Math.round(w * px)}px;background:#fff;`;
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;left:-30000px;top:0;';
+  wrap.appendChild(host);
+  const style = document.createElement('style');
+  style.textContent = scopeCss(css, '.docroot');
+  host.appendChild(style);
+  host.insertAdjacentHTML('beforeend', parsed.body.innerHTML);
+  document.body.appendChild(wrap);
+  try {
+    await document.fonts.ready;
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const d = host;
+    const body = host;
+    const top = body.getBoundingClientRect().top;
+    const rel = (e: Element) => e.getBoundingClientRect();
+    const pads = [...d.querySelectorAll('.pad')];
+    const start0 = pads[0] ? rel(pads[0]).bottom - top : 0;
+    const end = pads.length > 1 ? rel(pads[pads.length - 1]).top - top : body.scrollHeight;
+    const margin = 13 * px;
+    const pageH = h * px - 2 * margin;
+    const bottoms = [...d.querySelectorAll('tr, h1, h2, h3, p, li, header, .block, .day, .plan, .grid > *, svg, img')]
+      .map((e) => rel(e).bottom - top)
+      .sort((a, b) => a - b);
+    const forced = [...d.querySelectorAll('.plan')].slice(1).map((e) => rel(e).top - top);
+    const slices: Array<[number, number]> = [];
+    let start = start0;
+    while (start < end - 1) {
+      const limit = start + pageH;
+      let cut = limit >= end ? end : Math.max(0, ...bottoms.filter((b) => b > start + 1 && b <= limit));
+      if (!cut || cut - start < pageH * 0.25) cut = Math.min(limit, end);
+      const brk = forced.find((f) => f > start + 1 && f < cut);
+      if (brk) cut = brk;
+      slices.push([start, cut]);
+      start = cut;
+    }
+    const { toCanvas } = await import('html-to-image');
+    const ratio = 2.5;
+    const full = await toCanvas(body, { pixelRatio: ratio, backgroundColor: '#ffffff', width: body.scrollWidth, height: body.scrollHeight });
+    const W = Math.round(w * px * ratio);
+    const H = Math.round(h * px * ratio);
+    const k = full.width / body.scrollWidth;
+    const pages = slices.map(([a, b]) => {
+      const c = document.createElement('canvas');
+      c.width = W;
+      c.height = H;
+      const ctx = c.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      const sc = W / full.width;
+      ctx.drawImage(full, 0, a * k, full.width, (b - a) * k, 0, margin * ratio, W, (b - a) * k * sc);
+      return c;
+    });
+    await finish(pages, base, opts);
+  } finally {
+    wrap.remove();
+  }
+}
+
+/** Confine une feuille de style simple (sans imbrication) à un conteneur ; `body` devient le conteneur. */
+function scopeCss(css: string, root: string): string {
+  return css
+    .replace(/@page[^{]*\{[^}]*\}/g, '')
+    .replace(/([^{}]+)\{/g, (_m, sel: string) =>
+      `${sel
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .map((x) => (x === 'body' || x === 'html' ? root : x === '*' ? `${root}, ${root} *` : `${root} ${x}`))
+        .join(', ')} {`,
+    );
 }

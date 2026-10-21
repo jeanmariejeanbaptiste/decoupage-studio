@@ -82,7 +82,9 @@ test('économie d’encre : aucun aplat de couleur', async ({ page }) => {
 test('exports individuels par onglet', async ({ page }) => {
   await page.goto('/#/registry?seed=rav3&tab=characters');
   const dl = page.waitForEvent('download');
-  await page.getByTestId('tab-export-file').click();
+  await page.getByTestId('tab-export').click();
+  await page.getByTestId('tab-export-panel').getByText(/^CSV/).click();
+  await page.getByTestId('tab-export-go').click();
   expect((await dl).suggestedFilename()).toBe('RAV3-characters.csv');
   await page.goto('/#/floorplan');
   const dl2 = page.waitForEvent('download');

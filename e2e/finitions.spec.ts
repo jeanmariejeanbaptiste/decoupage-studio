@@ -72,6 +72,14 @@ test('changer le type de projet change le minutage', async ({ page }) => {
   await expect(page.getByTestId('grid-footer')).toContainText('durée calculée');
 });
 
+async function tabExport(page: import('@playwright/test').Page, format: string) {
+  const dl = page.waitForEvent('download', { timeout: 30_000 });
+  await page.getByTestId('tab-export').click();
+  await page.getByTestId('tab-export-panel').getByText(format, { exact: true }).click();
+  await page.getByTestId('tab-export-go').click();
+  return dl;
+}
+
 test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await page.goto('/#/equipment?seed=rav3');
   await page.getByTestId('show-shots').uncheck();
@@ -79,9 +87,7 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await page.getByTestId('show-shots').check();
   await expect(page.getByTestId('equipment-Machinerie')).not.toContainText(/\+\d/);
   await expect(page.getByTestId('equipment-Machinerie')).toContainText('7.11');
-  const dl = page.waitForEvent('download');
-  await page.getByTestId('tab-export-word').click();
-  expect((await dl).suggestedFilename()).toBe('RAV3-materiel.doc');
+  expect((await tabExport(page, 'Word')).suggestedFilename()).toBe('RAV3-materiel.doc');
   await page.goto('/#/schedule');
   await page.getByTestId('suggest-schedule').click();
   await page.getByTestId('timeline-toggle-1').click();
@@ -94,16 +100,18 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await page.mouse.up();
   await expect(page.getByTestId('timeline-block')).toHaveCount(1);
   await expect(page.getByTestId('timeline-move')).toContainText('Lieu 08:30');
-  await page.getByTestId('tab-export-pdf').click();
-  const frame = page.frameLocator('iframe[aria-hidden="true"]');
-  await expect(frame.locator('h1')).toHaveText('Plan de travail');
-  await expect(frame.locator('body')).toContainText('08:30');
-  await expect(frame.locator('button')).toHaveCount(0);
+  // PDF généré par l'outil (pages A4 assemblées), sans l'impression du navigateur.
+  const pdf = readFileSync(await (await tabExport(page, 'PDF')).path()).toString('latin1');
+  expect(pdf.startsWith('%PDF')).toBe(true);
+  expect(pdf).toContain('/MediaBox [0 0 595.28 841.89]');
+  const word = readFileSync(await (await tabExport(page, 'Word')).path(), 'utf8');
+  expect(word).toContain('Plan de travail');
+  expect(word).toContain('08:30');
+  expect(word).not.toContain('<button');
   await page.goto('/#/callsheet');
   await expect(page.getByTestId('itinerary')).toContainText('08:30 – 09:00');
   await page.getByTestId('stop-address').first().fill('3 quai Voltaire');
-  await page.getByTestId('tab-export-pdf').click();
-  await expect(page.locator('iframe[aria-hidden="true"]').last().contentFrame().locator('body')).toContainText('3 quai Voltaire');
+  expect(readFileSync(await (await tabExport(page, 'Word')).path(), 'utf8')).toContain('3 quai Voltaire');
 });
 
 test('exports A4 : images page par page et PDF assemblé par l’outil', async ({ page }) => {
