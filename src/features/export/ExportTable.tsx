@@ -1,3 +1,4 @@
+import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { COLUMN_DEFS, columnWidths, tcLast } from '../../domain/columns';
 import type { MergeMap, MergeRow } from '../../domain/merge';
@@ -99,7 +100,20 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
               if (!span) return null;
               return (
                 <td key={c} rowSpan={span.span > 1 ? span.span : undefined} className={s[`c_${c}`]}>
-                  {span.value}
+                  {doc.shots[row.shotId]?.oneShot && BEAT_COLUMNS.includes(c) ? (
+                    <span className={s.beats}>
+                      {span.value.split('\n').map((line, k) => {
+                        const m = /^(T\d+) ?(.*)$/.exec(line);
+                        return (
+                          <span key={k} className={s.beat}>
+                            <b>{m ? m[1] : ''}</b> {m ? m[2] : line}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  ) : (
+                    span.value
+                  )}
                 </td>
               );
             })}

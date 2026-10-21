@@ -1,3 +1,4 @@
+import { checkInvariants } from './ops';
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
@@ -53,5 +54,10 @@ describe('plan-séquence isolé', async () => {
       expect([c, crossing]).toEqual([c, c === 'sequence']);
     }
     expect(rows[1].cells.number).toBe('2');
+    // Son action lui est propre, les invariants du document tiennent.
+    const blockOf = (sid: string) => ps.shots[sid].actionBlockId;
+    const ids = ps.sequences[seqId].shotIds;
+    expect(ids.filter((x) => blockOf(x) === blockOf(id))).toEqual([id]);
+    expect(checkInvariants(ps)).toEqual([]);
   });
 });

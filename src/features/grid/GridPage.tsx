@@ -1,3 +1,4 @@
+import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Columns3, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
@@ -126,6 +127,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
         </div>
       </header>
 
+      <OneShotStudio doc={storeDoc} />
       {imaging && (
         <div ref={imageRef} aria-hidden="true" style={{ position: 'fixed', left: -20000, top: 0 }}>
           <ExportTable doc={storeDoc} paper="A4" orientation={imaging.orientation} safety={0} />

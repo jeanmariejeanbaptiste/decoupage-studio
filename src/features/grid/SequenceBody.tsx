@@ -1,3 +1,4 @@
+import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
 import type { CSSProperties, MouseEvent } from 'react';
 import { deleteSequenceOf, deleteShotById, rowOfShot } from './actions';
@@ -57,6 +58,23 @@ function onTcContextMenu(e: MouseEvent, shotId: string) {
   });
 }
 
+/** Plan-séquence : une ligne par temps, alignée d'une colonne à l'autre. */
+export function BeatLines({ text, className }: { text: string; className?: string }) {
+  return (
+    <span className={[s.beatLines, className].join(' ')}>
+      {text.split('\n').map((line, i) => {
+        const m = /^(T\d+) ?(.*)$/.exec(line);
+        return (
+          <span key={i} className={s.beatLine} title={line}>
+            <b>{m ? m[1] : ''}</b>
+            {m ? m[2] : line}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 /** Entrée discrète du plan-séquence : clic droit dans la marge du plan. */
 function onGutterContextMenu(e: MouseEvent, shotId: string) {
   const d = useProjectStore.getState().doc;
@@ -74,7 +92,7 @@ function onGutterContextMenu(e: MouseEvent, shotId: string) {
             mutateDoc((x) => toggleOneShot(x, shotId));
             const row = rowOfShot(d, shotId);
             if (row >= 0) useUi.getState().setSelection({ row, col: 'number' });
-            if (!on) useUi.getState().set({ inspectorOpen: true });
+            if (!on) useUi.getState().set({ oneShotEditor: shotId });
           },
         },
       ],
@@ -169,7 +187,9 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                   onContextMenu={col === 'tc' ? (e) => onTcContextMenu(e, r.shotId) : undefined}
                   onDoubleClick={() => onCellDoubleClick(pos)}
                 >
-                  {isEditing ? (
+                  {shot?.oneShot && BEAT_COLUMNS.includes(col) && !isEditing ? (
+                    <BeatLines text={text} />
+                  ) : isEditing ? (
                     <CellEditor
                       doc={doc}
                       shotId={r.shotId}

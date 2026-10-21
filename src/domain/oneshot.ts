@@ -1,10 +1,11 @@
+import { detachAction } from './ops';
 import { newId } from './factory';
 import { formatTc } from './timecode';
 import { renderTokens } from './tokens';
 import type { ColumnKey, ID, OneShotBeat, ProjectDoc } from './types';
 
 /** Colonnes portées par les temps d'un plan-séquence (une ligne par temps dans la cellule). */
-export const BEAT_COLUMNS: readonly ColumnKey[] = ['subject', 'value', 'angle', 'movement'];
+export const BEAT_COLUMNS: readonly ColumnKey[] = ['subject', 'value', 'angle', 'movement', 'focal'];
 
 export function isOneShot(doc: ProjectDoc, shotId: ID): boolean {
   return !!doc.shots[shotId]?.oneShot;
@@ -20,9 +21,11 @@ export function toggleOneShot(doc: ProjectDoc, shotId: ID): void {
     delete shot.oneShot;
     return;
   }
+  // Un plan-séquence porte sa propre action : il ne partage rien avec ses voisins.
+  detachAction(doc, shotId);
   shot.oneShot = {
     beats: [
-      { id: newId(), value: shot.value, subject: shot.subject, angle: renderTokens(shot.angle), movement: renderTokens(shot.movement, shot.movementSep) },
+      { id: newId(), value: shot.value, subject: shot.subject, angle: renderTokens(shot.angle), movement: renderTokens(shot.movement, shot.movementSep), focal: shot.focal.from },
       { id: newId(), value: '', subject: '', angle: '', movement: '' },
     ],
   };
@@ -105,7 +108,7 @@ export function formatOneShotDuration(t: OneShotTiming): string {
 export function beatColumnText(beats: readonly OneShotBeat[], col: ColumnKey, label: (v: string) => string = (v) => v): string {
   return beats
     .map((b, i) => {
-      const v = col === 'value' ? label(b.value) : col === 'subject' ? b.subject : col === 'angle' ? b.angle : b.movement;
+      const v = col === 'value' ? label(b.value) : col === 'subject' ? b.subject : col === 'angle' ? b.angle : col === 'focal' ? (b.focal ? `${b.focal}mm` : '') : b.movement;
       return `T${i + 1} ${v || '—'}`;
     })
     .join('\n');

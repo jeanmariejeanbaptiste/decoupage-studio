@@ -240,6 +240,19 @@ export function unlinkAction(doc: ProjectDoc, shotIds: readonly ID[]): void {
   for (const s of touched) normalizeBlocks(doc, s);
 }
 
+/** Détache un seul plan de l'action qu'il partage (les autres restent liés entre eux). */
+export function detachAction(doc: ProjectDoc, shotId: ID): void {
+  const shot = doc.shots[shotId];
+  if (!shot) return;
+  const seq = seqOf(doc, shot.sequenceId);
+  if (seq.shotIds.filter((x) => doc.shots[x].actionBlockId === shot.actionBlockId).length < 2) return;
+  const block = doc.blocks[shot.actionBlockId];
+  const copy = makeBlock(seq.id, { text: block?.text ?? '', dialogue: block?.dialogue });
+  doc.blocks[copy.id] = copy;
+  shot.actionBlockId = copy.id;
+  normalizeBlocks(doc, seq.id);
+}
+
 export function setShotSubject(doc: ProjectDoc, shotId: ID, subject: string): void {
   const shot = doc.shots[shotId];
   if (!shot) return;

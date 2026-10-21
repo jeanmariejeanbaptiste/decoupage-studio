@@ -123,5 +123,9 @@
 @media print { .page + .page { margin-top: 0; } }
 
 /* Plan-séquence : temps listés ligne à ligne, repère visuel discret. */
-.oneShot td { white-space: pre-line; }
+.oneShot td { white-space: pre-line; vertical-align: top; }
+.beats { display: flex; flex-direction: column; }
+.beat { display: block; min-height: 1.5em; padding: 1px 0; border-top: 1px dotted currentColor; text-align: left; }
+.beat:first-child { border-top: 0; }
+.beat b { font-size: 0.8em; color: var(--x-red); margin-right: 2px; }
 .oneShot td:nth-child(2)::after { content: '°'; color: var(--x-red); }

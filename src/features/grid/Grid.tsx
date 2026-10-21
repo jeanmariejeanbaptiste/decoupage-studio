@@ -69,8 +69,7 @@ export function Grid({ doc, model }: Props) {
     const sid = model.rows[pos.row].shotId;
     if (doc.shots[sid]?.oneShot && BEAT_COLUMNS.includes(pos.col)) {
       setSelection({ row: pos.row, col: pos.col });
-      useUi.getState().set({ inspectorOpen: true });
-      useUi.getState().toast({ message: 'Plan-séquence : chaque temps se règle dans l’inspecteur, à droite.' });
+      useUi.getState().set({ oneShotEditor: sid });
       return;
     }
     const anchor = { row: cellSpan(doc, model, pos.row, pos.col).start, col: pos.col };

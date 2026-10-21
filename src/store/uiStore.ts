@@ -28,6 +28,8 @@ export interface UiState {
   printView: boolean;
   inspectorOpen: boolean;
   sidebarOpen: boolean;
+  /** Plan-séquence ouvert dans l'éditeur de chorégraphie. */
+  oneShotEditor: ID | null;
   paletteOpen: boolean;
   helpOpen: boolean;
   saveStatus: 'saved' | 'saving' | 'dirty' | 'error' | 'idle';
@@ -58,6 +60,7 @@ export const useUi = create<UiState>()((set) => ({
   theme: initialTheme(),
   printView: false,
   inspectorOpen: typeof window !== 'undefined' && window.innerWidth >= 1600,
+  oneShotEditor: null,
   sidebarOpen: (() => {
     try {
       return localStorage.getItem('ds-sidebar') !== '0';

@@ -1,5 +1,4 @@
-import { OneShotEditor } from './OneShotEditor';
-import { toggleOneShot } from '../../domain/oneshot';
+import { formatOneShotDuration, oneShotTiming, toggleOneShot } from '../../domain/oneshot';
 import { useMemo, useState, type DragEvent } from 'react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { ImagePlus, PanelRightClose, Trash2 } from 'lucide-react';
@@ -98,7 +97,13 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
         )}
       </div>
 
-      {shot.oneShot && <OneShotEditor doc={doc} shotId={shot.id} />}
+      {shot.oneShot && (
+        <button type="button" className={s.oneShotOpen} onClick={() => set({ oneShotEditor: shot.id })} data-testid="open-oneshot">
+          <strong>Plan-séquence · {shot.oneShot.beats.length} temps</strong>
+          <span>{formatOneShotDuration(oneShotTiming(shot.oneShot.beats)) || 'durée à estimer'}</span>
+          <em>Ouvrir l’éditeur de chorégraphie</em>
+        </button>
+      )}
 
       {block?.scenarioAnchor && doc.scenario && (
         <section className={s.block}>
@@ -190,7 +195,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
       </section>
 
       {!shot.oneShot && (
-        <button type="button" className={s.oneShotLink} onClick={() => update((d) => toggleOneShot(d, shot.id))} data-testid="make-oneshot" title="Un seul plan qui enchaîne plusieurs cadrages : chorégraphie en temps successifs">
+        <button type="button" className={s.oneShotLink} onClick={() => { update((d) => toggleOneShot(d, shot.id)); set({ oneShotEditor: shot.id }); }} data-testid="make-oneshot" title="Un seul plan qui enchaîne plusieurs cadrages : chorégraphie en temps successifs">
           Transformer en plan-séquence
         </button>
       )}

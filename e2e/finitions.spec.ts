@@ -151,17 +151,21 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
   const row = page.locator(ROWS).first();
   await row.locator('td').first().dispatchEvent('contextmenu', { clientX: 200, clientY: 300, button: 2 });
   await page.getByRole('menuitem', { name: 'Transformer en plan-séquence' }).click();
-  const editor = page.getByTestId('oneshot-editor');
-  await expect(editor.getByTestId('oneshot-beat')).toHaveCount(2);
-  await editor.getByLabel('Valeur du temps 2').fill('Gros plan');
-  await editor.getByLabel('Sujet du temps 2').fill('Affiche');
-  await editor.getByLabel('Durée minimale du temps 2').fill('10');
-  await editor.getByLabel('Durée maximale du temps 2').fill('20');
-  await editor.getByLabel('Durée maximale du temps 2').blur();
+  // L'éditeur de chorégraphie s'ouvre aussitôt, en plein écran.
+  const studio = page.getByTestId('oneshot-studio');
+  await expect(studio.getByTestId('studio-beat')).toHaveCount(2);
+  const t2 = studio.getByTestId('studio-beat').nth(1);
+  await t2.getByLabel('Valeur').fill('Gros plan');
+  await t2.getByLabel('Sujet').fill('Affiche');
+  await t2.getByLabel('Focale du temps 2').fill('85');
+  await t2.getByLabel('Durée minimale du temps 2 (secondes)').fill('10');
+  await t2.getByLabel('Durée maximale du temps 2 (secondes)').fill('20');
+  await expect(studio).toContainText('0:10 – 0:20');
+  await studio.getByRole('button', { name: 'Terminé' }).click();
   await expect(row).toHaveClass(/oneShot/);
   await expect(row.locator('[data-cell$=":number"]')).toHaveText('1');
-  await expect(row).toContainText('T2 Affiche');
-  await expect(editor).toContainText('0:10 – 0:20');
+  await expect(row).toContainText('T2Affiche');
+  await expect(row).toContainText('T285mm');
   await page.goto('/#/floorplan');
   // Les temps n'apparaissent que dans la vue propre au plan-séquence.
   await expect(page.getByTestId('fp-beats')).toHaveCount(0);

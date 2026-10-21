@@ -156,3 +156,11 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .oneShot td { white-space: pre-line; }
 .oneShot .num::after { content: ''; display: inline-block; width: 5px; height: 5px; margin-left: 3px; vertical-align: super; border: 1.5px solid var(--rust); border-radius: 50%; }
 .oneShot td:first-child { box-shadow: inset 3px 0 0 var(--rust); }
+
+/* Plan-séquence : lignes de temps alignées (une ligne par temps, hauteur fixe, texte complet au survol). */
+.beatLines { display: flex; flex-direction: column; }
+.beatLine { display: block; height: 21px; line-height: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px dotted color-mix(in srgb, var(--rust) 30%, transparent); }
+.beatLine:first-child { border-top: 0; }
+.beatLine b { display: inline-block; min-width: 22px; margin-right: 4px; font-size: 10.5px; font-weight: 700; color: var(--rust); }
+.oneShot td { vertical-align: top; }
+.beatLine b { min-width: 16px; margin-right: 3px; }
