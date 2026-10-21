@@ -22,3 +22,7 @@
 .tplItem em { font-family: var(--font-hand); color: var(--rust); font-weight: 400; font-size: 15px; font-style: normal; }
 .tplItem span { font-size: 12px; color: var(--ink-soft); }
 .emptyActions { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+
+/* Ajouter : plan, séquence, et séquence depuis un modèle (menu discret). */
+.addGroup { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--rule); border-radius: var(--radius); }
+.caret { padding-left: 4px; padding-right: 4px; }

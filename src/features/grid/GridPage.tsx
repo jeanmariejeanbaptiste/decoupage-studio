@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Eye, FileSpreadsheet, Image as ImageIcon, Printer, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
+import { Columns3, Download, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from '../../domain/types';
@@ -9,7 +9,7 @@ import { fileNameFor } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
-import { askOrientation, pagesToImages, waitForPages } from '../export/imageExport';
+import { pagesToImages, waitForPages } from '../export/imageExport';
 import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from './actions';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
@@ -33,6 +33,17 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   const setUi = useUi((u) => u.set);
   const nSeq = doc.project.sequenceIds.length;
   const createFirst = useRef<HTMLButtonElement>(null);
+  // Un seul bouton Lier / Délier : « Délier » quand la sélection touche une action déjà liée.
+  const sel = useUi((u) => u.selection);
+  const linked = useMemo(() => {
+    if (!sel) return false;
+    const [a, b] = [sel.anchor.row, sel.focus.row].sort((x, y) => x - y);
+    const ids = model.rows.slice(a, b + 1).map((r) => r.shotId);
+    return ids.some((id) => {
+      const shot = doc.shots[id];
+      return shot && Object.values(doc.shots).some((o) => o.id !== id && o.actionBlockId === shot.actionBlockId);
+    });
+  }, [sel, model, doc]);
   // Export image : le rendu d'export est monté hors écran le temps de la capture.
   const [imaging, setImaging] = useState<'landscape' | 'portrait' | null>(null);
   const imageRef = useRef<HTMLDivElement>(null);
@@ -66,22 +77,26 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           </h1>
         </div>
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
-          <Button icon={<Plus {...IC} />} onClick={newShotBelow} title="Nouveau plan (⌘↵)" disabled={printView || nSeq === 0}>
-            Plan
-          </Button>
-          <Button icon={<Rows3 {...IC} />} onClick={newSequenceAfter} title="Nouvelle séquence (⌘⇧↵)" disabled={printView}>
-            Séquence
-          </Button>
-          <TemplatesMenu doc={doc} />
+          <div className={s.addGroup} role="group" aria-label="Ajouter">
+            <Button icon={<Plus {...IC} />} onClick={newShotBelow} title="Nouveau plan sous le plan sélectionné (⌘↵)" disabled={printView || nSeq === 0}>
+              Plan
+            </Button>
+            <Button icon={<Rows3 {...IC} />} onClick={newSequenceAfter} title="Nouvelle séquence après la séquence sélectionnée (⌘⇧↵)" disabled={printView}>
+              Séquence
+            </Button>
+            <TemplatesMenu doc={doc} variant="caret" />
+          </div>
           <AssistantButton doc={doc} />
           <span className={s.sep} />
-          <Button icon={<Link2 {...IC} />} onClick={linkSelection} title="Lier l’action des plans sélectionnés" disabled={printView}>
-            Lier l’action
-          </Button>
-          <Button icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action" disabled={printView}>
-            Délier
-          </Button>
-          <span className={s.sep} />
+          {linked ? (
+            <Button icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés" disabled={printView}>
+              Délier
+            </Button>
+          ) : (
+            <Button icon={<Link2 {...IC} />} onClick={linkSelection} title="Lier l’action des plans sélectionnés (au moins deux plans consécutifs)" disabled={printView}>
+              Lier l’action
+            </Button>
+          )}
           <ColumnsMenu doc={doc} />
           <Button
             icon={<PanelRight {...IC} />}
@@ -93,23 +108,6 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
             Inspecteur
           </Button>
           <span className={s.sep} />
-          <Button icon={<Printer {...IC} />} onClick={() => navigate('print', { auto: '1' })} title="Exporter le découpage en PDF (impression)" disabled={nSeq === 0} data-testid="grid-export-pdf">
-            PDF
-          </Button>
-          <Button
-            icon={<FileSpreadsheet {...IC} />}
-            title="Exporter le découpage en Excel"
-            disabled={nSeq === 0}
-            onClick={async () => {
-              const { exportXlsx } = await import('../export/xlsx');
-              downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
-            }}
-          >
-            Excel
-          </Button>
-          <Button icon={<ImageIcon {...IC} />} title="Exporter le découpage en images A4 (une par page)" disabled={nSeq === 0 || !!imaging} onClick={(e) => askOrientation(e, setImaging)} data-testid="grid-export-image">
-            Image
-          </Button>
           <Button
             variant={printView ? 'primary' : 'outline'}
             icon={<Eye {...IC} />}
@@ -117,7 +115,37 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
             onClick={() => setUi({ printView: !printView, editing: null })}
             data-testid="toggle-print"
           >
-            Vue impression
+            Aperçu
+          </Button>
+          <Button
+            variant="primary"
+            icon={<Download {...IC} />}
+            disabled={nSeq === 0 || !!imaging}
+            data-testid="grid-export"
+            title="Exporter le découpage : PDF, Excel ou images A4"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setUi({
+                menu: {
+                  x: r.left,
+                  y: r.bottom + 4,
+                  items: [
+                    { label: 'PDF (impression)', action: () => navigate('print', { auto: '1' }) },
+                    {
+                      label: 'Excel',
+                      action: async () => {
+                        const { exportXlsx } = await import('../export/xlsx');
+                        downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
+                      },
+                    },
+                    { label: 'Images A4 paysage (une par page)', action: () => setImaging('landscape') },
+                    { label: 'Images A4 portrait (une par page)', action: () => setImaging('portrait') },
+                  ],
+                },
+              });
+            }}
+          >
+            Exporter
           </Button>
         </div>
       </header>

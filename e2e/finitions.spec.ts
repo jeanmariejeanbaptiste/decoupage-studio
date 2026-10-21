@@ -108,8 +108,8 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
 
 test('exports en images A4, page par page', async ({ page }) => {
   for (const [route, id, menu, name, pages] of [
-    ['/#/grid?seed=rav3', 'grid-export-image', 'Images A4 paysage (une par page)', /-decoupage-A4-paysage\.zip$/, 3],
-    ['/#/grid?seed=rav3', 'grid-export-image', 'Images A4 portrait (une par page)', /-decoupage-A4-portrait\.zip$/, 0],
+    ['/#/grid?seed=rav3', 'grid-export', 'Images A4 paysage (une par page)', /-decoupage-A4-paysage\.zip$/, 3],
+    ['/#/grid?seed=rav3', 'grid-export', 'Images A4 portrait (une par page)', /-decoupage-A4-portrait\.zip$/, 0],
     ['/#/storyboard?seed=rav3', 'storyboard-image', 'Images A4 portrait (une par page)', /-storyboard-A4-portrait\.zip$/, 14],
     ['/#/floorplan?seed=rav3', 'floorplan-image', 'Images A4 paysage (une par page)', /-plans-au-sol-A4-paysage\.(zip|png)$/, 0],
   ] as const) {

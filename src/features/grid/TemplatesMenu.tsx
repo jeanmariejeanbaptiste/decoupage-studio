@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LayoutTemplate } from 'lucide-react';
+import { ChevronDown, LayoutTemplate } from 'lucide-react';
 import { templatesFor, applyTemplate } from '../../domain/templates';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore, undo } from '../../store/projectStore';
@@ -9,7 +9,7 @@ import { currentShotId, rowOfShot } from './actions';
 import s from './GridPage.module.css';
 
 /** Insertion d'un modèle de séquence après la séquence courante (§14 P12). */
-export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; variant?: 'ghost' | 'outline' }) {
+export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; variant?: 'ghost' | 'outline' | 'caret' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -33,9 +33,13 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
 
   return (
     <div className={s.menuWrap} ref={ref}>
-      <Button variant={variant} icon={<LayoutTemplate size={15} strokeWidth={1.25} />} aria-expanded={open} onClick={() => setOpen(!open)} data-testid="templates">
-        Modèle
-      </Button>
+      {variant === 'caret' ? (
+        <Button variant="ghost" className={s.caret} icon={<ChevronDown size={14} strokeWidth={1.5} />} aria-label="Nouvelle séquence depuis un modèle" title="Nouvelle séquence depuis un modèle" aria-expanded={open} onClick={() => setOpen(!open)} data-testid="templates" />
+      ) : (
+        <Button variant={variant} icon={<LayoutTemplate size={15} strokeWidth={1.25} />} aria-expanded={open} onClick={() => setOpen(!open)} data-testid="templates">
+          Modèle
+        </Button>
+      )}
       {open && (
         <div className={[s.menu, s.wide].join(' ')} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Insérer un modèle de séquence</p>
