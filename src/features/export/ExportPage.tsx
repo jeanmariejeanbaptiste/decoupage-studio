@@ -45,10 +45,6 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 10 · Exporter</p>
-          <h1 className="page-title">Diffuser le découpage</h1>
-        </div>
       </header>
 
       <section className={s.formats}>

@@ -42,7 +42,6 @@ test('saisir 2 séquences × 5 plans au clavier seul', async ({ page }) => {
 
   await expect(page.locator(ROWS)).toHaveCount(10);
   await expect(page.locator('tbody[data-seq]')).toHaveCount(2);
-  await expect(page.locator('h1')).toContainText('2 séquences');
   const first = page.locator(ROWS).first();
   await expect(first).toContainText('1, CHAMBRE');
   await expect(first).toContainText('Léa');

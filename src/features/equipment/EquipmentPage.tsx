@@ -25,7 +25,6 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const lists = useMemo(() => aggregateEquipment(doc), [doc]);
   const [showShots, setShowShots] = useState(true);
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
-  const total = equipmentCategories(doc).reduce((n, c) => n + lists[c].length, 0);
 
   const csv = () => {
     const lines = ['Poste;Matériel;Plans;Ajout manuel'];
@@ -37,12 +36,6 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 7 · Listes de matériel</p>
-          <h1 className="page-title">
-            Les <em>{total}</em> lignes de matériel
-          </h1>
-        </div>
         <div className={[s.actions, 'no-print'].join(' ')}>
           <label className={s.toggle}>
             <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />

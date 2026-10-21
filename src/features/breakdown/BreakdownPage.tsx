@@ -28,8 +28,6 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   if (!seqId) {
     return (
       <div className="page">
-        <p className="page-kicker">Étape 3 · Dépouillement</p>
-        <h1 className="page-title">Dépouillement</h1>
         <div className="card empty">
           <span className="hand">Aucune séquence</span>
           <p>Écrivez le scénario ou créez des séquences dans le découpage.</p>
@@ -46,10 +44,6 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 3 · Dépouillement</p>
-          <h1 className="page-title">{sequenceHeading(doc, seqId)}</h1>
-        </div>
         <TabExport doc={() => breakdownDocument(doc)} fileBase={`${doc.project.title || 'projet'}-depouillement`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-depouillement.csv`, content: () => breakdownCsv(doc) }} />
       </header>
       <div className={s.layout}>

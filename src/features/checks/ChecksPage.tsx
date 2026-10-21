@@ -17,18 +17,6 @@ export function ChecksPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Contrôles de la scripte</p>
-          <h1 className="page-title">
-            {issues.length === 0 ? (
-              'Aucune vérification en attente'
-            ) : (
-              <>
-                Les <em>{issues.length}</em> vérification{issues.length > 1 ? 's' : ''}
-              </>
-            )}
-          </h1>
-        </div>
         {doc.ignoredChecks.length > 0 && (
           <Button variant="outline" onClick={() => mutateDoc((d) => void (d.ignoredChecks = []))}>
             Rétablir les {doc.ignoredChecks.length} contrôle{doc.ignoredChecks.length > 1 ? 's' : ''} ignoré{doc.ignoredChecks.length > 1 ? 's' : ''}

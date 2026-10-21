@@ -1,5 +1,4 @@
 import { Home, Moon, PanelLeft, Redo2, Save, Settings, Sun, Undo2 } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { APP_NAME } from '../../app/config';
 import { navigate } from '../../app/router';
 import { Button } from '../../ui/Button';
@@ -16,11 +15,9 @@ interface Props {
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
-  onExport: () => void;
   theme: 'papier' | 'encre';
   onToggleTheme: () => void;
   userInitial: string;
-  primary?: ReactNode;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -59,8 +56,6 @@ export function Topbar(p: Props) {
           icon={p.theme === 'encre' ? <Sun {...IC} /> : <Moon {...IC} />}
         />
         <Button variant="icon" aria-label="Réglages" title="Réglages" onClick={() => navigate('settings')} icon={<Settings {...IC} />} />
-        <Button variant="outline" onClick={p.onExport}>Exporter</Button>
-        {p.primary}
       </div>
     </header>
   );

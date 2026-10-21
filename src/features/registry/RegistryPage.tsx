@@ -58,12 +58,6 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Base du projet · Registre</p>
-          <h1 className="page-title">
-            Les <em>{counts[tab]}</em> {TABS.find((t) => t.key === tab)?.label.toLowerCase()}
-          </h1>
-        </div>
         <TabExport
           doc={() => registryDocument(doc)}
           fileBase={`${doc.project.title || 'projet'}-registre`}

@@ -153,23 +153,10 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   };
 
   const highlighted = hoverBlock ?? caretBlock;
-  const nScenes = scenes.length;
 
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 2 · Scénario</p>
-          <h1 className="page-title">
-            {nScenes ? (
-              <>
-                Le scénario en <em>{nScenes}</em> séquence{nScenes > 1 ? 's' : ''}
-              </>
-            ) : (
-              'Le scénario'
-            )}
-          </h1>
-        </div>
         <div className={s.toolbar}>
           <div className={s.seg} role="radiogroup" aria-label="Affichage du scénario">
             <button type="button" role="radio" aria-checked={mode === 'edit'} className={mode === 'edit' ? s.on : ''} onClick={() => setMode('edit')}>

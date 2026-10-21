@@ -70,10 +70,6 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Paramètres du projet</p>
-          <h1 className="page-title">Réglages</h1>
-        </div>
       </header>
       <div className={s.grid}>
         <Section title="Projet">

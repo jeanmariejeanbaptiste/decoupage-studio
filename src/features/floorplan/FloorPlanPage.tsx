@@ -112,8 +112,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   if (!seqId || !doc.sequences[seqId]) {
     return (
       <div className="page">
-        <p className="page-kicker">Étape 6 · Plan au sol</p>
-        <h1 className="page-title">Plan au sol</h1>
         <div className="card empty">
           <span className="hand">Aucune séquence</span>
           <p>Créez d’abord une séquence dans le découpage.</p>
@@ -262,10 +260,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 6 · Plan au sol</p>
-          <h1 className="page-title">{sequenceHeading(doc, seqId)}</h1>
-        </div>
         <div className={s.exports}>
         <Button
           variant="ghost"

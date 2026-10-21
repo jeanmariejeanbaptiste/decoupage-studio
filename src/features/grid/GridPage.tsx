@@ -66,16 +66,6 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 4 · Découpage</p>
-          <h1 className="page-title">
-            {nSeq === 0 ? 'Le découpage' : (
-              <>
-                Les <em>{nSeq}</em> séquence{nSeq > 1 ? 's' : ''}
-              </>
-            )}
-          </h1>
-        </div>
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
           <div className={s.addGroup} role="group" aria-label="Ajouter">
             <Button icon={<Plus {...IC} />} onClick={newShotBelow} title="Nouveau plan sous le plan sélectionné (⌘↵)" disabled={printView || nSeq === 0}>

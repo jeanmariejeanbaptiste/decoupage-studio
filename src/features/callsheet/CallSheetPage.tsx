@@ -41,8 +41,6 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   if (!day) {
     return (
       <div className="page">
-        <p className="page-kicker">Étape 9 · Feuille de service</p>
-        <h1 className="page-title">Feuille de service</h1>
         <div className="card empty">
           <span className="hand">Aucun jour de tournage</span>
           <p>Bâtissez d’abord le plan de travail pour générer les feuilles de service.</p>
@@ -68,12 +66,6 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page">
       <header className="page-head no-print">
-        <div>
-          <p className="page-kicker">Étape 9 · Feuille de service</p>
-          <h1 className="page-title">
-            Jour <em>{day.n}</em>
-          </h1>
-        </div>
         <div className={s.toolbar}>
           <label className={s.pick}>
             <span>Jour</span>

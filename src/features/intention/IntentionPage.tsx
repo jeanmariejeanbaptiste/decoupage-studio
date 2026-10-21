@@ -20,10 +20,6 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 1 · Note d’intention</p>
-          <h1 className="page-title">Ce que le film veut dire</h1>
-        </div>
         <span style={{ display: 'inline-flex', gap: 12, alignItems: 'center' }}>
           <Hand>
             {words} mot{words > 1 ? 's' : ''}

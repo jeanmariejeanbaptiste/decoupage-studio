@@ -66,18 +66,6 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <div>
-          <p className="page-kicker">Étape 8 · Plan de travail</p>
-          <h1 className="page-title">
-            {days.length ? (
-              <>
-                Les <em>{days.length}</em> jour{days.length > 1 ? 's' : ''} de tournage
-              </>
-            ) : (
-              'Le plan de travail'
-            )}
-          </h1>
-        </div>
         <div className={s.toolbar}>
           <TabExport doc={() => scheduleDocument(doc)} fileBase={`${doc.project.title || 'projet'}-plan-de-travail`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
           <label className={s.cap}>

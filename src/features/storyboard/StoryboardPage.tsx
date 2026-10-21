@@ -55,12 +55,6 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head no-print">
-        <div>
-          <p className="page-kicker">Étape 5 · Storyboard</p>
-          <h1 className="page-title">
-            Les <em>{allShots.length}</em> plans en images
-          </h1>
-        </div>
         <div className={s.toolbar}>
           <div className={s.seg} role="radiogroup" aria-label="Plans par page">
             {([2, 4, 6] as PerPage[]).map((n) => (

@@ -35,16 +35,18 @@ test('aide des raccourcis « ? » et thème encre', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'encre');
 });
 
-test('sidebar : avancement réel et validation d’étape', async ({ page }) => {
+test('interface épurée : ni jauge, ni validation, ni intitulés de page ; menu latéral masquable', async ({ page }) => {
   await page.goto('/#/grid?seed=rav3');
-  const step = page.getByRole('button', { name: /Découpage technique/ });
-  await expect(step).toContainText('100 %');
-  await expect(page.getByText('0 étape validée sur 10')).toBeVisible();
-  await page.getByRole('button', { name: 'Valider l’étape' }).click();
-  await expect(page.getByText('1 étape validée sur 10')).toBeVisible();
-  await page.getByRole('button', { name: /Note d'intention/ }).click();
-  await page.getByLabel('Note d’intention').fill('Un clip solaire, porté par le regard de l’admiratrice.');
-  await expect(page.getByRole('button', { name: /Note d'intention/ })).not.toContainText(' 0 %');
+  await expect(page.getByRole('button', { name: /Découpage technique/ })).not.toContainText('%');
+  await expect(page.getByText(/étape validée/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Valider l’étape' })).toHaveCount(0);
+  await expect(page.locator('.page-title')).toHaveCount(0);
+  await page.getByTestId('toggle-sidebar').click();
+  await expect(page.getByRole('button', { name: /Découpage technique/ })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Découpage technique/ })).toHaveCount(0);
+  await page.getByTestId('toggle-sidebar').click();
+  await expect(page.getByRole('button', { name: /Découpage technique/ })).toBeVisible();
 });
 
 test('états vides et lien d’évitement', async ({ page }) => {

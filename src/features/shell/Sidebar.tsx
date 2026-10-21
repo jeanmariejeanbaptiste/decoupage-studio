@@ -1,40 +1,27 @@
-import { Check, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
-import { Hand } from '../../ui/Hand';
 import { PREP_STEPS } from './steps';
 import s from './Sidebar.module.css';
 
 interface Props {
   projectTitle: string;
   activeRoute: Route;
-  validated: readonly number[];
-  progress: Readonly<Record<number, number>>;
   extraLinks?: ReadonlyArray<{ label: string; route: Route; count?: number }>;
 }
 
-export function Sidebar({ projectTitle, activeRoute, validated, progress, extraLinks = [] }: Props) {
-  const nValid = validated.length;
-  const total = PREP_STEPS.length;
+export function Sidebar({ projectTitle, activeRoute, extraLinks = [] }: Props) {
   return (
     <aside className={[s.sidebar, 'no-print'].join(' ')} aria-label="Processus de préparation">
       <div className={s.head}>
         <h2 className={s.project}>{projectTitle}</h2>
-        <Hand>
-          {nValid} étape{nValid > 1 ? 's' : ''} validée{nValid > 1 ? 's' : ''} sur {total}
-        </Hand>
-        <div className={s.bar} role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={nValid}>
-          <span style={{ width: `${(nValid / total) * 100}%` }} />
-        </div>
       </div>
 
       <nav className={s.nav}>
         <p className={s.section}>Processus de préparation</p>
         <ol className={s.steps}>
           {PREP_STEPS.map((step) => {
-            const done = validated.includes(step.n);
             const active = activeRoute === step.route;
-            const pct = progress[step.n];
             return (
               <li key={step.n}>
                 <button
@@ -43,15 +30,11 @@ export function Sidebar({ projectTitle, activeRoute, validated, progress, extraL
                   aria-current={active ? 'page' : undefined}
                   onClick={() => navigate(step.route)}
                 >
-                  <span className={[s.num, done ? s.done : ''].join(' ')} aria-hidden="true">
-                    {done ? <Check size={12} strokeWidth={2} /> : step.n}
+                  <span className={s.num} aria-hidden="true">
+                    {step.n}
                   </span>
                   <span className={s.label}>{step.label}</span>
-                  {step.available ? (
-                    <em className={s.pct}>{pct !== undefined ? `${Math.round(pct)} %` : ''}</em>
-                  ) : (
-                    <span className={s.soonTag}>bientôt</span>
-                  )}
+                  {!step.available && <span className={s.soonTag}>bientôt</span>}
                 </button>
               </li>
             );

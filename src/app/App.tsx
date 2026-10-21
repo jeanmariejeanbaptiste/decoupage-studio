@@ -19,13 +19,11 @@ import { RegistryPage } from '../features/registry/RegistryPage';
 import { CommandPalette } from '../features/shell/CommandPalette';
 import { HelpDialog } from '../features/shell/HelpDialog';
 import { HomePage } from '../features/shell/HomePage';
-import { stepProgress } from '../domain/progress';
 import { SettingsPage } from '../features/shell/SettingsPage';
 import { Sidebar } from '../features/shell/Sidebar';
-import { PREP_STEPS } from '../features/shell/steps';
 import { Topbar } from '../features/shell/Topbar';
 import { lastProjectId, openDoc, openStoredProject, saveToFile, startAutosave } from '../store/persistence';
-import { mutateDoc, redo, undo, useDoc, useHistory } from '../store/projectStore';
+import { redo, undo, useDoc, useHistory } from '../store/projectStore';
 import { useUi } from '../store/uiStore';
 import { Button } from '../ui/Button';
 import { ContextMenuHost } from '../ui/ContextMenu';
@@ -130,8 +128,6 @@ export function App() {
 
   const title = doc?.project.title ?? '';
   const checkCount = doc ? runChecks(doc, computeTiming(doc)).length : 0;
-  const step = PREP_STEPS.find((p) => p.route === route);
-  const stepValidated = !!step && !!doc?.validatedSteps.includes(step.n);
   const showSidebar = route !== 'home' && !!doc;
 
   return (
@@ -152,32 +148,14 @@ export function App() {
         onUndo={undo}
         onRedo={redo}
         onSave={() => void saveToFile()}
-        onExport={() => navigate('export')}
         theme={theme}
         onToggleTheme={() => setUi({ theme: theme === 'papier' ? 'encre' : 'papier' })}
         userInitial={(doc?.project.director || title || 'D').charAt(0).toUpperCase()}
-        primary={
-          step && doc ? (
-            <Button
-              variant="primary"
-              aria-pressed={stepValidated}
-              onClick={() =>
-                mutateDoc((d) => {
-                  d.validatedSteps = stepValidated ? d.validatedSteps.filter((n) => n !== step.n) : [...d.validatedSteps, step.n].sort((a, b) => a - b);
-                })
-              }
-            >
-              {stepValidated ? 'Étape validée' : 'Valider l’étape'}
-            </Button>
-          ) : null
-        }
       />
       <div className={s.body}>
         {showSidebar && sidebarOpen && doc && <Sidebar
             projectTitle={title}
             activeRoute={route}
-            validated={doc.validatedSteps}
-            progress={stepProgress(doc)}
             extraLinks={[
               { label: 'Registre', route: 'registry', count: doc.project.sequenceIds.length },
               { label: 'Vérifications', route: 'checks', count: checkCount },
@@ -223,11 +201,8 @@ function Page({ route }: { route: Route }) {
   if (route === 'callsheet') return <CallSheetPage doc={doc} />;
   if (route === 'breakdown') return <BreakdownPage doc={doc} />;
   if (route === 'equipment') return <EquipmentPage doc={doc} />;
-  const step = PREP_STEPS.find((p) => p.route === route);
   return (
     <div className="page">
-      <p className="page-kicker">{step ? `Étape ${step.n} · ${step.label}` : 'Bientôt'}</p>
-      <h1 className="page-title">{step?.label ?? 'Cette page'}</h1>
       <div className="card empty">
         <span className="hand">Cette étape arrive bientôt</span>
         <p>Le découpage technique est déjà prêt à l’emploi.</p>
