@@ -1,8 +1,8 @@
 /**
  * Exports individuels par onglet (CSV, texte, SVG), réutilisés par le dossier de production.
  */
-import { aggregateEquipment, EQUIPMENT_CATEGORIES } from './equipment';
-import { BREAKDOWN_CATEGORIES, BREAKDOWN_LABELS, breakdownOf, derivedBreakdown } from './breakdown';
+import { aggregateEquipment, equipmentCategories } from './equipment';
+import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
 import { cameraCone, lightBeam, planOf, plansOf, reflections, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { formatFocal } from './focal';
@@ -78,16 +78,16 @@ export function shotsCsv(doc: ProjectDoc): string {
 
 export function equipmentCsv(doc: ProjectDoc): string {
   const eq = aggregateEquipment(doc);
-  return csv([['Poste', 'Matériel', 'Plans', 'Ajout manuel'], ...EQUIPMENT_CATEGORIES.flatMap((c) => eq[c].map((l) => [c, l.label, l.shotIds.map((id) => shotCode(doc, id)).join(' '), l.manual ? 'oui' : '']))]);
+  return csv([['Poste', 'Matériel', 'Plans', 'Ajout manuel'], ...equipmentCategories(doc).flatMap((c) => eq[c].map((l) => [c, l.label, l.shotIds.map((id) => shotCode(doc, id)).join(' '), l.manual ? 'oui' : '']))]);
 }
 
 export function breakdownCsv(doc: ProjectDoc): string {
   return csv([
-    ['Séquence', ...BREAKDOWN_CATEGORIES.map((c) => BREAKDOWN_LABELS[c])],
+    ['Séquence', ...breakdownCategories(doc).map((c) => breakdownLabel(c))],
     ...doc.project.sequenceIds.map((id) => {
       const m = breakdownOf(doc, id);
       const d = derivedBreakdown(doc, id);
-      return [sequenceHeading(doc, id), ...BREAKDOWN_CATEGORIES.map((c) => [...(d[c] ?? []), ...(m[c] ?? [])].join(', '))];
+      return [sequenceHeading(doc, id), ...breakdownCategories(doc).map((c) => [...(d[c] ?? []), ...(m[c] ?? [])].join(', '))];
     }),
   ]);
 }

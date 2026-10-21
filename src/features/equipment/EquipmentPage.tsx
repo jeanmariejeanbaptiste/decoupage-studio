@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Download, Plus, Trash2 } from 'lucide-react';
 import { TabExport } from '../export/TabExport';
 import { equipmentDocument } from '../../domain/documents';
-import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
+import { aggregateEquipment, equipmentCategories } from '../../domain/equipment';
 import { newId } from '../../domain/factory';
 import { shotCode } from '../../domain/numbering';
 import type { EquipmentCategory, ProjectDoc } from '../../domain/types';
@@ -13,7 +13,7 @@ import { Hand } from '../../ui/Hand';
 import { goToShot } from '../registry/RegistryPage';
 import s from './EquipmentPage.module.css';
 
-const LEAD: Record<EquipmentCategory, string> = {
+const LEAD: Record<string, string> = {
   Image: 'chef opérateur',
   Machinerie: 'chef machiniste',
   Lumière: 'chef électricien',
@@ -25,11 +25,11 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const lists = useMemo(() => aggregateEquipment(doc), [doc]);
   const [showShots, setShowShots] = useState(true);
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
-  const total = EQUIPMENT_CATEGORIES.reduce((n, c) => n + lists[c].length, 0);
+  const total = equipmentCategories(doc).reduce((n, c) => n + lists[c].length, 0);
 
   const csv = () => {
     const lines = ['Poste;Matériel;Plans;Ajout manuel'];
-    for (const c of EQUIPMENT_CATEGORIES)
+    for (const c of equipmentCategories(doc))
       for (const l of lists[c]) lines.push([c, l.label, l.shotIds.map((id) => shotCode(doc, id)).join(' '), l.manual ? 'oui' : ''].map((v) => `"${v.replace(/"/g, '""')}"`).join(';'));
     downloadBlob(new Blob([`\uFEFF${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8' }), `${doc.project.title || 'projet'}-materiel.csv`);
   };
@@ -48,6 +48,17 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
             <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />
             Afficher les plans concernés
           </label>
+          <Button
+            variant="ghost"
+            icon={<Plus size={15} strokeWidth={1.25} />}
+            data-testid="add-equipment-category"
+            onClick={() => {
+              const name = window.prompt('Nom du nouveau poste (ex. Décoration, Régie, Effets spéciaux)')?.trim();
+              if (name) mutateDoc((d) => void (d.equipmentExtra = [...new Set([...(d.equipmentExtra ?? []), name])]));
+            }}
+          >
+            Poste
+          </Button>
           <TabExport doc={() => equipmentDocument(doc, showShots)} fileBase={`${doc.project.title || 'projet'}-materiel`} />
           <Button variant="ghost" icon={<Download size={15} strokeWidth={1.25} />} onClick={csv}>
             CSV
@@ -55,10 +66,28 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
         </div>
       </header>
       <div className={s.grid}>
-        {EQUIPMENT_CATEGORIES.map((c) => (
+        {equipmentCategories(doc).map((c) => (
           <section key={c} className={['card', s.list].join(' ')} data-testid={`equipment-${c}`}>
-            <h2 className={s.h2}>{c}</h2>
-            <Hand>{LEAD[c]}</Hand>
+            <h2 className={s.h2}>
+              {c}
+              {!(c in LEAD) && (
+                <Button
+                  variant="icon"
+                  size="sm"
+                  className="no-print"
+                  aria-label={`Supprimer le poste ${c}`}
+                  icon={<Trash2 size={12} />}
+                  onClick={() => {
+                    if (lists[c].length && !window.confirm(`Supprimer le poste « ${c} » et son matériel ? (annulable avec ⌘Z)`)) return;
+                    mutateDoc((d) => {
+                      d.equipmentExtra = (d.equipmentExtra ?? []).filter((x) => x !== c);
+                      d.manualEquipment = d.manualEquipment.filter((m) => m.category !== c);
+                    });
+                  }}
+                />
+              )}
+            </h2>
+            {c in LEAD && <Hand>{LEAD[c]}</Hand>}
             {lists[c].length === 0 ? (
               <p className={s.empty}>Rien de déduit pour l’instant.</p>
             ) : (
@@ -93,13 +122,13 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
               className={[s.add, 'no-print'].join(' ')}
               onSubmit={(e) => {
                 e.preventDefault();
-                const label = draft[c].trim();
+                const label = (draft[c] ?? '').trim();
                 if (!label) return;
                 mutateDoc((d) => void d.manualEquipment.push({ id: newId(), category: c, label, shotIds: [] }));
                 setDraft({ ...draft, [c]: '' });
               }}
             >
-              <input value={draft[c]} onChange={(e) => setDraft({ ...draft, [c]: e.target.value })} placeholder="Ajouter du matériel…" aria-label={`Ajouter du matériel (${c})`} />
+              <input value={draft[c] ?? ''} onChange={(e) => setDraft({ ...draft, [c]: e.target.value })} placeholder="Ajouter du matériel…" aria-label={`Ajouter du matériel (${c})`} />
               <Button type="submit" variant="icon" size="sm" aria-label="Ajouter" icon={<Plus size={14} />} />
             </form>
           </section>

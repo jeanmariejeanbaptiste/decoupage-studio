@@ -2,8 +2,8 @@
  * Documents imprimables (PDF) et exportables (Word) de chaque onglet : HTML autonome, sobre,
  * pensé pour le papier (fond blanc, filets fins, couleurs en accent seulement).
  */
-import { aggregateEquipment, EQUIPMENT_CATEGORIES } from './equipment';
-import { BREAKDOWN_CATEGORIES, BREAKDOWN_LABELS, breakdownOf, derivedBreakdown } from './breakdown';
+import { aggregateEquipment, equipmentCategories } from './equipment';
+import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
 import { allFloorPlans } from './exports';
 import { formatFocal } from './focal';
@@ -70,10 +70,10 @@ export function breakdownDocument(doc: ProjectDoc): DocPage {
       const m = breakdownOf(doc, id);
       const d = derivedBreakdown(doc, id);
       const seq = doc.sequences[id];
-      const rows = BREAKDOWN_CATEGORIES.map((c) => ({ c, items: [...(d[c] ?? []), ...(m[c] ?? [])] })).filter((r) => r.items.length);
+      const rows = breakdownCategories(doc).map((c) => ({ c, items: [...(d[c] ?? []), ...(m[c] ?? [])] })).filter((r) => r.items.length);
       return `<section class="block"><h2>${esc(sequenceHeading(doc, id))} <span class="muted" style="font-size:10pt">${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</span></h2>${
         seq.summary ? `<p class="muted">${esc(seq.summary)}</p>` : ''
-      }${rows.length ? `<table><tbody>${rows.map((r) => `<tr><th style="width:24%">${esc(BREAKDOWN_LABELS[r.c])}</th><td class="chips">${r.items.map((x) => `<span>${esc(x)}</span>`).join('')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Rien à signaler.</p>'}</section>`;
+      }${rows.length ? `<table><tbody>${rows.map((r) => `<tr><th style="width:24%">${esc(breakdownLabel(r.c))}</th><td class="chips">${r.items.map((x) => `<span>${esc(x)}</span>`).join('')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Rien à signaler.</p>'}</section>`;
     })
     .join('');
   return shell(doc, 'Étape 3', 'Dépouillement', body);
@@ -81,7 +81,7 @@ export function breakdownDocument(doc: ProjectDoc): DocPage {
 
 export function equipmentDocument(doc: ProjectDoc, showShots: boolean): DocPage {
   const eq = aggregateEquipment(doc);
-  const body = EQUIPMENT_CATEGORIES.map(
+  const body = equipmentCategories(doc).map(
     (c) =>
       `<section class="block"><h2>${c}</h2>${
         eq[c].length

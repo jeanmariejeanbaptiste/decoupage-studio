@@ -30,3 +30,7 @@
 .c_lumiere { border-top-color: var(--ochre); }
 .c_son { border-top-color: var(--navy); }
 @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } .seqs { position: static; } }
+
+.addCat { margin-top: 10px; border: 1px dashed var(--rule); background: none; border-radius: var(--radius); padding: 4px 10px; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
+.addCat:hover { color: var(--rust); border-color: var(--rust); }
+.removeCat { float: right; border: 0; background: none; color: var(--ink-soft); cursor: pointer; padding: 2px; }

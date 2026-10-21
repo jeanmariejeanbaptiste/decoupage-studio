@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { navigate } from '../../app/router';
-import { aggregateEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
+import { aggregateEquipment, equipmentCategories } from '../../domain/equipment';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import {
@@ -280,7 +280,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
         <section className={s.block}>
           <h3>Matériel requis</h3>
           <div className={s.equip}>
-            {EQUIPMENT_CATEGORIES.map((c) => {
+            {equipmentCategories(doc).map((c) => {
               const lines = equipment[c].filter(
                 (l) => l.manual || l.shotIds.some((id) => shotIds.includes(id)),
               );

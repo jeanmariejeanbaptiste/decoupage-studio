@@ -15,6 +15,11 @@ export interface EquipmentLine extends EquipmentItem {
 
 export const EQUIPMENT_CATEGORIES: readonly EquipmentCategory[] = ['Image', 'Machinerie', 'Lumière', 'Son'];
 
+/** Postes du projet : les quatre de base, puis ceux ajoutés. */
+export function equipmentCategories(doc: ProjectDoc): EquipmentCategory[] {
+  return [...EQUIPMENT_CATEGORIES, ...(doc.equipmentExtra ?? []).filter((c) => !EQUIPMENT_CATEGORIES.includes(c))];
+}
+
 const MOVEMENT_RULES: ReadonlyArray<{ keys: string[]; item: EquipmentItem }> = [
   {
     keys: ['trav_avant', 'trav_arriere', 'trav_lateral', 'trav_lateral_gauche', 'trav_lateral_droit'],
@@ -93,8 +98,8 @@ export function aggregateEquipment(doc: ProjectDoc): Record<EquipmentCategory, E
   for (const m of doc.manualEquipment) {
     byKey.set(`manual-${m.id}`, { key: `manual-${m.id}`, category: m.category, label: m.label, shotIds: [...m.shotIds], manual: true });
   }
-  const out: Record<EquipmentCategory, EquipmentLine[]> = { Image: [], Machinerie: [], Lumière: [], Son: [] };
-  for (const line of byKey.values()) out[line.category].push(line);
-  for (const c of EQUIPMENT_CATEGORIES) out[c].sort((a, b) => a.label.localeCompare(b.label, 'fr', { numeric: true }));
+  const out: Record<EquipmentCategory, EquipmentLine[]> = Object.fromEntries(equipmentCategories(doc).map((c) => [c, [] as EquipmentLine[]])) as unknown as Record<EquipmentCategory, EquipmentLine[]>;
+  for (const line of byKey.values()) (out[line.category] ??= []).push(line);
+  for (const c of Object.keys(out)) out[c].sort((a, b) => a.label.localeCompare(b.label, 'fr', { numeric: true }));
   return out;
 }

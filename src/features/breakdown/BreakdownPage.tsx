@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import {
   addBreakdownItems,
-  BREAKDOWN_CATEGORIES,
-  BREAKDOWN_LABELS,
+  breakdownCategories,
+  breakdownLabel,
   breakdownOf,
+  isCustomCategory,
   breakdownSuggestions,
   derivedBreakdown,
   removeBreakdownItem,
@@ -72,7 +73,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
                 {(Object.entries(suggestions) as Array<[BreakdownCategory, string[]]>).flatMap(([cat, items]) =>
                   items.map((it) => (
                     <button key={`${cat}-${it}`} type="button" className={s.sug} onClick={() => mutateDoc((d) => addBreakdownItems(d, seqId, cat, [it]))}>
-                      <Plus size={12} /> {it} <em>{BREAKDOWN_LABELS[cat].toLowerCase()}</em>
+                      <Plus size={12} /> {it} <em>{breakdownLabel(cat).toLowerCase()}</em>
                     </button>
                   )),
                 )}
@@ -91,10 +92,21 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
             </section>
           )}
           <div className={s.grid}>
-            {BREAKDOWN_CATEGORIES.map((cat) => (
+            {breakdownCategories(doc).map((cat) => (
               <Category key={cat} cat={cat} seqId={seqId} derived={derived[cat] ?? []} manual={manual[cat] ?? []} />
             ))}
           </div>
+          <button
+            type="button"
+            className={s.addCat}
+            data-testid="add-breakdown-category"
+            onClick={() => {
+              const name = window.prompt('Nom de la nouvelle catégorie (pour toutes les séquences)')?.trim();
+              if (name) mutateDoc((d) => void (d.breakdownExtra = [...new Set([...(d.breakdownExtra ?? []), name])]));
+            }}
+          >
+            + Ajouter une catégorie
+          </button>
         </div>
       </div>
     </div>
@@ -105,7 +117,25 @@ function Category({ cat, seqId, derived, manual }: { cat: BreakdownCategory; seq
   const [draft, setDraft] = useState('');
   return (
     <section className={['card', s.cat, s[`c_${cat}`]].join(' ')} data-testid={`breakdown-${cat}`}>
-      <h2>{BREAKDOWN_LABELS[cat]}</h2>
+      <h2>
+        {breakdownLabel(cat)}
+        {isCustomCategory(cat) && (
+          <button
+            type="button"
+            className={s.removeCat}
+            aria-label={`Supprimer la catégorie ${breakdownLabel(cat)}`}
+            onClick={() => {
+              if (!window.confirm(`Supprimer la catégorie « ${breakdownLabel(cat)} » de toutes les séquences ? (annulable avec ⌘Z)`)) return;
+              mutateDoc((d) => {
+                d.breakdownExtra = (d.breakdownExtra ?? []).filter((l) => l !== breakdownLabel(cat));
+                for (const b of Object.values(d.breakdown ?? {})) delete b[cat];
+              });
+            }}
+          >
+            <X size={12} />
+          </button>
+        )}
+      </h2>
       <ul>
         {derived.map((d) => (
           <li key={`d-${d}`} className={s.derived} title="Déduit du découpage">
@@ -129,7 +159,7 @@ function Category({ cat, seqId, derived, manual }: { cat: BreakdownCategory; seq
           setDraft('');
         }}
       >
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ajouter…" aria-label={`Ajouter (${BREAKDOWN_LABELS[cat]})`} />
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ajouter…" aria-label={`Ajouter (${breakdownLabel(cat)})`} />
       </form>
     </section>
   );

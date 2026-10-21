@@ -180,7 +180,8 @@ export interface ManualEquipment {
   shotIds: ID[];
 }
 
-export type EquipmentCategory = 'Image' | 'Machinerie' | 'Lumière' | 'Son';
+/** Postes de base, plus ceux que l'utilisateur ajoute (`equipmentExtra`). */
+export type EquipmentCategory = 'Image' | 'Machinerie' | 'Lumière' | 'Son' | (string & {});
 
 /** Le projet complet, tel qu'il est stocké et échangé (fichier `.decoupage`). */
 export interface ProjectDoc {
@@ -202,6 +203,10 @@ export interface ProjectDoc {
   schedule?: import('./schedule').Schedule & { order?: ID[] };
   /** Dépouillement manuel par séquence (§15.5). */
   breakdown?: Record<ID, import('./breakdown').SequenceBreakdown>;
+  /** Catégories de dépouillement ajoutées par l'utilisateur (libellés). */
+  breakdownExtra?: string[];
+  /** Postes de matériel ajoutés par l'utilisateur. */
+  equipmentExtra?: string[];
 }
 
 export const SCHEMA_VERSION = 1;

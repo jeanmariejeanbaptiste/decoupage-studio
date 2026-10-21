@@ -45,3 +45,23 @@ describe('dépouillement', () => {
     expect(breakdownOf(doc, parvis)).toEqual({});
   });
 });
+
+describe('catégories ajoutées', async () => {
+  const { produce } = await import('immer');
+  const { buildRav3 } = await import('../../seed/rav3');
+  const { breakdownCategories, breakdownLabel, addBreakdownItems, breakdownOf } = await import('./breakdown');
+  const { aggregateEquipment, equipmentCategories } = await import('./equipment');
+  it('ajoute une catégorie de dépouillement et un poste de matériel', () => {
+    const doc = produce(buildRav3(), (d) => {
+      d.breakdownExtra = ['Animaux'];
+      d.equipmentExtra = ['Régie'];
+      addBreakdownItems(d, d.project.sequenceIds[0], 'perso:Animaux', ['Chien']);
+      d.manualEquipment.push({ id: 'm1', category: 'Régie', label: 'Barnum', shotIds: [] });
+    });
+    expect(breakdownCategories(doc).at(-1)).toBe('perso:Animaux');
+    expect(breakdownLabel('perso:Animaux')).toBe('Animaux');
+    expect(breakdownOf(doc, doc.project.sequenceIds[0])['perso:Animaux']).toEqual(['Chien']);
+    expect(equipmentCategories(doc)).toEqual(['Image', 'Machinerie', 'Lumière', 'Son', 'Régie']);
+    expect(aggregateEquipment(doc)['Régie'].map((l) => l.label)).toEqual(['Barnum']);
+  });
+});

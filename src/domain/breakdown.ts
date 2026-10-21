@@ -16,10 +16,27 @@ export const BREAKDOWN_CATEGORIES = [
   'son',
 ] as const;
 
-export type BreakdownCategory = (typeof BREAKDOWN_CATEGORIES)[number];
+type BaseCategory = (typeof BREAKDOWN_CATEGORIES)[number];
+/** Catégorie de base, ou catégorie ajoutée (clé `perso:Libellé`). */
+export type BreakdownCategory = BaseCategory | (string & {});
 export type SequenceBreakdown = Partial<Record<BreakdownCategory, string[]>>;
 
-export const BREAKDOWN_LABELS: Readonly<Record<BreakdownCategory, string>> = {
+const CUSTOM = 'perso:';
+
+/** Catégories du projet : celles de base, puis les catégories ajoutées. */
+export function breakdownCategories(doc: ProjectDoc): BreakdownCategory[] {
+  return [...BREAKDOWN_CATEGORIES, ...(doc.breakdownExtra ?? []).map((l) => CUSTOM + l)];
+}
+
+export function breakdownLabel(cat: BreakdownCategory): string {
+  return cat.startsWith(CUSTOM) ? cat.slice(CUSTOM.length) : (BREAKDOWN_LABELS[cat as BaseCategory] ?? cat);
+}
+
+export function isCustomCategory(cat: BreakdownCategory): boolean {
+  return cat.startsWith(CUSTOM);
+}
+
+export const BREAKDOWN_LABELS: Readonly<Record<BaseCategory, string>> = {
   personnages: 'Personnages',
   figurants: 'Figurants',
   accessoires: 'Accessoires',
@@ -33,7 +50,7 @@ export const BREAKDOWN_LABELS: Readonly<Record<BreakdownCategory, string>> = {
 };
 
 /** Lexique de détection : terme canonique → formes reconnues (sans accents, pluriels admis). */
-const LEXICON: Partial<Record<BreakdownCategory, Record<string, string[]>>> = {
+const LEXICON: Partial<Record<BaseCategory, Record<string, string[]>>> = {
   accessoires: {
     Affiche: ['affiche'],
     Valise: ['valise'],
