@@ -40,9 +40,13 @@
 .print .sheetHead { display: flex; justify-content: space-between; font-size: 10pt; border-bottom: 1px solid #999; padding-bottom: 2mm; }
 .print .sheetGrid { flex: 1; min-height: 0; display: grid; gap: 5mm; }
 .print .sheetGrid .card { min-height: 0; overflow: hidden; display: flex; flex-direction: column; break-inside: avoid; border-color: #888; }
-.print .sheetGrid .frame { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; border-color: #888; }
+.print .sheetGrid .frameCell { flex: 1 1 auto; min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+.print .sheetGrid .frame { width: min(100cqw, calc(100cqh * var(--r))); height: auto; border: 1px solid #888; }
 .print .sheetGrid .body { flex: 0 0 auto; padding: 4px 8px 6px; }
 .print .sheetGrid .action { font-size: 10px; line-height: 1.25; max-height: 3.8em; overflow: hidden; }
 .inkCheck { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 .print .ink .frame { background: #fff !important; }
 .print .ink .card { background: #fff !important; }
+.aspect { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-soft); }
+.aspect select, .aspect input { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); color: var(--ink); }
+.aspect input { width: 80px; font-family: var(--font-mono); }

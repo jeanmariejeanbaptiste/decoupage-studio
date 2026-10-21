@@ -1,3 +1,4 @@
+import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
@@ -55,6 +56,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
     <div className="page page--wide">
       <header className="page-head no-print">
         <div className={s.toolbar}>
+          <AspectPicker doc={doc} />
           <ExportPanel
             doc={doc}
             id="storyboard"
@@ -171,10 +173,62 @@ function SortableCard(props: { doc: ProjectDoc; shot: Shot; timing: Timing }) {
   );
 }
 
+/** À l'impression, la case occupe la place libre et le cadre y tient au bon format (centré). */
+function FrameCell({ printing, children }: { printing: boolean; children: React.ReactNode }) {
+  return printing ? <div className={s.frameCell}>{children}</div> : <>{children}</>;
+}
+
+/** Choix du format d'image du storyboard : formats usuels ou valeur saisie. */
+function AspectPicker({ doc }: { doc: ProjectDoc }) {
+  const a = doc.project.settings.storyboardAspect ?? DEFAULT_ASPECT;
+  const preset = ASPECT_PRESETS.findIndex((p) => Math.abs(p.w / p.h - a.w / a.h) < 0.001);
+  const [custom, setCustom] = useState(preset < 0);
+  const set = (v: { w: number; h: number }) => mutateDoc((d) => void (d.project.settings.storyboardAspect = v));
+  return (
+    <label className={s.aspect}>
+      <span>Format</span>
+      <select
+        value={custom ? 'custom' : String(preset)}
+        onChange={(e) => {
+          if (e.target.value === 'custom') return setCustom(true);
+          setCustom(false);
+          const p = ASPECT_PRESETS[Number(e.target.value)];
+          set({ w: p.w, h: p.h });
+        }}
+        aria-label="Format des images du storyboard"
+        data-testid="storyboard-aspect"
+      >
+        {ASPECT_PRESETS.map((p, i) => (
+          <option key={p.label} value={i}>
+            {p.label}
+          </option>
+        ))}
+        <option value="custom">Personnalisé…</option>
+      </select>
+      {custom && (
+        <input
+          key={formatAspect(a)}
+          defaultValue={formatAspect(a)}
+          inputMode="decimal"
+          placeholder="ex. 2.76:1"
+          aria-label="Format personnalisé (largeur:hauteur)"
+          data-testid="storyboard-aspect-custom"
+          onBlur={(e) => {
+            const v = parseAspect(e.target.value);
+            if (v) set(v);
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        />
+      )}
+    </label>
+  );
+}
+
 function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: Shot; timing: Timing; printing?: boolean }) {
   const url = useBlobUrl(shot.storyboard?.blobKey);
   const [over, setOver] = useState(false);
   const block = doc.blocks[shot.actionBlockId];
+  const ratio = aspectRatio(doc.project.settings.storyboardAspect);
   const meta = [valueLabel(shot.value, doc.project.settings.labelStyle), formatFocal(shot.focal, isZoom(shot.movement)), renderTokens(shot.movement, shot.movementSep)].filter(Boolean).join(' · ');
   const importImage = async (f: File | undefined) => {
     if (!f?.type.startsWith('image/')) return;
@@ -188,8 +242,10 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
   };
   return (
     <article className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')} data-testid={printing ? undefined : 'storyboard-card'}>
+      <FrameCell printing={printing}>
       <div
         className={[s.frame, over ? s.over : ''].join(' ')}
+        style={{ aspectRatio: String(ratio), '--r': ratio } as React.CSSProperties}
         onDragOver={(e) => {
           if (e.dataTransfer.types.includes('Files')) {
             e.preventDefault();
@@ -229,6 +285,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
           </button>
         )}
       </div>
+      </FrameCell>
       <div className={s.body}>
         <p className={s.meta}>{meta || '—'}</p>
         <p className={s.subject}>{shot.subject}</p>

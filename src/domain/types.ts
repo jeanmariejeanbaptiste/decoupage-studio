@@ -65,6 +65,8 @@ export interface ProjectSettings {
   exportInkSaver?: boolean;
   /** Orientation des pages exportées (PDF et images). */
   exportOrientation?: 'landscape' | 'portrait';
+  /** Format des images du storyboard (largeur : hauteur). */
+  storyboardAspect?: { w: number; h: number };
   /** Derniers réglages d'export par page (orientation, numérotation, plans par feuille…). */
   exportPrefs?: Record<string, { orientation?: 'landscape' | 'portrait'; numbers?: boolean; perPage?: number }>;
   exportFooter: boolean;
