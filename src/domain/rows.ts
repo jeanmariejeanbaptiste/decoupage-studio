@@ -1,5 +1,5 @@
 import { computeMerges, type MergeMap, type MergeRow } from './merge';
-import { formatFocal } from './focal';
+import { formatAperture, formatFocal } from './focal';
 import { deduceEquipment } from './equipment';
 import { sequenceHeading } from './numbering';
 import { formatTc } from './timecode';
@@ -45,6 +45,8 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
       return shot.characterIds.map((id) => doc.characters[id]?.name).filter(Boolean).join(', ');
     case 'dialogue':
       return block?.dialogue ?? '';
+    case 'aperture':
+      return formatAperture(shot.aperture);
     case 'sound':
       return shot.sound ?? '';
     case 'light':

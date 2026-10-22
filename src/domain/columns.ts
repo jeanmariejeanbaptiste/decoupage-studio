@@ -1,4 +1,4 @@
-import type { ColumnKey } from './types';
+import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey } from './types';
 
 export interface ColumnDef {
   key: ColumnKey;
@@ -18,6 +18,7 @@ export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
   focal: { key: 'focal', label: 'Focale', width: 6, optional: false },
   action: { key: 'action', label: 'Action', width: 23.5, optional: false },
   tc: { key: 'tc', label: 'TC MIN', width: 7, optional: false },
+  aperture: { key: 'aperture', label: 'Ouverture', width: 5, optional: true },
   characters: { key: 'characters', label: 'Personnages', width: 9, optional: true },
   dialogue: { key: 'dialogue', label: 'Dialogue', width: 16, optional: true },
   sound: { key: 'sound', label: 'Son', width: 7, optional: true },
@@ -28,6 +29,13 @@ export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
   status: { key: 'status', label: 'Statut', width: 6, optional: true },
   notes: { key: 'notes', label: 'Notes', width: 12, optional: true },
 };
+
+/** Ordre canonique des colonnes : l'ouverture se range juste après la focale. */
+export const ALL_COLUMNS: readonly ColumnKey[] = (() => {
+  const all = [...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS.filter((c) => c !== 'aperture')] as ColumnKey[];
+  all.splice(all.indexOf('focal') + 1, 0, 'aperture');
+  return all;
+})();
 
 /** Largeurs relatives normalisées à 100 % pour un jeu de colonnes (§8.2). */
 export function columnWidths(columns: readonly ColumnKey[]): Record<string, number> {

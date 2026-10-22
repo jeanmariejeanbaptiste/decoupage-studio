@@ -2,8 +2,8 @@ import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Columns3, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
-import { COLUMN_DEFS, tcLast } from '../../domain/columns';
-import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from '../../domain/types';
+import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
+import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
 import { fileNameFor } from '../../domain/serialize';
@@ -199,7 +199,7 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
   const toggle = (c: ColumnKey) =>
     mutateDoc((d) => {
       const g = d.project.settings.gridColumns;
-      const all: ColumnKey[] = [...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS];
+      const all = ALL_COLUMNS;
       const next = g.includes(c) ? g.filter((x) => x !== c) : [...g, c];
       d.project.settings.gridColumns = tcLast(all.filter((x) => next.includes(x)));
     });
@@ -211,7 +211,7 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
       {open && (
         <div className={s.menu} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Colonnes de la grille</p>
-          {[...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS].map((c) => (
+          {ALL_COLUMNS.map((c) => (
             <label key={c} className={s.menuItem}>
               <input
                 type="checkbox"

@@ -25,6 +25,7 @@
 .col_angle { width: 13%; }
 .col_movement { width: 13.5%; }
 .col_focal { width: 76px; }
+.col_aperture { width: 72px; }
 .col_action { width: 22%; }
 .col_tc { width: 104px; }
 .col_characters, .col_sound, .col_light, .col_status, .col_shootingDay, .col_shotDuration { width: 8%; }
@@ -87,7 +88,7 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 }
 .c_number { text-align: center; vertical-align: middle; }
 .c_action { border-left: 1px solid var(--rule); }
-.c_tc, .c_focal { white-space: nowrap; }
+.c_tc, .c_focal, .c_aperture { white-space: nowrap; }
 .c_tc { vertical-align: middle; text-align: center; }
 .c_action:not(.linked), .c_dialogue { vertical-align: top; }
 

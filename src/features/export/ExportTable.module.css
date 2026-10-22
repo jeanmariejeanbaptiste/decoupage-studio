@@ -65,7 +65,7 @@
 .c_sequence, .c_subject { color: var(--x-ink); }
 .c_number { color: var(--x-red); }
 .c_value, .c_angle, .c_movement, .c_action { color: var(--x-brown); }
-.c_focal { color: var(--x-ink); font-weight: 700; }
+.c_focal, .c_aperture { color: var(--x-ink); font-weight: 700; }
 .c_tc { color: var(--x-ink); font-weight: 700; font-style: italic; }
 .spacer td { background: var(--x-head); height: 4.2mm; padding: 0; }
 

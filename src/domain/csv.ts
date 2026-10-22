@@ -79,6 +79,7 @@ const HEADER_ALIASES: Partial<Record<ColumnKey, string[]>> = {
   action: ['action', 'description', 'actions'],
   tc: ['tc', 'tc min', 'duree', 'timecode', 'temps'],
   dialogue: ['dialogue', 'dialogues', 'repliques', 'texte'],
+  aperture: ['ouverture', 'diaphragme', 'diaph', 'iris', 'f stop'],
   sound: ['son', 'sound'],
   light: ['lumiere', 'eclairage'],
   notes: ['notes', 'remarques', 'commentaires', 'raccord'],

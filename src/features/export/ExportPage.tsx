@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Braces, FolderArchive, FileSpreadsheet, FileText, FileUp, Printer, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { COLUMN_DEFS, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
 import { fileNameFor, serializeDoc } from '../../domain/serialize';
-import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ExportTheme, type ProjectDoc } from '../../domain/types';
+import type { ColumnKey, ExportTheme, ProjectDoc } from '../../domain/types';
 import { downloadBlob, openFromFile, pickFile } from '../../store/persistence';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -14,7 +14,7 @@ import { CsvImport } from './CsvImport';
 import s from './ExportPage.module.css';
 
 const IC = { size: 18, strokeWidth: 1.25 } as const;
-const ALL: ColumnKey[] = [...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS];
+const ALL: ColumnKey[] = [...ALL_COLUMNS];
 
 export function ExportPage({ doc }: { doc: ProjectDoc }) {
   const settings = doc.project.settings;

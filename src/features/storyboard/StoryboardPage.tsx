@@ -6,7 +6,7 @@ import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, us
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ArrowUpRight, Crop, ImagePlus, PenLine, Trash2 } from 'lucide-react';
-import { FramingIcon } from './FramingIcon';
+import { ShotSketch } from './ShotSketch';
 import { SketchEditor } from './SketchEditor';
 import { exportNodePages, waitForImages, waitForPages, type PageExportOptions } from '../export/imageExport';
 import { ExportPanel } from '../export/ExportPanel';
@@ -370,7 +370,7 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
           void importImage(e.dataTransfer.files[0]);
         }}
       >
-        {url ? <img src={url} alt={`Storyboard du plan ${label}`} style={cropStyle(shown)} draggable={false} /> : !printing && <FramingIcon value={shot.value} focal={shot.focal.from} ratio={ratio} />}
+        {url ? <img src={url} alt={`Storyboard du plan ${label}`} style={cropStyle(shown)} draggable={false} /> : !printing && <ShotSketch doc={doc} shot={shot} ratio={ratio} />}
         <span className={s.code} data-label>
           {label}
         </span>

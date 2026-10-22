@@ -24,6 +24,17 @@ export function fullFrameEquivalent(focalMm: number, crop: number): number {
   return Math.round(focalMm * crop * 10) / 10;
 }
 
+/** Lit une ouverture : « f/2.8 », « f2,8 », « T2.1 », « 2.8 ». */
+export function parseAperture(s: string): number | undefined {
+  const m = /(\d+(?:[.,]\d+)?)/.exec(s);
+  if (!m) return undefined;
+  const n = Number(m[1].replace(',', '.'));
+  return n >= 0.7 && n <= 64 ? n : undefined;
+}
+
+/** « f/2,8 ». */
+export const formatAperture = (n: number | undefined) => (n ? `f/${String(n).replace('.', ',')}` : '');
+
 export function parseFocalInput(s: string): number | undefined {
   const m = /(\d+(?:[.,]\d+)?)/.exec(s);
   if (!m) return undefined;

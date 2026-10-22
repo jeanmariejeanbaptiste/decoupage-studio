@@ -22,6 +22,7 @@ export const DEFAULT_COLUMNS = [
 ] as const;
 
 export const OPTIONAL_COLUMNS = [
+  'aperture',
   'characters',
   'dialogue',
   'sound',
@@ -140,6 +141,8 @@ export interface Shot {
   /** Séparateur saisi entre les jetons de mouvement, préservé à l'export (§5.3). */
   movementSep?: ', ' | ' + ';
   focal: Focal;
+  /** Ouverture (nombre f, ex. 2.8) : colonne facultative, règle le flou d'arrière-plan des vignettes. */
+  aperture?: number;
   actionBlockId: ID;
   sound?: string;
   light?: string;

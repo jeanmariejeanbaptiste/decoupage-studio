@@ -2,7 +2,7 @@ import { BEAT_COLUMNS } from './oneshot';
 /**
  * Lecture / écriture d'une cellule de la grille sous forme de texte (saisie, collage, recopie).
  */
-import { parseFocalInput } from './focal';
+import { formatAperture, parseAperture, parseFocalInput } from './focal';
 import { setShotSubject } from './ops';
 import { formatRange, formatTc, parseRange, parseTc } from './timecode';
 import { parseTokens } from './tokens';
@@ -46,6 +46,8 @@ export function editableText(doc: ProjectDoc, shotId: ID, col: ColumnKey): strin
       if (s.tcMode === 'piste') return formatRange(block?.tc);
       if (s.tcGranularity === 'sequence') return seq?.overrideSec !== undefined ? formatTc(seq.overrideSec) : '';
       return block?.overrideSec !== undefined ? formatTc(block.overrideSec) : '';
+    case 'aperture':
+      return formatAperture(shot.aperture);
     case 'sound':
       return shot.sound ?? '';
     case 'light':
@@ -137,6 +139,16 @@ export function setCellText(doc: ProjectDoc, shotId: ID, col: ColumnKey, text: s
       if (!p || p.kind !== 'sec') return false;
       if (s.tcGranularity === 'sequence') seq.overrideSec = p.sec;
       else block.overrideSec = p.sec;
+      return true;
+    }
+    case 'aperture': {
+      if (!t.trim()) {
+        shot.aperture = undefined;
+        return true;
+      }
+      const n = parseAperture(t);
+      if (n === undefined) return false;
+      shot.aperture = n;
       return true;
     }
     case 'sound':
