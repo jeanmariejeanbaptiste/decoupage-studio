@@ -374,35 +374,56 @@ function rayToSegment(x: number, y: number, dx: number, dy: number, s: Reflector
   return t > 0.5 && u >= 0 && u <= 1 ? t : Infinity;
 }
 
+type Seg = { x: number; y: number; x2: number; y2: number };
+
+/** Direction (degrés) d'un rayon d'angle `ang` réfléchi sur le segment. */
+function mirror(ang: number, seg: Seg): number {
+  const ix = Math.cos((ang * Math.PI) / 180);
+  const iy = Math.sin((ang * Math.PI) / 180);
+  const len = Math.hypot(seg.x2 - seg.x, seg.y2 - seg.y) || 1;
+  let nx = -(seg.y2 - seg.y) / len;
+  let ny = (seg.x2 - seg.x) / len;
+  if (ix * nx + iy * ny > 0) [nx, ny] = [-nx, -ny];
+  const k = ix * nx + iy * ny;
+  return (Math.atan2(iy - 2 * k * ny, ix - 2 * k * nx) * 180) / Math.PI;
+}
+
 /**
- * Éclairage complet d'une vue, lancé rayon par rayon : le faisceau s'arrête net là où un drapeau
- * l'intercepte (le reste passe), et la part qui touche un diffuseur repart plus large et plus douce.
+ * Éclairage complet d'une vue, lancé rayon par rayon : le faisceau s'arrête net là où un drapeau,
+ * un mur ou un comédien l'intercepte (le reste passe) ; la part qui touche un diffuseur repart plus
+ * large et plus douce, celle qui touche un réflecteur ou un mur blanc est renvoyée. Ces lumières
+ * secondaires sont elles-mêmes lancées rayon par rayon : drapeaux, murs et comédiens les coupent,
+ * diffuseurs et réflecteurs les transforment à leur tour.
  */
 export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; shadows: Point[][] } {
   const beams: Beam[] = [];
-  const mods = items.filter((i): i is Reflector => i.kind === 'diffuser' || i.kind === 'flag');
+  const mods = items.filter((i): i is Reflector => i.kind === 'diffuser' || i.kind === 'flag' || i.kind === 'reflector');
   const walls = items.filter((i): i is Extract<FloorItem, { kind: 'wall' | 'rail' }> => i.kind === 'wall');
   const actors = items.filter((i): i is Extract<FloorItem, { kind: 'actor' }> => i.kind === 'actor');
-  const N = 90;
-  for (const l of items.filter((i): i is Light => i.kind === 'light')) {
-    const b = { ...lightBeam(l), intensity: Math.max(0.2, Math.min(1.6, l.power ?? 1)) };
+  type HitKind = 'diffuser' | 'flag' | 'reflector' | 'wall' | 'actor';
+  const MAX_DEPTH = 2;
+
+  const emit = (b: Beam, depth: number, from?: ID) => {
+    const N = Math.max(60, Math.round(b.spread * 1.8));
     const pts: Point[] = [{ x: b.x, y: b.y }];
-    // Impacts groupés par obstacle qui renvoie ou transforme la lumière (diffuseur, mur blanc).
-    const hits = new Map<ID, { kind: 'diffuser' | 'wall'; seg: { x: number; y: number; x2: number; y2: number }; list: Array<{ x: number; y: number; ang: number; t: number }> }>();
+    // Impacts groupés par obstacle qui renvoie ou transforme la lumière (diffuseur, réflecteur, mur blanc).
+    const hits = new Map<ID, { kind: 'diffuser' | 'reflector' | 'wall'; seg: Seg; list: Array<{ x: number; y: number; ang: number; t: number }> }>();
     for (let k = 0; k <= N; k++) {
       const ang = b.rot - b.spread / 2 + (b.spread * k) / N;
       const dx = Math.cos((ang * Math.PI) / 180);
       const dy = Math.sin((ang * Math.PI) / 180);
       let t = b.range;
-      let hit: { id: ID; kind: 'diffuser' | 'flag' | 'wall' | 'actor'; seg?: { x: number; y: number; x2: number; y2: number }; white?: boolean } | undefined;
+      let hit: { id: ID; kind: HitKind; seg?: Seg; white?: boolean } | undefined;
       for (const m of mods) {
+        if (m.id === from) continue;
         const d = rayToSegment(b.x, b.y, dx, dy, m);
         if (d < t) {
           t = d;
-          hit = { id: m.id, kind: m.kind as 'diffuser' | 'flag', seg: m };
+          hit = { id: m.id, kind: m.kind, seg: m };
         }
       }
       for (const w of walls) {
+        if (w.id === from) continue;
         const d = rayToSegment(b.x, b.y, dx, dy, w as unknown as Reflector);
         if (d < t) {
           t = d;
@@ -424,13 +445,14 @@ export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; s
         }
       }
       pts.push({ x: b.x + dx * t, y: b.y + dy * t });
-      if (hit && hit.seg && (hit.kind === 'diffuser' || (hit.kind === 'wall' && hit.white))) {
-        const g = hits.get(hit.id) ?? { kind: hit.kind as 'diffuser' | 'wall', seg: hit.seg, list: [] };
+      if (hit?.seg && (hit.kind === 'diffuser' || hit.kind === 'reflector' || (hit.kind === 'wall' && hit.white))) {
+        const g = hits.get(hit.id) ?? { kind: hit.kind, seg: hit.seg, list: [] };
         g.list.push({ x: b.x + dx * t, y: b.y + dy * t, ang, t });
         hits.set(hit.id, g);
       }
     }
     beams.push({ ...b, points: pts });
+    if (depth >= MAX_DEPTH) return;
     for (const [id, g] of hits) {
       const n = g.list.length;
       const mx = g.list.reduce((s, h) => s + h.x, 0) / n;
@@ -438,24 +460,30 @@ export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; s
       const ang = g.list.reduce((s, h) => s + h.ang, 0) / n;
       const share = n / (N + 1);
       const travelled = g.list.reduce((s, h) => s + h.t, 0) / n;
+      let next: Omit<Beam, 'points' | 'sourceId' | 'x' | 'y'>;
       if (g.kind === 'diffuser') {
-        const rest = Math.max(140, (b.range - travelled) * 1.1 + 40);
+        const range = Math.max(140, (b.range - travelled) * 1.1 + 40);
         const spread = Math.min(170, Math.max(110, b.spread * 2.2));
-        beams.push({ sourceId: id, x: mx, y: my, rot: ang, spread, range: rest, intensity: b.intensity * 0.8 * Math.max(0.5, share), soft: true, points: conePoints(mx, my, ang, spread, rest) });
+        next = { rot: ang, spread, range, intensity: b.intensity * 0.8 * Math.max(0.5, share) };
+      } else if (g.kind === 'reflector') {
+        // Plus le réflecteur est grand par rapport à la distance, plus il renvoie de lumière.
+        const size = Math.hypot(g.seg.x2 - g.seg.x, g.seg.y2 - g.seg.y);
+        const spread = Math.max(30, Math.min(160, 30 + size * 0.6));
+        const range = Math.max(60, (b.range - travelled) * 0.7 + size * 0.5);
+        const intensity = b.intensity * Math.max(0.15, Math.min(0.7, (size / Math.max(1, travelled)) * 0.9));
+        next = { rot: mirror(ang, g.seg), spread, range, intensity };
       } else {
         // Mur blanc : faible renvoi diffus, symétrique du rayon moyen par rapport au mur.
-        const ix = Math.cos((ang * Math.PI) / 180);
-        const iy = Math.sin((ang * Math.PI) / 180);
-        const len = Math.hypot(g.seg.x2 - g.seg.x, g.seg.y2 - g.seg.y) || 1;
-        let nx = -(g.seg.y2 - g.seg.y) / len;
-        let ny = (g.seg.x2 - g.seg.x) / len;
-        if (ix * nx + iy * ny > 0) [nx, ny] = [-nx, -ny];
-        const k = ix * nx + iy * ny;
-        const rot = (Math.atan2(iy - 2 * k * ny, ix - 2 * k * nx) * 180) / Math.PI;
         const range = Math.max(80, (b.range - travelled) * 0.6 + 30);
-        beams.push({ sourceId: id, x: mx, y: my, rot, spread: 150, range, intensity: b.intensity * 0.3 * Math.max(0.4, share), soft: true, points: conePoints(mx, my, rot, 150, range) });
+        next = { rot: mirror(ang, g.seg), spread: 150, range, intensity: b.intensity * 0.3 * Math.max(0.4, share) };
       }
+      if (next.intensity < 0.06) continue;
+      emit({ ...next, sourceId: id, x: mx, y: my, soft: true, points: [] }, depth + 1, id);
     }
+  };
+
+  for (const l of items.filter((i): i is Light => i.kind === 'light')) {
+    emit({ ...lightBeam(l), intensity: Math.max(0.2, Math.min(1.6, l.power ?? 1)) }, 0);
   }
-  return { beams: [...beams, ...reflections(items).map((r) => ({ ...r, soft: true }))], shadows: [] };
+  return { beams, shadows: [] };
 }

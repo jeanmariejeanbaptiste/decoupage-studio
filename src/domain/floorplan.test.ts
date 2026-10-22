@@ -152,4 +152,16 @@ describe('éclairage : diffuseur et drapeau', async () => {
     const actor = computeLighting([light, { id: 'a', kind: 'actor', x: 120, y: 0, label: '1' }]).beams[0];
     expect(Math.min(...reach(actor))).toBeLessThan(110);
   });
+  it('la lumière diffusée ou renvoyée est elle aussi coupée par drapeaux et murs, et reprise par les réflecteurs', () => {
+    const diff = { id: 'd', kind: 'diffuser' as const, x: 150, y: -40, x2: 150, y2: 40 };
+    const flag = { id: 'f', kind: 'flag' as const, x: 250, y: -400, x2: 250, y2: 400 };
+    const soft = computeLighting([light, diff, flag]).beams.find((b) => b.sourceId === 'd')!;
+    expect(Math.max(...reach(soft))).toBeLessThan(Math.hypot(100, 400) + 2);
+    expect(Math.min(...reach(soft))).toBeCloseTo(100, 0);
+    const wall = computeLighting([light, diff, { ...flag, id: 'w', kind: 'wall' as const }]).beams.find((b) => b.sourceId === 'd')!;
+    expect(Math.min(...reach(wall))).toBeCloseTo(100, 0);
+    const refl = { id: 'r', kind: 'reflector' as const, x: 300, y: -60, x2: 300, y2: 60 };
+    const chain = computeLighting([light, diff, refl]).beams.map((b) => b.sourceId);
+    expect(chain).toEqual(['l', 'd', 'r']);
+  });
 });
