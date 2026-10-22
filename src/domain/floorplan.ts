@@ -40,7 +40,8 @@ export interface FloorPlan {
   /** Vue propre à un plan-séquence (clé `ps-<plan>`). */
   oneShotId?: ID;
   /** Plan des locaux en fond, pour dessiner par-dessus. */
-  bg?: { blobKey: string; opacity: number; x: number; y: number; w: number };
+  /** Image de fond : position et largeur dans le repère du plan ; `ratio` = hauteur / largeur de l'image. */
+  bg?: { blobKey: string; opacity: number; x: number; y: number; w: number; ratio?: number };
 }
 
 export interface PlanRef {
@@ -105,10 +106,10 @@ export const PLAN_H = 640;
 export const GRID = 20;
 
 export const snap = (v: number, step = GRID) => Math.round(v / step) * step;
-export const clampPoint = (p: Point): Point => ({
-  x: Math.max(0, Math.min(PLAN_W, p.x)),
-  y: Math.max(0, Math.min(PLAN_H, p.y)),
-});
+/** Espace de travail : bien au-delà de la vue par défaut, pour un fond de plan à l'échelle réelle. */
+export const WORLD = { min: -4000, max: 30000 } as const;
+const clampV = (v: number) => Math.max(WORLD.min, Math.min(WORLD.max, v));
+export const clampPoint = (p: Point): Point => ({ x: clampV(p.x), y: clampV(p.y) });
 
 export function planOf(doc: ProjectDoc, seqId: ID): FloorPlan {
   return doc.floorPlans?.[seqId] ?? { items: [] };
@@ -178,11 +179,11 @@ export function updateFloorItem(doc: ProjectDoc, seqId: ID, id: ID, patch: Parti
 export function moveFloorItem(doc: ProjectDoc, seqId: ID, id: ID, dx: number, dy: number): void {
   const item = ensure(doc, seqId).items.find((x) => x.id === id);
   if (!item) return;
-  item.x = Math.max(0, Math.min(PLAN_W, item.x + dx));
-  item.y = Math.max(0, Math.min(PLAN_H, item.y + dy));
+  item.x = clampV(item.x + dx);
+  item.y = clampV(item.y + dy);
   if ('x2' in item) {
-    item.x2 = Math.max(0, Math.min(PLAN_W, item.x2 + dx));
-    item.y2 = Math.max(0, Math.min(PLAN_H, item.y2 + dy));
+    item.x2 = clampV(item.x2 + dx);
+    item.y2 = clampV(item.y2 + dy);
   }
   if (item.kind === 'actor' && item.to) item.to = clampPoint({ x: item.to.x + dx, y: item.to.y + dy });
 }

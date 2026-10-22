@@ -169,3 +169,6 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 
 - Lumière : les faisceaux secondaires (diffusés, renvoyés par réflecteur ou mur blanc) sont lancés rayon par rayon, coupés par murs, drapeaux et comédiens, et transformés en cascade (2 rebonds max).
 - Plan-séquence : « liaison » entre deux temps (panoramique, travelling, bascule de point…), signalée « à préciser » quand le sujet change ; reprise dans la colonne Mouvement de la grille, les transitions et l'annexe.
+- Plan-séquence : chaque temps est une vraie ligne de tableau (grille, aperçu, PDF, Excel), liaisons sur leur propre ligne ; option d'export « Sans fusion de cellules ».
+- Storyboard : nombre de cartes par ligne, fiche compacte en une ligne colorée, keyframes une à la fois avec vignettes, « Précision » retirée, pictogramme Insert en pot de fleur.
+- Plan au sol : consignes IA strictes (grammaire v2, grille calée sur l'image de fond), import réel du fichier .md avec rapport d'erreurs ligne par ligne, aperçu des murs à déplacer et mettre à l'échelle avant validation, échelle réelle optionnelle, réglage du fond (glisser, molette, pincement Safari), zoom élargi, sélection multiple au rectangle (Maj + clic, ⌘A, déplacement et suppression groupés).

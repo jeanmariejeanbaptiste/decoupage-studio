@@ -83,16 +83,32 @@ test('plan au sol : lumière, réflecteur et plusieurs plans', async ({ page }) 
   await expect(page.getByTestId('fp-reflector')).toHaveCount(1);
 });
 
-test('plan au sol : import des murs depuis la réponse d’une IA, zoom et recentrage', async ({ page }) => {
+test('plan au sol : import du fichier .md de l’IA, aperçu ajustable, sélection au rectangle', async ({ page }) => {
   await page.goto('/#/floorplan?seed=rav3');
-  await page.getByTestId('fp-ai-import').click();
-  await page.getByLabel('Réponse de l’IA').fill('# PLAN\nunite: cm\nlargeur: 600\nhauteur: 400\n## MURS\n- 0,0 -> 600,0 | blanc\n- 600,0 -> 600,400\n- 0,400 -> 600,400\n## PORTES\n- 300,400 | largeur 90 | angle 0\n## FENETRES\n');
+  const md = ['# PLAN DECOUPAGE-STUDIO v2', 'repere: cm', 'grille: 600x400', 'echelle_cm_par_unite: 1', 'murs: 3', 'portes: 1', 'fenetres: 0', '## MURS', 'M001 | 0,0 -> 600,0 | blanc', 'M002 | 600,0 -> 600,400 | standard', 'M003 | 0,400 -> 600,400 | standard', '## PORTES', 'P001 | 300,400 | 90 | 0', '## FENETRES', '## FIN', ''].join('\n');
+  await page.getByTestId('fp-ai-file').setInputFiles({ name: 'plan.md', mimeType: 'text/markdown', buffer: Buffer.from(md) });
+  await expect(page.getByTestId('fp-ai-report')).toContainText('3 murs, 1 portes');
+  await expect(page.getByTestId('fp-ai-errors')).toHaveCount(0);
+  await expect(page.getByTestId('fp-ai-ghost').locator('line')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Agrandir les murs importés' }).click();
+  await expect(page.getByTestId('fp-ai-scale')).toHaveText('110 %');
   await page.getByTestId('fp-ai-apply').click();
   await expect(page.getByTestId('toast')).toContainText('3 murs, 1 portes');
+  await expect(page.getByTestId('fp-ai-ghost')).toHaveCount(0);
+  // Rectangle de sélection sur tout le plan, puis suppression groupée.
+  const box = (await page.getByTestId('floorplan').boundingBox())!;
+  await page.mouse.move(box.x + 4, box.y + 4);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4, { steps: 8 });
+  await expect(page.getByTestId('fp-marquee')).toHaveCount(1);
+  await page.mouse.up();
+  await page.keyboard.press('Delete');
+  await expect(page.getByTestId('fp-wall')).toHaveCount(0);
   const vb = () => page.getByTestId('floorplan').getAttribute('viewBox');
   const before = await vb();
   await page.getByRole('button', { name: 'Zoomer', exact: true }).click();
   expect(await vb()).not.toBe(before);
+  const zoomed = await vb();
   await page.getByTestId('fp-fit').click();
-  expect(await vb()).not.toBe(before);
+  expect(await vb()).not.toBe(zoomed);
 });
