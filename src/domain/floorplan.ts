@@ -21,6 +21,8 @@ export type FloorItem =
       label?: string;
       spread?: number;
       range?: number;
+      /** Puissance de la source (1 = normale). */
+      power?: number;
     }
   | { id: ID; kind: 'reflector' | 'diffuser' | 'flag'; x: number; y: number; x2: number; y2: number; label?: string };
 
@@ -256,8 +258,10 @@ export interface Beam {
   rot: number;
   spread: number;
   range: number;
-  /** 1 = lumière directe ; < 1 = lumière renvoyée, plus douce. */
+  /** 1 = lumière directe ; < 1 = lumière renvoyée ou diffusée, plus douce. */
   intensity: number;
+  /** Lumière douce (après un diffuseur ou un réflecteur). */
+  soft?: boolean;
   points: Point[];
 }
 
@@ -355,4 +359,55 @@ export function choreography(items: readonly FloorItem[]): ChoreoPath[] {
     groups.set(key, g);
   }
   return [...groups.values()].map((g) => ({ ...g, points: g.points.sort((a, b) => a.beat - b.beat) })).filter((g) => g.points.length > 0);
+}
+
+/** Segment de modificateur (diffuseur, drapeau, réflecteur) atteint par un faisceau : distance et milieu. */
+function hitOnAxis(b: Beam, m: Reflector): { d: number; mx: number; my: number } | null {
+  const mx = (m.x + m.x2) / 2;
+  const my = (m.y + m.y2) / 2;
+  const d = Math.hypot(mx - b.x, my - b.y);
+  if (d < 1 || d > b.range) return null;
+  const to = (Math.atan2(my - b.y, mx - b.x) * 180) / Math.PI;
+  const off = Math.abs(((((to - b.rot) % 360) + 540) % 360) - 180);
+  return off > b.spread / 2 ? null : { d, mx, my };
+}
+
+/**
+ * Éclairage complet d'une vue : faisceaux directs (puissance, ouverture), coupés par les drapeaux
+ * (qui projettent une ombre), adoucis et élargis par les diffuseurs, renvoyés par les réflecteurs.
+ */
+export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; shadows: Point[][] } {
+  const beams: Beam[] = [];
+  const shadows: Point[][] = [];
+  const mods = items.filter((i): i is Reflector => i.kind === 'diffuser' || i.kind === 'flag');
+  for (const l of items.filter((i): i is Light => i.kind === 'light')) {
+    const b = { ...lightBeam(l), intensity: Math.max(0.2, Math.min(1.6, l.power ?? 1)) };
+    const hit = mods
+      .map((m) => ({ m, h: hitOnAxis(b, m) }))
+      .filter((x): x is { m: Reflector; h: { d: number; mx: number; my: number } } => !!x.h)
+      .sort((a, z) => a.h.d - z.h.d)[0];
+    if (!hit) {
+      beams.push(b);
+      continue;
+    }
+    const { m, h } = hit;
+    // Le faisceau direct s'arrête au modificateur.
+    beams.push({ ...b, range: h.d, points: conePoints(b.x, b.y, b.rot, b.spread, h.d) });
+    const rest = b.range - h.d;
+    if (m.kind === 'diffuser') {
+      const rot = (Math.atan2(h.my - b.y, h.mx - b.x) * 180) / Math.PI;
+      const spread = Math.min(170, Math.max(110, b.spread * 2.2));
+      beams.push({ sourceId: m.id, x: h.mx, y: h.my, rot, spread, range: Math.max(60, rest * 0.85), intensity: b.intensity * 0.5, soft: true, points: conePoints(h.mx, h.my, rot, spread, Math.max(60, rest * 0.85)) });
+    } else {
+      // Ombre portée du drapeau : prolongement des rayons passant par ses extrémités.
+      const ext = ([px, py]: [number, number]): Point => {
+        const dx = px - b.x;
+        const dy = py - b.y;
+        const k = (Math.hypot(dx, dy) + rest) / Math.max(1, Math.hypot(dx, dy));
+        return { x: b.x + dx * k, y: b.y + dy * k };
+      };
+      shadows.push([{ x: m.x, y: m.y }, { x: m.x2, y: m.y2 }, ext([m.x2, m.y2]), ext([m.x, m.y])]);
+    }
+  }
+  return { beams: [...beams, ...reflections(items).map((r) => ({ ...r, soft: true }))], shadows };
 }

@@ -4,7 +4,7 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { cameraCone, choreography, lightBeam, oneShotPlansOf, planOf, plansOf, reflections, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { cameraCone, choreography, computeLighting, oneShotPlansOf, planOf, plansOf, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
@@ -138,7 +138,8 @@ const pts = (p: Array<{ x: number; y: number }>) => p.map((q) => `${q.x.toFixed(
 export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): string {
   const items = planOf(doc, key).items;
   const out: string[] = [];
-  const beams = [...items.filter((i) => i.kind === 'light').map((l) => lightBeam(l as Parameters<typeof lightBeam>[0])), ...reflections(items)];
+  const { beams, shadows } = computeLighting(items);
+  for (const sh of shadows) out.push(`<polygon points="${pts(sh)}" fill="#1d1b18" fill-opacity="0.22"/>`);
   for (const b of beams) out.push(`<polygon points="${pts(b.points)}" fill="#e8c46a" fill-opacity="${(0.28 * b.intensity).toFixed(2)}"/>`);
   for (const p of choreography(items))
     if (p.points.length > 1) out.push(`<polyline points="${pts(p.points)}" fill="none" stroke="${p.kind === 'camera' ? '#a4472c' : '#2c3e5c'}" stroke-width="${p.kind === 'camera' ? 2.5 : 2}" stroke-dasharray="${p.kind === 'camera' ? '10 6' : '3 5'}"/>`);
@@ -148,7 +149,7 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
       case 'camera': {
         const c = cameraCone(doc, i);
         out.push(`<polygon points="${pts(c.points)}" fill="#9c3d2b" fill-opacity="0.1" stroke="#9c3d2b" stroke-dasharray="4 3"/>`);
-        out.push(`<rect x="${i.x - 14}" y="${i.y - 10}" width="28" height="20" rx="3" fill="#2a2824" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
+        out.push(`<rect x="${i.x - 14}" y="${i.y - 10}" width="28" height="20" rx="3" fill="#34465f" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
         out.push(`<text x="${i.x}" y="${i.y + 30}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(`${i.label ?? ''}${c.focal ? ` · ${c.focal}mm` : ''}`)}</text>`);
         break;
       }
@@ -160,19 +161,19 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         if (i.characterId && doc.characters[i.characterId]) out.push(`<text x="${i.x}" y="${i.y + 32}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(doc.characters[i.characterId].name)}</text>`);
         break;
       case 'wall':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#2a2824" stroke-width="3.5"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#6b6458" stroke-width="3.5"/>`);
         break;
       case 'rail':
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="5" stroke-dasharray="1.5 5"/>`);
         break;
       case 'reflector':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#a9aeb6" stroke-width="4" stroke-linecap="round"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#8d939b" stroke-width="5.5" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/>`);
         break;
       case 'diffuser':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#c9c3b6" stroke-width="4" stroke-dasharray="2 2"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b5aedc" stroke-width="5" stroke-dasharray="1 1.5"/>`);
         break;
       case 'flag':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#1d1b18" stroke-width="4"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#0d0d0d" stroke-width="4.5"/>`);
         break;
       case 'door':
       case 'window':

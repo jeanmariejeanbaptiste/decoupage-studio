@@ -6,7 +6,7 @@ import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useS
 import { CSS } from '@dnd-kit/utilities';
 import { ImagePlus, PenLine } from 'lucide-react';
 import { SketchEditor } from './SketchEditor';
-import { exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
+import { exportNodePages, waitForImages, waitForPages, type PageExportOptions } from '../export/imageExport';
 import { ExportPanel } from '../export/ExportPanel';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
@@ -50,8 +50,13 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   useEffect(() => {
     if (!imaging || !imagesRef.current) return;
     const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
-    void waitForPages(imagesRef.current, '[data-testid="storyboard-sheet"]')
-      .then((p) => exportNodePages(p, base, imaging))
+    const root = imagesRef.current;
+    const expected = allShots.filter((id) => doc.shots[id]?.storyboard).length;
+    void waitForPages(root, '[data-testid="storyboard-sheet"]')
+      .then(async (p) => {
+        await waitForImages(root, expected);
+        return exportNodePages(p, base, imaging);
+      })
       .finally(() => setImaging(null));
   }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

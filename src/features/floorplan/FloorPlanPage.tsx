@@ -25,9 +25,8 @@ import {
   deletePlan,
   DEFAULT_RANGE,
   DEFAULT_SPREAD,
-  lightBeam,
+  computeLighting,
   plansOf,
-  reflections,
   reflectorSize,
   isLineKind,
   LINE_KINDS,
@@ -101,13 +100,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const planKey = [...plans, ...psPlans].find((p) => p.key === planPick)?.key ?? seqId ?? '';
   const psView = psPlans.find((p) => p.key === planKey);
   const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
-  const beams = useMemo(
-    () => [
-      ...items.filter((i) => i.kind === 'light').map((l) => lightBeam(l as Parameters<typeof lightBeam>[0])),
-      ...reflections(items),
-    ],
-    [items],
-  );
+  const { beams, shadows } = useMemo(() => computeLighting(items), [items]);
   const sel = items.find((i) => i.id === selected);
   // Plan-séquence : temps choisi (null = tous) et trajectoires caméra / comédiens.
   const [beat, setBeat] = useState<number | null>(null);
@@ -453,6 +446,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               <pattern id="fp-grid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
                 <path d={`M ${GRID} 0 L 0 0 0 ${GRID}`} fill="none" stroke="var(--rule)" strokeWidth="0.6" />
               </pattern>
+              <filter id="fp-soft" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="10" />
+              </filter>
               <marker
                 id="fp-arrow"
                 viewBox="0 0 10 10"
@@ -480,16 +476,20 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                     r={b.range}
                     gradientUnits="userSpaceOnUse"
                   >
-                    <stop offset="0" stopColor="var(--ochre)" stopOpacity={0.55 * b.intensity} />
-                    <stop offset="0.6" stopColor="var(--ochre)" stopOpacity={0.22 * b.intensity} />
+                    <stop offset="0" stopColor="var(--ochre)" stopOpacity={Math.min(0.85, (b.soft ? 0.32 : 0.55) * b.intensity)} />
+                    <stop offset={b.soft ? '0.8' : '0.6'} stopColor="var(--ochre)" stopOpacity={Math.min(0.5, (b.soft ? 0.18 : 0.22) * b.intensity)} />
                     <stop offset="1" stopColor="var(--ochre)" stopOpacity="0" />
                   </radialGradient>
                 </defs>
                 <polygon
                   points={b.points.map((p) => `${p.x},${p.y}`).join(' ')}
                   fill={`url(#fp-light-${i})`}
+                  filter={b.soft ? 'url(#fp-soft)' : undefined}
                 />
               </g>
+            ))}
+            {shadows.map((sh, i) => (
+              <polygon key={`shadow-${i}`} points={sh.map((p) => `${p.x},${p.y}`).join(' ')} className={s.shadow} data-testid="fp-shadow" />
             ))}
             {paths.map((p) => (
               <polyline
@@ -873,7 +873,7 @@ function Properties({
       {item.kind === 'light' && (
         <>
           <label className={s.field}>
-            <span>Ouverture du faisceau : {item.spread ?? DEFAULT_SPREAD}°</span>
+            <span>Focalisation : faisceau de {item.spread ?? DEFAULT_SPREAD}° ({(item.spread ?? DEFAULT_SPREAD) <= 30 ? 'serré' : (item.spread ?? DEFAULT_SPREAD) >= 90 ? 'large' : 'moyen'})</span>
             <input
               type="range"
               min={10}
@@ -896,7 +896,11 @@ function Properties({
               aria-label="Portée"
             />
           </label>
-          <p className={s.note}>Orientez la lumière vers un réflecteur : il renvoie et diffuse la lumière.</p>
+          <label className={s.field}>
+            <span>Puissance : {Math.round((item.power ?? 1) * 100)} %</span>
+            <input type="range" min={0.2} max={1.6} step={0.1} value={item.power ?? 1} onChange={(e) => update({ power: Number(e.target.value) } as Partial<FloorItem>)} aria-label="Puissance" />
+          </label>
+          <p className={s.note}>Un réflecteur renvoie la lumière, un diffuseur l’adoucit et l’élargit, un drapeau la coupe et projette une ombre.</p>
         </>
       )}
       {item.kind === 'reflector' && (

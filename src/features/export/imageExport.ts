@@ -184,3 +184,14 @@ function scopeCss(css: string, root: string): string {
         .join(', ')} {`,
     );
 }
+
+/** Attend que les images (chargées en différé depuis la base locale) soient présentes et décodées. */
+export async function waitForImages(root: HTMLElement, expected: number, timeout = 10000): Promise<void> {
+  const start = Date.now();
+  for (;;) {
+    const imgs = [...root.querySelectorAll('img')];
+    if ((imgs.length >= expected && imgs.every((i) => i.complete && i.naturalWidth > 0)) || Date.now() - start > timeout) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  await Promise.all([...root.querySelectorAll('img')].map((i) => i.decode().catch(() => undefined)));
+}
