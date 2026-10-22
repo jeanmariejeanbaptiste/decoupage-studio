@@ -46,7 +46,7 @@
 .links b { color: var(--rust); }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .panel { position: static; } }
 .reflector { stroke: #ffffff; stroke-width: calc(3.5px * var(--fp-k, 1)); stroke-linecap: round; }
-.reflectorEdge { stroke: #2b2925; stroke-width: calc(6px * var(--fp-k, 1)); stroke-linecap: round; filter: drop-shadow(1px 2px 1.5px rgba(0, 0, 0, 0.35)); }
+.reflectorEdge { stroke: #1f1d1a; stroke-width: calc(7px * var(--fp-k, 1)); stroke-linecap: round; filter: drop-shadow(3px 4px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.3)); }
 .diffuser { stroke: #d9d4f0; stroke-width: calc(5px * var(--fp-k, 1)); stroke-dasharray: 1 1.5; stroke-linecap: butt; filter: drop-shadow(0 0 1px #8a83b8); }
 .flag { stroke: #0d0d0d; stroke-width: calc(4.5px * var(--fp-k, 1)); stroke-linecap: square; }
 .shadow { fill: #1d1b18; fill-opacity: 0.2; pointer-events: none; }

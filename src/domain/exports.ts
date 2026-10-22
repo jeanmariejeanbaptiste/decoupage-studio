@@ -168,7 +168,8 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="${5 * k}" stroke-dasharray="1.5 5"/>`);
         break;
       case 'reflector':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#2b2925" stroke-width="${6 * k}" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="${3.5 * k}" stroke-linecap="round"/>`);
+        out.push(`<line x1="${i.x + 3}" y1="${i.y + 4}" x2="${i.x2 + 3}" y2="${i.y2 + 4}" stroke="#000" stroke-opacity="0.35" stroke-width="${8 * k}" stroke-linecap="round"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#1f1d1a" stroke-width="${7 * k}" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="${3.5 * k}" stroke-linecap="round"/>`);
         break;
       case 'diffuser':
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b5aedc" stroke-width="${5 * k}" stroke-dasharray="1 1.5"/>`);
