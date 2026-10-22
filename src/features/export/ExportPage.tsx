@@ -9,7 +9,6 @@ import { downloadBlob, openFromFile, pickFile } from '../../store/persistence';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
-import { Hand } from '../../ui/Hand';
 import { CsvImport } from './CsvImport';
 import s from './ExportPage.module.css';
 
@@ -170,7 +169,6 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
 
         <section className="card">
           <h2 className={s.h2}>Colonnes exportées</h2>
-          <Hand>dans l’ordre du tableau</Hand>
           <ul className={s.colList}>
             {ALL.filter((c) => cols.includes(c))
               .sort((a, b) => cols.indexOf(a) - cols.indexOf(b))

@@ -206,7 +206,6 @@ export function ExportPanel({
             </>
           )}
           {options}
-          <p className={s.hint}>{formats.find((f) => f.key === format)?.hint}</p>
           <Button
             variant="primary"
             onClick={() => {

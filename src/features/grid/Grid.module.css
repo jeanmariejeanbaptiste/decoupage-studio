@@ -101,7 +101,6 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
   box-shadow: inset 3px 0 0 var(--seq-color, var(--rust));
 }
 .linked.focus { box-shadow: inset 3px 0 0 var(--seq-color, var(--rust)), inset 0 0 0 2px var(--focus); }
-.linkTag { display: block; margin-top: 4px; font-family: var(--font-hand); color: var(--rust); font-size: 14px; }
 
 .repeat { display: inline-flex; gap: 6px; align-items: baseline; max-width: 100%; }
 .ditto { font-family: var(--font-hand); color: var(--rust); font-size: 18px; line-height: 0.8; }
@@ -161,3 +160,11 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .beatNext { border-top: 1px dotted color-mix(in srgb, var(--rust) 35%, transparent) !important; }
 .beatTag { display: inline-block; min-width: 20px; margin-right: 4px; font-size: 10.5px; font-weight: 700; color: var(--rust); }
 .bridge { padding-top: 1px !important; padding-bottom: 1px !important; font-size: 12px; font-style: italic; color: var(--rust); }
+
+/* Insertion à l'endroit voulu : un plan sous la ligne survolée, une séquence entre deux séquences. */
+.rowAdd { position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); z-index: 5; width: 16px; height: 16px; padding: 0; border: 1px solid var(--rust); border-radius: 50%; background: var(--paper-card); color: var(--rust); font-size: 13px; line-height: 13px; cursor: pointer; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.row:hover .rowAdd, .rowAdd:focus-visible { opacity: 1; }
+.spacer td { position: relative; }
+.seqAdd { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; padding: 0 10px; height: 18px; border: 1px solid var(--rust); border-radius: 999px; background: var(--paper-card); color: var(--rust); font-size: 11.5px; cursor: pointer; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.spacer:hover .seqAdd, .seqAdd:focus-visible { opacity: 1; }
+.spacer td { height: 12px; }

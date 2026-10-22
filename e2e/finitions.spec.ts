@@ -213,3 +213,19 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
   expect(d.suggestedFilename()).toMatch(/annexe-plans-sequences\.pdf$/);
   await d.saveAs('test-results/annexe-ps.pdf');
 });
+
+test('insérer un plan entre deux lignes et une séquence entre deux séquences', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  const rows = page.getByTestId('shot-row');
+  await expect(rows.first()).toBeVisible();
+  const n = await rows.count();
+  await rows.nth(1).hover();
+  await rows.nth(1).getByTestId('insert-shot').click();
+  await expect(rows).toHaveCount(n + 1);
+  // Le nouveau plan est inséré juste sous la ligne survolée, et sélectionné.
+  await expect(page.locator('[data-cell="2:subject"]')).toHaveAttribute('aria-selected', 'true');
+  const seqs = page.locator('tbody[data-seq]');
+  const m = await seqs.count();
+  await seqs.first().getByTestId('insert-sequence').click({ force: true });
+  await expect(seqs).toHaveCount(m + 1);
+});

@@ -20,7 +20,6 @@ import type { ID, ProjectDoc, Shot } from '../../domain/types';
 import { isZoom, valueLabel } from '../../domain/vocabulary';
 import { putBlob } from '../../store/db';
 import { mutateDoc } from '../../store/projectStore';
-import { Hand } from '../../ui/Hand';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { deleteShotById, dropShot } from '../grid/actions';
 import { goToShot } from '../registry/RegistryPage';
@@ -112,9 +111,6 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
             );
           })}
         </DndContext>
-        <p className={s.hint}>
-          <Hand>glisser une carte pour réordonner · « Importer » ou déposer une image sur un cadre pour l’illustrer</Hand>
-        </p>
       </div>
 
       {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}

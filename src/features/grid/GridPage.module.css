@@ -15,7 +15,7 @@
 .printPreview > div { border-radius: 10px; min-width: 1000px; }
 .workspace { display: flex; gap: 14px; align-items: flex-start; }
 .main { flex: 1; min-width: 0; }
-.wide { width: 340px; }
+.wide { width: 340px; right: auto; left: 0; }
 .tplItem { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; border: 0; background: none; padding: 7px 8px; border-radius: 3px; }
 .tplItem:hover, .tplItem:focus-visible { background: var(--hover); outline: none; }
 .tplItem strong { font-weight: 600; font-size: 13.5px; display: flex; gap: 8px; align-items: baseline; }

@@ -332,7 +332,6 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
         >
           Ajouter un personnage
         </Button>
-        <span className="hand">glisser un personnage sur un autre pour fusionner les doublons</span>
       </div>
       <DataTable
         label="Personnages"

@@ -62,7 +62,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           {seq.summary && <p className={s.summary}>{seq.summary}</p>}
           {nSug > 0 && (
             <section className={s.suggest} data-testid="breakdown-suggestions">
-              <Hand>détecté dans les actions</Hand>
+              <Hand>suggestions</Hand>
               <div className={s.sugList}>
                 {(Object.entries(suggestions) as Array<[BreakdownCategory, string[]]>).flatMap(([cat, items]) =>
                   items.map((it) => (

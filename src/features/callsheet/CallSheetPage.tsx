@@ -128,11 +128,10 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           <h3>Lieux et horaires</h3>
           {itinerary.length > 0 && itinerary.every((stop) => !stop.start) && (
             <p className={[s.muted, 'no-print'].join(' ')} data-testid="timeline-hint">
-              Aucun horaire pour l’instant : ouvrez l’
+              Aucun horaire ·{' '}
               <button type="button" className={s.link} onClick={() => navigate('schedule')}>
-                emploi du temps du jour
-              </button>{' '}
-              dans le Plan de travail et glissez-y les plans.
+                emploi du temps
+              </button>
             </p>
           )}
           {itinerary.length === 0 ? (

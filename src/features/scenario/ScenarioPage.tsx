@@ -227,7 +227,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
         </div>
         <aside className={s.side} aria-label="Séquences et plans liés">
           <div className={s.sideHead}>
-            <Hand>plans liés au scénario</Hand>
+            <Hand>plans</Hand>
             <Button variant="outline" size="sm" onClick={() => navigate('grid')}>
               Ouvrir le découpage
             </Button>

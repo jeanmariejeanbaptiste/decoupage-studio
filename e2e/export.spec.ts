@@ -53,7 +53,7 @@ test('import CSV avec correspondance des colonnes', async ({ page }) => {
   await expect(page.getByLabel('Colonne 3')).toHaveValue('value');
   await page.getByTestId('csv-new').click();
   await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(3);
-  await expect(page.locator('[data-cell="0:action"]')).toContainText('lié · 2 plans');
+  await expect(page.locator('[data-cell="0:action"]')).toHaveAttribute('rowspan', '2');
   await expect(page.locator('tbody[data-seq]')).toHaveCount(2);
 });
 

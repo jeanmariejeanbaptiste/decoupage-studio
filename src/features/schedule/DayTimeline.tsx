@@ -101,10 +101,6 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
     >
       <div className={s.wrap} data-testid={`timeline-${day}`}>
         <Pool>
-          <p className={s.hint}>
-            Glissez un plan, ou une séquence entière, dans l’emploi du temps ; ramenez un bloc ici pour le
-            retirer.
-          </p>
           <input
             className={s.search}
             value={query}

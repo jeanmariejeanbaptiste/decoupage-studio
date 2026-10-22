@@ -27,7 +27,6 @@ import {
   DEFAULT_SPREAD,
   computeLighting,
   plansOf,
-  reflectorSize,
   isLineKind,
   LINE_KINDS,
   renamePlan,
@@ -54,7 +53,6 @@ import { useBlobUrl } from '../../ui/useBlobUrl';
 import { aiPlanInstructions, parsePlanFile, placePlan, type ParsedPlan } from '../../domain/planImport';
 import { WORLD, type FloorPlan } from '../../domain/floorplan';
 import { Button } from '../../ui/Button';
-import { Hand } from '../../ui/Hand';
 import s from './FloorPlanPage.module.css';
 import { allFloorPlans, floorPlanSvg } from '../../domain/exports';
 import { exportSvgPages } from '../export/imageExport';
@@ -690,13 +688,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 {t.label}
               </button>
             ))}
-            <Hand className={s.toolHint}>
-              {tool === 'select'
-                ? 'glisser pour déplacer · R pour pivoter · Suppr pour retirer'
-                : isLineKind(tool)
-                  ? 'cliquer-glisser pour tracer · Échap pour finir'
-                  : 'cliquer pour placer · Échap pour finir'}
-            </Hand>
           </div>
           <div className={s.viewBar}>
             <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoomer" title="Zoomer (ou pincer)">+</button>
@@ -818,7 +809,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               ))}
               {placed && (
                 <div className={s.mdTools}>
-                  <Hand>aperçu en pointillés : glisser pour déplacer, molette ou boutons pour l’échelle</Hand>
                   <button type="button" onClick={() => setGhost((g) => ({ ...g, k: g.k / 1.1 }))} aria-label="Réduire les murs importés">−</button>
                   <span className="mono" data-testid="fp-ai-scale">{Math.round(ghost.k * 100)} %</span>
                   <button type="button" onClick={() => setGhost((g) => ({ ...g, k: g.k * 1.1 }))} aria-label="Agrandir les murs importés">+</button>
@@ -1024,8 +1014,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           <div className={sel ? s.coverage : undefined}>
             <h2 className={s.h2}>Plans du découpage</h2>
             <p className={s.note}>
-              {seq.shotIds.filter((id) => camerasForShot(doc, id).length > 0).length} / {seq.shotIds.length}{' '}
-              plans reliés à une caméra (toutes vues). Relier une caméra est facultatif.
+              {seq.shotIds.filter((id) => camerasForShot(doc, id).length > 0).length} / {seq.shotIds.length} avec caméra
             </p>
             <ul className={s.shotList}>
               {seq.shotIds.map((id) => {
@@ -1287,7 +1276,7 @@ function Properties({
               const c = cameraCone(doc, item);
               return c.focal
                 ? `${c.focal} mm → angle horizontal ${c.fov.toFixed(1).replace('.', ',')}°`
-                : 'Liez un plan pour calculer le cône (60° par défaut).';
+                : '60° (aucun plan lié)';
             })()}
           </p>
           <fieldset className={s.links}>
@@ -1390,14 +1379,7 @@ function Properties({
             <span>Puissance : {Math.round((item.power ?? 1) * 100)} %</span>
             <input type="range" min={0.2} max={1.6} step={0.1} value={item.power ?? 1} onChange={(e) => update({ power: Number(e.target.value) } as Partial<FloorItem>)} aria-label="Puissance" />
           </label>
-          <p className={s.note}>Un réflecteur renvoie la lumière, un diffuseur l’adoucit et l’élargit, un drapeau la coupe et projette une ombre.</p>
         </>
-      )}
-      {item.kind === 'reflector' && (
-        <p className={s.note}>
-          Taille {Math.round(reflectorSize(item) / 20) * 20} unités. Plus il est grand, plus la lumière
-          renvoyée est large et douce. Pour le redimensionner, retracez-le.
-        </p>
       )}
       {(item.kind === 'door' || item.kind === 'window') && (
         <label className={s.field}>

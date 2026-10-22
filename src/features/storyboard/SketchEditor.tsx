@@ -219,7 +219,6 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
             {sel?.kind === 'arrow3d' ? (
               <>
                 <span>Flèche 3D</span>
-                <em className={s.hint}>Poignée ronde ou Maj + glisser : tourner en 3D · deux doigts : orbite · pincer : taille · Maj + molette : rotation · Alt + molette : courbure</em>
                 {(
                   [
                     ['yaw', 'Direction', -180, 180, 1, 0],

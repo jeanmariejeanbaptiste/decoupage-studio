@@ -1,6 +1,6 @@
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Eye, Link2, PanelRight, Plus, Rows3, Unlink2 } from 'lucide-react';
+import { Columns3, Eye, Link2, PanelRight, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -13,7 +13,7 @@ import { ExportTable } from '../export/ExportTable';
 import { exportDocumentPages, exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
 import { oneShotAnnexDocument } from '../../domain/documents';
 import { ExportPanel } from '../export/ExportPanel';
-import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from './actions';
+import { linkSelection, newSequenceAfter, unlinkSelection } from './actions';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
@@ -71,13 +71,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
       <header className="page-head">
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
           <div className={s.addGroup} role="group" aria-label="Ajouter">
-            <Button icon={<Plus {...IC} />} onClick={newShotBelow} title="Nouveau plan sous le plan sélectionné (⌘↵)" disabled={printView || nSeq === 0}>
-              Plan
-            </Button>
-            <Button icon={<Rows3 {...IC} />} onClick={newSequenceAfter} title="Nouvelle séquence après la séquence sélectionnée (⌘⇧↵)" disabled={printView}>
-              Séquence
-            </Button>
-            <TemplatesMenu doc={doc} variant="caret" />
+            <TemplatesMenu doc={doc} variant="ghost" />
           </div>
           <AssistantButton doc={doc} />
           <span className={s.sep} />

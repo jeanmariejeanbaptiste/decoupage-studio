@@ -133,6 +133,17 @@ export function newSequenceAfter(): void {
   select(first, 'sequence');
 }
 
+/** Insère un plan juste sous ce plan (bouton entre les lignes). */
+export function insertShotAfter(shotId: ID): void {
+  select(mutateDoc((x) => addShotAfter(x, shotId)), 'subject');
+}
+
+/** Insère une séquence à cette position (bouton entre les séquences). */
+export function insertSequenceAt(index: number): void {
+  const newSeq = mutateDoc((x) => addSequence(x, index));
+  select(newSeq ? useProjectStore.getState().doc?.sequences[newSeq]?.shotIds[0] : undefined, 'sequence');
+}
+
 export function duplicateCurrent(): void {
   const cur = currentShotId();
   if (!cur) return;

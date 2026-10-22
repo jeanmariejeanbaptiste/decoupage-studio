@@ -36,7 +36,7 @@ test.describe('couverture et réordonnancement', () => {
     await expect(page.getByTestId('toast')).toContainText('scindée');
     expect(await invariants(page)).toEqual([]);
     await page.getByTestId('toast').getByRole('button', { name: 'Annuler' }).click();
-    await expect(page.locator('[data-cell="0:action"]')).toContainText('lié · 3 plans');
+    await expect(page.locator('[data-cell="0:action"]')).toHaveAttribute('rowspan', '3');
   });
 
   test('vers une autre séquence : confirmation puis détachement', async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe('couverture et réordonnancement', () => {
     await page.locator('[data-cell="3:subject"]').click();
     await page.locator('[data-cell="5:subject"]').click({ modifiers: ['Shift'] });
     await page.getByRole('button', { name: 'Lier l’action' }).click();
-    await expect(page.locator('[data-cell="3:action"]')).toContainText('lié · 3 plans');
+    await expect(page.locator('[data-cell="3:action"]')).toHaveAttribute('rowspan', '3');
     expect(await invariants(page)).toEqual([]);
     await page.locator('[data-cell="3:subject"]').click();
     await page.locator('[data-cell="5:subject"]').click({ modifiers: ['Shift'] });

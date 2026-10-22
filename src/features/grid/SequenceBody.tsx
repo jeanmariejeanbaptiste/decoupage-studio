@@ -2,7 +2,7 @@ import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
 import { Fragment, type CSSProperties, type MouseEvent } from 'react';
 import { displayLines, displaySpan } from '../../domain/merge';
-import { deleteSequenceOf, deleteShotById, rowOfShot } from './actions';
+import { deleteSequenceOf, deleteShotById, insertSequenceAt, insertShotAfter, rowOfShot } from './actions';
 import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { addShot } from '../../domain/ops';
@@ -156,6 +156,9 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                 ×
               </button>
               <IssueDot issues={model.issues.get(r.shotId)} />
+              <button type="button" className={s.rowAdd} aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`} title="Insérer un plan ici" onMouseDown={(e) => e.stopPropagation()} onClick={() => insertShotAfter(r.shotId)} tabIndex={-1} data-testid="insert-shot">
+                +
+              </button>
             </td>
             {columns.map((col) => {
               if (lines && BEAT_COLUMNS.includes(col)) return beatTd(col, 0);
@@ -259,7 +262,6 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                       ) : (
                         text
                       )}
-                      {linked && <span className={s.linkTag}>lié · {span} plans</span>}
                     </>
                   )}
                 </td>
@@ -274,8 +276,12 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
           </Fragment>
         );
       })}
-      <tr className={s.spacer} aria-hidden="true">
-        <td colSpan={columns.length + 1} />
+      <tr className={s.spacer}>
+        <td colSpan={columns.length + 1}>
+          <button type="button" className={s.seqAdd} title="Insérer une séquence ici" aria-label={`Insérer une séquence après la séquence ${seqNumber}`} onClick={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)} tabIndex={-1} data-testid="insert-sequence">
+            + séquence
+          </button>
+        </td>
       </tr>
     </DroppableBody>
   );

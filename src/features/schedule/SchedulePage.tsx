@@ -83,8 +83,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
       <p className={s.summary}>
         <Hand>
           {planned} plan{planned > 1 ? 's' : ''} planifié{planned > 1 ? 's' : ''} sur {total}
-        </Hand>{' '}
-        · glissez une bande d’un jour à l’autre ; dépliez-la pour affecter les plans un par un.
+        </Hand>
       </p>
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>

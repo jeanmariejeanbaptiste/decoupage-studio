@@ -5,7 +5,6 @@
 .tool { display: inline-flex; gap: 5px; align-items: center; border: 1px solid var(--rule); background: var(--paper-card); border-radius: var(--radius); padding: 4px 9px; font-size: 13px; }
 .tool:hover { border-color: var(--ink-soft); }
 .on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.toolHint { margin-left: auto; font-size: 15px; }
 .canvas { width: 100%; height: auto; display: block; background: var(--paper-card); border: 1px solid var(--rule); border-radius: var(--radius); touch-action: none; user-select: none; outline: none; }
 .canvas:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
 .placing { cursor: crosshair; }
