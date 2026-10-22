@@ -5,7 +5,9 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { allFloorPlans } from './exports';
+import { allFloorPlans, floorPlanSvg } from './exports';
+import { oneShotPlanKey, planOf } from './floorplan';
+import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
@@ -14,7 +16,7 @@ import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
 import type { ProjectDoc } from './types';
-import { isZoom } from './vocabulary';
+import { isZoom, valueRank } from './vocabulary';
 
 export const esc = (s: string | number | undefined | null) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -179,4 +181,50 @@ export function floorPlansDocument(doc: ProjectDoc): DocPage {
 
 export function intentionDocument(doc: ProjectDoc): DocPage {
   return shell(doc, 'Étape 1', 'Note d’intention', `<p class="text">${esc(doc.intention || '')}</p>`);
+}
+
+const BEAT_HUES = ['#a4472c', '#2c5d8a', '#6b8e3a', '#8a4f9e', '#b8862e', '#2f7f7a', '#9b3b5a', '#556070'];
+
+/**
+ * Annexe technique des plans-séquences : une page par plan-séquence, avec la frise des temps,
+ * le tableau des temps, les transitions en clair et la vue du plan au sol qui lui est propre.
+ */
+export function oneShotAnnexDocument(doc: ProjectDoc): DocPage {
+  const ids = doc.project.sequenceIds.flatMap((s) => doc.sequences[s]?.shotIds ?? []).filter((id) => doc.shots[id]?.oneShot);
+  const body = ids.length
+    ? ids
+        .map((id) => {
+          const shot = doc.shots[id];
+          const beats = shot.oneShot!.beats;
+          const t = oneShotTiming(beats);
+          const key = oneShotPlanKey(id);
+          const items = planOf(doc, key).items;
+          const cams = items.filter((i) => i.kind === 'camera' && i.beat);
+          const cameraAt = (n: number) => cams.find((c) => (c as { beat?: number }).beat === n);
+          const total = Math.max(1, t.expected || beats.length);
+          const share = (i: number) => {
+            const b = beats[i];
+            const a = b.minSec ?? b.maxSec;
+            const z = b.maxSec ?? b.minSec;
+            return a !== undefined && z !== undefined ? (a + z) / 2 : t.expected ? 0 : 1;
+          };
+          const strip = `<div style="display:flex;gap:2px;margin:6pt 0 10pt;height:16pt">${beats
+            .map((b, i) => `<div style="flex:${Math.max(share(i), total * 0.05)} 1 0;background:${BEAT_HUES[i % BEAT_HUES.length]};color:#fff;font-size:8pt;padding:2pt 4pt;border-radius:2pt;overflow:hidden;white-space:nowrap">T${i + 1} ${esc(b.value)}</div>`)
+            .join('')}</div>`;
+          const rows = beats
+            .map((b, i) => {
+              const w = t.beats[i];
+              const dur = b.minSec !== undefined || b.maxSec !== undefined ? `${formatTc(b.minSec ?? b.maxSec ?? 0)}${b.maxSec !== undefined && b.maxSec !== b.minSec ? `–${formatTc(b.maxSec)}` : ''}` : '—';
+              return `<tr><td class="code" style="color:${BEAT_HUES[i % BEAT_HUES.length]}">T${i + 1}</td><td class="time">${formatTc(w.startMin)}${w.startMax !== w.startMin ? `–${formatTc(w.startMax)}` : ''}</td><td class="time">${dur}</td><td>${esc(b.value)}</td><td>${esc(b.subject)}</td><td>${esc(b.angle)}</td><td>${esc(b.movement)}</td><td>${b.focal ? `${b.focal} mm` : ''}</td><td>${esc(b.cue)}</td></tr>`;
+            })
+            .join('');
+          const trans = beatTransitions(beats, valueRank, (n) => cameraAt(n))
+            .map((x) => `<li><b>T${x.from} → T${x.to}</b> : ${x.notes.map(esc).join(' · ')}</li>`)
+            .join('');
+          const plan = items.length ? `<h3>Plan au sol du plan-séquence</h3>${floorPlanSvg(doc, key, `Plan-séquence ${shotCode(doc, id)}`)}` : '<p class="muted">Pas encore de vue de plan au sol pour ce plan-séquence (onglet Plan au sol, vue « Plan-séquence »).</p>';
+          return `<section class="plan"><h2>Plan-séquence ${esc(shotCode(doc, id))} <span class="muted" style="font-size:10pt">${esc(sequenceHeading(doc, shot.sequenceId))}</span></h2><p><b>${beats.length} temps</b> · durée ${esc(formatOneShotDuration(t) || 'à estimer')}${doc.blocks[shot.actionBlockId]?.text ? ` · ${esc(doc.blocks[shot.actionBlockId].text)}` : ''}</p>${strip}<table><thead><tr><th>Temps</th><th>Début</th><th>Durée</th><th>Valeur</th><th>Sujet</th><th>Angle</th><th>Mouvement</th><th>Focale</th><th>Repères</th></tr></thead><tbody>${rows}</tbody></table><h3>Transitions</h3><ul>${trans || '<li class="muted">Un seul temps.</li>'}</ul>${plan}</section>`;
+        })
+        .join('')
+    : '<p class="muted">Aucun plan-séquence dans ce découpage.</p>';
+  return shell(doc, '', 'Annexe · plans-séquences', body);
 }

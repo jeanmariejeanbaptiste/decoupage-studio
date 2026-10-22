@@ -61,3 +61,21 @@ describe('plan-séquence isolé', async () => {
     expect(checkInvariants(ps)).toEqual([]);
   });
 });
+
+describe('transitions entre temps', async () => {
+  const { beatTransitions } = await import('./oneshot');
+  const { valueRank } = await import('./vocabulary');
+  it('décrit resserrement, zoom, changement de sujet et déplacement caméra', () => {
+    const b = (v: Partial<import('./types').OneShotBeat>) => ({ id: 'x', value: '', subject: '', angle: '', movement: '', ...v });
+    const t = beatTransitions(
+      [b({ value: 'Taille', subject: 'Léa', focal: 35 }), b({ value: 'Gros plan', subject: 'Marc', focal: 35, movement: 'Travelling avant' }), b({ value: 'Gros plan', subject: 'Marc', focal: 85 })],
+      valueRank,
+      (n) => (n === 1 ? { x: 0, y: 0 } : n === 2 ? { x: 100, y: 0 } : undefined),
+    );
+    expect(t[0].notes[0]).toContain('plus serré');
+    expect(t[0].notes[0]).toContain('se rapproche');
+    expect(t[0].notes.join(' ')).toContain('Léa → Marc');
+    expect(t[0].notes.join(' ')).toContain('5 carreaux vers la droite');
+    expect(t[1].notes[0]).toContain('Focale 35 → 85 mm');
+  });
+});

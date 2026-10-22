@@ -10,7 +10,8 @@ import { fileNameFor } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
-import { exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
+import { exportDocumentPages, exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
+import { oneShotAnnexDocument } from '../../domain/documents';
 import { ExportPanel } from '../export/ExportPanel';
 import { linkSelection, newSequenceAfter, newShotBelow, unlinkSelection } from './actions';
 import { Grid } from './Grid';
@@ -114,10 +115,17 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
             id="grid"
             title="Exporter le découpage"
             themed
-            extra={[{ key: 'excel', label: 'Excel', hint: 'Classeur avec fusions, couleurs et onglet Registre.' }]}
+            extra={[
+              { key: 'excel', label: 'Excel', hint: 'Classeur avec fusions, couleurs et onglet Registre.' },
+              ...(Object.values(storeDoc.shots).some((x) => x.oneShot)
+                ? [{ key: 'annex', label: 'Annexe plans-séquences', hint: 'PDF A4 : une page par plan-séquence (frise des temps, tableau, transitions en clair, plan au sol dédié).' }]
+                : []),
+            ]}
             disabled={nSeq === 0 || !!imaging}
             onExport={async ({ format, orientation, numbers }) => {
               if (format === 'pdf' || format === 'images') setImaging({ format, orientation, numbers });
+              else if (format === 'annex')
+                await exportDocumentPages(oneShotAnnexDocument(storeDoc).html, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
               else {
                 const { exportXlsx } = await import('../export/xlsx');
                 downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);

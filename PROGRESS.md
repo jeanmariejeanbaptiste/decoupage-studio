@@ -158,3 +158,11 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - [x] Plan au sol : « Vue 1, 2… », export de toutes les vues (PDF, Word, zip SVG), couverture caméra des plans toujours visible (facultative)
 - [x] Matériel : plans concernés affichables / masquables, liste complète sans abréviation
 - [x] Plan de travail : rendez-vous du jour, horaires de début et fin par séquence (tri par horaire), repris dans la feuille de service
+
+## Itérations d'usage (octobre 2026)
+- Exports : PDF et images A4 générés par l'outil (assemblage interne, sans impression navigateur), panneau d'export par onglet, numérotation, thèmes, économie d'encre ; images redessinées pour Safari.
+- Storyboard : keyframes, dessin (crayon, texte, flèches 2D/3D manipulables), recadrage (zoom, rotation, remplir/ajuster), format d'image par projet, pictogrammes de cadre, planches pleine image.
+- Plan-séquence : éditeur de chorégraphie, temps alignés dans la grille, vue dédiée au plan au sol, annexe PDF (frise, transitions, plan).
+- Plan au sol : lumière occultée par murs, comédiens et drapeaux, diffuseurs, murs blancs, zoom borné, fond de plan, import de plan via consignes IA (format Markdown `# PLAN`).
+- Emploi du temps : blocs détaillés, plans fractionnés (reprises, jour suivant) ; feuille de service, note d'intention et scénario en A4 ; scénario indicatif (vue découpage, répliques).
+- Harmonisation visuelle : palette claire.

@@ -113,3 +113,51 @@ export function beatColumnText(beats: readonly OneShotBeat[], col: ColumnKey, la
     })
     .join('\n');
 }
+
+/** Ce qui change entre deux temps consécutifs, pour l'équipe technique (en clair). */
+export interface BeatTransition {
+  from: number;
+  to: number;
+  notes: string[];
+}
+
+/**
+ * Analyse des transitions d'un plan-séquence : resserrement ou élargissement du cadre (et comment :
+ * zoom si la focale change, sinon déplacement de la caméra), changement de sujet, d'angle, de
+ * mouvement, et déplacement mesuré de la caméra si sa position est placée temps par temps au plan au sol.
+ */
+export function beatTransitions(
+  beats: readonly OneShotBeat[],
+  rank: (value: string) => number,
+  cameraAt?: (beat: number) => { x: number; y: number } | undefined,
+): BeatTransition[] {
+  const out: BeatTransition[] = [];
+  for (let i = 0; i + 1 < beats.length; i++) {
+    const a = beats[i];
+    const b = beats[i + 1];
+    const notes: string[] = [];
+    const ra = rank(a.value);
+    const rb = rank(b.value);
+    const zoom = a.focal && b.focal && a.focal !== b.focal;
+    if (ra >= 0 && rb >= 0 && ra !== rb) {
+      const how = zoom ? `zoom ${a.focal} → ${b.focal} mm` : 'la caméra ' + (rb > ra ? 'se rapproche' : 's’éloigne') + ' (focale inchangée)';
+      notes.push(`Cadre ${rb > ra ? 'plus serré' : 'plus large'} (${a.value || '?'} → ${b.value || '?'}) : ${how}`);
+    } else if (zoom) notes.push(`Focale ${a.focal} → ${b.focal} mm`);
+    if (a.subject && b.subject && a.subject !== b.subject) notes.push(`Changement de sujet : ${a.subject} → ${b.subject}`);
+    if (a.angle && b.angle && a.angle !== b.angle) notes.push(`Angle : ${a.angle} → ${b.angle}`);
+    if (b.movement && b.movement !== a.movement) notes.push(`Mouvement : ${b.movement}`);
+    const pa = cameraAt?.(i + 1);
+    const pb = cameraAt?.(i + 2);
+    if (pa && pb) {
+      const d = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+      if (d > 5) {
+        const ang = (Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180) / Math.PI;
+        const dir = ['vers la droite', 'vers le bas du plan', 'vers la gauche', 'vers le haut du plan'][Math.round(((ang + 360) % 360) / 90) % 4];
+        notes.push(`Déplacement caméra ≈ ${Math.round(d / 20)} carreaux ${dir}`);
+      }
+    }
+    if (!notes.length) notes.push('Continuité : même cadrage, la scène évolue devant la caméra');
+    out.push({ from: i + 1, to: i + 2, notes });
+  }
+  return out;
+}

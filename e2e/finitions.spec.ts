@@ -197,4 +197,13 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
     await page.keyboard.press('Escape');
   }
   await expect(page.getByTestId('fp-choreo')).toHaveCount(1);
+  // Annexe technique du plan-séquence, en PDF généré par l'outil.
+  await page.goto('/#/grid');
+  const dl = page.waitForEvent('download', { timeout: 30_000 });
+  await page.getByTestId('grid-export').click();
+  await page.getByTestId('grid-export-panel').getByText('Annexe plans-séquences').click();
+  await page.getByTestId('grid-export-go').click();
+  const d = await dl;
+  expect(d.suggestedFilename()).toMatch(/annexe-plans-sequences\.pdf$/);
+  await d.saveAs('test-results/annexe-ps.pdf');
 });
