@@ -10,6 +10,9 @@ test('plan au sol : caméra liée à un plan, comédien, mur', async ({ page }) 
   await page.getByTestId('tool-camera').click();
   let p = await at(page, 0.3, 0.7);
   await page.mouse.click(p.x, p.y);
+  // Outil caméra toujours actif : cliquer la caméra posée la reprend au lieu d'en ajouter une.
+  await page.mouse.click(p.x, p.y);
+  await expect(page.getByTestId('fp-camera')).toHaveCount(1);
   const props = page.getByTestId('fp-properties');
   await expect(props).toContainText('Caméra');
   await props.getByLabel(/1\.1/).check();
@@ -76,6 +79,16 @@ test('plan au sol : lumière, réflecteur et plusieurs plans', async ({ page }) 
   await page.mouse.up();
   await expect(page.getByTestId('fp-reflector')).toHaveCount(1);
   await expect(page.getByTestId('fp-bounce')).toHaveCount(1);
+  // Pivoter le réflecteur en tirant une extrémité.
+  const line = page.getByTestId('fp-reflector').locator('line').last();
+  const before = await line.getAttribute('x2');
+  const end = (await page.getByTestId('fp-end2').boundingBox())!;
+  const r = await at(page, 0.55, 0.62);
+  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(r.x, r.y, { steps: 6 });
+  await page.mouse.up();
+  expect(await line.getAttribute('x2')).not.toBe(before);
   await page.getByTestId('add-plan').click();
   await expect(page.getByRole('tab', { name: 'Vue 2' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('fp-reflector')).toHaveCount(0);

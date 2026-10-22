@@ -168,7 +168,7 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="${5 * k}" stroke-dasharray="1.5 5"/>`);
         break;
       case 'reflector':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#8d939b" stroke-width="${5.5 * k}" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="${3.5 * k}" stroke-linecap="round"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#2b2925" stroke-width="${6 * k}" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="${3.5 * k}" stroke-linecap="round"/>`);
         break;
       case 'diffuser':
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b5aedc" stroke-width="${5 * k}" stroke-dasharray="1 1.5"/>`);

@@ -81,6 +81,7 @@ type Drag =
   | { mode: 'move'; id: ID; from: Point; to: Point }
   | { mode: 'rotate'; id: ID; to: Point }
   | { mode: 'path'; id: ID; to: Point }
+  | { mode: 'end1' | 'end2'; id: ID; to: Point }
   | { mode: 'line'; kind: (typeof LINE_KINDS)[number]; from: Point; to: Point }
   | { mode: 'group'; ids: ID[]; from: Point; to: Point }
   | { mode: 'box'; from: Point; to: Point }
@@ -380,8 +381,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     if (id) setSelected(id);
   };
 
-  const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' = 'move') => {
-    if (tool !== 'select' || bgEdit) return;
+  // Quel que soit l'outil actif, cliquer sur un élément existant le sélectionne et le déplace
+  // (sans en créer un nouveau) ; l'outil reste actif pour le placement suivant.
+  const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' | 'end1' | 'end2' = 'move') => {
+    if (bgEdit) return;
     e.stopPropagation();
     if (e.shiftKey && mode === 'move') {
       // Maj + clic : ajoute ou retire l'élément de la sélection.
@@ -452,6 +455,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       const dx = snap(d0.to.x - d0.from.x);
       const dy = snap(d0.to.y - d0.from.y);
       if (dx || dy) mutate((d) => moveFloorItem(d, planKey, item.id, dx, dy));
+    } else if ((d0.mode === 'end1' || d0.mode === 'end2') && 'x2' in item) {
+      const p = { x: snap(d0.to.x, 5), y: snap(d0.to.y, 5) };
+      mutate((d) => updateFloorItem(d, planKey, item.id, (d0.mode === 'end1' ? { x: p.x, y: p.y } : { x2: p.x, y2: p.y }) as Partial<FloorItem>));
     } else if (d0.mode === 'rotate') {
       const rot = Math.round(deg(item, d0.to) / 5) * 5;
       mutate((d) => updateFloorItem(d, planKey, item.id, { rot } as Partial<FloorItem>));
@@ -530,6 +536,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     }
     if (drag.mode === 'rotate' && ('rot' in item || item.kind === 'actor'))
       return { ...item, rot: Math.round(deg(item, drag.to) / 5) * 5 } as FloorItem;
+    if ((drag.mode === 'end1' || drag.mode === 'end2') && 'x2' in item) {
+      const p = { x: snap(drag.to.x, 5), y: snap(drag.to.y, 5) };
+      return (drag.mode === 'end1' ? { ...item, x: p.x, y: p.y } : { ...item, x2: p.x, y2: p.y }) as FloorItem;
+    }
     if (drag.mode === 'path' && item.kind === 'actor')
       return { ...item, to: { x: snap(drag.to.x), y: snap(drag.to.y) } };
     return item;
@@ -1045,7 +1055,7 @@ function ItemShape({
   doc: ProjectDoc;
   item: FloorItem;
   selected: boolean;
-  onDown: (e: PointerEvent, id: ID, mode?: 'move' | 'rotate' | 'path') => void;
+  onDown: (e: PointerEvent, id: ID, mode?: 'move' | 'rotate' | 'path' | 'end1' | 'end2') => void;
 }) {
   const cls = [s.item, selected ? s.sel : ''].join(' ');
   const handle = (rot: number, r = 46) => {
@@ -1139,10 +1149,12 @@ function ItemShape({
       return (
         <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid={`fp-${item.kind}`}>
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
+          {item.kind === 'reflector' && <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.reflectorEdge} />}
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s[item.kind]} />
           <text x={(item.x + item.x2) / 2} y={(item.y + item.y2) / 2 - 10} className={s.label}>
             {item.label}
           </text>
+          {selected && <Ends item={item} onDown={onDown} />}
         </g>
       );
     case 'wall':
@@ -1157,6 +1169,7 @@ function ItemShape({
             y2={item.y2}
             className={item.kind === 'wall' ? (item.white ? s.wallWhite : s.wall) : s.rail}
           />
+          {selected && <Ends item={item} onDown={onDown} />}
         </g>
       );
     case 'door':
@@ -1407,5 +1420,15 @@ function Properties({
         Retirer
       </Button>
     </div>
+  );
+}
+
+/** Poignées aux deux extrémités d'un élément tracé : on les tire pour pivoter ou allonger. */
+function Ends({ item, onDown }: { item: { id: ID; x: number; y: number; x2: number; y2: number }; onDown: (e: PointerEvent, id: ID, mode?: 'end1' | 'end2') => void }) {
+  return (
+    <>
+      <circle cx={item.x} cy={item.y} r={6} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'end1')} data-testid="fp-end1" />
+      <circle cx={item.x2} cy={item.y2} r={6} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'end2')} data-testid="fp-end2" />
+    </>
   );
 }
