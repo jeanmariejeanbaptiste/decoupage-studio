@@ -18,7 +18,7 @@ export function defaultSettings(format: ProjectFormat): ProjectSettings {
     fps: 25,
     labelStyle: 'court',
     shotCodeFormat: '{seq}.{shot}',
-    exportTheme: 'mauve',
+    exportTheme: 'papier',
     exportColumns: [...DEFAULT_COLUMNS],
     gridColumns: [...DEFAULT_COLUMNS],
     neverMerge: [],

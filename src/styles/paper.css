@@ -54,7 +54,8 @@ button { cursor: pointer; }
 .card {
   background: var(--paper-card);
   border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
 }
 .empty {
   padding: 48px 24px;

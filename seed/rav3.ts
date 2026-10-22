@@ -8,7 +8,7 @@ export const RAV3: SeedProject = {
   title: 'RAV3',
   format: 'clip',
   version: 'V3',
-  settings: { tcMode: 'piste', tcGranularity: 'action', audioTrack: { name: 'RAV3 — piste principale', durationSec: 181 } },
+  settings: { exportTheme: 'mauve', tcMode: 'piste', tcGranularity: 'action', audioTrack: { name: 'RAV3 — piste principale', durationSec: 181 } },
   characters: [
     { name: 'Admiratrice', kind: 'principal', color: '#9C3D2B' },
     { name: 'Candice', kind: 'principal', aliases: ['Candi'], color: '#2E4263' },

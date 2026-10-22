@@ -1,11 +1,11 @@
 :root {
-  --paper: #f2ece1;
-  --paper-card: #fbf8f2;
-  --kraft: #d8c7a3;
-  --kraft-deep: #c9b48b;
-  --ink: #2a2824;
-  --ink-soft: #6e675b;
-  --rule: #d3c8b4;
+  --paper: #f6f4ef;
+  --paper-card: #ffffff;
+  --kraft: #efebe3;
+  --kraft-deep: #e0d9cc;
+  --ink: #23211e;
+  --ink-soft: #767067;
+  --rule: #e2dcd1;
   --rust: #9c3d2b;
   --navy: #2e4263;
   --sage: #5e7b4c;
@@ -17,9 +17,11 @@
   --hover: rgba(42, 40, 36, 0.04);
   --selected: rgba(46, 66, 99, 0.09);
   --on-navy: #f6f1e7;
-  --grain-opacity: 0.04;
+  --grain-opacity: 0.012;
   --toast-accent: #f0c2a8;
-  --kraft-grain-opacity: 0.12;
+  /* Ombre douce commune aux cartes. */
+  --shadow: 0 1px 2px rgba(35, 33, 30, 0.04), 0 4px 14px rgba(35, 33, 30, 0.05);
+  --kraft-grain-opacity: 0.03;
 
   --font-display: 'Cormorant Garamond', 'Times New Roman', serif;
   --font-ui: 'Source Serif 4', Georgia, serif;
@@ -56,4 +58,5 @@
   --grain-opacity: 0.05;
   --toast-accent: #8a3322;
   --kraft-grain-opacity: 0.08;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
