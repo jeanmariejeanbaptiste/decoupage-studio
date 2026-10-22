@@ -1,42 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { backdropFor, blurFraction, buildThumbScene, isPersonSubject, objectFor, type ThumbInput } from './thumbnail';
+import { backdropFor, iconSpec, isPersonSubject, objectFor, type IconInput } from './thumbnail';
 import { formatAperture, parseAperture } from './focal';
 
-const base: ThumbInput = { value: 'Moyen', angle: ['Face'], movement: [], focal: 35, crop: 1, ratio: 16 / 9, subject: 'Léa', person: true, backdrop: 'interior', seed: 's1' };
+const base: IconInput = { value: 'Moyen', angle: ['Face'], movement: [], focal: 35, subject: 'Léa', person: true, backdrop: 'interior', seed: 's1' };
 
-describe('vignettes provisoires du storyboard', () => {
-  it('place la caméra selon la valeur et la focale : plus serré ou plus large angle = plus près', () => {
-    const moyen = buildThumbScene(base).distanceCm;
-    expect(buildThumbScene({ ...base, value: 'Gros plan' }).distanceCm).toBeLessThan(moyen / 4);
-    expect(buildThumbScene({ ...base, focal: 16 }).distanceCm).toBeLessThan(moyen);
-    expect(buildThumbScene({ ...base, focal: 16 }).fovH).toBeGreaterThan(buildThumbScene(base).fovH);
+describe('icônes provisoires du storyboard', () => {
+  it('combine valeur, axe, hauteur, mouvement et focale', () => {
+    const s = iconSpec({ ...base, value: 'Gros plan', angle: ['Profil gauche', 'Plongée'], movement: ['Pano droite'], focal: 16 });
+    expect(s).toMatchObject({ valueKey: 'gros_plan', axis: 'profil', side: -1, height: 'high', move: 'right' });
+    expect(s.wide).toBeGreaterThan(iconSpec({ ...base, focal: 135 }).wide);
+    expect(iconSpec({ ...base, movement: ['Travelling avant', 'Roll'] })).toMatchObject({ move: 'in', roll: true });
   });
-  it('dessine le visage en détail en très gros plan, un objet pour un insert', () => {
-    const tgp = buildThumbScene({ ...base, value: 'Très gros plan' });
-    expect(tgp.subject.some((p) => p.cls === 'lash')).toBe(true);
-    expect(tgp.subject.some((p) => p.cls === 'iris')).toBe(true);
-    const ins = buildThumbScene({ ...base, value: 'Insert', subject: 'Main de Léa', person: false });
-    expect(ins.object?.kind).toBe('hand');
-    expect(ins.subject).toEqual([]);
+  it('estompe le fond selon l’ouverture, seulement si elle est donnée', () => {
+    expect(iconSpec({ ...base, value: 'Gros plan', focal: 85 }).soft).toBe(0);
+    expect(iconSpec({ ...base, value: 'Gros plan', focal: 85, aperture: 1.4 }).soft).toBeGreaterThan(iconSpec({ ...base, value: 'Gros plan', focal: 85, aperture: 8 }).soft);
   });
-  it('ne montre pas le visage de dos', () => {
-    const dos = buildThumbScene({ ...base, value: 'Gros plan', angle: ['Dos'] });
-    expect(dos.subject.some((p) => p.cls === 'eyeWhite' || p.cls === 'feature')).toBe(false);
-  });
-  it('floute l’arrière-plan selon l’ouverture, seulement si elle est donnée', () => {
-    expect(buildThumbScene({ ...base, value: 'Gros plan', focal: 85 }).blur).toBe(0);
-    const f14 = buildThumbScene({ ...base, value: 'Taille', focal: 50, aperture: 1.4 }).blur;
-    const f8 = buildThumbScene({ ...base, value: 'Taille', focal: 50, aperture: 8 }).blur;
-    expect(f8).toBeGreaterThan(0);
-    expect(f14).toBeGreaterThan(f8);
-    // Même focale, capteur plus petit : le cercle de flou pèse plus dans l'image.
-    expect(blurFraction(50, 2, 200, 1000, 2)).toBeCloseTo(2 * blurFraction(50, 2, 200, 1000, 1), 6);
-  });
-  it('traduit le mouvement en flou de bougé et le roulis en image penchée', () => {
-    expect(buildThumbScene({ ...base, movement: ['Pano gauche'] }).motion).toEqual({ kind: 'h', dir: -1 });
-    expect(buildThumbScene({ ...base, movement: ['Travelling avant'] }).motion?.kind).toBe('radial');
-    expect(buildThumbScene({ ...base, movement: ['Roll'] }).roll).not.toBe(0);
-    expect(buildThumbScene(base).motion).toBeUndefined();
+  it('dessine un objet pour un insert ou un sujet non humain', () => {
+    expect(iconSpec({ ...base, value: 'Insert', subject: 'Main de Léa', person: false }).object).toBe('hand');
+    expect(iconSpec(base).object).toBeUndefined();
   });
   it('distingue personnage et objet, intérieur, rue et nature', () => {
     expect(isPersonSubject('Candice', [])).toBe(true);

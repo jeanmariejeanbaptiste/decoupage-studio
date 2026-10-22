@@ -1,246 +1,186 @@
-import { useId, useMemo, type ReactNode } from 'react';
-import { formatAperture } from '../../domain/focal';
-import { backdropFor, buildThumbScene, isPersonSubject, type ObjectKind, type Prim, type ThumbScene } from '../../domain/thumbnail';
+import { useMemo, type ReactNode } from 'react';
+import { horizontalFov } from '../../domain/focal';
+import { backdropFor, iconSpec, isPersonSubject, type IconSpec, type ObjectKind } from '../../domain/thumbnail';
 import type { ProjectDoc, Shot } from '../../domain/types';
 
 /**
- * Vignette provisoire d'un plan sans image : personnage vectoriel vu par une caméra virtuelle réglée
- * d'après le découpage (valeur, angle, mouvement, focale, capteur, ouverture, INT/EXT et lieu).
+ * Icône provisoire d'un plan sans image : quelques traits fins, sans couleur, qui combinent la valeur
+ * de cadre, l'axe, la hauteur, le mouvement, la focale, l'ouverture, INT/EXT et le sujet.
  */
 export function ShotSketch({ doc, shot, ratio }: { doc: ProjectDoc; shot: Shot; ratio: number }) {
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const st = doc.project.settings;
   const seq = doc.sequences[shot.sequenceId];
   const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
-  // Le flou d'arrière-plan ne s'applique que si la colonne Ouverture est affichée dans le découpage.
-  const dof = st.gridColumns.includes('aperture') ? shot.aperture : undefined;
-  const names = useMemo(() => Object.values(doc.characters).map((c) => c.name), [doc.characters]);
-  const scene = useMemo(
+  const spec = useMemo(
     () =>
-      buildThumbScene({
+      iconSpec({
         value: shot.value,
         angle: shot.angle,
         movement: shot.movement,
         focal: shot.focal.from,
-        aperture: dof,
-        crop: st.cropFactor || 1,
-        ratio,
+        // L'ouverture n'agit que si sa colonne est affichée dans le découpage.
+        aperture: st.gridColumns.includes('aperture') ? shot.aperture : undefined,
         subject: shot.subject,
-        person: isPersonSubject(shot.subject, names),
+        person: isPersonSubject(shot.subject, Object.values(doc.characters).map((c) => c.name)),
         backdrop: backdropFor(seq?.intExt ?? decor?.intExt, `${decor?.name ?? ''} ${seq?.label ?? ''}`),
         seed: shot.id,
       }),
-    [shot.value, shot.angle, shot.movement, shot.focal.from, dof, st.cropFactor, ratio, shot.subject, names, seq?.intExt, seq?.label, decor?.intExt, decor?.name, shot.id],
+    [shot, st.gridColumns, doc.characters, seq?.intExt, seq?.label, decor?.intExt, decor?.name],
   );
-  const { w, h } = scene;
-  const interior = !scene.back.some((p) => p.cls === 'building' || p.cls === 'hill');
-  const street = scene.back.some((p) => p.cls === 'building');
-  const sky = Math.max(0, Math.min(h, scene.horizon));
-  const subject = (
-    <>
-      {scene.subject.map(draw)}
-      {scene.object && <ObjectShape {...scene.object} />}
-    </>
-  );
-  const m = scene.motion;
-  const mb = w * 0.025;
+  const H = 90;
+  const W = Math.round(H * ratio);
+  const horizon = { eye: 0.42, high: 0.16, low: 0.8, top: -1 }[spec.height] * H;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="shot-sketch" aria-hidden="true" preserveAspectRatio="xMidYMid slice" data-testid="shot-sketch">
-      <defs>
-        {scene.blur > 0.15 && (
-          <filter id={`b${uid}`} x="-10%" y="-10%" width="120%" height="120%">
-            <feGaussianBlur stdDeviation={scene.blur} />
-          </filter>
-        )}
-        {m && (
-          <filter id={`m${uid}`} x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation={m.kind === 'h' ? `${mb} 0` : m.kind === 'v' ? `0 ${mb}` : `${mb / 3}`} />
-          </filter>
-        )}
-      </defs>
-      <g transform={scene.roll ? `rotate(${scene.roll} ${w / 2} ${h / 2}) scale(1.2)` : undefined} style={scene.roll ? { transformOrigin: 'center' } : undefined}>
-        <rect x={-w} y={-h} width={3 * w} height={h + sky} className={interior ? 'ss-wall' : 'ss-sky'} />
-        <rect x={-w} y={sky} width={3 * w} height={2 * h} className={interior ? 'ss-floor' : street ? 'ss-road' : 'ss-grass'} />
-        <g filter={scene.blur > 0.15 ? `url(#b${uid})` : undefined} data-blur={scene.blur.toFixed(2)}>
-          {scene.back.map(draw)}
+    <svg viewBox={`0 0 ${W} ${H}`} className="shot-icon" aria-hidden="true" preserveAspectRatio="xMidYMid meet" data-testid="shot-sketch">
+      <g transform={spec.roll ? `rotate(-8 ${W / 2} ${H / 2})` : undefined}>
+        <g className="si-back" opacity={1 - spec.soft * 0.65} strokeDasharray={spec.soft > 0.35 ? '1.5 2' : undefined}>
+          {spec.object ? <line x1={0} x2={W} y1={H * 0.72} y2={H * 0.72} /> : spec.valueKey !== 'tres_gros_plan' && <Backdrop spec={spec} W={W} H={H} horizon={horizon} />}
         </g>
-        {m && <MotionGhosts m={m} w={w} h={h} filter={`url(#m${uid})`}>{subject}</MotionGhosts>}
-        {subject}
-        {m && <SpeedLines m={m} w={w} h={h} />}
+        {spec.object ? <ObjectIcon kind={spec.object} cx={W / 2} cy={H * 0.48} size={H * 0.7} high={spec.height === 'high' || spec.height === 'top'} /> : <Figure spec={spec} W={W} H={H} />}
       </g>
-      {shot.focal.from !== undefined && <FovBadge w={w} fov={scene.fovH} mm={shot.focal.from} aperture={dof} />}
+      {spec.move && <MoveIcon m={spec.move} W={W} H={H} />}
+      {shot.focal.from !== undefined && <FovBadge W={W} fov={horizontalFov(shot.focal.from, st.cropFactor || 1)} mm={shot.focal.from} />}
     </svg>
   );
 }
 
-function draw(p: Prim, k: number): ReactNode {
-  if (p.t === 'ellipse') return <ellipse key={k} cx={p.cx} cy={p.cy} rx={Math.max(0.05, p.rx)} ry={Math.max(0.05, p.ry)} className={`ss-${p.cls}`} />;
-  if (p.t === 'capsule') return <line key={k} x1={p.x1} y1={p.y1} x2={p.x2} y2={p.y2} strokeWidth={Math.max(0.1, p.w)} strokeLinecap="round" className={`ss-c ss-${p.cls}`} />;
-  return <path key={k} d={p.d} className={`ss-${p.cls}`} />;
+/** Sol en perspective (plus ouvert au grand-angle), puis le décor posé sur l'horizon. */
+function Backdrop({ spec, W, H, horizon }: { spec: IconSpec; W: number; H: number; horizon: number }) {
+  const out: ReactNode[] = [];
+  const top = spec.height === 'top';
+  if (!top && horizon > 0 && horizon < H) {
+    out.push(<line key="h" x1={0} x2={W} y1={horizon} y2={horizon} />);
+    const spread = W * (0.25 + spec.wide * 1.4);
+    for (const k of [-1, 1]) out.push(<line key={`p${k}`} x1={W / 2 + k * W * 0.08} y1={horizon} x2={W / 2 + k * spread} y2={H} className="si-faint" />);
+  }
+  if (top) {
+    // Vue du dessus : quadrillage du sol.
+    for (let x = W / 6; x < W; x += W / 6) out.push(<line key={`x${x}`} x1={x} x2={x} y1={0} y2={H} className="si-faint" />);
+    return <>{out}</>;
+  }
+  const v = spec.variant;
+  const left = v % 2 === 0;
+  const tightness = Math.max(0.35, Math.min(1, 40 / (spec.window[1] - spec.window[0])));
+  const base = Math.min(H, horizon);
+  if (spec.backdrop === 'interior') {
+    const x = left ? W * 0.12 : W * 0.7;
+    const w = W * 0.16 * tightness * 1.4;
+    const h = H * 0.42 * tightness * 1.2;
+    if (v % 3 === 0) out.push(<rect key="d" x={x} y={base - h} width={w} height={h} />);
+    else out.push(<rect key="w" x={x} y={base - h * 1.15} width={w * 1.3} height={h * 0.6} />, <line key="w2" x1={x + w * 0.65} x2={x + w * 0.65} y1={base - h * 1.15} y2={base - h * 0.55} />);
+  } else if (spec.backdrop === 'street') {
+    let x = -W * 0.05;
+    let k = 0;
+    while (x < W) {
+      const bw = W * (0.14 + ((v >> k) % 5) * 0.03);
+      const bh = H * (0.28 + ((v >> (k + 3)) % 4) * 0.08);
+      out.push(<rect key={`b${k}`} x={x} y={base - bh} width={bw} height={bh} />);
+      out.push(<line key={`bw${k}`} x1={x + bw * 0.3} x2={x + bw * 0.3} y1={base - bh * 0.8} y2={base - bh * 0.6} className="si-faint" />);
+      x += bw + W * 0.02;
+      k++;
+    }
+  } else {
+    out.push(<path key="hill" d={`M0 ${base - H * 0.06} Q ${W * 0.3} ${base - H * 0.2} ${W * 0.55} ${base - H * 0.05} T ${W} ${base - H * 0.1}`} />);
+    const tx = left ? W * 0.18 : W * 0.8;
+    const r = H * 0.08 * tightness * 1.5;
+    out.push(<circle key="tc" cx={tx} cy={base - r * 2.6} r={r} />, <line key="tt" x1={tx} x2={tx} y1={base - r * 1.6} y2={base} />);
+  }
+  return <>{out}</>;
 }
 
-/** Copies estompées du sujet dans le sens du mouvement : flou de bougé. */
-function MotionGhosts({ m, w, h, filter, children }: { m: NonNullable<ThumbScene['motion']>; w: number; h: number; filter: string; children: ReactNode }) {
-  const steps = [1, 2];
+/**
+ * Silhouette au trait, cadrée par la valeur : tête, épaules, buste et jambes en contour ; traits du
+ * visage seulement de face ou de trois-quarts, et assez grands pour être lus.
+ */
+function Figure({ spec, W, H }: { spec: IconSpec; W: number; H: number }) {
+  const [top, bottom] = spec.window;
+  const k = H / (bottom - top);
+  const cx = W / 2;
+  const y = (v: number) => (v - top) * k;
+  const s = (v: number) => v * k;
+  const narrow = spec.axis === 'profil' ? 0.55 : spec.axis === 'tq' || spec.axis === 'tqdos' ? 0.82 : 1;
+  const bw = (v: number) => s(v) * narrow;
+  // Plongée : la tête paraît plus grande que le corps ; contre-plongée : l'inverse.
+  const headR = s(7.5) * (spec.height === 'high' ? 1.12 : spec.height === 'low' ? 0.9 : 1);
+  const body = `M ${cx - bw(13)} ${y(23)} Q ${cx} ${y(16)} ${cx + bw(13)} ${y(23)} L ${cx + bw(10.5)} ${y(55)} L ${cx + bw(8)} ${y(100)} M ${cx + bw(2)} ${y(100)} L ${cx} ${y(62)} L ${cx - bw(2)} ${y(100)} M ${cx - bw(8)} ${y(100)} L ${cx - bw(10.5)} ${y(55)} L ${cx - bw(13)} ${y(23)}`;
+  const face = spec.axis === 'face' || spec.axis === 'tq' || spec.axis === 'profil';
+  const off = spec.axis === 'tq' ? spec.side * headR * 0.3 : 0;
+  const hy = y(8);
+  if (spec.valueKey === 'tres_gros_plan') {
+    // Très gros plan : les yeux.
+    const eye = (ex: number) => (
+      <g key={ex}>
+        <path d={`M ${ex - W * 0.16} ${H / 2} Q ${ex} ${H * 0.22} ${ex + W * 0.16} ${H / 2} Q ${ex} ${H * 0.74} ${ex - W * 0.16} ${H / 2} Z`} />
+        <circle cx={ex} cy={H / 2} r={H * 0.13} />
+        <circle cx={ex} cy={H / 2} r={H * 0.05} className="si-dot" />
+      </g>
+    );
+    return <g className="si-fig">{spec.axis === 'profil' ? eye(W / 2) : [eye(W * 0.28), eye(W * 0.72)]}</g>;
+  }
   return (
-    <g filter={filter} opacity={0.5}>
-      {steps.map((k) => {
-        const d = (k * w * 0.035) * -m.dir;
-        const t =
-          m.kind === 'h'
-            ? `translate(${d} 0)`
-            : m.kind === 'v'
-              ? `translate(0 ${d})`
-              : m.kind === 'radial'
-                ? `translate(${w / 2} ${h / 2}) scale(${1 - 0.05 * k * m.dir}) translate(${-w / 2} ${-h / 2})`
-                : `translate(${k % 2 ? w * 0.012 : -w * 0.01} ${k % 2 ? -h * 0.01 : h * 0.012})`;
-        return (
-          <g key={k} transform={t} opacity={0.55 / k}>
-            {children}
-          </g>
-        );
-      })}
+    <g className="si-fig">
+      <path d={body} />
+      <line x1={cx - s(3)} x2={cx - s(3)} y1={y(14.5)} y2={y(18.5)} />
+      <line x1={cx + s(3)} x2={cx + s(3)} y1={y(14.5)} y2={y(18.5)} />
+      <circle cx={cx} cy={hy} r={headR} />
+      {spec.axis === 'profil' && <path d={`M ${cx + spec.side * headR * 0.97} ${hy - headR * 0.2} L ${cx + spec.side * headR * 1.22} ${hy + headR * 0.12} L ${cx + spec.side * headR * 0.93} ${hy + headR * 0.32}`} />}
+      {face && headR > 4 && (
+        <>
+          {spec.axis !== 'profil' && <circle cx={cx + off - headR * 0.35} cy={hy - headR * 0.08} r={headR * 0.07} className="si-dot" />}
+          <circle cx={cx + (spec.axis === 'profil' ? spec.side * headR * 0.55 : off + headR * 0.35)} cy={hy - headR * 0.08} r={headR * 0.07} className="si-dot" />
+          <path d={`M ${cx + off - headR * 0.22} ${hy + headR * 0.42} Q ${cx + off} ${hy + headR * 0.52} ${cx + off + headR * 0.22} ${hy + headR * 0.42}`} transform={spec.axis === 'profil' ? `translate(${spec.side * headR * 0.5} 0)` : undefined} />
+        </>
+      )}
+      {(spec.axis === 'dos' || spec.axis === 'tqdos') && headR > 4 && <path d={`M ${cx - headR * 0.7} ${hy + headR * 0.45} Q ${cx} ${hy + headR * 0.75} ${cx + headR * 0.7} ${hy + headR * 0.45}`} className="si-faint" />}
     </g>
   );
 }
 
-function SpeedLines({ m, w, h }: { m: NonNullable<ThumbScene['motion']>; w: number; h: number }) {
-  if (m.kind === 'shake') return null;
-  const lines: string[] = [];
-  for (let k = 0; k < 5; k++) {
-    const t = (k + 0.5) / 5;
-    if (m.kind === 'h') {
-      const x = m.dir > 0 ? w * 0.04 : w * 0.96;
-      lines.push(`M${x} ${h * (0.15 + 0.7 * t)} l${m.dir * w * (0.05 + 0.03 * (k % 2))} 0`);
-    } else if (m.kind === 'v') {
-      const y = m.dir > 0 ? h * 0.05 : h * 0.95;
-      lines.push(`M${w * (0.1 + 0.8 * t)} ${y} l0 ${m.dir * h * (0.06 + 0.03 * (k % 2))}`);
-    } else {
-      const a = t * Math.PI * 2 + 0.3;
-      const r0 = Math.min(w, h) * 0.42;
-      lines.push(`M${w / 2 + Math.cos(a) * r0} ${h / 2 + Math.sin(a) * r0} l${Math.cos(a) * w * 0.05 * m.dir} ${Math.sin(a) * w * 0.05 * m.dir}`);
-    }
-  }
-  return <path d={lines.join(' ')} className="ss-speed" />;
+/** Glyphe du mouvement de caméra, discret, en bas à gauche. */
+function MoveIcon({ m, H }: { m: NonNullable<IconSpec['move']>; W: number; H: number }) {
+  const x = 10;
+  const y = H - 10;
+  const d: Record<NonNullable<IconSpec['move']>, string> = {
+    right: `M ${x - 6} ${y} L ${x + 6} ${y} M ${x + 3} ${y - 3} L ${x + 6} ${y} L ${x + 3} ${y + 3}`,
+    left: `M ${x + 6} ${y} L ${x - 6} ${y} M ${x - 3} ${y - 3} L ${x - 6} ${y} L ${x - 3} ${y + 3}`,
+    up: `M ${x} ${y + 6} L ${x} ${y - 6} M ${x - 3} ${y - 3} L ${x} ${y - 6} L ${x + 3} ${y - 3}`,
+    down: `M ${x} ${y - 6} L ${x} ${y + 6} M ${x - 3} ${y + 3} L ${x} ${y + 6} L ${x + 3} ${y + 3}`,
+    in: `M ${x - 6} ${y - 5} L ${x - 2} ${y - 1} M ${x + 6} ${y - 5} L ${x + 2} ${y - 1} M ${x - 6} ${y + 5} L ${x - 2} ${y + 1} M ${x + 6} ${y + 5} L ${x + 2} ${y + 1}`,
+    out: `M ${x - 2} ${y - 1} L ${x - 6} ${y - 5} M ${x + 2} ${y - 1} L ${x + 6} ${y - 5} M ${x - 2} ${y + 1} L ${x - 6} ${y + 5} M ${x + 2} ${y + 1} L ${x + 6} ${y + 5}`,
+    around: `M ${x - 6} ${y} A 6 3 0 1 0 ${x} ${y - 3} M ${x - 2} ${y - 5} L ${x} ${y - 3} L ${x - 2} ${y - 1}`,
+    shake: `M ${x - 6} ${y} L ${x - 3} ${y - 3} L ${x} ${y + 3} L ${x + 3} ${y - 3} L ${x + 6} ${y}`,
+  };
+  return <path d={d[m]} className="si-move" />;
 }
 
-function FovBadge({ w, fov, mm, aperture }: { w: number; fov: number; mm: number; aperture?: number }) {
-  const r = 6;
+function FovBadge({ W, fov, mm }: { W: number; fov: number; mm: number }) {
+  const r = 9;
   const a = (Math.min(170, fov) * Math.PI) / 360;
   return (
-    <g className="ss-badge">
-      <text x={w - 4} y={9} textAnchor="end" className="ss-mm">
+    <g transform={`translate(${W - 13} 22)`}>
+      <path d={`M 0 0 L ${-r * Math.sin(a)} ${-r * Math.cos(a)} A ${r} ${r} 0 0 1 ${r * Math.sin(a)} ${-r * Math.cos(a)} Z`} className="si-fov" />
+      <text x={0} y={-r - 3} textAnchor="middle" className="si-mm">
         {mm}
-        {aperture ? ` · ${formatAperture(aperture)}` : ''}
       </text>
-      <path d={`M 0 0 L ${-r * Math.sin(a)} ${r * Math.cos(a)} A ${r} ${r} 0 0 0 ${r * Math.sin(a)} ${r * Math.cos(a)} Z`} className="ss-fov" transform={`translate(${w - 10} 12)`} />
     </g>
   );
 }
 
-/** Objets d'insert, dessinés dans un repère de 100 unités centré sur l'objet. */
-function ObjectShape({ kind, cx, cy, size, squash }: { kind: ObjectKind; cx: number; cy: number; size: number; squash: number }) {
-  const k = size / 100;
-  const body: Record<ObjectKind, ReactNode> = {
-    pot: (
-      <>
-        <path d="M0 10 C0 -10 -6 -26 -4 -40 M2 4 C10 -10 22 -18 30 -24" className="ss-stem" />
-        <ellipse cx={-14} cy={-12} rx={12} ry={5} transform="rotate(-30 -14 -12)" className="ss-leaf" />
-        <ellipse cx={30} cy={-26} rx={9} ry={4} transform="rotate(-40 30 -26)" className="ss-leaf" />
-        {[0, 72, 144, 216, 288].map((a) => (
-          <circle key={a} cx={-4 + 8 * Math.cos((a * Math.PI) / 180)} cy={-44 + 8 * Math.sin((a * Math.PI) / 180)} r={6} className="ss-petal" />
-        ))}
-        <circle cx={-4} cy={-44} r={4.5} className="ss-heart" />
-        <rect x={-26} y={8} width={52} height={10} rx={2} className="ss-obj" />
-        <path d="M-22 18 L22 18 L16 50 L-16 50 Z" className="ss-obj" />
-      </>
-    ),
-    mug: (
-      <>
-        <path d="M-22 -20 L22 -20 L19 34 Q0 40 -19 34 Z" className="ss-obj" />
-        <ellipse cx={0} cy={-20} rx={22} ry={6} className="ss-objDark" />
-        <path d="M21 -8 Q40 -6 36 10 Q33 22 19 20" className="ss-objLine" />
-        <path d="M-6 -32 q-6 -8 0 -16 M6 -34 q-6 -8 0 -16" className="ss-steam" />
-      </>
-    ),
-    book: (
-      <>
-        <path d="M-44 -26 L0 -18 L44 -26 L44 30 L0 38 L-44 30 Z" className="ss-obj" />
-        <path d="M0 -18 L0 38" className="ss-objLine" />
-        <path d="M-36 -12 L-8 -7 M-36 -2 L-8 3 M-36 8 L-8 13 M8 -7 L36 -12 M8 3 L36 -2 M8 13 L36 8" className="ss-text" />
-      </>
-    ),
-    phone: (
-      <>
-        <rect x={-20} y={-40} width={40} height={80} rx={7} className="ss-objDark" />
-        <rect x={-16} y={-32} width={32} height={62} rx={2} className="ss-screen" />
-        <path d="M-10 -20 L10 -20 M-10 -12 L6 -12 M-10 -4 L10 -4" className="ss-text" />
-      </>
-    ),
-    poster: (
-      <>
-        <rect x={-34} y={-46} width={68} height={92} className="ss-obj" />
-        <circle cx={0} cy={-14} r={13} className="ss-objDark" />
-        <path d="M-20 22 Q0 0 20 22 Z" className="ss-objDark" />
-        <path d="M-24 32 L24 32 M-18 39 L18 39" className="ss-text" />
-      </>
-    ),
-    hand: (
-      <>
-        <path d="M-30 46 L-24 4 Q-26 -6 -18 -8 L-16 -34 Q-15 -40 -10 -40 Q-5 -40 -5 -34 L-4 -10 L-2 -42 Q-1 -48 4 -48 Q9 -48 9 -42 L9 -10 L12 -36 Q13 -41 18 -41 Q22 -40 22 -35 L20 -6 L24 -26 Q26 -30 30 -29 Q33 -27 32 -22 L26 14 Q22 34 10 46 Z" className="ss-skinObj" />
-        <path d="M-4 -10 L-4 0 M9 -10 L8 0 M20 -6 L18 2" className="ss-objLine" />
-      </>
-    ),
-    key: (
-      <>
-        <circle cx={-26} cy={0} r={16} className="ss-obj" />
-        <circle cx={-26} cy={0} r={6} className="ss-hole" />
-        <path d="M-10 -4 L40 -4 L40 4 L30 4 L30 12 L24 12 L24 4 L-10 4 Z" className="ss-obj" />
-      </>
-    ),
-    glass: (
-      <>
-        <path d="M-20 -40 L20 -40 L16 0 Q0 10 -16 0 Z" className="ss-glass" />
-        <path d="M-18 -18 L18 -18 L16 0 Q0 10 -16 0 Z" className="ss-wine" />
-        <path d="M0 6 L0 36 M-16 40 L16 40" className="ss-objLine" />
-      </>
-    ),
-    letter: (
-      <>
-        <rect x={-42} y={-28} width={84} height={56} className="ss-obj" />
-        <path d="M-42 -28 L0 6 L42 -28" className="ss-objLine" />
-      </>
-    ),
-    lamp: (
-      <>
-        <path d="M-24 -10 L24 -10 L14 -42 L-14 -42 Z" className="ss-obj" />
-        <path d="M0 -10 L0 34" className="ss-objLine" />
-        <ellipse cx={0} cy={38} rx={20} ry={5} className="ss-objDark" />
-        <path d="M-22 -6 L-34 20 M22 -6 L34 20 M0 -6 L0 4" className="ss-ray" />
-      </>
-    ),
-    car: (
-      <>
-        <path d="M-48 14 L-46 -2 L-30 -6 L-18 -22 L18 -22 L32 -6 L48 -2 L48 14 Z" className="ss-obj" />
-        <path d="M-14 -18 L-4 -18 L-4 -6 L-24 -6 Z M2 -18 L14 -18 L26 -6 L2 -6 Z" className="ss-screen" />
-        <circle cx={-28} cy={14} r={9} className="ss-objDark" />
-        <circle cx={28} cy={14} r={9} className="ss-objDark" />
-      </>
-    ),
-    eye: (
-      <>
-        <path d="M-46 0 Q0 -36 46 0 Q0 30 -46 0 Z" className="ss-eyeWhite" />
-        <circle cx={0} cy={-1} r={15} className="ss-iris" />
-        <circle cx={0} cy={-1} r={7} className="ss-pupil" />
-        <circle cx={4} cy={-5} r={2.5} className="ss-glint" />
-        <path d="M-46 0 Q0 -36 46 0" className="ss-lid" />
-        <path d="M-30 -14 l-4 -9 M-18 -19 l-2 -10 M-4 -21 l0 -10 M10 -20 l2 -10 M24 -16 l4 -9" className="ss-lash" />
-      </>
-    ),
+/** Objets d'insert, au trait, dans un repère de 100 unités. */
+function ObjectIcon({ kind, cx, cy, size, high }: { kind: ObjectKind; cx: number; cy: number; size: number; high: boolean }) {
+  const d: Record<ObjectKind, string> = {
+    pot: 'M-18 10 L18 10 L14 46 L-14 46 Z M-22 4 L22 4 L22 10 L-22 10 Z M0 4 C0 -14 -4 -24 -3 -34 M-3 -34 m-7 0 a7 7 0 1 0 14 0 a7 7 0 1 0 -14 0 M1 -4 C8 -14 16 -18 22 -22',
+    mug: 'M-20 -18 L20 -18 L17 32 L-17 32 Z M20 -6 Q36 -4 32 10 Q29 20 18 18 M-6 -28 q-5 -7 0 -14 M6 -30 q-5 -7 0 -14',
+    book: 'M-42 -24 L0 -16 L42 -24 L42 28 L0 36 L-42 28 Z M0 -16 L0 36',
+    phone: 'M-18 -38 h36 a6 6 0 0 1 6 6 v64 a6 6 0 0 1 -6 6 h-36 a6 6 0 0 1 -6 -6 v-64 a6 6 0 0 1 6 -6 Z M-6 32 h12',
+    poster: 'M-32 -44 h64 v88 h-64 Z M0 -12 m-11 0 a11 11 0 1 0 22 0 a11 11 0 1 0 -22 0 M-18 22 Q0 2 18 22',
+    hand: 'M-26 44 L-21 4 Q-23 -6 -15 -8 L-14 -32 Q-13 -38 -8 -38 Q-3 -38 -3 -32 L-2 -10 L0 -40 Q1 -46 6 -46 Q11 -46 11 -40 L11 -10 L14 -34 Q15 -39 20 -39 Q24 -38 24 -33 L22 -6 L26 -24 Q28 -28 32 -27 Q35 -25 34 -20 L28 14 Q24 34 12 44',
+    key: 'M-26 0 m-14 0 a14 14 0 1 0 28 0 a14 14 0 1 0 -28 0 M-12 -3 L38 -3 L38 3 L30 3 L30 11 L24 11 L24 3 L-12 3',
+    glass: 'M-18 -38 L18 -38 L14 0 Q0 9 -14 0 Z M0 6 L0 34 M-14 38 L14 38',
+    letter: 'M-40 -26 h80 v52 h-80 Z M-40 -26 L0 6 L40 -26',
+    lamp: 'M-22 -10 L22 -10 L13 -40 L-13 -40 Z M0 -10 L0 32 M-16 36 L16 36',
+    car: 'M-46 12 L-44 -2 L-28 -6 L-16 -20 L16 -20 L30 -6 L46 -2 L46 12 Z M-26 12 m-8 0 a8 8 0 1 0 16 0 a8 8 0 1 0 -16 0 M26 12 m-8 0 a8 8 0 1 0 16 0 a8 8 0 1 0 -16 0',
   };
-  return (
-    <g transform={`translate(${cx} ${cy}) scale(${k} ${k * squash})`} className="ss-object" data-object={kind}>
-      {body[kind]}
-    </g>
-  );
+  const k = size / 100;
+  return <path d={d[kind]} transform={`translate(${cx} ${cy}) scale(${k} ${k * (high ? 0.8 : 1)})`} className="si-fig" data-object={kind} />;
 }

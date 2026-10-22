@@ -80,66 +80,13 @@ button { cursor: pointer; }
 
 /* Pictogrammes de cadre (storyboard vide). */
 
-/* Vignettes provisoires du storyboard : illustration vectorielle calculée d'après le découpage. */
-.shot-sketch { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.shot-sketch .ss-sky { fill: #e6edf1; }
-.shot-sketch .ss-wall { fill: #ede7dd; }
-.shot-sketch .ss-floor { fill: #ddd2c3; }
-.shot-sketch .ss-road { fill: #d4cfc7; }
-.shot-sketch .ss-grass { fill: #d3dec6; }
-.shot-sketch .ss-groundLine { fill: none; stroke: rgba(60, 50, 40, 0.1); stroke-width: 0.35; }
-.shot-sketch .ss-wallSide { fill: #e3dbcf; }
-.shot-sketch .ss-opening { fill: #cfc3b2; }
-.shot-sketch .ss-window { fill: #dde8ee; stroke: #c9bfb1; stroke-width: 0.6; }
-.shot-sketch .ss-frame { fill: #d8cbb6; stroke: #bfae95; stroke-width: 0.5; }
-.shot-sketch .ss-building { fill: #d6d1c9; }
-.shot-sketch .ss-building2 { fill: #cbc6bd; }
-.shot-sketch .ss-buildingWin { fill: #bcc6cd; }
-.shot-sketch .ss-kerb { fill: #c4beb4; }
-.shot-sketch .ss-hill { fill: #c4d2b9; }
-.shot-sketch .ss-hill2 { fill: #d7e0d0; }
-.shot-sketch .ss-c { fill: none; }
-.shot-sketch .ss-c.ss-trunk { stroke: #a08c75; }
-.shot-sketch .ss-crown { fill: #b0c49f; }
-.shot-sketch .ss-skin { fill: #e6cfbd; }
-.shot-sketch .ss-c.ss-skin { stroke: #e6cfbd; }
-.shot-sketch .ss-skinShade { fill: #d9bca7; }
-.shot-sketch .ss-cloth { fill: #8e9bb0; }
-.shot-sketch .ss-c.ss-cloth { stroke: #8e9bb0; }
-.shot-sketch .ss-cloth2 { fill: #6e788a; }
-.shot-sketch .ss-c.ss-cloth2 { stroke: #6e788a; }
-.shot-sketch .ss-c.ss-shoe { stroke: #474b53; }
-.shot-sketch .ss-hair { fill: #5c4838; }
-.shot-sketch .ss-feature { fill: #3d3229; }
-.shot-sketch .ss-eyeWhite { fill: #fbf8f3; stroke: #8a6e5c; stroke-width: 0.25; }
-.shot-sketch .ss-iris { fill: #6b7f5a; }
-.shot-sketch .ss-pupil { fill: #1f1a16; }
-.shot-sketch .ss-glint { fill: #fff; }
-.shot-sketch .ss-lid { fill: none; stroke: #3d3229; stroke-width: 0.6; stroke-linecap: round; }
-.shot-sketch .ss-lash { fill: none; stroke: #2d241d; stroke-width: 0.35; stroke-linecap: round; }
-.shot-sketch .ss-crease { fill: none; stroke: #b59581; stroke-width: 0.3; }
-.shot-sketch .ss-brow { fill: none; stroke: #4e3d2f; stroke-width: 0.7; stroke-linecap: round; }
-.shot-sketch .ss-nose { fill: none; stroke: #b48f78; stroke-width: 0.45; stroke-linecap: round; }
-.shot-sketch .ss-mouth { fill: #b47c6d; }
-.shot-sketch .ss-lips { fill: #c38878; stroke: #9c6656; stroke-width: 0.25; }
-.shot-sketch .ss-speed { fill: none; stroke: rgba(40, 40, 40, 0.28); stroke-width: 0.6; stroke-linecap: round; }
-.shot-sketch .ss-obj { fill: #e2d5c2; stroke: rgba(40, 32, 25, 0.45); stroke-width: 1.4; }
-.shot-sketch .ss-objDark { fill: #8d8478; stroke: rgba(40, 32, 25, 0.45); stroke-width: 1.4; }
-.shot-sketch .ss-objLine, .shot-sketch .ss-stem { fill: none; stroke: rgba(40, 32, 25, 0.5); stroke-width: 1.6; stroke-linecap: round; }
-.shot-sketch .ss-stem { stroke: #7b9a6a; stroke-width: 2.2; }
-.shot-sketch .ss-leaf { fill: #9db88a; }
-.shot-sketch .ss-petal { fill: #e6a99a; }
-.shot-sketch .ss-heart { fill: #e8c46a; }
-.shot-sketch .ss-steam, .shot-sketch .ss-ray { fill: none; stroke: rgba(40, 32, 25, 0.25); stroke-width: 1.4; stroke-linecap: round; }
-.shot-sketch .ss-screen { fill: #c9d6de; }
-.shot-sketch .ss-text { fill: none; stroke: rgba(40, 32, 25, 0.3); stroke-width: 1.2; }
-.shot-sketch .ss-skinObj { fill: #e6cfbd; stroke: rgba(120, 80, 60, 0.5); stroke-width: 1.2; }
-.shot-sketch .ss-hole { fill: #ddd2c3; }
-.shot-sketch .ss-glass { fill: rgba(220, 232, 238, 0.7); stroke: rgba(40, 32, 25, 0.4); stroke-width: 1.2; }
-.shot-sketch .ss-wine { fill: #a5525a; }
-.shot-sketch .ss-object .ss-eyeWhite { stroke-width: 1; }
-.shot-sketch .ss-object .ss-lid { stroke-width: 2.4; }
-.shot-sketch .ss-object .ss-lash { stroke-width: 1.4; }
-.shot-sketch .ss-fov { fill: color-mix(in srgb, var(--rust) 30%, transparent); stroke: color-mix(in srgb, var(--rust) 70%, transparent); stroke-width: 0.5; }
-.shot-sketch .ss-mm { font-family: var(--font-mono); font-size: 6px; fill: rgba(40, 32, 25, 0.75); paint-order: stroke; stroke: rgba(255, 255, 255, 0.7); stroke-width: 1.6px; }
-
+/* Icônes provisoires du storyboard : traits fins, sans couleur. */
+.shot-icon { position: absolute; inset: 0; width: 100%; height: 100%; display: block; color: color-mix(in srgb, var(--ink) 42%, transparent); }
+.shot-icon * { fill: none; stroke: currentColor; stroke-width: 0.8; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.shot-icon .si-back * { stroke-width: 0.6; }
+.shot-icon .si-faint { opacity: 0.5; }
+.shot-icon .si-fig { stroke-width: 1; }
+.shot-icon .si-dot { fill: currentColor; stroke: none; }
+.shot-icon .si-move { stroke-width: 1; color: var(--rust); stroke: var(--rust); }
+.shot-icon .si-fov { stroke: var(--rust); stroke-width: 0.6; opacity: 0.8; }
+.shot-icon .si-mm { fill: currentColor; stroke: none; font-family: var(--font-mono); font-size: 7px; }
