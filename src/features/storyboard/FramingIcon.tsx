@@ -25,10 +25,21 @@ export function FramingIcon({ value, focal, ratio }: { value: string; focal?: nu
   const fov = focal ? horizontalFov(focal) : undefined;
   let body;
   if (key === 'insert') {
+    // Insert : un objet en gros plan, ici un pot de fleur.
+    const cx = W / 2;
+    const petals = [0, 72, 144, 216, 288].map((a) => [cx - 3 + 6 * Math.cos((a * Math.PI) / 180), 24 + 6 * Math.sin((a * Math.PI) / 180)]);
     body = (
       <g>
-        <rect x={W / 2 - 22} y={30} width={44} height={30} rx={3} className="fi-object" />
-        <path d={`M ${W / 2 - 40} ${H} C ${W / 2 - 30} 66, ${W / 2 - 18} 62, ${W / 2 - 6} 64`} className="fi-line" />
+        <path d={`M ${cx} 58 C ${cx} 48, ${cx - 4} 38, ${cx - 3} 28`} className="fi-line" />
+        <path d={`M ${cx + 1} 56 C ${cx + 6} 46, ${cx + 14} 40, ${cx + 18} 36`} className="fi-line" />
+        <ellipse cx={cx - 9} cy={47} rx={8} ry={3.2} transform={`rotate(-30 ${cx - 9} 47)`} className="fi-object" />
+        <ellipse cx={cx + 19} cy={34} rx={6} ry={2.6} transform={`rotate(-40 ${cx + 19} 34)`} className="fi-object" />
+        {petals.map(([x, y], i) => (
+          <circle key={i} cx={x} cy={y} r={4} className="fi-object" />
+        ))}
+        <circle cx={cx - 3} cy={24} r={3.2} className="fi-object" style={{ fill: 'var(--paper)' }} />
+        <rect x={cx - 19} y={58} width={38} height={7} rx={1.5} className="fi-object" />
+        <path d={`M ${cx - 16} 65 L ${cx + 16} 65 L ${cx + 12} 88 L ${cx - 12} 88 Z`} className="fi-object" />
       </g>
     );
   } else if (key && WINDOW[key]) {

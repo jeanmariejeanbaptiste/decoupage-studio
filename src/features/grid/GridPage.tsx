@@ -122,6 +122,17 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
                 : []),
             ]}
             disabled={nSeq === 0 || !!imaging}
+            options={
+              <label className={s.noMerge} title="Chaque ligne porte sa propre valeur (utile pour retraiter le tableau)">
+                <input
+                  type="checkbox"
+                  checked={!!storeDoc.project.settings.exportNoMerge}
+                  onChange={(e) => mutateDoc((d) => void (d.project.settings.exportNoMerge = e.target.checked || undefined))}
+                  data-testid="grid-export-nomerge"
+                />
+                Sans fusion de cellules
+              </label>
+            }
             onExport={async ({ format, orientation, numbers }) => {
               if (format === 'pdf' || format === 'images') setImaging({ format, orientation, numbers });
               else if (format === 'annex')

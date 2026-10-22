@@ -31,6 +31,7 @@ import s from './StoryboardPage.module.css';
 export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const perPage = doc.project.settings.exportPrefs?.storyboard?.perPage ?? 4;
+  const perRow = doc.project.settings.storyboardPerRow;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const allShots = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
 
@@ -64,6 +65,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
       <header className="page-head no-print">
         <div className={s.toolbar}>
           <AspectPicker doc={doc} />
+          <PerRowPicker doc={doc} />
           <ExportPanel
             doc={doc}
             id="storyboard"
@@ -100,7 +102,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
               <section key={seqId} className={s.seq}>
                 <h2 className={s.h2}>{sequenceHeading(doc, seqId)}</h2>
                 <SortableContext items={seq.shotIds} strategy={rectSortingStrategy}>
-                  <div className={s.cards}>
+                  <div className={s.cards} style={perRow ? { gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))` } : undefined}>
                     {seq.shotIds.map((id) => (
                       <SortableCard key={id} doc={doc} shot={doc.shots[id]} timing={timing} />
                     ))}
@@ -200,7 +202,7 @@ function SortableCard(props: { doc: ProjectDoc; shot: Shot; timing: Timing }) {
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined, opacity: isDragging ? 0.85 : 1, gridColumn: props.shot.keyframes?.length ? `span ${Math.min(3, props.shot.keyframes.length + 1)}` : undefined }}
+      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined, opacity: isDragging ? 0.85 : 1}}
       {...attributes}
       {...listeners}
       aria-roledescription="carte de storyboard déplaçable"
@@ -214,6 +216,48 @@ function SortableCard(props: { doc: ProjectDoc; shot: Shot; timing: Timing }) {
 function FrameCell({ printing, children }: { printing: boolean; children: React.ReactNode }) {
   void printing;
   return <>{children}</>;
+}
+
+/** Nombre de cartes par ligne dans la page (automatique par défaut, selon la largeur). */
+function PerRowPicker({ doc }: { doc: ProjectDoc }) {
+  const v = doc.project.settings.storyboardPerRow;
+  return (
+    <label className={s.aspect}>
+      <span>Par ligne</span>
+      <select
+        value={v ?? ''}
+        onChange={(e) => mutateDoc((d) => void (d.project.settings.storyboardPerRow = e.target.value ? Number(e.target.value) : undefined))}
+        aria-label="Plans par ligne"
+        data-testid="storyboard-per-row"
+      >
+        <option value="">Auto</option>
+        {[1, 2, 3, 4, 5, 6, 8].map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Vignette d'une keyframe dans la bande de navigation d'une carte. */
+function FrameThumb({ frame, label, active, ratio, onPick }: { frame: Frame; label: string; active: boolean; ratio: number; onPick: () => void }) {
+  const url = useBlobUrl(frame.blobKey);
+  return (
+    <button
+      type="button"
+      className={[s.thumb, active ? s.thumbOn : ''].join(' ')}
+      style={{ aspectRatio: String(ratio) }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onPick}
+      aria-label={`Afficher ${label}`}
+      aria-pressed={active}
+    >
+      {url ? <img src={url} alt="" style={cropStyle(frame)} draggable={false} /> : null}
+      <span>{label}</span>
+    </button>
+  );
 }
 
 /** Choix du format d'image du storyboard : formats usuels ou valeur saisie. */
@@ -262,7 +306,7 @@ function AspectPicker({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-/** Une keyframe : image importée ou dessinée, et une précision facultative. */
+/** Une keyframe : image importée ou dessinée. */
 function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: ProjectDoc; shot: Shot; index: number; count: number; frame: Frame; printing: boolean; ratio: number }) {
   const url = useBlobUrl(frame.blobKey);
   const [over, setOver] = useState(false);
@@ -389,20 +433,6 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
           </button>
         )}
       </div>
-      {count > 1 &&
-        (printing ? (
-          frame.note && <p className={s.frameNote}>{frame.note}</p>
-        ) : (
-          <input
-            className={s.frameNote}
-            value={frame.note ?? ''}
-            placeholder="Précision (facultatif)"
-            aria-label={`Précision pour ${label}`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-            onChange={(e) => mutateDoc((d) => setFrame(d, shot.id, index, { note: e.target.value || undefined }))}
-          />
-        ))}
     </div>
   );
 }
@@ -411,6 +441,13 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
   const block = doc.blocks[shot.actionBlockId];
   const ratio = aspectRatio(doc.project.settings.storyboardAspect);
   const frames = framesOf(shot);
+  // À l'écran, une keyframe à la fois (carte de taille constante), les autres en bande de vignettes.
+  const [cur, setCur] = useState(0);
+  const k = Math.min(cur, frames.length - 1);
+  const addFrame = () => {
+    mutateDoc((d) => addKeyframe(d, shot.id));
+    setCur(frames.length);
+  };
   return (
     <article
       className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')}
@@ -420,16 +457,30 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
       <FrameCell printing={printing}>
         {/* Keyframes d'un même plan : côte à côte, reliées, avec une seule fiche de découpage dessous. */}
         <div className={s.frames} style={{ '--n': frames.length, '--r': ratio } as React.CSSProperties}>
-          {frames.map((f, i) => (
-            <Fragment key={i}>
-              {i > 0 && <span className={s.link} aria-hidden="true">›</span>}
-              <FrameView doc={doc} shot={shot} index={i} count={frames.length} frame={f} printing={printing} ratio={ratio} />
-            </Fragment>
-          ))}
+          {printing ? (
+            frames.map((f, i) => (
+              <Fragment key={i}>
+                {i > 0 && <span className={s.link} aria-hidden="true">›</span>}
+                <FrameView doc={doc} shot={shot} index={i} count={frames.length} frame={f} printing ratio={ratio} />
+              </Fragment>
+            ))
+          ) : (
+            <FrameView key={k} doc={doc} shot={shot} index={k} count={frames.length} frame={frames[k]} printing={false} ratio={ratio} />
+          )}
         </div>
       </FrameCell>
-      {!printing && (
-        <button type="button" className={s.addFrame} onPointerDown={(e) => e.stopPropagation()} onClick={() => mutateDoc((d) => addKeyframe(d, shot.id))} title="Ajouter une keyframe à ce plan (même plan, image suivante)" data-testid="storyboard-add-keyframe">
+      {!printing && frames.length > 1 && (
+        <div className={s.strip} aria-label="Keyframes du plan">
+          {frames.map((f, i) => (
+            <FrameThumb key={i} frame={f} label={`K${i + 1}`} active={i === k} ratio={ratio} onPick={() => setCur(i)} />
+          ))}
+          <button type="button" className={s.stripAdd} onPointerDown={(e) => e.stopPropagation()} onClick={addFrame} title="Ajouter une keyframe" data-testid="storyboard-add-keyframe">
+            +
+          </button>
+        </div>
+      )}
+      {!printing && frames.length < 2 && (
+        <button type="button" className={s.addFrame} onPointerDown={(e) => e.stopPropagation()} onClick={addFrame} title="Ajouter une keyframe à ce plan (même plan, image suivante)" data-testid="storyboard-add-keyframe">
           + keyframe
         </button>
       )}
@@ -452,26 +503,28 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
         </div>
       ) : (
       <div className={s.body}>
-        {/* Fiche lisible : sujet, puis les réglages en pastilles colorées par nature, l'action, la durée. */}
-        <p className={s.subject}>{shot.subject || <em>sans sujet</em>}</p>
-        <p className={s.tags}>
-          {valueLabel(shot.value, doc.project.settings.labelStyle) && <span className={s.tValue}>{valueLabel(shot.value, doc.project.settings.labelStyle)}</span>}
-          {renderTokens(shot.angle) && <span className={s.tAngle}>{renderTokens(shot.angle)}</span>}
-          {renderTokens(shot.movement, shot.movementSep) && <span className={s.tMove}>{renderTokens(shot.movement, shot.movementSep)}</span>}
-          {formatFocal(shot.focal, isZoom(shot.movement)) && <span className={s.tFocal}>{formatFocal(shot.focal, isZoom(shot.movement))}</span>}
+        {/* Fiche compacte : une ligne justifiée, dans l'ordre des colonnes, chaque nature d'info sa couleur. */}
+        <p className={s.line}>
+          {[
+            <b key="s">{shot.subject || <em>sans sujet</em>}</b>,
+            valueLabel(shot.value, doc.project.settings.labelStyle) && <span key="v" className={s.tValue}>{valueLabel(shot.value, doc.project.settings.labelStyle)}</span>,
+            renderTokens(shot.angle) && <span key="a" className={s.tAngle}>{renderTokens(shot.angle)}</span>,
+            renderTokens(shot.movement, shot.movementSep) && <span key="m" className={s.tMove}>{renderTokens(shot.movement, shot.movementSep)}</span>,
+            formatFocal(shot.focal, isZoom(shot.movement)) && <span key="f" className={s.tFocal}>{formatFocal(shot.focal, isZoom(shot.movement))}</span>,
+            block?.text && <span key="t">{block.text}</span>,
+            <span key="d" className={s.tDur}>{formatTc(shotDurationSec(doc, timing, shot))}</span>,
+          ]
+            .filter(Boolean)
+            .flatMap((x, i) => (i ? [<span key={`sep${i}`} className={s.dot}> · </span>, x] : [x]))}
         </p>
-        {block?.text && <p className={s.action}>{block.text}</p>}
-        <p className={s.foot}>
-          <span className="mono">{formatTc(shotDurationSec(doc, timing, shot))}</span>
-          <span className={s.icons}>
-            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => goToShot(doc, shot.id)} aria-label={`Ouvrir le plan ${shotCode(doc, shot.id)} dans le découpage`} title="Ouvrir dans le découpage">
-              <ArrowUpRight size={14} strokeWidth={1.5} />
-            </button>
-            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => deleteShotById(shot.id)} aria-label={`Supprimer le plan ${shotCode(doc, shot.id)}`} title="Supprimer le plan" data-testid="storyboard-delete">
-              <Trash2 size={14} strokeWidth={1.5} />
-            </button>
-          </span>
-        </p>
+        <span className={s.icons}>
+          <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => goToShot(doc, shot.id)} aria-label={`Ouvrir le plan ${shotCode(doc, shot.id)} dans le découpage`} title="Ouvrir dans le découpage">
+            <ArrowUpRight size={14} strokeWidth={1.5} />
+          </button>
+          <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => deleteShotById(shot.id)} aria-label={`Supprimer le plan ${shotCode(doc, shot.id)}`} title="Supprimer le plan" data-testid="storyboard-delete">
+            <Trash2 size={14} strokeWidth={1.5} />
+          </button>
+        </span>
       </div>
       )}
     </article>

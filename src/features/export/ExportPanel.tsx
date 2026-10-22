@@ -35,6 +35,8 @@ interface Props {
   disabled?: boolean;
   onExport: (choice: ExportChoice) => void | Promise<void>;
   children?: ReactNode;
+  /** Options discrètes valables pour tous les formats. */
+  options?: ReactNode;
 }
 
 /** Menu d'export d'une page : PDF généré par l'outil ou images A4, orientation, numérotation, style. */
@@ -50,6 +52,7 @@ export function ExportPanel({
   disabled,
   onExport,
   children,
+  options,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [alignLeft, setAlignLeft] = useState(false);
@@ -202,6 +205,7 @@ export function ExportPanel({
               {children}
             </>
           )}
+          {options}
           <p className={s.hint}>{formats.find((f) => f.key === format)?.hint}</p>
           <Button
             variant="primary"

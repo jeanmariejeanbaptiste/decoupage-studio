@@ -1,6 +1,7 @@
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
-import type { CSSProperties, MouseEvent } from 'react';
+import { Fragment, type CSSProperties, type MouseEvent } from 'react';
+import { displayLines, displaySpan } from '../../domain/merge';
 import { deleteSequenceOf, deleteShotById, rowOfShot } from './actions';
 import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
@@ -56,23 +57,6 @@ function onTcContextMenu(e: MouseEvent, shotId: string) {
       items: [{ label: 'Revenir au calcul automatique', action: () => mutateDoc((x) => void setCellText(x, shotId, 'tc', '')) }],
     },
   });
-}
-
-/** Plan-séquence : une ligne par temps, alignée d'une colonne à l'autre. */
-export function BeatLines({ text, className }: { text: string; className?: string }) {
-  return (
-    <span className={[s.beatLines, className].join(' ')}>
-      {text.split('\n').map((line, i) => {
-        const m = /^(T\d+) ?(.*)$/.exec(line);
-        return (
-          <span key={i} className={s.beatLine} title={line}>
-            <b>{m ? m[1] : ''}</b>
-            {m ? m[2] : line}
-          </span>
-        );
-      })}
-    </span>
-  );
 }
 
 /** Entrée discrète du plan-séquence : clic droit dans la marge du plan. */
@@ -135,9 +119,38 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
       {seq.rows.map((r, i) => {
         const row = seq.firstRow + i;
         const shot = doc.shots[r.shotId];
+        const lines = r.lines;
+        // Plan-séquence : une vraie ligne par temps (et par liaison), alignée d'une colonne à l'autre.
+        const beatTd = (col: ColumnKey, k: number) => {
+          const l = lines![k];
+          const pos = { row, col };
+          const selected = !!rect && row >= rect.r0 && row <= rect.r1 && rect.cols.includes(col);
+          const v = l.cells[col] ?? '';
+          const first = col === BEAT_COLUMNS.find((x) => columns.includes(x));
+          return (
+            <td
+              key={col}
+              role="gridcell"
+              aria-selected={selected}
+              data-cell={k === 0 ? `${row}:${col}` : undefined}
+              className={[s.cell, s[`c_${col}`], s.beatCell, k > 0 ? s.beatNext : '', k < lines!.length - 1 ? s.beatMore : '', l.bridge ? s.bridge : '', selected ? s.selected : '', k === 0 && focus?.row === row && focus.col === col ? s.focus : ''].join(' ')}
+              title={l.bridge ? `Liaison : ${v}` : undefined}
+              onMouseDown={(e) => e.button === 0 && onCellMouseDown(e, pos)}
+              onDoubleClick={() => onCellDoubleClick(pos)}
+            >
+              {l.bridge ? (v ? `↳ ${v}` : '') : (
+                <>
+                  {first && <b className={s.beatTag}>{l.tag}</b>}
+                  {v}
+                </>
+              )}
+            </td>
+          );
+        };
         return (
-          <DroppableRow key={r.shotId} shotId={r.shotId} className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')} data-shot={r.shotId} data-testid="shot-row">
-            <td className={s.gutter} onContextMenu={(e) => onGutterContextMenu(e, r.shotId)} title="Clic droit : plan-séquence">
+          <Fragment key={r.shotId}>
+          <DroppableRow shotId={r.shotId} className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')} data-shot={r.shotId} data-testid="shot-row">
+            <td className={s.gutter} rowSpan={lines ? displayLines(r) : undefined} onContextMenu={(e) => onGutterContextMenu(e, r.shotId)} title="Clic droit : plan-séquence">
               <ShotHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} />
               <button type="button" className={s.rowDel} aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`} title="Supprimer ce plan" onClick={() => deleteShotById(r.shotId)} tabIndex={-1} data-testid="delete-shot">
                 ×
@@ -145,12 +158,15 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
               <IssueDot issues={model.issues.get(r.shotId)} />
             </td>
             {columns.map((col) => {
+              if (lines && BEAT_COLUMNS.includes(col)) return beatTd(col, 0);
               const kind = spanKind(doc, col);
               let span = 1;
+              let h = displayLines(r);
               if (kind !== 'row') {
                 const sp = cellSpan(doc, model, row, col);
                 if (sp.start !== row) return null;
                 span = sp.end - sp.start + 1;
+                h = displaySpan(seq.rows, sp.start - seq.firstRow, span);
               }
               const pos = { row, col };
               const selected = !!rect && row >= rect.r0 && row <= rect.r1 && rect.cols.includes(col);
@@ -169,7 +185,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
               return (
                 <td
                   key={col}
-                  rowSpan={span > 1 ? span : undefined}
+                  rowSpan={h > 1 ? h : undefined}
                   role="gridcell"
                   aria-selected={selected}
                   data-cell={`${row}:${col}`}
@@ -187,9 +203,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                   onContextMenu={col === 'tc' ? (e) => onTcContextMenu(e, r.shotId) : undefined}
                   onDoubleClick={() => onCellDoubleClick(pos)}
                 >
-                  {shot?.oneShot && BEAT_COLUMNS.includes(col) && !isEditing ? (
-                    <BeatLines text={text} />
-                  ) : isEditing ? (
+                  {isEditing ? (
                     <CellEditor
                       doc={doc}
                       shotId={r.shotId}
@@ -252,6 +266,12 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
               );
             })}
           </DroppableRow>
+          {lines?.slice(1).map((_, k) => (
+            <tr key={k} className={[s.row, s.oneShot, s.subRow].join(' ')}>
+              {columns.filter((c) => BEAT_COLUMNS.includes(c)).map((c) => beatTd(c, k + 1))}
+            </tr>
+          ))}
+          </Fragment>
         );
       })}
       <tr className={s.spacer} aria-hidden="true">

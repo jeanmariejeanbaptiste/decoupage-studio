@@ -123,9 +123,10 @@
 @media print { .page + .page { margin-top: 0; } }
 
 /* Plan-séquence : temps listés ligne à ligne, repère visuel discret. */
-.oneShot td { white-space: pre-line; vertical-align: top; }
-.beats { display: flex; flex-direction: column; }
-.beat { display: block; min-height: 1.5em; padding: 1px 0; border-top: 1px dotted currentColor; text-align: left; }
-.beat:first-child { border-top: 0; }
-.beat b { font-size: 0.8em; color: var(--x-red); margin-right: 2px; }
-.oneShot td:nth-child(2)::after { content: '°'; color: var(--x-red); }
+.oneShot td { vertical-align: middle; }
+.beatCell { padding-top: 1mm; padding-bottom: 1mm; }
+.beatMore { border-bottom: 1px dotted var(--x-border) !important; }
+.beatNext { border-top: 1px dotted var(--x-border) !important; }
+.beatTag { display: inline-block; font-size: 0.78em; color: var(--x-red); margin-right: 1.2mm; }
+.bridge { font-size: 0.9em; font-weight: 500; padding-top: 0.4mm; padding-bottom: 0.4mm; color: var(--x-red); }
+.oneShot .c_number::after { content: '°'; color: var(--x-red); }

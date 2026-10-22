@@ -6,7 +6,7 @@ import { formatTc } from './timecode';
 import { shotTcLabel, type Timing } from './timing';
 import { renderTokens } from './tokens';
 import { isZoom, valueLabel } from './vocabulary';
-import { BEAT_COLUMNS, beatColumnText, formatOneShotDuration, oneShotTiming } from './oneshot';
+import { BEAT_COLUMNS, beatColumnText, beatSubLines, formatOneShotDuration, oneShotTiming } from './oneshot';
 import type { ColumnKey, ID, ProjectDoc, Shot } from './types';
 
 /** Valeur affichée (et exportée) d'une cellule. */
@@ -83,12 +83,13 @@ export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, co
       blockId: shot.actionBlockId,
       mergeBreak: shot.mergeBreak,
       isolated: !!shot.oneShot,
+      lines: shot.oneShot ? beatSubLines(shot.oneShot.beats, (v) => valueLabel(v, doc.project.settings.labelStyle)) : undefined,
       cells: Object.fromEntries(columns.map((c) => [c, cellText(doc, timing, shot, c, i)])),
     }));
 }
 
-export function sequenceMerges(doc: ProjectDoc, timing: Timing, seqId: ID, columns: readonly ColumnKey[]): { rows: MergeRow[]; merges: MergeMap } {
+export function sequenceMerges(doc: ProjectDoc, timing: Timing, seqId: ID, columns: readonly ColumnKey[], noMerge = false): { rows: MergeRow[]; merges: MergeMap } {
   const rows = buildSequenceRows(doc, timing, seqId, columns);
   const s = doc.project.settings;
-  return { rows, merges: computeMerges(rows, columns, { neverMerge: s.neverMerge, tcMode: s.tcMode, tcGranularity: s.tcGranularity }) };
+  return { rows, merges: computeMerges(rows, columns, { neverMerge: s.neverMerge, tcMode: s.tcMode, tcGranularity: s.tcGranularity, noMerge }) };
 }

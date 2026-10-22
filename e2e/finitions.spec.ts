@@ -182,8 +182,10 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
   await studio.getByRole('button', { name: 'Terminé' }).click();
   await expect(row).toHaveClass(/oneShot/);
   await expect(row.locator('[data-cell$=":number"]')).toHaveText('1');
-  await expect(row).toContainText('T2Affiche');
-  await expect(row).toContainText('T285mm');
+  // Une vraie ligne par temps, la liaison entre les deux.
+  await expect(row.locator('xpath=following-sibling::tr[1]')).toContainText('↳ Panoramique droite');
+  await expect(row.locator('xpath=following-sibling::tr[2]')).toContainText('T2Affiche');
+  await expect(row.locator('xpath=following-sibling::tr[2]')).toContainText('85mm');
   await page.goto('/#/floorplan');
   // Les temps n'apparaissent que dans la vue propre au plan-séquence.
   await expect(page.getByTestId('fp-beats')).toHaveCount(0);

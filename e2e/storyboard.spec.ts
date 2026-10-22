@@ -100,8 +100,9 @@ test('storyboard : keyframes d’un plan, et images présentes dans l’export',
   await card.hover();
   await card.getByTestId('storyboard-add-keyframe').click();
   await card.getByLabel('Importer une image pour le plan 1.1 · K2').setInputFiles({ name: 'k2.png', mimeType: 'image/png', buffer: red });
-  await card.getByLabel('Précision pour 1.1 · K2').fill('fin du mouvement');
-  await expect(card.getByRole('img', { name: /Storyboard du plan 1\.1/ })).toHaveCount(2);
+  // Une keyframe affichée à la fois, toutes en vignettes dessous.
+  await expect(card.getByRole('button', { name: /^Afficher K/ })).toHaveCount(2);
+  await expect(card.getByRole('img', { name: 'Storyboard du plan 1.1 · K2' })).toBeVisible();
   // Une seule fiche de découpage pour le plan, et un seul plan dans le storyboard.
   await expect(page.getByTestId('storyboard-card')).toHaveCount(11);
   const dl = page.waitForEvent('download');

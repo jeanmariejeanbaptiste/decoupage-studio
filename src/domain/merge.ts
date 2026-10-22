@@ -8,6 +8,25 @@ export interface MergeRow {
   mergeBreak?: readonly ColumnKey[];
   /** Ligne isolée (plan-séquence) : aucune cellule ne fusionne avec ses voisines, sauf la séquence. */
   isolated?: boolean;
+  /** Plan-séquence : une sous-ligne par temps (et par liaison), alignées d'une colonne à l'autre. */
+  lines?: SubLine[];
+}
+
+/** Sous-ligne d'un plan-séquence : « T1 », « T2 »… ou « ↳ » pour une liaison entre deux temps. */
+export interface SubLine {
+  tag: string;
+  bridge?: boolean;
+  cells: Partial<Record<ColumnKey, string>>;
+}
+
+/** Nombre de lignes d'affichage d'une ligne de découpage (1, ou une par temps et liaison). */
+export const displayLines = (row: MergeRow | undefined) => Math.max(1, row?.lines?.length ?? 1);
+
+/** Hauteur, en lignes d'affichage, d'une fusion qui couvre `span` lignes depuis `start`. */
+export function displaySpan(rows: readonly MergeRow[], start: number, span: number): number {
+  let n = 0;
+  for (let i = start; i < start + span; i++) n += displayLines(rows[i]);
+  return n;
 }
 
 export interface MergeSpan {
@@ -22,6 +41,8 @@ export interface MergeOptions {
   neverMerge?: readonly ColumnKey[];
   tcMode: ProjectSettings['tcMode'];
   tcGranularity: ProjectSettings['tcGranularity'];
+  /** Export sans aucune fusion : chaque ligne porte sa propre valeur. */
+  noMerge?: boolean;
 }
 
 /**
@@ -35,7 +56,7 @@ export function computeMerges(rows: readonly MergeRow[], columns: readonly Colum
 }
 
 function keyFor(row: MergeRow, col: ColumnKey, opts: MergeOptions): string {
-  if (col === 'sequence') return '§';
+  if (col === 'sequence' && !opts.noMerge) return '§';
   if (col === 'action') return `#${row.blockId}`;
   if (col === 'tc' && opts.tcMode === 'cumulatif') {
     return opts.tcGranularity === 'sequence' ? '§' : `#${row.blockId}`;
@@ -45,7 +66,7 @@ function keyFor(row: MergeRow, col: ColumnKey, opts: MergeOptions): string {
 
 function mergeColumn(rows: readonly MergeRow[], col: ColumnKey, opts: MergeOptions): MergeSpan[] {
   const spans: MergeSpan[] = [];
-  const never = col === 'number' || (opts.neverMerge?.includes(col) && col !== 'sequence');
+  const never = opts.noMerge || col === 'number' || (opts.neverMerge?.includes(col) && col !== 'sequence');
   let prevKey: string | undefined;
   rows.forEach((row, i) => {
     const key = keyFor(row, col, opts);

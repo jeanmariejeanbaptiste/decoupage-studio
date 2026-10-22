@@ -3,6 +3,7 @@ import type { Borders, PaperSize, Workbook, Worksheet } from 'exceljs';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { COLUMN_DEFS, columnWidths } from '../../domain/columns';
 import { sequenceMerges } from '../../domain/rows';
+import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming, formatGap } from '../../domain/timing';
 import type { ColumnKey, ExportTheme, ProjectDoc } from '../../domain/types';
@@ -75,23 +76,35 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
   });
 
   for (const seqId of doc.project.sequenceIds) {
-    const { rows, merges } = sequenceMerges(doc, timing, seqId, columns);
-    const first = ws.rowCount + 1;
+    const noMerge = !!doc.project.settings.exportNoMerge;
+    const { rows, merges } = sequenceMerges(doc, timing, seqId, columns, noMerge);
+    const firstBeat = BEAT_COLUMNS.find((c) => columns.includes(c));
+    // Ligne Excel de départ de chaque plan : un plan-séquence occupe une ligne par temps et par liaison.
+    const starts: number[] = [];
     rows.forEach((r) => {
-      const row = ws.addRow(columns.map(() => ''));
-      row.height = 30;
-      columns.forEach((c, i) => {
-        const cell = row.getCell(i + 1);
-        cell.value = r.cells[c] ?? '';
-        cell.fill = fill(p.bg);
-        cell.border = border;
-        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-        cell.font = { name: FONT, size: 9, bold: true, italic: c === 'tc', color: { argb: `FF${colorFor(c, p)}` } };
+      starts.push(ws.rowCount + 1);
+      const lines = r.lines ?? [undefined];
+      lines.forEach((l, k) => {
+        const row = ws.addRow(columns.map(() => ''));
+        row.height = l ? (l.bridge ? 16 : 20) : 30;
+        columns.forEach((c, i) => {
+          const cell = row.getCell(i + 1);
+          const beat = l && BEAT_COLUMNS.includes(c);
+          cell.value = beat ? (l.bridge ? (l.cells[c] ? `↳ ${l.cells[c]}` : '') : `${c === firstBeat ? `${l.tag} ` : ''}${l.cells[c] ?? ''}`) : k === 0 ? (r.cells[c] ?? '') : '';
+          cell.fill = fill(p.bg);
+          cell.border = beat && lines.length > 1 ? { ...border, top: k > 0 ? { style: 'dotted' } : border.top, bottom: k < lines.length - 1 ? { style: 'dotted' } : border.bottom } : border;
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.font = { name: FONT, size: l?.bridge ? 8 : 9, bold: !l?.bridge, italic: c === 'tc' || !!l?.bridge, color: { argb: `FF${l?.bridge ? p.red : colorFor(c, p)}` } };
+        });
       });
     });
+    const endOf = (i: number) => starts[i] + Math.max(1, rows[i].lines?.length ?? 1) - 1;
     columns.forEach((c, i) => {
       for (const span of merges.get(c) ?? []) {
-        if (span.span > 1) ws.mergeCells(first + span.startRow, i + 1, first + span.startRow + span.span - 1, i + 1);
+        const top = starts[span.startRow];
+        const bottom = endOf(span.startRow + span.span - 1);
+        if (rows[span.startRow].lines && BEAT_COLUMNS.includes(c)) continue;
+        if (bottom > top && !noMerge) ws.mergeCells(top, i + 1, bottom, i + 1);
       }
     });
     const spacer = ws.addRow(columns.map(() => ''));

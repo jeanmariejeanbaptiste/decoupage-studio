@@ -63,10 +63,14 @@ export interface ProjectSettings {
   exportPaper: 'A4' | 'A3';
   /** Économie d'encre : aucun aplat de couleur à l'impression (texte et filets seulement). */
   exportInkSaver?: boolean;
+  /** Exporter le découpage sans fusion de cellules. */
+  exportNoMerge?: boolean;
   /** Orientation des pages exportées (PDF et images). */
   exportOrientation?: 'landscape' | 'portrait';
   /** Format des images du storyboard (largeur : hauteur). */
   storyboardAspect?: { w: number; h: number };
+  /** Cartes par ligne dans la page Storyboard (absent = automatique). */
+  storyboardPerRow?: number;
   /** Derniers réglages d'export par page (orientation, numérotation, plans par feuille…). */
   exportPrefs?: Record<string, { orientation?: 'landscape' | 'portrait'; numbers?: boolean; perPage?: number }>;
   exportFooter: boolean;

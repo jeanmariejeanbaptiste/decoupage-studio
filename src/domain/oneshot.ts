@@ -2,6 +2,7 @@ import { detachAction } from './ops';
 import { newId } from './factory';
 import { formatTc } from './timecode';
 import { renderTokens } from './tokens';
+import type { SubLine } from './merge';
 import type { ColumnKey, ID, OneShotBeat, ProjectDoc } from './types';
 
 /** Colonnes portées par les temps d'un plan-séquence (une ligne par temps dans la cellule). */
@@ -134,6 +135,17 @@ export function beatColumnText(beats: readonly OneShotBeat[], col: ColumnKey, la
       return col === 'movement' && b.bridge && i + 1 < beats.length ? `${line}\n  ↳ ${b.bridge} → T${i + 2}` : line;
     })
     .join('\n');
+}
+
+/** Sous-lignes d'un plan-séquence : un temps par ligne, la liaison vers le suivant dans la colonne Mouvement. */
+export function beatSubLines(beats: readonly OneShotBeat[], label: (v: string) => string = (v) => v): SubLine[] {
+  return beats.flatMap((b, i) => {
+    const line: SubLine = {
+      tag: `T${i + 1}`,
+      cells: { subject: b.subject, value: label(b.value), angle: b.angle, movement: b.movement, focal: b.focal ? `${b.focal}mm` : '' },
+    };
+    return b.bridge && i + 1 < beats.length ? [line, { tag: '↳', bridge: true, cells: { movement: b.bridge } }] : [line];
+  });
 }
 
 /** Ce qui change entre deux temps consécutifs, pour l'équipe technique (en clair). */

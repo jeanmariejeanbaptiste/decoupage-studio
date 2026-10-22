@@ -1,7 +1,7 @@
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { COLUMN_DEFS, columnWidths, tcLast } from '../../domain/columns';
-import type { MergeMap, MergeRow } from '../../domain/merge';
+import { displaySpan, type MergeMap, type MergeRow } from '../../domain/merge';
 import { cleanCuts, paginate, sliceMerges, type PageSlice } from '../../domain/pagination';
 import { sequenceMerges } from '../../domain/rows';
 import { computeTiming } from '../../domain/timing';
@@ -32,7 +32,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const widths = columnWidths(cols);
   const sequences = useMemo(
-    () => doc.project.sequenceIds.map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols) })),
+    () => doc.project.sequenceIds.map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols, !!doc.project.settings.exportNoMerge) })),
     [doc, timing, cols],
   );
   const measure = useRef<HTMLDivElement>(null);
@@ -50,7 +50,15 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
       const root = measure.current;
       if (cancelled || !root) return;
       const bodies = [...root.querySelectorAll<HTMLElement>('tbody')];
-      const rowHeights = bodies.map((b) => [...b.querySelectorAll<HTMLElement>('tr:not([aria-hidden])')].map((r) => r.getBoundingClientRect().height));
+      // Les sous-lignes d'un plan-séquence comptent dans la hauteur de leur plan.
+      const rowHeights = bodies.map((b) =>
+        [...b.querySelectorAll<HTMLElement>('tr:not([aria-hidden])')].reduce<number[]>((acc, r) => {
+          const h = r.getBoundingClientRect().height;
+          if (r.dataset.sub !== undefined && acc.length) acc[acc.length - 1] += h;
+          else acc.push(h);
+          return acc;
+        }, []),
+      );
       const gap = root.querySelector<HTMLElement>('tbody tr[aria-hidden] td')?.getBoundingClientRect().height ?? 0;
       const head = root.querySelector('thead')?.getBoundingClientRect().height ?? 0;
       const title = root.querySelector('h1');
@@ -93,32 +101,45 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     const seq = sequences[seqIdx];
     return (
       <tbody key={key} className={s.seq}>
-        {rows.map((row, i) => (
-          <tr key={row.shotId} className={doc.shots[row.shotId]?.oneShot ? s.oneShot : undefined}>
-            {cols.map((c) => {
-              const span = merges.get(c)?.find((m) => m.startRow === i);
-              if (!span) return null;
-              return (
-                <td key={c} rowSpan={span.span > 1 ? span.span : undefined} className={s[`c_${c}`]}>
-                  {doc.shots[row.shotId]?.oneShot && BEAT_COLUMNS.includes(c) ? (
-                    <span className={s.beats}>
-                      {span.value.split('\n').map((line, k) => {
-                        const m = /^(T\d+) ?(.*)$/.exec(line);
-                        return (
-                          <span key={k} className={s.beat}>
-                            <b>{m ? m[1] : ''}</b> {m ? m[2] : line}
-                          </span>
-                        );
-                      })}
-                    </span>
-                  ) : (
-                    span.value
-                  )}
-                </td>
-              );
-            })}
-          </tr>
-        ))}
+        {rows.map((row, i) => {
+          const lines = row.lines;
+          const beatCell = (c: ColumnKey, k: number) => {
+            const l = lines![k];
+            const v = l.cells[c] ?? '';
+            return (
+              <td key={c} className={[s[`c_${c}`], s.beatCell, k > 0 ? s.beatNext : '', k < lines!.length - 1 ? s.beatMore : '', l.bridge ? s.bridge : ''].join(' ')}>
+                {l.bridge ? (v ? <i>↳ {v}</i> : null) : (
+                  <>
+                    {c === BEAT_COLUMNS.find((x) => cols.includes(x)) && <b className={s.beatTag}>{l.tag}</b>}
+                    {v}
+                  </>
+                )}
+              </td>
+            );
+          };
+          return (
+            <Fragment key={row.shotId}>
+              <tr className={lines ? s.oneShot : undefined}>
+                {cols.map((c) => {
+                  if (lines && BEAT_COLUMNS.includes(c)) return beatCell(c, 0);
+                  const span = merges.get(c)?.find((m) => m.startRow === i);
+                  if (!span) return null;
+                  const h = displaySpan(rows, i, span.span);
+                  return (
+                    <td key={c} rowSpan={h > 1 ? h : undefined} className={s[`c_${c}`]}>
+                      {span.value}
+                    </td>
+                  );
+                })}
+              </tr>
+              {lines?.slice(1).map((_, k) => (
+                <tr key={k} data-sub="" className={s.oneShot}>
+                  {cols.filter((c) => BEAT_COLUMNS.includes(c)).map((c) => beatCell(c, k + 1))}
+                </tr>
+              ))}
+            </Fragment>
+          );
+        })}
         {seq.rows.length === 0 && (
           <tr>
             <td className={s.c_sequence}>{`${seqIdx + 1}, ${doc.sequences[seq.id]?.label.toUpperCase() ?? ''}`}</td>
