@@ -233,6 +233,25 @@ function drawImagesOver(canvas: HTMLCanvasElement, node: HTMLElement, ratio: num
   const origin = node.getBoundingClientRect();
   for (const img of node.querySelectorAll('img')) {
     if (!img.complete || !img.naturalWidth) continue;
+    const box = img.closest<HTMLElement>('[data-fit]');
+    if (box) {
+      // Image cadrée (storyboard) : même calcul que l'affichage — remplir/ajuster, décalage, rotation, zoom.
+      const fr = box.getBoundingClientRect();
+      const c = JSON.parse(box.dataset.crop ?? '{}') as { zoom?: number; x?: number; y?: number; rot?: number };
+      const fit = box.dataset.fit === 'contain' ? Math.min : Math.max;
+      const k = fit(fr.width / img.naturalWidth, fr.height / img.naturalHeight);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect((fr.left - origin.left) * ratio, (fr.top - origin.top) * ratio, fr.width * ratio, fr.height * ratio);
+      ctx.clip();
+      ctx.translate((fr.left - origin.left + fr.width / 2 + ((c.x ?? 0) / 100) * fr.width) * ratio, (fr.top - origin.top + fr.height / 2 + ((c.y ?? 0) / 100) * fr.height) * ratio);
+      ctx.rotate(((c.rot ?? 0) * Math.PI) / 180);
+      ctx.scale(c.zoom ?? 1, c.zoom ?? 1);
+      const [w, h] = [img.naturalWidth * k * ratio, img.naturalHeight * k * ratio];
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      ctx.restore();
+      continue;
+    }
     const r = img.getBoundingClientRect();
     const k = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
     const w = img.naturalWidth * k;

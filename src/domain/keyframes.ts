@@ -3,7 +3,25 @@ import type { SketchItem } from './sketch';
 import type { ProjectDoc, Shot } from './types';
 
 /** Une image d'un plan : keyframe 1 (`storyboard`) ou suivantes (`keyframes`). */
+/** Cadrage d'une image dans sa case : zoom (1 = taille de base), décalage (% de la case), rotation (°). */
+export interface Crop {
+  zoom: number;
+  x: number;
+  y: number;
+  rot: number;
+}
+
+export const NO_CROP: Crop = { zoom: 1, x: 0, y: 0, rot: 0 };
+
+/** Style CSS d'une image cadrée : « remplir » par défaut, « ajuster » sur demande. */
+export function cropStyle(f: Frame): { objectFit: 'cover' | 'contain'; transform: string } {
+  const c = f.crop ?? NO_CROP;
+  return { objectFit: f.fit ?? 'cover', transform: `translate(${c.x}%, ${c.y}%) rotate(${c.rot}deg) scale(${c.zoom})` };
+}
+
 export interface Frame {
+  fit?: 'cover' | 'contain';
+  crop?: Crop;
   blobKey?: string;
   baseKey?: string;
   sketch?: SketchItem[];
@@ -40,7 +58,7 @@ export function removeFrame(doc: ProjectDoc, shotId: string, index: number): voi
     shot.keyframes = shot.keyframes?.filter((_, i) => i !== index - 1);
   } else if (shot.keyframes?.length) {
     const [first, ...rest] = shot.keyframes;
-    shot.storyboard = first.blobKey ? { blobKey: first.blobKey, baseKey: first.baseKey, sketch: first.sketch, note: first.note } : undefined;
+    shot.storyboard = first.blobKey ? { blobKey: first.blobKey, baseKey: first.baseKey, sketch: first.sketch, note: first.note, fit: first.fit, crop: first.crop } : undefined;
     shot.keyframes = rest;
   } else shot.storyboard = undefined;
   if (shot.keyframes && !shot.keyframes.length) delete shot.keyframes;

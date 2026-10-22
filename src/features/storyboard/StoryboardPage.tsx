@@ -1,11 +1,11 @@
-import { addKeyframe, framesOf, imageCount, removeFrame, setFrame, type Frame } from '../../domain/keyframes';
+import { NO_CROP, addKeyframe, cropStyle, framesOf, imageCount, removeFrame, setFrame, type Crop as CropT, type Frame } from '../../domain/keyframes';
 import { createPortal } from 'react-dom';
 import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
 import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowUpRight, ImagePlus, PenLine, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Crop, ImagePlus, PenLine, Trash2 } from 'lucide-react';
 import { FramingIcon } from './FramingIcon';
 import { SketchEditor } from './SketchEditor';
 import { exportNodePages, waitForImages, waitForPages, type PageExportOptions } from '../export/imageExport';
@@ -267,15 +267,50 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
   const url = useBlobUrl(frame.blobKey);
   const [over, setOver] = useState(false);
   const [sketching, setSketching] = useState(false);
+  // Recadrage : réglage local, enregistré d'un coup à la validation (un seul pas d'annulation).
+  const [crop, setCrop] = useState<{ c: CropT; fit: 'cover' | 'contain' } | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const panFrom = useRef<{ x: number; y: number } | null>(null);
   const label = `${shotCode(doc, shot.id)}${count > 1 ? ` · K${index + 1}` : ''}`;
   const importImage = async (f: File | undefined) => {
     if (!f?.type.startsWith('image/')) return;
     const key = await putBlob(doc.project.id, f.name, f);
-    mutateDoc((d) => setFrame(d, shot.id, index, { blobKey: key, baseKey: undefined, sketch: undefined }));
+    mutateDoc((d) => setFrame(d, shot.id, index, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined }));
   };
+  const shown: Frame = crop ? { ...frame, crop: crop.c, fit: crop.fit } : frame;
+  const editing = !!crop;
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el || !editing) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setCrop((v) => (v ? { ...v, c: { ...v.c, zoom: Math.max(0.3, Math.min(6, v.c.zoom * Math.exp(-e.deltaY * 0.0025))) } } : v));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [editing]);
+  const zoomBy = (k: number) => setCrop((v) => (v ? { ...v, c: { ...v.c, zoom: Math.max(0.3, Math.min(6, v.c.zoom * k)) } } : v));
   return (
     <div className={s.frameWrap}>
       <div
+        ref={frameRef}
+        data-fit={shown.fit ?? 'cover'}
+        data-crop={JSON.stringify(shown.crop ?? NO_CROP)}
+        onPointerDownCapture={(e) => {
+          if (!editing || (e.target as Element).closest('button')) return;
+          e.stopPropagation();
+          panFrom.current = { x: e.clientX, y: e.clientY };
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const p = panFrom.current;
+          if (!editing || !p) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          const [dx, dy] = [((e.clientX - p.x) / r.width) * 100, ((e.clientY - p.y) / r.height) * 100];
+          panFrom.current = { x: e.clientX, y: e.clientY };
+          setCrop((v) => (v ? { ...v, c: { ...v.c, x: v.c.x + dx, y: v.c.y + dy } } : v));
+        }}
+        onPointerUp={() => (panFrom.current = null)}
         className={[s.frame, over ? s.over : ''].join(' ')}
         style={{ aspectRatio: String(ratio) }}
         onDragOver={(e) => {
@@ -291,7 +326,7 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
           void importImage(e.dataTransfer.files[0]);
         }}
       >
-        {url ? <img src={url} alt={`Storyboard du plan ${label}`} /> : !printing && <FramingIcon value={shot.value} focal={shot.focal.from} ratio={ratio} />}
+        {url ? <img src={url} alt={`Storyboard du plan ${label}`} style={cropStyle(shown)} draggable={false} /> : !printing && <FramingIcon value={shot.value} focal={shot.focal.from} ratio={ratio} />}
         <span className={s.code} data-label>
           {label}
         </span>
@@ -318,6 +353,36 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
           </button>
         )}
         {sketching && createPortal(<SketchEditor doc={doc} shotId={shot.id} frame={index} onClose={() => setSketching(false)} />, document.body)}
+        {!printing && url && !editing && (
+          <button type="button" className={s.cropBtn} onPointerDown={(e) => e.stopPropagation()} onClick={() => setCrop({ c: frame.crop ?? NO_CROP, fit: frame.fit ?? 'cover' })} title="Recadrer : zoom, déplacement, rotation, remplir ou ajuster" data-testid="storyboard-crop">
+            <Crop size={13} strokeWidth={1.5} />
+          </button>
+        )}
+        {editing && crop && (
+          <div className={s.cropBar} onPointerDown={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => zoomBy(1 / 1.15)} aria-label="Dézoomer">−</button>
+            <button type="button" onClick={() => zoomBy(1.15)} aria-label="Zoomer">+</button>
+            <button type="button" onClick={() => setCrop({ ...crop, c: { ...crop.c, rot: crop.c.rot - 90 } })} aria-label="Pivoter à gauche">⟲</button>
+            <button type="button" onClick={() => setCrop({ ...crop, c: { ...crop.c, rot: crop.c.rot + 90 } })} aria-label="Pivoter à droite">⟳</button>
+            <input type="range" min={-45} max={45} step={0.5} value={((crop.c.rot % 90) + 135) % 90 - 45} onChange={(e) => setCrop({ ...crop, c: { ...crop.c, rot: Math.round(crop.c.rot / 90) * 90 + Number(e.target.value) } })} aria-label="Rotation fine" />
+            <button type="button" className={s.fitSwitch} onClick={() => setCrop({ ...crop, fit: crop.fit === 'cover' ? 'contain' : 'cover' })} data-testid="storyboard-fit">
+              {crop.fit === 'cover' ? 'Remplir' : 'Ajuster'}
+            </button>
+            <button type="button" onClick={() => setCrop({ c: NO_CROP, fit: 'cover' })}>Réinit.</button>
+            <button type="button" onClick={() => setCrop(null)}>Annuler</button>
+            <button
+              type="button"
+              className={s.cropOk}
+              onClick={() => {
+                mutateDoc((d) => setFrame(d, shot.id, index, { crop: crop.c, fit: crop.fit }));
+                setCrop(null);
+              }}
+              data-testid="storyboard-crop-ok"
+            >
+              OK
+            </button>
+          </div>
+        )}
         {!printing && (url || count > 1) && (
           <button type="button" className={s.remove} onPointerDown={(e) => e.stopPropagation()} onClick={() => mutateDoc((d) => removeFrame(d, shot.id, index))} aria-label={`Retirer l’image ${label}`}>
             ×

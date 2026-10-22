@@ -132,3 +132,20 @@ test('storyboard : keyframes d’un plan, et images présentes dans l’export',
   }, b64);
   expect(reds).toBeGreaterThan(1000);
 });
+
+test('storyboard : recadrer une image (zoom, rotation, remplir / ajuster)', async ({ page }) => {
+  const red = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP8z4AdMOEQH4QSAEQOAQ8ElHdbAAAAAElFTkSuQmCC', 'base64');
+  await page.goto('/#/storyboard?seed=fiction');
+  const card = page.getByTestId('storyboard-card').first();
+  await card.getByLabel(/^Importer une image pour le plan 1\.1$/).setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: red });
+  const img = card.getByRole('img', { name: 'Storyboard du plan 1.1' });
+  await expect(img).toHaveCSS('object-fit', 'cover'); // remplit le cadre par défaut
+  await card.hover();
+  await card.getByTestId('storyboard-crop').click();
+  await card.getByRole('button', { name: 'Zoomer', exact: true }).click();
+  await card.getByRole('button', { name: 'Pivoter à droite' }).click();
+  await card.getByTestId('storyboard-fit').click();
+  await card.getByTestId('storyboard-crop-ok').click();
+  await expect(img).toHaveCSS('object-fit', 'contain');
+  expect(await img.evaluate((el) => (el as HTMLElement).style.transform)).toContain('rotate(90deg) scale(1.15)');
+});
