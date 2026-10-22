@@ -71,6 +71,14 @@ test('storyboard : dessiner une case (crayon, flèche, flèche 3D, texte)', asyn
   box = (await ed.getByTestId('sketch-canvas').boundingBox())!;
   await page.mouse.click(...at(0.75, 0.3));
   await expect(ed.getByLabel('Inclinaison')).toBeVisible();
+  // Tourner la flèche en 3D à la souris : la poignée ronde change direction et inclinaison.
+  const before = await ed.getByLabel('Direction').inputValue();
+  const h = (await ed.locator('[data-orbit] circle').boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + 80, h.y + 30, { steps: 6 });
+  await page.mouse.up();
+  expect(await ed.getByLabel('Direction').inputValue()).not.toBe(before);
   await expect(ed.locator('[data-sketch]')).toHaveCount(3);
   await ed.getByTestId('sketch-save').click();
   await expect(ed).toHaveCount(0);

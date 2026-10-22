@@ -19,3 +19,4 @@
 .sel { filter: drop-shadow(0 0 3px rgba(44, 93, 138, 0.6)); }
 .foot { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-soft); }
 .foot > span { flex: 1; }
+.hint { flex-basis: 100%; font-size: 11.5px; color: var(--ink-soft); }

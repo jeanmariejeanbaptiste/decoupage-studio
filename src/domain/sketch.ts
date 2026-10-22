@@ -5,7 +5,7 @@ export type SketchItem =
   | { id: string; kind: 'pen'; points: P[]; color: string; width: number }
   | { id: string; kind: 'arrow'; from: P; to: P; color: string; width: number }
   | { id: string; kind: 'text'; at: P; text: string; color: string; size: number }
-  | { id: string; kind: 'arrow3d'; at: P; size: number; yaw: number; pitch: number; roll: number; color: string };
+  | { id: string; kind: 'arrow3d'; at: P; size: number; yaw: number; pitch: number; roll: number; color: string; length?: number; bend?: number; persp?: number };
 
 export const SKETCH_W = 1000;
 
@@ -21,16 +21,40 @@ export const ARROW3D_PRESETS: ReadonlyArray<{ label: string; yaw: number; pitch:
   { label: 'Diagonale vers la caméra', yaw: -45, pitch: 35, roll: 0 },
 ];
 
-/** Contour plat d'une flèche (longueur 1, pointe vers +x), dans le plan horizontal. */
-const OUTLINE: P[] = [
-  [-0.5, -0.07],
-  [0.18, -0.07],
-  [0.18, -0.2],
-  [0.5, 0],
-  [0.18, 0.2],
-  [0.18, 0.07],
-  [-0.5, 0.07],
-];
+/**
+ * Contour plat d'une flèche (pointe vers +x), éventuellement courbée : le fût suit un arc
+ * de `bend` degrés ; `length` allonge le fût. Centré sur l'origine.
+ */
+function outline(length = 1, bend = 0): P[] {
+  const head = 0.32;
+  const shaft = Math.max(0.15, length - head);
+  const w = 0.07;
+  const hw = 0.2;
+  const b = rad(bend);
+  const N = Math.abs(b) < 1e-3 ? 1 : 12;
+  const c = (t: number): { p: P; a: number } => {
+    if (N === 1) return { p: [t * shaft, 0], a: 0 };
+    const R = shaft / b;
+    return { p: [R * Math.sin(b * t), R * (1 - Math.cos(b * t))], a: b * t };
+  };
+  const left: P[] = [];
+  const right: P[] = [];
+  for (let i = 0; i <= N; i++) {
+    const { p, a } = c(i / N);
+    const [nx, nz] = [-Math.sin(a), Math.cos(a)];
+    left.push([p[0] + nx * w, p[1] + nz * w]);
+    right.push([p[0] - nx * w, p[1] - nz * w]);
+  }
+  const end = c(1);
+  const [tx, tz] = [Math.cos(end.a), Math.sin(end.a)];
+  const [nx, nz] = [-Math.sin(end.a), Math.cos(end.a)];
+  const tip: P = [end.p[0] + tx * head, end.p[1] + tz * head];
+  const pts: P[] = [...right, [end.p[0] - nx * hw, end.p[1] - nz * hw], tip, [end.p[0] + nx * hw, end.p[1] + nz * hw], ...left.reverse()];
+  const xs = pts.map((p) => p[0]);
+  const zs = pts.map((p) => p[1]);
+  const [cx, cz] = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...zs) + Math.max(...zs)) / 2];
+  return pts.map(([x, z]) => [x - cx, z - cz]);
+}
 const THICK = 0.07;
 const rad = (d: number) => (d * Math.PI) / 180;
 
@@ -39,7 +63,8 @@ const rad = (d: number) => (d * Math.PI) / 180;
  * lacet dans le plan du sol, tangage vers la caméra), projetée en perspective et peinte
  * de l'arrière vers l'avant ; l'ombrage suit l'orientation de chaque face.
  */
-export function arrow3dFaces(a: { yaw: number; pitch: number; roll: number }): Array<{ points: P[]; shade: number }> {
+export function arrow3dFaces(a: { yaw: number; pitch: number; roll: number; length?: number; bend?: number; persp?: number }): Array<{ points: P[]; shade: number }> {
+  const OUTLINE = outline(a.length ?? 1, a.bend ?? 0);
   const [cr, sr] = [Math.cos(rad(a.roll)), Math.sin(rad(a.roll))];
   const [cy, sy] = [Math.cos(rad(a.yaw)), Math.sin(rad(a.yaw))];
   const [cp, sp] = [Math.cos(rad(a.pitch)), Math.sin(rad(a.pitch))];
@@ -51,7 +76,8 @@ export function arrow3dFaces(a: { yaw: number; pitch: number; roll: number }): A
     const z2 = -x * sy + z1 * cy;
     return [x2, y1 * cp - z2 * sp, y1 * sp + z2 * cp]; // tangage autour de x
   };
-  const D = 3.2;
+  // Perspective : 0 = à plat (orthographique), 1 = forte.
+  const D = 1.6 + (1 - Math.max(0, Math.min(1, a.persp ?? 0.5))) * 12;
   const proj = ([x, y, z]: [number, number, number]): P => {
     const k = D / (D - z);
     return [x * k, -y * k];

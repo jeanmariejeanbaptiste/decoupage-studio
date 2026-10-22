@@ -32,7 +32,36 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
   const [draft, setDraft] = useState<SketchItem | null>(null);
   const [saving, setSaving] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  const drag = useRef<{ id: string; from: P } | null>(null);
+  const drag = useRef<{ id: string; from: P; orbit?: boolean } | null>(null);
+  const selRef = useRef<string | null>(null);
+  selRef.current = selected;
+
+  // Molette / trackpad sur une flèche 3D sélectionnée : glisser à deux doigts = orbite,
+  // pincer = taille, Maj = rotation dans le plan, Alt = courbure.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent) => {
+      const id = selRef.current;
+      if (!id) return;
+      setItems((l) => {
+        const it = l.find((i) => i.id === id);
+        if (it?.kind !== 'arrow3d') return l;
+        e.preventDefault();
+        const clamp = (v: number) => ((((v + 180) % 360) + 360) % 360) - 180;
+        const patch: Partial<typeof it> = e.ctrlKey
+          ? { size: Math.max(40, Math.min(900, it.size * Math.exp(-e.deltaY * 0.01))) }
+          : e.altKey
+            ? { bend: Math.max(-200, Math.min(200, (it.bend ?? 0) + e.deltaY * 0.5)) }
+            : e.shiftKey
+              ? { roll: clamp(it.roll + (e.deltaY || e.deltaX) * 0.4) }
+              : { yaw: clamp(it.yaw + e.deltaX * 0.4), pitch: clamp(it.pitch + e.deltaY * 0.4) };
+        return l.map((i) => (i.id === id ? ({ ...i, ...patch } as SketchItem) : i));
+      });
+    };
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -69,9 +98,14 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
       const text = window.prompt('Texte à poser sur l’image')?.trim();
       if (text) setItems((l) => [...l, { id: newId(), kind: 'text', at: p, text, color, size: 34 }]);
     } else {
+      const orbit = (e.target as Element).closest('[data-orbit]')?.getAttribute('data-orbit');
+      if (orbit) {
+        drag.current = { id: orbit, from: p, orbit: true };
+        return;
+      }
       const hit = (e.target as Element).closest('[data-sketch]')?.getAttribute('data-sketch');
       setSelected(hit ?? null);
-      if (hit) drag.current = { id: hit, from: p };
+      if (hit) drag.current = { id: hit, from: p, orbit: e.shiftKey && items.find((i) => i.id === hit)?.kind === 'arrow3d' };
     }
   };
   const move = (e: PointerEvent<SVGSVGElement>) => {
@@ -85,6 +119,8 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
       setItems((l) =>
         l.map((i) => {
           if (i.id !== d.id) return i;
+          // Orbite : glisser horizontalement fait tourner, verticalement incline.
+          if (d.orbit && i.kind === 'arrow3d') return { ...i, yaw: i.yaw + dx * 0.6, pitch: Math.max(-89, Math.min(89, i.pitch + dy * 0.6)) };
           const t = ([x, y]: P): P => [x + dx, y + dy];
           if (i.kind === 'pen') return { ...i, points: i.points.map(t) };
           if (i.kind === 'arrow') return { ...i, from: t(i.from), to: t(i.to) };
@@ -183,16 +219,23 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
             {sel?.kind === 'arrow3d' ? (
               <>
                 <span>Flèche 3D</span>
-                {(['yaw', 'pitch', 'roll'] as const).map((k) => (
+                <em className={s.hint}>Poignée ronde ou Maj + glisser : tourner en 3D · deux doigts : orbite · pincer : taille · Maj + molette : rotation · Alt + molette : courbure</em>
+                {(
+                  [
+                    ['yaw', 'Direction', -180, 180, 1, 0],
+                    ['pitch', 'Inclinaison', -90, 90, 1, 0],
+                    ['roll', 'Rotation', -180, 180, 1, 0],
+                    ['size', 'Taille', 40, 900, 1, 220],
+                    ['length', 'Longueur', 0.5, 3, 0.05, 1],
+                    ['bend', 'Courbure', -200, 200, 1, 0],
+                    ['persp', 'Perspective', 0, 1, 0.05, 0.5],
+                  ] as const
+                ).map(([k, label, min, max, step, def]) => (
                   <label key={k}>
-                    {k === 'yaw' ? 'Direction' : k === 'pitch' ? 'Inclinaison' : 'Rotation'}
-                    <input type="range" min={-180} max={180} value={sel[k]} onChange={(e) => update(sel.id, { [k]: Number(e.target.value) })} />
+                    {label}
+                    <input type="range" min={min} max={max} step={step} value={(sel as Record<string, unknown>)[k] as number ?? def} onChange={(e) => update(sel.id, { [k]: Number(e.target.value) })} />
                   </label>
                 ))}
-                <label>
-                  Taille
-                  <input type="range" min={60} max={600} value={sel.size} onChange={(e) => update(sel.id, { size: Number(e.target.value) })} />
-                </label>
               </>
             ) : (
               <>
@@ -219,6 +262,12 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
               </g>
             ))}
             {sel && <SelectionBox item={sel} />}
+            {sel?.kind === 'arrow3d' && (
+              <g className="no-image" data-orbit={sel.id} style={{ cursor: 'grab' }}>
+                <circle cx={sel.at[0]} cy={sel.at[1] - sel.size * 0.62} r={13} fill="#ffffff" stroke="#2c5d8a" strokeWidth={2} />
+                <path d={`M ${sel.at[0] - 6} ${sel.at[1] - sel.size * 0.62 - 2} a 6 6 0 1 1 3 7`} fill="none" stroke="#2c5d8a" strokeWidth={2} />
+              </g>
+            )}
           </svg>
         </div>
         <footer className={s.foot}>
@@ -262,10 +311,10 @@ function SketchShape({ item }: { item: SketchItem }) {
   }
 }
 
-function Arrow3D({ at, size, yaw, pitch, roll, color }: { at: P; size: number; yaw: number; pitch: number; roll: number; color: string }) {
+function Arrow3D({ at, size, yaw, pitch, roll, color, length, bend, persp }: { at: P; size: number; yaw: number; pitch: number; roll: number; color: string; length?: number; bend?: number; persp?: number }) {
   return (
     <g transform={`translate(${at[0]} ${at[1]}) scale(${size})`}>
-      {arrow3dFaces({ yaw, pitch, roll }).map((f, i) => (
+      {arrow3dFaces({ yaw, pitch, roll, length, bend, persp }).map((f, i) => (
         <polygon key={i} points={f.points.map((p) => p.join(',')).join(' ')} fill={shadeColor(color, f.shade)} stroke={shadeColor(color, 0.45)} strokeWidth={0.008} strokeLinejoin="round" />
       ))}
     </g>
