@@ -151,3 +151,14 @@ describe('seed fiction et scénario', () => {
     for (const b of anchored) expect(doc.scenario!.slice(b.scenarioAnchor!.start, b.scenarioAnchor!.end)).toBe(b.text);
   });
 });
+
+describe('répliques de la colonne dialogue', async () => {
+  const { parseDialogue } = await import('./fountain');
+  it('sépare les orateurs et leurs répliques', () => {
+    expect(parseDialogue('LÉA : Encore une roue. GUICHETIER : Suivant !')).toEqual([
+      { speaker: 'LÉA', line: 'Encore une roue.' },
+      { speaker: 'GUICHETIER', line: 'Suivant !' },
+    ]);
+    expect(parseDialogue('Bonjour')).toEqual([{ line: 'Bonjour' }]);
+  });
+});

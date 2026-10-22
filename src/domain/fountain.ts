@@ -298,3 +298,22 @@ export function shiftAnchors(doc: ProjectDoc, before: string, after: string): vo
   for (const b of Object.values(doc.blocks)) if (b.scenarioAnchor) move(b.scenarioAnchor);
   for (const s of Object.values(doc.sequences)) if (s.scenarioAnchor) move(s.scenarioAnchor);
 }
+
+/**
+ * Découpe une cellule « dialogue » en répliques : « LÉA : Encore une roue. MARC : Viens. »
+ * Le nom de l'orateur précède les deux-points ; sans nom, la réplique reste anonyme.
+ */
+export function parseDialogue(text: string): Array<{ speaker?: string; line: string }> {
+  const re = /(?:^|\s)([A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þa-zà-öø-ÿ'’ -]{0,30}?)\s?:\s/g;
+  const marks: Array<{ name: string; at: number; end: number }> = [];
+  for (let m = re.exec(text); m; m = re.exec(text)) marks.push({ name: m[1].trim(), at: m.index, end: re.lastIndex });
+  if (!marks.length) return text.trim() ? [{ line: text.trim() }] : [];
+  const out: Array<{ speaker?: string; line: string }> = [];
+  const lead = text.slice(0, marks[0].at).trim();
+  if (lead) out.push({ line: lead });
+  marks.forEach((m, i) => {
+    const line = text.slice(m.end, marks[i + 1]?.at ?? text.length).trim();
+    if (line) out.push({ speaker: m.name, line });
+  });
+  return out;
+}

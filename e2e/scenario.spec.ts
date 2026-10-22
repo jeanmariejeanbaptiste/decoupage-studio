@@ -61,7 +61,7 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('radio', { name: 'Page', exact: true }).click();
     await expect(page.getByTestId('scenario-page')).toContainText('INT. GARE — CONSIGNE - JOUR');
     await page.getByRole('radio', { name: 'Découpage' }).click();
-    await expect(page.getByTestId('scenario-cut')).toContainText('lecture seule');
+    await expect(page.getByTestId('scenario-cut')).toContainText('GARE');
     await page.getByRole('radio', { name: 'Page', exact: true }).click();
     const dl = page.waitForEvent('download');
     await page.getByRole('button', { name: '.fountain' }).click();

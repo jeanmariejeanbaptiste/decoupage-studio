@@ -4,7 +4,7 @@
 .seg button:last-child { border-right: 0; }
 .on { background: var(--ink) !important; color: var(--paper); }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
-.paper { padding: 44px 56px; min-height: 70vh; max-width: 8.5in; width: 100%; justify-self: center; }
+.paper { justify-self: center; }
 .editor { position: relative; font-family: var(--font-script); font-size: 12pt; line-height: 1.5; }
 .backdrop, .textarea {
   margin: 0; padding: 0; border: 0;
@@ -45,9 +45,11 @@
 
 .quiet { align-self: flex-start; border: 0; background: none; padding: 0; font-size: 12px; color: var(--ink-soft); text-decoration: underline dotted; cursor: pointer; }
 .quiet:hover { color: var(--rust); }
-.cut { padding: 28px 40px; font-family: 'Courier Prime', var(--font-mono); font-size: 13.5px; line-height: 1.5; max-height: 75vh; overflow-y: auto; }
+.cut { font-family: 'Courier Prime', var(--font-mono); font-size: 13.5px; line-height: 1.5; }
 .cut h3 { font-size: 13.5px; font-weight: 700; text-transform: uppercase; margin: 22px 0 8px; }
 .cutBlock { position: relative; margin: 0 0 10px; padding-left: 64px; }
 .cutBlock p { margin: 0 0 4px; }
 .cutShots { position: absolute; left: 0; top: 0; width: 58px; color: var(--rust); font-size: 11.5px; }
-.cutDialogue { padding-left: 24%; }
+.cutDialogue { padding: 0 22% 0 24%; }
+.cutReplica { margin: 6px 0 8px; }
+.cutSpeaker { margin: 0 !important; padding-left: 37%; font-weight: 700; text-transform: uppercase; }

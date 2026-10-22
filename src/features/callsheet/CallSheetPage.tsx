@@ -94,7 +94,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
         </div>
       </header>
 
-      <article className={['card', s.sheet].join(' ')} data-testid="callsheet">
+      <article className={['a4-sheet', s.sheet].join(' ')} data-testid="callsheet">
         <header className={s.head}>
           <div>
             <p className={s.kicker}>Feuille de service</p>

@@ -36,6 +36,16 @@ export function suggestionSource(doc: ProjectDoc, col: ColumnKey): ((q: string) 
     }
     case 'focal':
       return (q) => COMMON_FOCALS.filter((f) => String(f).startsWith(q.trim())).map((f) => ({ label: `${f} mm`, value: String(f) }));
+    case 'dialogue': {
+      // Orateur de la réplique : « NOM : réplique ». On propose les personnages au début d'une réplique.
+      const names = sortedCharacters(doc).map((c) => c.name);
+      return (q) => {
+        const m = /(^|[.!?…]\s+)([^\s:.!?…]*)$/.exec(q);
+        if (!m) return [];
+        const head = q.slice(0, q.length - m[2].length);
+        return matchList(m[2], names, 6).map((x) => ({ label: `${x.label.toUpperCase()} :`, value: `${head}${x.label.toUpperCase()} : `, hint: 'qui parle' }));
+      };
+    }
     case 'sound':
       return (q) => matchList(q, SOUND);
     case 'status':

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Download, FilePlus2, FileUp, ListTree, ScrollText, SquarePen } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { importScenes, matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, splitSelection, type ScriptElement } from '../../domain/fountain';
+import { importScenes, matchSequence, parseDialogue, parseFountain, sceneAt, scenesOf, shiftAnchors, splitSelection, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { addSequence, addShot } from '../../domain/ops';
 import { setSequenceDecorByName } from '../../domain/registry';
@@ -216,7 +216,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
       </header>
 
       <div className={s.layout}>
-        <div className={['card', s.paper].join(' ')}>
+        <div className={['a4-sheet', s.paper].join(' ')}>
           {mode === 'cut' ? (
             <CutView doc={doc} />
           ) : mode === 'edit' ? (
@@ -386,7 +386,6 @@ function ScriptPage({ elements, marks, highlighted, onHover }: { elements: Scrip
 function CutView({ doc }: { doc: ProjectDoc }) {
   return (
     <div className={s.cut} data-testid="scenario-cut">
-      <p className={s.muted}>Version découpage, en lecture seule : elle reflète le découpage technique et ne se modifie pas ici.</p>
       {doc.project.sequenceIds.map((seqId) => {
         const seq = doc.sequences[seqId];
         return (
@@ -400,9 +399,15 @@ function CutView({ doc }: { doc: ProjectDoc }) {
               if (!b) return null;
               return (
                 <div key={bId} className={s.cutBlock}>
-                  <span className={s.cutShots}>{shots.map((id) => shotCode(doc, id)).join(', ')}</span>
+                  <span className={s.cutShots}>{shots.map((id) => (seq?.shotIds.indexOf(id) ?? 0) + 1).join(', ')}</span>
                   {b.text && <p>{b.text}</p>}
-                  {b.dialogue && <p className={s.cutDialogue}>{b.dialogue}</p>}
+                  {b.dialogue &&
+                    parseDialogue(b.dialogue).map((r, k) => (
+                      <div key={k} className={s.cutReplica}>
+                        {r.speaker && <p className={s.cutSpeaker}>{r.speaker.toUpperCase()}</p>}
+                        <p className={s.cutDialogue}>{r.line}</p>
+                      </div>
+                    ))}
                 </div>
               );
             })}

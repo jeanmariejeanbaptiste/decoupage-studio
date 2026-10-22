@@ -27,7 +27,7 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
           <TabExport doc={() => intentionDocument({ ...doc, intention: text })} fileBase={`${doc.project.title || 'projet'}-note-d-intention`} file={{ label: 'Texte', type: 'text/plain;charset=utf-8', name: `${doc.project.title || 'projet'}-note-d-intention.txt`, content: () => text }} />
         </span>
       </header>
-      <div className={['card', s.sheet].join(' ')}>
+      <div className={['a4-sheet', s.sheet].join(' ')}>
         <textarea
           className={s.text}
           value={text}
