@@ -178,3 +178,6 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - Interface épurée : retrait des mini-tutoriels et indications décoratives (« lié · N plans », aides de glissement, notes explicatives, descriptions des formats d'export).
 - Feuille de service : pages A4 réelles à l'écran (useA4Pages), une ligne ou un titre ne se coupe jamais entre deux pages.
 - Plan au sol : cadrage mémorisé par vue (même après rechargement), épaisseur des traits réglable par vue.
+
+## Version 2.0.0 — 2026-10-22
+Série de retours close : plans-séquences en lignes alignées et liaisons, annexe, storyboard (icônes au trait, keyframes en vignettes, plans par ligne), plan au sol (import IA strict, fond réglable, sélection multiple, lampe de jeu, outils par famille, cadrage mémorisé), feuille de service en pages A4, insertion entre les lignes, interface épurée.
