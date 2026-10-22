@@ -5,7 +5,8 @@ import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from '
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ImagePlus, PenLine } from 'lucide-react';
+import { ArrowUpRight, ImagePlus, PenLine, Trash2 } from 'lucide-react';
+import { FramingIcon } from './FramingIcon';
 import { SketchEditor } from './SketchEditor';
 import { exportNodePages, waitForImages, waitForPages, type PageExportOptions } from '../export/imageExport';
 import { ExportPanel } from '../export/ExportPanel';
@@ -290,7 +291,7 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
           void importImage(e.dataTransfer.files[0]);
         }}
       >
-        {url ? <img src={url} alt={`Storyboard du plan ${label}`} /> : !printing && <ImagePlus size={20} strokeWidth={1} aria-hidden="true" />}
+        {url ? <img src={url} alt={`Storyboard du plan ${label}`} /> : !printing && <FramingIcon value={shot.value} focal={shot.focal.from} ratio={ratio} />}
         <span className={s.code} data-label>
           {label}
         </span>
@@ -345,7 +346,6 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
   const block = doc.blocks[shot.actionBlockId];
   const ratio = aspectRatio(doc.project.settings.storyboardAspect);
   const frames = framesOf(shot);
-  const meta = [valueLabel(shot.value, doc.project.settings.labelStyle), formatFocal(shot.focal, isZoom(shot.movement)), renderTokens(shot.movement, shot.movementSep)].filter(Boolean).join(' · ');
   return (
     <article
       className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')}
@@ -387,28 +387,25 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
         </div>
       ) : (
       <div className={s.body}>
-        <p className={s.meta}>{meta || '—'}</p>
-        <p className={s.subject}>{shot.subject}</p>
-        <p className={s.action}>{block?.text}</p>
+        {/* Fiche lisible : sujet, puis les réglages en pastilles colorées par nature, l'action, la durée. */}
+        <p className={s.subject}>{shot.subject || <em>sans sujet</em>}</p>
+        <p className={s.tags}>
+          {valueLabel(shot.value, doc.project.settings.labelStyle) && <span className={s.tValue}>{valueLabel(shot.value, doc.project.settings.labelStyle)}</span>}
+          {renderTokens(shot.angle) && <span className={s.tAngle}>{renderTokens(shot.angle)}</span>}
+          {renderTokens(shot.movement, shot.movementSep) && <span className={s.tMove}>{renderTokens(shot.movement, shot.movementSep)}</span>}
+          {formatFocal(shot.focal, isZoom(shot.movement)) && <span className={s.tFocal}>{formatFocal(shot.focal, isZoom(shot.movement))}</span>}
+        </p>
+        {block?.text && <p className={s.action}>{block.text}</p>}
         <p className={s.foot}>
           <span className="mono">{formatTc(shotDurationSec(doc, timing, shot))}</span>
-          {!printing && (
-            <span>
-              <button type="button" className={s.open} onPointerDown={(e) => e.stopPropagation()} onClick={() => goToShot(doc, shot.id)}>
-                ouvrir
-              </button>{' '}
-              <button
-                type="button"
-                className={s.open}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => deleteShotById(shot.id)}
-                aria-label={`Supprimer le plan ${shotCode(doc, shot.id)}`}
-                data-testid="storyboard-delete"
-              >
-                supprimer
-              </button>
-            </span>
-          )}
+          <span className={s.icons}>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => goToShot(doc, shot.id)} aria-label={`Ouvrir le plan ${shotCode(doc, shot.id)} dans le découpage`} title="Ouvrir dans le découpage">
+              <ArrowUpRight size={14} strokeWidth={1.5} />
+            </button>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => deleteShotById(shot.id)} aria-label={`Supprimer le plan ${shotCode(doc, shot.id)}`} title="Supprimer le plan" data-testid="storyboard-delete">
+              <Trash2 size={14} strokeWidth={1.5} />
+            </button>
+          </span>
         </p>
       </div>
       )}

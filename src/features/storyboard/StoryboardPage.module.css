@@ -87,3 +87,17 @@
 .print .sheetGrid .line b { font-weight: 600; }
 .print .sheetGrid .body { padding: 1.2mm 2.2mm; }
 .print .sheetGrid .line :global(.mono) { font-size: inherit; }
+
+/* Fiche de carte à l'écran. */
+.subject em { font-weight: 400; color: var(--ink-soft); }
+.tags { display: flex; flex-wrap: wrap; gap: 3px; margin: 1px 0 2px !important; }
+.tags span { font-size: 11px; line-height: 1.5; padding: 0 6px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.tValue { color: var(--rust); border-color: color-mix(in srgb, var(--rust) 35%, transparent); background: color-mix(in srgb, var(--rust) 7%, transparent); }
+.tAngle { color: #3b5f86; border-color: color-mix(in srgb, #3b5f86 35%, transparent); background: color-mix(in srgb, #3b5f86 7%, transparent); }
+.tMove { color: #4f7a3a; border-color: color-mix(in srgb, #4f7a3a 35%, transparent); background: color-mix(in srgb, #4f7a3a 7%, transparent); }
+.tFocal { color: #8a6a1e; border-color: color-mix(in srgb, #b88a2e 40%, transparent); background: color-mix(in srgb, #b88a2e 8%, transparent); font-family: var(--font-mono); }
+.icons { display: inline-flex; gap: 2px; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.card:hover .icons, .icons:focus-within { opacity: 1; }
+.icons button { display: inline-flex; border: 0; background: none; padding: 3px; border-radius: 4px; color: var(--ink-soft); cursor: pointer; }
+.icons button:hover { background: var(--paper); color: var(--ink); }
+.icons button:last-child:hover { color: var(--rust); }

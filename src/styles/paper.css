@@ -76,3 +76,12 @@ button { cursor: pointer; }
 /* Feuille A4 à l'écran : la page garde le format du papier, quel que soit son contenu. */
 .a4-sheet { width: min(210mm, 100%); min-height: 297mm; margin: 0 auto; padding: 16mm 15mm; background: var(--sheet, #fff); border: 1px solid var(--rule); border-radius: 2px; box-shadow: 0 1px 2px rgba(42, 40, 36, 0.06), 0 12px 32px rgba(42, 40, 36, 0.08); box-sizing: border-box; }
 @media print { .a4-sheet { width: auto; min-height: 0; border: 0; box-shadow: none; padding: 0; } }
+
+/* Pictogrammes de cadre (storyboard vide). */
+.framing-icon { width: 100%; height: 100%; }
+.framing-icon .fi-figure { fill: color-mix(in srgb, var(--ink) 18%, transparent); }
+.framing-icon .fi-object { fill: none; stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-width: 1.4; }
+.framing-icon .fi-line { fill: none; stroke: color-mix(in srgb, var(--ink) 22%, transparent); stroke-width: 1.2; }
+.framing-icon .fi-eye { fill: var(--paper); }
+.framing-icon .fi-fov { fill: color-mix(in srgb, var(--rust) 22%, transparent); stroke: color-mix(in srgb, var(--rust) 55%, transparent); stroke-width: 0.8; }
+.framing-icon .fi-mm, .framing-icon .fi-text { font-family: var(--font-mono); font-size: 7px; fill: color-mix(in srgb, var(--ink) 45%, transparent); }

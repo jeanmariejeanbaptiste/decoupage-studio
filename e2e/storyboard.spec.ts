@@ -7,7 +7,9 @@ test('storyboard : cartes, réordonnancement et planche imprimable', async ({ pa
   const cards = page.getByTestId('storyboard-card');
   await expect(cards).toHaveCount(11);
   await expect(cards.first()).toContainText('1.1');
-  await expect(cards.first()).toContainText('Général · 24mm · Fixe');
+  await expect(cards.first()).toContainText('Général');
+  await expect(cards.first()).toContainText('24mm');
+  await expect(cards.first()).toContainText('Fixe');
   // Glisser la carte 1.4 en tête de séquence.
   const a = (await cards.nth(3).boundingBox())!;
   const b = (await cards.nth(0).boundingBox())!;
