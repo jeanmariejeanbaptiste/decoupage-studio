@@ -366,6 +366,24 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
           + keyframe
         </button>
       )}
+      {printing ? (
+        // Planche : une seule ligne justifiée, dans l'ordre des colonnes du découpage.
+        <div className={s.body}>
+          <p className={s.line}>
+            {[
+              shot.subject && <b key="s">{shot.subject}</b>,
+              valueLabel(shot.value, doc.project.settings.labelStyle),
+              renderTokens(shot.angle),
+              renderTokens(shot.movement, shot.movementSep),
+              formatFocal(shot.focal, isZoom(shot.movement)),
+              block?.text,
+              <span key="tc" className="mono">{formatTc(shotDurationSec(doc, timing, shot))}</span>,
+            ]
+              .filter(Boolean)
+              .flatMap((x, i) => (i ? [' · ', x] : [x]))}
+          </p>
+        </div>
+      ) : (
       <div className={s.body}>
         <p className={s.meta}>{meta || '—'}</p>
         <p className={s.subject}>{shot.subject}</p>
@@ -391,6 +409,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
           )}
         </p>
       </div>
+      )}
     </article>
   );
 }
