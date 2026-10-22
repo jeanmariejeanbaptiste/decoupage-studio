@@ -68,6 +68,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
             id="storyboard"
             title="Exporter le storyboard"
             perPage={[1, 2, 3, 4, 6, 9]}
+            noNumbers
             disabled={allShots.length === 0 || !!imaging}
             onExport={({ format, orientation, numbers }) => setImaging({ format: format as 'pdf' | 'images', orientation, numbers })}
           >
@@ -174,7 +175,8 @@ function Sheets({ doc, shots, perPage, timing, className, orientation }: { doc: 
       {pages.map((ids, i) => (
         <div key={i} className={[s.sheet, ink ? s.ink : ''].join(' ')} data-testid="storyboard-sheet">
           <header className={s.sheetHead}>
-            <strong>{doc.project.title}</strong> · Storyboard · {doc.project.version}
+            <strong>{doc.project.title}</strong>
+            <span>Storyboard · {doc.project.version}</span>
             <span>
               planche {i + 1} / {pages.length}
             </span>
