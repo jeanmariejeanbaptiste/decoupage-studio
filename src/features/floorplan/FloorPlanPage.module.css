@@ -106,3 +106,12 @@
 .mdTools button { border: 1px solid var(--rule); background: var(--paper); border-radius: 4px; padding: 1px 8px; cursor: pointer; }
 .mdTools label { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; }
 .mdBox > .mdTools { justify-content: flex-start; }
+
+/* Barre d'outils rangée par famille. */
+.tools { gap: 10px; }
+.toolGroup { display: inline-flex; align-items: center; gap: 3px; padding: 2px 4px 2px 2px; border: 1px solid var(--rule); border-radius: calc(var(--radius) + 2px); background: color-mix(in srgb, var(--paper) 60%, transparent); }
+.toolGroupLabel { padding: 0 6px 0 6px; font-family: var(--font-hand); font-size: 14px; color: var(--rust); }
+.toolGroup .tool { border-color: transparent; background: none; }
+.toolGroup .tool:hover { border-color: var(--rule); background: var(--paper-card); }
+.toolGroup .tool.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.practicalRays { fill: none; stroke: var(--ochre); stroke-width: 1.6; stroke-linecap: round; }

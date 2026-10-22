@@ -23,6 +23,8 @@ export type FloorItem =
       range?: number;
       /** Puissance de la source (1 = normale). */
       power?: number;
+      /** Lumière de jeu (lampe visible dans le champ) : rayonne tout autour. */
+      practical?: boolean;
     }
   | { id: ID; kind: 'reflector' | 'diffuser' | 'flag'; x: number; y: number; x2: number; y2: number; label?: string };
 
@@ -407,7 +409,7 @@ export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; s
   const MAX_DEPTH = 2;
 
   const emit = (b: Beam, depth: number, from?: ID) => {
-    const N = Math.max(60, Math.round(b.spread * 1.8));
+    const N = Math.max(60, Math.min(360, Math.round(b.spread * 1.8)));
     const pts: Point[] = [{ x: b.x, y: b.y }];
     // Impacts groupés par obstacle qui renvoie ou transforme la lumière (diffuseur, réflecteur, mur blanc).
     const hits = new Map<ID, { kind: 'diffuser' | 'reflector' | 'wall'; seg: Seg; list: Array<{ x: number; y: number; ang: number; t: number }> }>();

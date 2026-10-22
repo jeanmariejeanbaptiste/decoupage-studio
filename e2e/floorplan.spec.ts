@@ -69,6 +69,16 @@ test('plan au sol : lumière, réflecteur et plusieurs plans', async ({ page }) 
   await page.getByTestId('floorplan').focus();
   for (let i = 0; i < 6; i++) await page.keyboard.press('Shift+r');
   await expect(page.getByTestId('fp-beam')).toHaveCount(1);
+  // Lampe de jeu : rayonne tout autour.
+  await page.getByTestId('tool-practical').click();
+  const lamp = await at(page, 0.8, 0.2);
+  await page.mouse.click(lamp.x, lamp.y);
+  await expect(page.getByTestId('fp-practical')).toHaveCount(1);
+  await expect(page.getByTestId('fp-properties')).toContainText('Lampe de jeu');
+  await page.getByTestId('tool-select').click();
+  await page.getByTestId('floorplan').focus();
+  await page.keyboard.press('Delete');
+  await expect(page.getByTestId('fp-practical')).toHaveCount(0);
   // Réflecteur tracé en travers du faisceau (lumière orientée vers la droite).
   await page.getByTestId('tool-reflector').click();
   p = await at(page, 0.45, 0.35);

@@ -5,6 +5,7 @@ import {
   RectangleVertical,
   DoorOpen,
   Lamp,
+  Lightbulb,
   MousePointer2,
   Minus,
   Square,
@@ -61,20 +62,37 @@ import { downloadWord } from '../export/docExport';
 import { downloadBlob } from '../../store/persistence';
 import { floorPlansDocument } from '../../domain/documents';
 
-type Tool = 'select' | FloorKind;
+type Tool = 'select' | FloorKind | 'practical';
 const IC = { size: 15, strokeWidth: 1.25 } as const;
-const TOOLS: Array<{ key: Tool; label: string; icon: JSX.Element }> = [
-  { key: 'select', label: 'Sélection', icon: <MousePointer2 {...IC} /> },
-  { key: 'camera', label: 'Caméra', icon: <Camera {...IC} /> },
-  { key: 'actor', label: 'Comédien', icon: <User {...IC} /> },
-  { key: 'wall', label: 'Mur', icon: <Minus {...IC} /> },
-  { key: 'rail', label: 'Rails', icon: <TrainTrack {...IC} /> },
-  { key: 'door', label: 'Porte', icon: <DoorOpen {...IC} /> },
-  { key: 'window', label: 'Fenêtre', icon: <Square {...IC} /> },
-  { key: 'light', label: 'Lumière', icon: <Lamp {...IC} /> },
-  { key: 'reflector', label: 'Réflecteur', icon: <RectangleVertical {...IC} /> },
-  { key: 'diffuser', label: 'Diffuseur', icon: <Grid2x2 {...IC} /> },
-  { key: 'flag', label: 'Drapeau', icon: <Flag {...IC} /> },
+/** Outils rangés par famille : décor, équipe et machinerie, lumière. */
+const TOOL_GROUPS: Array<{ label: string; tools: Array<{ key: Tool; label: string; icon: JSX.Element }> }> = [
+  { label: '', tools: [{ key: 'select', label: 'Sélection', icon: <MousePointer2 {...IC} /> }] },
+  {
+    label: 'Décor',
+    tools: [
+      { key: 'wall', label: 'Mur', icon: <Minus {...IC} /> },
+      { key: 'door', label: 'Porte', icon: <DoorOpen {...IC} /> },
+      { key: 'window', label: 'Fenêtre', icon: <Square {...IC} /> },
+    ],
+  },
+  {
+    label: 'Plateau',
+    tools: [
+      { key: 'camera', label: 'Caméra', icon: <Camera {...IC} /> },
+      { key: 'rail', label: 'Rails', icon: <TrainTrack {...IC} /> },
+      { key: 'actor', label: 'Comédien', icon: <User {...IC} /> },
+    ],
+  },
+  {
+    label: 'Lumière',
+    tools: [
+      { key: 'light', label: 'Projecteur', icon: <Lamp {...IC} /> },
+      { key: 'practical', label: 'Lampe de jeu', icon: <Lightbulb {...IC} /> },
+      { key: 'reflector', label: 'Réflecteur', icon: <RectangleVertical {...IC} /> },
+      { key: 'diffuser', label: 'Diffuseur', icon: <Grid2x2 {...IC} /> },
+      { key: 'flag', label: 'Drapeau', icon: <Flag {...IC} /> },
+    ],
+  },
 ];
 
 type Drag =
@@ -360,7 +378,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       return;
     }
     const id = mutateDoc((d) => {
-      const nid = addFloorItem(d, planKey, tool, p);
+      const nid = addFloorItem(d, planKey, tool === 'practical' ? 'light' : tool, p);
+      if (tool === 'practical') {
+        const n = planOf(d, planKey).items.filter((i) => i.kind === 'light' && i.practical).length + 1;
+        updateFloorItem(d, planKey, nid, { practical: true, spread: 360, range: 170, power: 0.6, label: `P${n}` } as Partial<FloorItem>);
+      }
       if (tool === 'actor') {
         // Nommage rapide : le premier personnage de la séquence pas encore placé.
         const placed = planOf(d, planKey).items.map((i) => (i.kind === 'actor' ? i.characterId : undefined));
@@ -559,17 +581,21 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             { key: 'word', label: 'Word', hint: 'Document Word avec toutes les vues.' },
           ]}
           onExport={async ({ format, orientation, numbers }) => {
-            const all = allFloorPlans(doc);
-            const base = `${doc.project.title || 'projet'}-plans-au-sol`;
-            if (format === 'pdf' || format === 'images') {
-              const svgs = all.length ? all.map((p) => p.svg) : [floorPlanSvg(doc, planKey, sequenceHeading(doc, seqId))];
-              return exportSvgPages(svgs, `${base}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });
+            try {
+              const all = allFloorPlans(doc);
+              const base = `${doc.project.title || 'projet'}-plans-au-sol`;
+              if (format === 'pdf' || format === 'images') {
+                const svgs = all.length ? all.map((p) => p.svg) : [floorPlanSvg(doc, planKey, sequenceHeading(doc, seqId))];
+                return await exportSvgPages(svgs, `${base}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });
+              }
+              if (format === 'word') return downloadWord(floorPlansDocument(doc), base);
+              const { default: JSZip } = await import('jszip');
+              const zip = new JSZip();
+              for (const p of all) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
+              downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
+            } catch (err) {
+              useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
             }
-            if (format === 'word') return downloadWord(floorPlansDocument(doc), base);
-            const { default: JSZip } = await import('jszip');
-            const zip = new JSZip();
-            for (const p of all) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
-            downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
           }}
         />
         <label className={s.seqPick}>
@@ -685,18 +711,23 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             </button>
           </div>
           <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol">
-            {TOOLS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className={[s.tool, tool === t.key ? s.on : ''].join(' ')}
-                aria-pressed={tool === t.key}
-                onClick={() => setTool(t.key)}
-                data-testid={`tool-${t.key}`}
-              >
-                {t.icon}
-                {t.label}
-              </button>
+            {TOOL_GROUPS.map((g) => (
+              <div key={g.label || 'sel'} className={s.toolGroup} role="group" aria-label={g.label || 'Sélection'}>
+                {g.label && <span className={s.toolGroupLabel}>{g.label}</span>}
+                {g.tools.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    className={[s.tool, tool === t.key ? s.on : ''].join(' ')}
+                    aria-pressed={tool === t.key}
+                    onClick={() => setTool(t.key)}
+                    data-testid={`tool-${t.key}`}
+                  >
+                    {t.icon}
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
           <div className={s.viewBar}>
@@ -1198,6 +1229,16 @@ function ItemShape({
     }
     case 'light': {
       const h = handle(item.rot, 40);
+      if (item.practical)
+        return (
+          <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid="fp-practical">
+            <circle cx={item.x} cy={item.y} r={9} className={s.light} />
+            <path d={[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r = (a * Math.PI) / 180; return `M ${item.x + Math.cos(r) * 12} ${item.y + Math.sin(r) * 12} L ${item.x + Math.cos(r) * 17} ${item.y + Math.sin(r) * 17}`; }).join(' ')} className={s.practicalRays} />
+            <text x={item.x} y={item.y + 30} className={s.label}>
+              {item.label}
+            </text>
+          </g>
+        );
       return (
         <g className={cls}>
           <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
@@ -1223,7 +1264,7 @@ const KIND_LABEL: Record<FloorKind, string> = {
   rail: 'Rails',
   door: 'Porte',
   window: 'Fenêtre',
-  light: 'Source de lumière',
+  light: 'Projecteur',
   reflector: 'Réflecteur',
   diffuser: 'Diffuseur',
   flag: 'Drapeau (négatif)',
@@ -1248,7 +1289,7 @@ function Properties({
   const seq = doc.sequences[seqId];
   return (
     <div className={s.props} data-testid="fp-properties">
-      <h2 className={s.h2}>{KIND_LABEL[item.kind]}</h2>
+      <h2 className={s.h2}>{item.kind === 'light' && item.practical ? 'Lampe de jeu' : KIND_LABEL[item.kind]}</h2>
       {item.kind === 'wall' && (
         <label className={s.check}>
           <input type="checkbox" checked={!!item.white} onChange={(e) => update({ white: e.target.checked } as Partial<FloorItem>)} />
@@ -1364,6 +1405,7 @@ function Properties({
       )}
       {item.kind === 'light' && (
         <>
+          {!item.practical && (
           <label className={s.field}>
             <span>Focalisation : faisceau de {item.spread ?? DEFAULT_SPREAD}° ({(item.spread ?? DEFAULT_SPREAD) <= 30 ? 'serré' : (item.spread ?? DEFAULT_SPREAD) >= 90 ? 'large' : 'moyen'})</span>
             <input
@@ -1376,6 +1418,7 @@ function Properties({
               aria-label="Ouverture du faisceau"
             />
           </label>
+          )}
           <label className={s.field}>
             <span>Portée</span>
             <input

@@ -152,6 +152,12 @@ describe('éclairage : diffuseur et drapeau', async () => {
     const actor = computeLighting([light, { id: 'a', kind: 'actor', x: 120, y: 0, label: '1' }]).beams[0];
     expect(Math.min(...reach(actor))).toBeLessThan(110);
   });
+  it('une lampe de jeu éclaire tout autour d’elle', () => {
+    const lamp = { id: 'p', kind: 'light' as const, x: 0, y: 0, rot: 0, spread: 360, range: 170, power: 0.6, practical: true };
+    const pts = computeLighting([lamp]).beams[0].points.slice(1);
+    const dirs = new Set(pts.map((q) => Math.round(Math.atan2(q.y, q.x) / (Math.PI / 2))));
+    expect(dirs.size).toBeGreaterThanOrEqual(4);
+  });
   it('la lumière diffusée ou renvoyée est elle aussi coupée par drapeaux et murs, et reprise par les réflecteurs', () => {
     const diff = { id: 'd', kind: 'diffuser' as const, x: 150, y: -40, x2: 150, y2: 40 };
     const flag = { id: 'f', kind: 'flag' as const, x: 250, y: -400, x2: 250, y2: 400 };

@@ -182,11 +182,19 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         out.push(`<rect x="${i.x}" y="${i.y - 4}" width="${i.width}" height="8" fill="#fff" stroke="#2a2824" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
         break;
       case 'light':
-        out.push(`<circle cx="${i.x}" cy="${i.y}" r="12" fill="#b88a2e"/><text x="${i.x}" y="${i.y + 28}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(i.label ?? '')}</text>`);
+        out.push(`<circle cx="${i.x}" cy="${i.y}" r="${i.practical ? 9 : 12}" fill="#b88a2e"/><text x="${i.x}" y="${i.y + 28}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(i.label ?? '')}</text>`);
         break;
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -40 ${PLAN_W} ${PLAN_H + 40}" font-family="Georgia, serif"><rect y="-40" width="${PLAN_W}" height="${PLAN_H + 40}" fill="#fff"/><text x="10" y="-14" font-size="18" fill="#2a2824">${xml(title)}</text><rect width="${PLAN_W}" height="${PLAN_H}" fill="none" stroke="#d3c8b4"/>${out.join('')}</svg>`;
+  // Cadre : la zone par défaut, élargie à tout ce qui a été placé (fond à l'échelle réelle compris).
+  const xs = [0, PLAN_W, ...items.flatMap((i) => ('x2' in i ? [i.x, i.x2] : [i.x]))];
+  const ys = [0, PLAN_H, ...items.flatMap((i) => ('y2' in i ? [i.y, i.y2] : [i.y]))];
+  const x0 = Math.min(...xs) - 30;
+  const y0 = Math.min(...ys) - 70;
+  const w = Math.max(...xs) + 30 - x0;
+  const h = Math.max(...ys) + 30 - y0;
+  // Largeur et hauteur explicites : Safari ne sait pas dessiner un SVG qui n'a qu'une viewBox.
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w)}" height="${Math.round(h)}" viewBox="${x0} ${y0} ${w} ${h}" font-family="Georgia, serif"><rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="#fff"/><text x="${x0 + 40}" y="${y0 + 26}" font-size="18" fill="#2a2824">${xml(title)}</text>${out.join('')}</svg>`;
 }
 
 /** Tous les plans au sol du projet : nom de fichier → SVG. */

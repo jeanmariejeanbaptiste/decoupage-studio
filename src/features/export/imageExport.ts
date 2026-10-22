@@ -57,8 +57,12 @@ export async function exportSvgPages(svgs: string[], base: string, opts: PageExp
       const ctx = canvas.getContext('2d')!;
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, W, H);
-      const k = Math.min((W - 2 * margin) / img.naturalWidth, (H - 2 * margin) / img.naturalHeight);
-      ctx.drawImage(img, (W - img.naturalWidth * k) / 2, (H - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      // Taille de l'image : celle déclarée, sinon la viewBox (Safari renvoie 0 pour un SVG sans taille).
+      const vb = /viewBox="[^"]*?([\d.]+)\s+([\d.]+)"/.exec(svg);
+      const iw = img.naturalWidth || Number(vb?.[1]) || W;
+      const ih = img.naturalHeight || Number(vb?.[2]) || H;
+      const k = Math.min((W - 2 * margin) / iw, (H - 2 * margin) / ih);
+      ctx.drawImage(img, (W - iw * k) / 2, (H - ih * k) / 2, iw * k, ih * k);
       canvases.push(canvas);
     } finally {
       URL.revokeObjectURL(url);
