@@ -45,13 +45,19 @@ export function aiPlanInstructions(o: InstructionOptions = {}): string {
   return `CONSIGNES MACHINE — IMPORT DE PLAN DANS « DÉCOUPAGE STUDIO »
 Destinataire : une IA. Le fichier que tu produis sera lu par un analyseur automatique STRICT, ligne par ligne, octet par octet. Il n'y a aucun humain pour corriger tes écarts. Une seule ligne non conforme est rejetée et signalée comme erreur ; un en-tête non conforme rejette tout le fichier.
 
+══════════════════════════════════════════════════════════════
+EXIGENCE N° 1, NON NÉGOCIABLE : LIVRER UN FICHIER TÉLÉCHARGEABLE « plan.md »
+══════════════════════════════════════════════════════════════
+- Ta réponse N'EST PAS un message de discussion. Ta réponse EST un FICHIER.
+- Tu DOIS créer un vrai fichier nommé exactement « plan.md » (UTF-8, fins de ligne LF) et le fournir en PIÈCE TÉLÉCHARGEABLE, avec un bouton ou un lien de téléchargement.
+- Utilise pour cela ton outil de création de fichiers : création de fichier / artefact téléchargeable, exécution de code (par exemple Python : open('plan.md', 'w', encoding='utf-8').write(contenu), puis lien de téléchargement du fichier), ou tout autre outil équivalent dont tu disposes.
+- INTERDIT : écrire le contenu du plan directement dans le corps de ta réponse. Une interface de discussion interprète « # » et « ## » comme des titres et détruit la syntaxe : le fichier devient illisible pour l'analyseur.
+- Dans le corps de ta réponse, écris seulement une ligne : « Fichier plan.md prêt au téléchargement. », suivie du fichier.
+- REPLI, UNIQUEMENT si tu n'as réellement aucun moyen de créer un fichier : place la totalité du contenu dans UN SEUL bloc de code délimité par \`\`\`text en première ligne et \`\`\` en dernière ligne, sans aucun texte avant ni après, pour que l'utilisateur l'enregistre tel quel sous « plan.md ». Ce repli est une dégradation : n'y recours jamais si un fichier est possible.
+- Le contenu du fichier commence au tout premier caractère par « ${PLAN_HEADER} » et se termine par la ligne « ## FIN ».
+
 MISSION
 À partir de l'image de plan de locaux jointe (plan d'architecte, plan d'évacuation, croquis, capture), relève la géométrie des MURS, des PORTES et des FENÊTRES, et rien d'autre.
-
-LIVRABLE
-- Un FICHIER texte nommé « plan.md », encodé en UTF-8, fins de ligne LF.
-- Si tu ne peux pas produire de fichier téléchargeable, réponds avec le contenu EXACT du fichier et rien d'autre : pas de phrase d'introduction, pas de conclusion, pas de commentaire, pas de bloc de code (\`\`\`), pas de gras, pas d'italique, pas d'emoji.
-- Le fichier commence au tout premier caractère par « ${PLAN_HEADER} » et se termine par la ligne « ## FIN ».
 
 ${repere}
 
@@ -100,6 +106,7 @@ VÉRIFICATION AVANT D'ENVOYER (fais-la réellement)
 - Les compteurs correspondent au nombre de lignes de chaque section.
 - Toutes les coordonnées sont des entiers dans les bornes de la grille.
 - Les numéros se suivent sans trou.
+- Le résultat est un FICHIER « plan.md » téléchargeable, pas du texte dans la discussion.
 
 EXEMPLE CONFORME (valeurs fictives, à remplacer entièrement)
 ${PLAN_HEADER}
@@ -118,6 +125,8 @@ P001 | 220,40 | 36 | 0
 ## FENETRES
 F001 | 400,150 | 60 | 90
 ## FIN
+
+RAPPEL FINAL : produis maintenant le FICHIER TÉLÉCHARGEABLE « plan.md » (outil de création de fichier ou exécution de code). Ne recopie jamais son contenu dans le corps de ta réponse.
 `;
 }
 
@@ -163,7 +172,7 @@ export function parsePlanFile(text: string): ParsedPlan {
   let offset = 0;
   // Tolérance unique : un bloc de code autour du fichier (signalé).
   if (/^```/.test(lines[0] ?? '') && /^```\s*$/.test(lines[lines.length - 1] ?? '')) {
-    warnings.push({ line: 1, message: 'Bloc de code « ``` » autour du fichier retiré (interdit par les consignes).' });
+    warnings.push({ line: 1, message: 'Bloc de code « ``` » autour du contenu retiré (repli toléré : l’IA aurait dû livrer un fichier).' });
     lines = lines.slice(1, -1);
     offset = 1;
   }

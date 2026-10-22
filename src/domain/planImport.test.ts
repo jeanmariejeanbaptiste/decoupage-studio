@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PLAN_HEADER, aiPlanInstructions, imageGridH, parsePlanFile, placePlan } from './planImport';
 
-const example = (text: string) => text.slice(text.indexOf('EXEMPLE CONFORME')).split('\n').slice(1).join('\n');
+const example = (text: string) => text.slice(text.indexOf('EXEMPLE CONFORME'), text.indexOf('\n\nRAPPEL FINAL') + 1).split('\n').slice(1).join('\n');
 
 describe('import d’un plan de locaux décrit par une IA', () => {
   it('calcule la grille des consignes sur le format de l’image de fond', () => {
@@ -10,6 +10,9 @@ describe('import d’un plan de locaux décrit par une IA', () => {
     expect(t).toContain('grille: 1000x750');
     expect(t).toContain('2000 × 1500 pixels');
     expect(aiPlanInstructions()).toContain('repere: cm');
+    // Le livrable exigé est un fichier téléchargeable, rappelé en tête et en fin.
+    expect(t.indexOf('FICHIER TÉLÉCHARGEABLE')).toBeLessThan(t.indexOf('MISSION'));
+    expect(t.trimEnd().endsWith('Ne recopie jamais son contenu dans le corps de ta réponse.')).toBe(true);
   });
   it('relit sans erreur l’exemple conforme des consignes', () => {
     const p = parsePlanFile(example(aiPlanInstructions({ ratio: 0.75 })));
