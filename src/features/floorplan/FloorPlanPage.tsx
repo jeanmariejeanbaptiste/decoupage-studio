@@ -48,6 +48,11 @@ import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { isZoom } from '../../domain/vocabulary';
 import { mutateDoc } from '../../store/projectStore';
+import { useUi } from '../../store/uiStore';
+import { putBlob } from '../../store/db';
+import { useBlobUrl } from '../../ui/useBlobUrl';
+import { AI_PLAN_INSTRUCTIONS, parsePlanMarkdown } from '../../domain/planImport';
+import type { FloorPlan } from '../../domain/floorplan';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import s from './FloorPlanPage.module.css';
@@ -89,6 +94,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [selected, setSelected] = useState<ID | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  // Zoom et déplacement : fenêtre visible du plan (bornée), recentrable.
+  const [view, setView] = useState({ x: 0, y: 0, w: PLAN_W, h: PLAN_H });
+  const [mdImport, setMdImport] = useState<string | null>(null);
 
   const [planPick, setPlanPick] = useState<string | undefined>(undefined);
   useEffect(() => {
@@ -101,6 +109,49 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const psView = psPlans.find((p) => p.key === planKey);
   const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
   const { beams, shadows } = useMemo(() => computeLighting(items), [items]);
+  const bg = planKey ? planOf(doc, planKey).bg : undefined;
+  const bgUrl = useBlobUrl(bg?.blobKey);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = svg.getBoundingClientRect();
+      setView((v) => {
+        const k = v.w / r.width;
+        if (e.ctrlKey || e.metaKey) {
+          // Pincer (ou Ctrl + molette) : zoom centré sur le pointeur, borné.
+          const f = Math.exp(e.deltaY * 0.01);
+          const w = Math.max(PLAN_W / 8, Math.min(PLAN_W * 2, v.w * f));
+          const h = (w * PLAN_H) / PLAN_W;
+          const px = v.x + (e.clientX - r.left) * k;
+          const py = v.y + (e.clientY - r.top) * k;
+          return { x: px - (px - v.x) * (w / v.w), y: py - (py - v.y) * (h / v.h), w, h };
+        }
+        return { ...v, x: v.x + e.deltaX * k, y: v.y + e.deltaY * k };
+      });
+    };
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, [planKey]);
+  /** Recentre sur les éléments de la vue (ou tout le plan s'il est vide). */
+  const fitView = () => {
+    const pts = items.flatMap((i) => ('x2' in i ? [[i.x, i.y], [i.x2, i.y2]] : [[i.x, i.y]]));
+    if (bg) pts.push([bg.x, bg.y], [bg.x + bg.w, bg.y + bg.w * 0.7]);
+    if (!pts.length) return setView({ x: 0, y: 0, w: PLAN_W, h: PLAN_H });
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const [x0, x1, y0, y1] = [Math.min(...xs) - 80, Math.max(...xs) + 80, Math.min(...ys) - 80, Math.max(...ys) + 80];
+    const w = Math.max(PLAN_W / 6, x1 - x0, ((y1 - y0) * PLAN_W) / PLAN_H);
+    const h = (w * PLAN_H) / PLAN_W;
+    setView({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
+  };
+  const zoomBy = (f: number) =>
+    setView((v) => {
+      const w = Math.max(PLAN_W / 8, Math.min(PLAN_W * 2, v.w * f));
+      const h = (w * PLAN_H) / PLAN_W;
+      return { x: v.x + (v.w - w) / 2, y: v.y + (v.h - h) / 2, w, h };
+    });
   const sel = items.find((i) => i.id === selected);
   // Plan-séquence : temps choisi (null = tous) et trajectoires caméra / comédiens.
   const [beat, setBeat] = useState<number | null>(null);
@@ -415,6 +466,93 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   : 'cliquer pour placer · Échap pour finir'}
             </Hand>
           </div>
+          <div className={s.viewBar}>
+            <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoomer" title="Zoomer (ou pincer)">+</button>
+            <button type="button" onClick={() => zoomBy(1.25)} aria-label="Dézoomer" title="Dézoomer">−</button>
+            <button type="button" onClick={fitView} data-testid="fp-fit" title="Recentrer sur les éléments">Recentrer</button>
+            <span className={s.viewSep} />
+            <label className={s.bgBtn} title="Plan des locaux en fond, pour dessiner les murs par-dessus">
+              {bg ? 'Changer le fond' : 'Fond de plan'}
+              <input
+                type="file"
+                accept="image/*"
+                className="visually-hidden"
+                data-testid="fp-bg-input"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f?.type.startsWith('image/')) return;
+                  const key = await putBlob(doc.project.id, f.name, f);
+                  mutateDoc((d) => {
+                    const p = (d.floorPlans ??= {})[planKey] ?? ((d.floorPlans[planKey] = { items: [] }) as FloorPlan);
+                    p.bg = { blobKey: key, opacity: 0.45, x: 0, y: 0, w: PLAN_W };
+                  });
+                }}
+              />
+            </label>
+            {bg && (
+              <>
+                <label className={s.bgRange}>
+                  opacité
+                  <input type="range" min={0.05} max={1} step={0.05} value={bg.opacity} onChange={(e) => mutateDoc((d) => void (d.floorPlans![planKey].bg!.opacity = Number(e.target.value)))} aria-label="Opacité du fond" />
+                </label>
+                <label className={s.bgRange}>
+                  taille
+                  <input type="range" min={200} max={3000} step={10} value={bg.w} onChange={(e) => mutateDoc((d) => void (d.floorPlans![planKey].bg!.w = Number(e.target.value)))} aria-label="Taille du fond" />
+                </label>
+                <button type="button" onClick={() => mutateDoc((d) => void delete d.floorPlans![planKey].bg)} title="Retirer le fond">×</button>
+              </>
+            )}
+            <span className={s.viewSep} />
+            <button
+              type="button"
+              className={s.aiBtn}
+              title="Copier des consignes à donner à une IA (Claude, ChatGPT, Gemini…) avec l'image du plan des locaux"
+              onClick={async () => {
+                await navigator.clipboard.writeText(AI_PLAN_INSTRUCTIONS).catch(() => undefined);
+                useUi.getState().toast({ message: 'Consignes copiées : collez-les dans votre IA avec l’image du plan, puis importez sa réponse ici.' });
+              }}
+              data-testid="fp-ai-copy"
+            >
+              Consignes IA
+            </button>
+            <button type="button" className={s.aiBtn} onClick={() => setMdImport('')} data-testid="fp-ai-import">
+              Importer la réponse
+            </button>
+          </div>
+          {mdImport !== null && (
+            <div className={s.mdBox}>
+              <textarea value={mdImport} onChange={(e) => setMdImport(e.target.value)} placeholder="Collez ici la réponse Markdown de l’IA (« # PLAN … »)" rows={8} aria-label="Réponse de l’IA" />
+              <div>
+                <Button variant="ghost" onClick={() => setMdImport(null)}>
+                  Annuler
+                </Button>
+                <Button
+                  variant="primary"
+                  data-testid="fp-ai-apply"
+                  onClick={() => {
+                    const plan = parsePlanMarkdown(mdImport);
+                    if (!plan) return useUi.getState().toast({ message: 'Format non reconnu : la réponse doit commencer par « # PLAN » et suivre les consignes.', tone: 'warn' });
+                    mutateDoc((d) => {
+                      for (const w of plan.walls) {
+                        const id = addFloorItem(d, planKey, 'wall', { x: w.x, y: w.y }, { x: w.x2, y: w.y2 });
+                        if (w.white) updateFloorItem(d, planKey, id, { white: true } as Partial<FloorItem>);
+                      }
+                      for (const [kind, list] of [['door', plan.doors], ['window', plan.windows]] as const)
+                        for (const o of list) {
+                          const id = addFloorItem(d, planKey, kind, { x: o.x, y: o.y });
+                          updateFloorItem(d, planKey, id, { width: o.width, rot: o.rot } as Partial<FloorItem>);
+                        }
+                    });
+                    useUi.getState().toast({ message: `${plan.walls.length} murs, ${plan.doors.length} portes et ${plan.windows.length} fenêtres ajoutés (modifiables, annulable avec ⌘Z).` });
+                    setMdImport(null);
+                  }}
+                >
+                  Placer les murs
+                </Button>
+              </div>
+            </div>
+          )}
           {psShots.length > 0 && (
             <div className={s.beats} role="radiogroup" aria-label="Temps du plan-séquence" data-testid="fp-beats">
               <span>Plan-séquence {psShots.map((id) => shotCode(doc, id)).join(', ')} · temps</span>
@@ -432,7 +570,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           <svg
             ref={svgRef}
             className={[s.canvas, tool !== 'select' ? s.placing : ''].join(' ')}
-            viewBox={`0 0 ${PLAN_W} ${PLAN_H}`}
+            viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
             onPointerDown={onCanvasDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
@@ -461,7 +599,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 <path d="M0 0 L10 5 L0 10 z" fill="var(--navy)" />
               </marker>
             </defs>
-            <rect data-bg="1" width={PLAN_W} height={PLAN_H} fill="url(#fp-grid)" />
+            <rect data-bg="1" x={-PLAN_W} y={-PLAN_H} width={PLAN_W * 3} height={PLAN_H * 3} fill="url(#fp-grid)" />
+            {bg && bgUrl && <image href={bgUrl} x={bg.x} y={bg.y} width={bg.w} height={bg.w * 3} preserveAspectRatio="xMinYMin meet" opacity={bg.opacity} pointerEvents="none" data-testid="fp-background" />}
             {beams.map((b, i) => (
               <g
                 key={`beam-${b.sourceId}-${i}`}
@@ -682,7 +821,7 @@ function ItemShape({
             y1={item.y}
             x2={item.x2}
             y2={item.y2}
-            className={item.kind === 'wall' ? s.wall : s.rail}
+            className={item.kind === 'wall' ? (item.white ? s.wallWhite : s.wall) : s.rail}
           />
         </g>
       );
@@ -763,6 +902,12 @@ function Properties({
   return (
     <div className={s.props} data-testid="fp-properties">
       <h2 className={s.h2}>{KIND_LABEL[item.kind]}</h2>
+      {item.kind === 'wall' && (
+        <label className={s.check}>
+          <input type="checkbox" checked={!!item.white} onChange={(e) => update({ white: e.target.checked } as Partial<FloorItem>)} />
+          Mur blanc (renvoie un peu la lumière)
+        </label>
+      )}
       {(item.kind === 'camera' ||
         item.kind === 'light' ||
         item.kind === 'actor' ||

@@ -82,3 +82,17 @@ test('plan au sol : lumière, réflecteur et plusieurs plans', async ({ page }) 
   await page.getByRole('tab', { name: 'Vue 1' }).click();
   await expect(page.getByTestId('fp-reflector')).toHaveCount(1);
 });
+
+test('plan au sol : import des murs depuis la réponse d’une IA, zoom et recentrage', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=rav3');
+  await page.getByTestId('fp-ai-import').click();
+  await page.getByLabel('Réponse de l’IA').fill('# PLAN\nunite: cm\nlargeur: 600\nhauteur: 400\n## MURS\n- 0,0 -> 600,0 | blanc\n- 600,0 -> 600,400\n- 0,400 -> 600,400\n## PORTES\n- 300,400 | largeur 90 | angle 0\n## FENETRES\n');
+  await page.getByTestId('fp-ai-apply').click();
+  await expect(page.getByTestId('toast')).toContainText('3 murs, 1 portes');
+  const vb = () => page.getByTestId('floorplan').getAttribute('viewBox');
+  const before = await vb();
+  await page.getByRole('button', { name: 'Zoomer', exact: true }).click();
+  expect(await vb()).not.toBe(before);
+  await page.getByTestId('fp-fit').click();
+  expect(await vb()).not.toBe(before);
+});

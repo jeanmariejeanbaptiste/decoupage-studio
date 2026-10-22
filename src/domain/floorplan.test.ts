@@ -141,4 +141,15 @@ describe('éclairage : diffuseur et drapeau', async () => {
     expect(Math.max(...reach(beams[0]))).toBeGreaterThan(390);
     expect(shadows).toEqual([]);
   });
+  it('les murs arrêtent la lumière, un mur blanc la renvoie un peu ; les comédiens font obstacle', () => {
+    const wall = { id: 'w', kind: 'wall' as const, x: 100, y: -200, x2: 100, y2: 200 };
+    const { beams } = computeLighting([light, wall]);
+    expect(Math.max(...reach(beams[0]))).toBeLessThan(140);
+    expect(beams).toHaveLength(1);
+    const white = computeLighting([light, { ...wall, white: true }]).beams;
+    expect(white[1]).toMatchObject({ sourceId: 'w', soft: true });
+    expect(white[1].intensity).toBeLessThan(0.5);
+    const actor = computeLighting([light, { id: 'a', kind: 'actor', x: 120, y: 0, label: '1' }]).beams[0];
+    expect(Math.min(...reach(actor))).toBeLessThan(110);
+  });
 });

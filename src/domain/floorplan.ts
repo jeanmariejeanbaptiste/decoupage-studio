@@ -10,7 +10,7 @@ export interface Point {
 export type FloorItem =
   | { id: ID; kind: 'camera'; x: number; y: number; rot: number; shotIds: ID[]; label?: string; beat?: number }
   | { id: ID; kind: 'actor'; x: number; y: number; characterId?: ID; label: string; to?: Point; beat?: number; rot?: number }
-  | { id: ID; kind: 'wall' | 'rail'; x: number; y: number; x2: number; y2: number }
+  | { id: ID; kind: 'wall' | 'rail'; x: number; y: number; x2: number; y2: number; /** Mur blanc : renvoie un peu de lumière. */ white?: boolean }
   | { id: ID; kind: 'door' | 'window'; x: number; y: number; rot: number; width: number }
   | {
       id: ID;
@@ -39,6 +39,8 @@ export interface FloorPlan {
   name?: string;
   /** Vue propre à un plan-séquence (clé `ps-<plan>`). */
   oneShotId?: ID;
+  /** Plan des locaux en fond, pour dessiner par-dessus. */
+  bg?: { blobKey: string; opacity: number; x: number; y: number; w: number };
 }
 
 export interface PlanRef {
@@ -379,40 +381,80 @@ function rayToSegment(x: number, y: number, dx: number, dy: number, s: Reflector
 export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; shadows: Point[][] } {
   const beams: Beam[] = [];
   const mods = items.filter((i): i is Reflector => i.kind === 'diffuser' || i.kind === 'flag');
-  const N = 72;
+  const walls = items.filter((i): i is Extract<FloorItem, { kind: 'wall' | 'rail' }> => i.kind === 'wall');
+  const actors = items.filter((i): i is Extract<FloorItem, { kind: 'actor' }> => i.kind === 'actor');
+  const N = 90;
   for (const l of items.filter((i): i is Light => i.kind === 'light')) {
     const b = { ...lightBeam(l), intensity: Math.max(0.2, Math.min(1.6, l.power ?? 1)) };
     const pts: Point[] = [{ x: b.x, y: b.y }];
-    const diffused = new Map<ID, Array<{ x: number; y: number; ang: number; t: number }>>();
+    // Impacts groupés par obstacle qui renvoie ou transforme la lumière (diffuseur, mur blanc).
+    const hits = new Map<ID, { kind: 'diffuser' | 'wall'; seg: { x: number; y: number; x2: number; y2: number }; list: Array<{ x: number; y: number; ang: number; t: number }> }>();
     for (let k = 0; k <= N; k++) {
       const ang = b.rot - b.spread / 2 + (b.spread * k) / N;
       const dx = Math.cos((ang * Math.PI) / 180);
       const dy = Math.sin((ang * Math.PI) / 180);
       let t = b.range;
-      let hit: Reflector | undefined;
+      let hit: { id: ID; kind: 'diffuser' | 'flag' | 'wall' | 'actor'; seg?: { x: number; y: number; x2: number; y2: number }; white?: boolean } | undefined;
       for (const m of mods) {
         const d = rayToSegment(b.x, b.y, dx, dy, m);
         if (d < t) {
           t = d;
-          hit = m;
+          hit = { id: m.id, kind: m.kind as 'diffuser' | 'flag', seg: m };
+        }
+      }
+      for (const w of walls) {
+        const d = rayToSegment(b.x, b.y, dx, dy, w as unknown as Reflector);
+        if (d < t) {
+          t = d;
+          hit = { id: w.id, kind: 'wall', seg: w, white: w.white };
+        }
+      }
+      // Les comédiens arrêtent la lumière (cercle d'épaules ≈ 14 unités).
+      for (const a of actors) {
+        const fx = a.x - b.x;
+        const fy = a.y - b.y;
+        const proj = fx * dx + fy * dy;
+        const dist2 = fx * fx + fy * fy - proj * proj;
+        if (proj > 0 && dist2 < 14 * 14) {
+          const d = proj - Math.sqrt(14 * 14 - dist2);
+          if (d > 1 && d < t) {
+            t = d;
+            hit = { id: a.id, kind: 'actor' };
+          }
         }
       }
       pts.push({ x: b.x + dx * t, y: b.y + dy * t });
-      if (hit?.kind === 'diffuser') {
-        const list = diffused.get(hit.id) ?? [];
-        list.push({ x: b.x + dx * t, y: b.y + dy * t, ang, t });
-        diffused.set(hit.id, list);
+      if (hit && hit.seg && (hit.kind === 'diffuser' || (hit.kind === 'wall' && hit.white))) {
+        const g = hits.get(hit.id) ?? { kind: hit.kind as 'diffuser' | 'wall', seg: hit.seg, list: [] };
+        g.list.push({ x: b.x + dx * t, y: b.y + dy * t, ang, t });
+        hits.set(hit.id, g);
       }
     }
     beams.push({ ...b, points: pts });
-    for (const [id, hits] of diffused) {
-      const mx = hits.reduce((s, h) => s + h.x, 0) / hits.length;
-      const my = hits.reduce((s, h) => s + h.y, 0) / hits.length;
-      const rot = hits.reduce((s, h) => s + h.ang, 0) / hits.length;
-      const share = hits.length / (N + 1);
-      const rest = Math.max(140, (b.range - hits.reduce((s, h) => s + h.t, 0) / hits.length) * 1.1 + 40);
-      const spread = Math.min(170, Math.max(110, b.spread * 2.2));
-      beams.push({ sourceId: id, x: mx, y: my, rot, spread, range: rest, intensity: b.intensity * 0.8 * Math.max(0.5, share), soft: true, points: conePoints(mx, my, rot, spread, rest) });
+    for (const [id, g] of hits) {
+      const n = g.list.length;
+      const mx = g.list.reduce((s, h) => s + h.x, 0) / n;
+      const my = g.list.reduce((s, h) => s + h.y, 0) / n;
+      const ang = g.list.reduce((s, h) => s + h.ang, 0) / n;
+      const share = n / (N + 1);
+      const travelled = g.list.reduce((s, h) => s + h.t, 0) / n;
+      if (g.kind === 'diffuser') {
+        const rest = Math.max(140, (b.range - travelled) * 1.1 + 40);
+        const spread = Math.min(170, Math.max(110, b.spread * 2.2));
+        beams.push({ sourceId: id, x: mx, y: my, rot: ang, spread, range: rest, intensity: b.intensity * 0.8 * Math.max(0.5, share), soft: true, points: conePoints(mx, my, ang, spread, rest) });
+      } else {
+        // Mur blanc : faible renvoi diffus, symétrique du rayon moyen par rapport au mur.
+        const ix = Math.cos((ang * Math.PI) / 180);
+        const iy = Math.sin((ang * Math.PI) / 180);
+        const len = Math.hypot(g.seg.x2 - g.seg.x, g.seg.y2 - g.seg.y) || 1;
+        let nx = -(g.seg.y2 - g.seg.y) / len;
+        let ny = (g.seg.x2 - g.seg.x) / len;
+        if (ix * nx + iy * ny > 0) [nx, ny] = [-nx, -ny];
+        const k = ix * nx + iy * ny;
+        const rot = (Math.atan2(iy - 2 * k * ny, ix - 2 * k * nx) * 180) / Math.PI;
+        const range = Math.max(80, (b.range - travelled) * 0.6 + 30);
+        beams.push({ sourceId: id, x: mx, y: my, rot, spread: 150, range, intensity: b.intensity * 0.3 * Math.max(0.4, share), soft: true, points: conePoints(mx, my, rot, 150, range) });
+      }
     }
   }
   return { beams: [...beams, ...reflections(items).map((r) => ({ ...r, soft: true }))], shadows: [] };
