@@ -115,15 +115,37 @@ function useImageSize(url: string | null | undefined): { w: number; h: number } 
 
 const deg = (a: Point, b: Point) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 
+type View = { x: number; y: number; w: number; h: number };
+
+/**
+ * Mémoire de la page entre deux visites : séquence, vue et cadrage (zoom, déplacement) de chaque vue,
+ * conservés aussi après un rechargement (par navigateur, sans toucher au projet).
+ */
+const memory: { seq?: ID; pick?: string; views: Record<string, View> } = (() => {
+  try {
+    return { views: JSON.parse(localStorage.getItem('fp-views') ?? '{}') as Record<string, View> };
+  } catch {
+    return { views: {} };
+  }
+})();
+const rememberView = (key: string, v: View) => {
+  memory.views[key] = v;
+  try {
+    localStorage.setItem('fp-views', JSON.stringify(memory.views));
+  } catch {
+    /* stockage indisponible : la vue reste en mémoire pour la session */
+  }
+};
+
 /** Plan au sol par séquence (§15.2). */
 export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
-  const [seqId, setSeqId] = useState<ID | undefined>(doc.project.sequenceIds[0]);
+  const [seqId, setSeqId] = useState<ID | undefined>(memory.seq && doc.sequences[memory.seq] ? memory.seq : doc.project.sequenceIds[0]);
   const [tool, setTool] = useState<Tool>('select');
   const [selected, setSelected] = useState<ID | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   // Zoom et déplacement : fenêtre visible du plan (bornée), recentrable.
-  const [view, setView] = useState({ x: 0, y: 0, w: PLAN_W, h: PLAN_H });
+  const [view, setView] = useState<View>({ x: 0, y: 0, w: PLAN_W, h: PLAN_H });
   // Import du fichier .md de l'IA : analysé en mémoire, jamais conservé.
   const [mdImport, setMdImport] = useState<{ name: string; plan: ParsedPlan } | null>(null);
   const [realScale, setRealScale] = useState(false);
@@ -132,7 +154,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [ghost, setGhost] = useState<Ghost>({ dx: 0, dy: 0, k: 1 });
   const ghostOnRef = useRef(false);
 
-  const [planPick, setPlanPick] = useState<string | undefined>(undefined);
+  const [planPick, setPlanPick] = useState<string | undefined>(memory.pick);
   useEffect(() => {
     if (!seqId || !doc.sequences[seqId]) setSeqId(doc.project.sequenceIds[0]);
   }, [doc, seqId]);
@@ -141,6 +163,21 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const psPlans = seqId ? oneShotPlansOf(doc, seqId) : [];
   const planKey = [...plans, ...psPlans].find((p) => p.key === planPick)?.key ?? seqId ?? '';
   const psView = psPlans.find((p) => p.key === planKey);
+  // Retrouve le cadrage de cette vue tel qu'on l'a laissé, et le mémorise à chaque changement.
+  const viewFor = useRef<string | null>(null);
+  useEffect(() => {
+    memory.seq = seqId;
+    memory.pick = planPick;
+  }, [seqId, planPick]);
+  useEffect(() => {
+    if (!planKey) return;
+    if (viewFor.current !== planKey) {
+      viewFor.current = planKey;
+      setView(memory.views[planKey] ?? { x: 0, y: 0, w: PLAN_W, h: PLAN_H });
+      return;
+    }
+    rememberView(planKey, view);
+  }, [planKey, view]);
   const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
   const { beams, shadows } = useMemo(() => computeLighting(items), [items]);
   const bg = planKey ? planOf(doc, planKey).bg : undefined;
@@ -703,6 +740,24 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 <button type="button" onClick={() => mutateDoc((d) => void delete d.floorPlans![planKey].bg)} title="Retirer le fond">×</button>
               </>
             )}
+            <label className={s.bgRange} title="Épaisseur des traits : murs, rails, portes, fenêtres, réflecteurs, diffuseurs, drapeaux">
+              traits
+              <input
+                type="range"
+                min={0.3}
+                max={3}
+                step={0.1}
+                value={planOf(doc, planKey).stroke ?? 1}
+                onChange={(e) =>
+                  mutateDoc((d) => {
+                    const p = (d.floorPlans ??= {})[planKey] ?? ((d.floorPlans[planKey] = { items: [] }) as FloorPlan);
+                    p.stroke = Number(e.target.value) === 1 ? undefined : Number(e.target.value);
+                  })
+                }
+                aria-label="Épaisseur des traits"
+                data-testid="fp-stroke"
+              />
+            </label>
             <span className={s.viewSep} />
             <button
               type="button"
@@ -840,6 +895,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             role="application"
             aria-label={`Plan au sol de la séquence ${sequenceHeading(doc, seqId)}`}
             data-testid="floorplan"
+            style={{ '--fp-k': planOf(doc, planKey).stroke ?? 1 } as React.CSSProperties}
           >
             <defs>
               <pattern id="fp-grid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">

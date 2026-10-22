@@ -137,6 +137,7 @@ const pts = (p: Array<{ x: number; y: number }>) => p.map((q) => `${q.x.toFixed(
 /** Plan au sol en SVG autonome (styles en ligne), pour l'export. */
 export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): string {
   const items = planOf(doc, key).items;
+  const k = planOf(doc, key).stroke ?? 1;
   const out: string[] = [];
   const { beams, shadows } = computeLighting(items);
   for (const sh of shadows) out.push(`<polygon points="${pts(sh)}" fill="#1d1b18" fill-opacity="0.22"/>`);
@@ -161,19 +162,19 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         if (i.characterId && doc.characters[i.characterId]) out.push(`<text x="${i.x}" y="${i.y + 32}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(doc.characters[i.characterId].name)}</text>`);
         break;
       case 'wall':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#6b6458" stroke-width="3.5"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#6b6458" stroke-width="${3.5 * k}"/>`);
         break;
       case 'rail':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="5" stroke-dasharray="1.5 5"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="${5 * k}" stroke-dasharray="1.5 5"/>`);
         break;
       case 'reflector':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#8d939b" stroke-width="5.5" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#8d939b" stroke-width="${5.5 * k}" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="${3.5 * k}" stroke-linecap="round"/>`);
         break;
       case 'diffuser':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b5aedc" stroke-width="5" stroke-dasharray="1 1.5"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b5aedc" stroke-width="${5 * k}" stroke-dasharray="1 1.5"/>`);
         break;
       case 'flag':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#0d0d0d" stroke-width="4.5"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#0d0d0d" stroke-width="${4.5 * k}"/>`);
         break;
       case 'door':
       case 'window':

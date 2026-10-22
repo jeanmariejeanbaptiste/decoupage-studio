@@ -21,12 +21,12 @@
 .nose { fill: none; stroke: var(--paper-card); stroke-width: 1; pointer-events: none; }
 .actorText { font-family: var(--font-ui); font-weight: 600; font-size: 11px; fill: var(--navy); text-anchor: middle; pointer-events: none; }
 .path { stroke: var(--navy); stroke-width: 1.2; stroke-dasharray: 5 4; }
-.wall { stroke: #6b6458; stroke-width: 3.5; stroke-linecap: square; }
-.rail { stroke: var(--ochre); stroke-width: 5; stroke-dasharray: 1.5 5; }
+.wall { stroke: #6b6458; stroke-width: calc(3.5px * var(--fp-k, 1)); stroke-linecap: square; }
+.rail { stroke: var(--ochre); stroke-width: calc(5px * var(--fp-k, 1)); stroke-dasharray: 1.5 5; }
 .hit { stroke: transparent; stroke-width: 18; }
-.door { fill: none; stroke: #6b6458; stroke-width: 1.5; }
-.doorGap { stroke: var(--paper-card); stroke-width: 9; }
-.window { fill: var(--paper-card); stroke: #6b6458; stroke-width: 1.5; }
+.door { fill: none; stroke: #6b6458; stroke-width: calc(1.5px * var(--fp-k, 1)); }
+.doorGap { stroke: var(--paper-card); stroke-width: calc(9px * var(--fp-k, 1)); }
+.window { fill: var(--paper-card); stroke: #6b6458; stroke-width: calc(1.5px * var(--fp-k, 1)); }
 .light { fill: var(--ochre); }
 .beam { fill: color-mix(in srgb, var(--ochre) 22%, transparent); stroke: var(--ochre); stroke-width: 1; }
 .handle { fill: var(--paper-card); stroke: var(--rust); stroke-width: 1.2; cursor: grab; }
@@ -46,9 +46,9 @@
 .links label { display: flex; gap: 6px; align-items: baseline; }
 .links b { color: var(--rust); }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .panel { position: static; } }
-.reflector { stroke: #ffffff; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 1px #8d939b) drop-shadow(0 0 0.5px #8d939b); }
-.diffuser { stroke: #d9d4f0; stroke-width: 5; stroke-dasharray: 1 1.5; stroke-linecap: butt; filter: drop-shadow(0 0 1px #8a83b8); }
-.flag { stroke: #0d0d0d; stroke-width: 4.5; stroke-linecap: square; }
+.reflector { stroke: #ffffff; stroke-width: calc(4px * var(--fp-k, 1)); stroke-linecap: round; filter: drop-shadow(0 0 1px #8d939b) drop-shadow(0 0 0.5px #8d939b); }
+.diffuser { stroke: #d9d4f0; stroke-width: calc(5px * var(--fp-k, 1)); stroke-dasharray: 1 1.5; stroke-linecap: butt; filter: drop-shadow(0 0 1px #8a83b8); }
+.flag { stroke: #0d0d0d; stroke-width: calc(4.5px * var(--fp-k, 1)); stroke-linecap: square; }
 .shadow { fill: #1d1b18; fill-opacity: 0.2; pointer-events: none; }
 .sel .reflector { stroke: var(--rust); }
 .beamGroup { pointer-events: none; mix-blend-mode: multiply; }
@@ -84,11 +84,12 @@
 .viewSep { width: 1px; height: 16px; background: var(--rule); margin: 0 4px; }
 .bgRange { display: inline-flex; align-items: center; gap: 4px; }
 .bgRange input { width: 80px; }
-.aiBtn { border-style: dashed !important; color: var(--ink-soft) !important; }
+.aiBtn { border: 1px dashed var(--rule) !important; border-radius: var(--radius); padding: 1px 8px; font-size: 12px; background: var(--paper-card); color: var(--ink-soft) !important; cursor: pointer; }
+.aiBtn:hover { border-color: var(--rust) !important; }
 .mdBox { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; padding: 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); }
 .mdBox textarea { font-family: var(--font-mono); font-size: 12px; padding: 6px; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper); color: var(--ink); }
 .mdBox > div { display: flex; justify-content: flex-end; gap: 6px; }
-.wallWhite { stroke: #f4efe4; stroke-width: 4.5; stroke-linecap: square; filter: drop-shadow(0 0 0.8px #8a8274) drop-shadow(0 0 0.4px #8a8274); }
+.wallWhite { stroke: #f4efe4; stroke-width: calc(4.5px * var(--fp-k, 1)); stroke-linecap: square; filter: drop-shadow(0 0 0.8px #8a8274) drop-shadow(0 0 0.4px #8a8274); }
 .sel .wallWhite { stroke: var(--rust); }
 .check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }
 

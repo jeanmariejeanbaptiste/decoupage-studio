@@ -42,6 +42,8 @@ export interface FloorPlan {
   /** Plan des locaux en fond, pour dessiner par-dessus. */
   /** Image de fond : position et largeur dans le repère du plan ; `ratio` = hauteur / largeur de l'image. */
   bg?: { blobKey: string; opacity: number; x: number; y: number; w: number; ratio?: number };
+  /** Épaisseur des traits (murs, rails, portes, fenêtres, réflecteurs…) : multiplicateur, 1 par défaut. */
+  stroke?: number;
 }
 
 export interface PlanRef {
