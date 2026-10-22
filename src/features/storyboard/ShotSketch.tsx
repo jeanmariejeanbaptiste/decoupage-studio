@@ -79,6 +79,18 @@ function Backdrop({ spec, W, H, horizon }: { spec: IconSpec; W: number; H: numbe
       x += bw + W * 0.02;
       k++;
     }
+  } else if (spec.valueKey === 'general') {
+    // Plan général : un paysage (montagnes, collines, quelques arbres), le personnage presque invisible.
+    out.push(
+      <path key="m" d={`M0 ${base - H * 0.12} L ${W * 0.18} ${base - H * 0.3} L ${W * 0.32} ${base - H * 0.16} L ${W * 0.5} ${base - H * 0.38} L ${W * 0.68} ${base - H * 0.18} L ${W * 0.82} ${base - H * 0.27} L ${W} ${base - H * 0.14}`} />,
+      <path key="m2" d={`M ${W * 0.44} ${base - H * 0.31} L ${W * 0.5} ${base - H * 0.38} L ${W * 0.56} ${base - H * 0.31}`} className="si-faint" />,
+      <path key="h2" d={`M0 ${base - H * 0.03} Q ${W * 0.25} ${base - H * 0.1} ${W * 0.5} ${base - H * 0.02} T ${W} ${base - H * 0.05}`} className="si-faint" />,
+    );
+    for (const [k, fx, fy, r] of [[0, 0.12, 0.08, 3], [1, 0.2, 0.18, 4.5], [2, 0.78, 0.12, 3.5], [3, 0.88, 0.28, 6]] as const) {
+      const tx = W * (left ? fx : 1 - fx);
+      const ty = base + H * fy;
+      out.push(<circle key={`gc${k}`} cx={tx} cy={ty - r * 2.2} r={r} />, <line key={`gt${k}`} x1={tx} x2={tx} y1={ty - r * 1.2} y2={ty} />);
+    }
   } else {
     out.push(<path key="hill" d={`M0 ${base - H * 0.06} Q ${W * 0.3} ${base - H * 0.2} ${W * 0.55} ${base - H * 0.05} T ${W} ${base - H * 0.1}`} />);
     const tx = left ? W * 0.18 : W * 0.8;

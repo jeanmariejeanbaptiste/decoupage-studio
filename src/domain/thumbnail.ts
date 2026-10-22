@@ -48,7 +48,7 @@ export interface IconSpec {
 
 /** Fenêtres de cadrage, en unités de silhouette. */
 const WINDOW: Record<string, [number, number]> = {
-  general: [-170, 240],
+  general: [-1500, 1700],
   ensemble: [-60, 135],
   moyen: [-6, 104],
   italien: [-4, 78],
