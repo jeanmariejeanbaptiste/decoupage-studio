@@ -13,7 +13,8 @@ import { useState } from 'react';
 import { formatFocal } from '../../domain/focal';
 import { renderTokens } from '../../domain/tokens';
 import { isZoom } from '../../domain/vocabulary';
-import { Minus, Plus, X } from 'lucide-react';
+import { Minus, Plus, Scissors, X } from 'lucide-react';
+import { valueLabel } from '../../domain/vocabulary';
 import { shotCode, sequenceHeading } from '../../domain/numbering';
 import {
   dayItinerary,
@@ -28,6 +29,11 @@ import {
   timelineOf,
   toMin,
   unplaceShot,
+  splitShot,
+  placePart,
+  resizePart,
+  removePart,
+  movePartToDay,
   updateDay,
   scheduleDays,
 } from '../../domain/schedule';
@@ -68,6 +74,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
   const slots: number[] = [];
   for (let m = start; m < end; m += SLOT_MIN) slots.push(m);
 
+  const otherDays = scheduleDays(doc).map((x) => x.n).filter((n) => n !== day);
   const onDragEnd = (e: DragEndEvent) => {
     setActive(null);
     const over = e.over ? String(e.over.id) : '';
@@ -77,6 +84,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
     if (!over.startsWith('slot:')) return;
     const at = fromMin(Number(over.slice(5)));
     if (what[0] === 'tshot') mutateDoc((d) => placeShot(d, day, what[1], at));
+    else if (what[0] === 'tpart') mutateDoc((d) => placePart(d, day, what[1], Number(what[2]), at));
     else if (what[0] === 'tseq') {
       const strip = strips.find((x) => x.seqId === what[1]);
       if (strip) mutateDoc((d) => placeSequence(d, day, strip.shotIds, at));
@@ -172,47 +180,63 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
           {entries.map((e) => {
             const sh = doc.shots[e.shotId];
             const top = ((Math.max(e.start, start) - start) / SLOT_MIN) * ROW;
-            const height = Math.max(
-              ROW,
-              ((Math.min(e.end, end) - Math.max(e.start, start)) / SLOT_MIN) * ROW - 2,
-            );
+            const height = Math.max(ROW, ((Math.min(e.end, end) - Math.max(e.start, start)) / SLOT_MIN) * ROW - 2);
+            const tall = height >= ROW * 3;
+            const tags = [valueLabel(sh.value, doc.project.settings.labelStyle), renderTokens(sh.angle), renderTokens(sh.movement, sh.movementSep), formatFocal(sh.focal, isZoom(sh.movement))].filter(Boolean);
+            const resize = (delta: number) => mutateDoc((d) => (e.part ? resizePart(d, day, e.shotId, e.part, delta) : resizeShot(d, day, e.shotId, delta)));
             return (
               <Block
-                key={e.shotId}
-                id={e.shotId}
+                key={`${e.shotId}:${e.part}`}
+                dragId={e.part ? `tpart:${e.shotId}:${e.part}` : `tshot:${e.shotId}`}
                 style={{
                   top,
                   height,
                   left: `calc(52px + (100% - 56px) * ${e.lane / lanes})`,
                   width: `calc((100% - 56px) / ${lanes} - 3px)`,
                 }}
+                part={e.part}
               >
                 <span className={s.blockHead}>
-                  <b>{shotCode(doc, e.shotId)}</b> {fromMin(e.start)}–{fromMin(e.end)}
+                  <b>{shotCode(doc, e.shotId)}</b>
+                  {e.part > 0 && <em className={s.partTag}>reprise {e.part}</em>}
+                  <span className={s.blockTime}>
+                    {fromMin(e.start)}–{fromMin(e.end)}
+                  </span>
+                  {sh.subject && <strong className={s.blockSubject}>{sh.subject}</strong>}
                 </span>
-                <span className={s.blockText}>
-                  {sh.subject} · {sh.value} — {doc.blocks[sh.actionBlockId]?.text}
-                </span>
+                {tall && (
+                  <span className={s.blockTags}>
+                    {tags.map((x, k) => (
+                      <i key={k} className={s[`bt${k}`]}>
+                        {x}
+                      </i>
+                    ))}
+                  </span>
+                )}
+                {tall && doc.blocks[sh.actionBlockId]?.text && <span className={s.blockText}>{doc.blocks[sh.actionBlockId]?.text}</span>}
                 <span className={s.tools} onPointerDown={(ev) => ev.stopPropagation()}>
-                  <button
-                    type="button"
-                    aria-label="Raccourcir de 15 min"
-                    onClick={() => mutateDoc((d) => resizeShot(d, day, e.shotId, -SLOT_MIN))}
-                  >
+                  <button type="button" aria-label="Raccourcir de 15 min" onClick={() => resize(-SLOT_MIN)}>
                     <Minus size={11} />
                   </button>
-                  <button
-                    type="button"
-                    aria-label="Allonger de 15 min"
-                    onClick={() => mutateDoc((d) => resizeShot(d, day, e.shotId, SLOT_MIN))}
-                  >
+                  <button type="button" aria-label="Allonger de 15 min" onClick={() => resize(SLOT_MIN)}>
                     <Plus size={11} />
                   </button>
-                  <button
-                    type="button"
-                    aria-label="Retirer de l’emploi du temps"
-                    onClick={() => mutateDoc((d) => unplaceShot(d, day, e.shotId))}
-                  >
+                  {e.part === 0 && (
+                    <button type="button" aria-label="Fractionner (pause, reprise)" title="Fractionner : la seconde moitié devient une reprise à placer" onClick={() => mutateDoc((d) => splitShot(d, day, e.shotId))} data-testid="timeline-split">
+                      <Scissors size={11} />
+                    </button>
+                  )}
+                  {e.part > 0 && otherDays.length > 0 && (
+                    <select aria-label="Reprendre un autre jour" value="" onChange={(ev) => ev.target.value && mutateDoc((d) => movePartToDay(d, day, e.shotId, e.part, Number(ev.target.value)))} data-testid="timeline-part-day">
+                      <option value="">→ jour</option>
+                      {otherDays.map((n) => (
+                        <option key={n} value={n}>
+                          J{n}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button type="button" aria-label="Retirer de l’emploi du temps" onClick={() => mutateDoc((d) => (e.part ? removePart(d, day, e.shotId, e.part) : unplaceShot(d, day, e.shotId)))}>
                     <X size={11} />
                   </button>
                 </span>
@@ -333,12 +357,12 @@ function Slot({ minute }: { minute: number }) {
   );
 }
 
-function Block({ id, style, children }: { id: ID; style: React.CSSProperties; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `tshot:${id}` });
+function Block({ dragId, style, part, children }: { dragId: string; style: React.CSSProperties; part: number; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId });
   return (
     <div
       ref={setNodeRef}
-      className={[s.block, isDragging ? s.dragging : ''].join(' ')}
+      className={[s.block, part ? s.blockPart : '', isDragging ? s.dragging : ''].join(' ')}
       style={{ ...style, transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined }}
       data-testid="timeline-block"
       {...listeners}

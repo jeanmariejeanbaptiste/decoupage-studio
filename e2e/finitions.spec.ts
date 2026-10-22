@@ -100,6 +100,12 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await page.mouse.up();
   await expect(page.getByTestId('timeline-block')).toHaveCount(1);
   await expect(page.getByTestId('timeline-move')).toContainText('Lieu 08:30');
+  // Fractionner : la seconde moitié devient une reprise.
+  await page.getByTestId('timeline-block').first().hover();
+  await page.getByTestId('timeline-block').first().getByRole('button', { name: 'Allonger de 15 min' }).click();
+  await page.getByTestId('timeline-block').first().getByTestId('timeline-split').click();
+  await expect(page.getByTestId('timeline-block')).toHaveCount(2);
+  await expect(page.getByTestId('timeline-block').nth(1)).toContainText('reprise 1');
   // PDF généré par l'outil (pages A4 assemblées), sans l'impression du navigateur.
   const pdf = readFileSync(await (await tabExport(page, 'PDF')).path()).toString('latin1');
   expect(pdf.startsWith('%PDF')).toBe(true);

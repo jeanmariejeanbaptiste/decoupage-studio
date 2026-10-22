@@ -109,4 +109,20 @@ describe('emploi du temps horaire', async () => {
     const after = produce(before, (d) => placeShot(d, 1, s1[2], '09:00'));
     expect(callSheetStrips(after, 1).flatMap((s) => s.shotIds)).toEqual([s1[2]]);
   });
+  it('fractionne un plan : pause dans la journée, reprise le lendemain', async () => {
+    const { splitShot, placePart, movePartToDay, shotSlotsText, stripsByDay: byDay } = await import('./schedule');
+    const doc = buildRav3();
+    const id = doc.sequences[doc.project.sequenceIds[0]].shotIds[0];
+    const next = produce(doc, (d) => {
+      placeShot(d, 1, id, '10:00', 240);
+      splitShot(d, 1, id);
+      placePart(d, 1, id, 1, '16:00');
+    });
+    expect(shotSlotsText(next, 1, id)).toBe('10:00 – 12:00, 16:00 – 18:00');
+    expect(timelineOf(next, 1).map((e) => e.part)).toEqual([0, 1]);
+    const night = produce(next, (d) => movePartToDay(d, 1, id, 1, 2));
+    expect(shotSlotsText(night, 2, id)).toBe('07:00 – 09:00');
+    expect(byDay(night).get(2)?.flatMap((s) => s.shotIds)).toContain(id);
+    expect(byDay(night).get(1)?.flatMap((s) => s.shotIds)).toContain(id);
+  });
 });

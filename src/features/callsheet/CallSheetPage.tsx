@@ -8,7 +8,8 @@ import {
   dayItinerary,
   dayStats,
   scheduleDays,
-  shotSlot,
+  firstSlot,
+  shotSlotsText,
   updateDay,
 } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
@@ -236,7 +237,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
             <tbody>
               {(() => {
                 const rows = strips.flatMap((st) =>
-                  st.shotIds.map((id) => ({ id, seqId: st.seqId, slot: shotSlot(doc, day.n, id) })),
+                  st.shotIds.map((id) => ({ id, seqId: st.seqId, slot: firstSlot(doc, day.n, id) })),
                 );
                 const placed = rows
                   .filter((r) => r.slot)
@@ -246,7 +247,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   const sh = doc.shots[id];
                   return (
                     <tr key={id}>
-                      <td className={s.time}>{slot ? `${slot.start} – ${slot.end}` : ''}</td>
+                      <td className={s.time}>{slot ? shotSlotsText(doc, day.n, id) : ''}</td>
                       <td className={s.code}>{shotCode(doc, id)}</td>
                       <td>{sequenceHeading(doc, seqId)}</td>
                       <td>{sh.subject}</td>

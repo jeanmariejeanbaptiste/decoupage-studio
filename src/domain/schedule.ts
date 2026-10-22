@@ -20,6 +20,8 @@ export interface ShootingDay {
   seqAddresses?: Record<ID, string>;
   /** Emploi du temps de la journée : créneau de chaque plan (« HH:MM »). */
   timeline?: Record<ID, { start: string; end: string }>;
+  /** Reprises d'un plan fractionné (après une pause, ou le lendemain) : créneaux supplémentaires. */
+  parts?: Record<ID, Array<{ start: string; end: string }>>;
   /** Amplitude affichée de la journée. */
   dayStart?: string;
   dayEnd?: string;
@@ -54,6 +56,8 @@ export function stripsByDay(doc: ProjectDoc): Map<number, Strip[]> {
   const seqs = [...doc.project.sequenceIds].sort((a, b) => seqRank(a) - seqRank(b));
   // Un jour dont l'emploi du temps est entamé ne retient que les plans qui y sont placés.
   const timelines = new Map((doc.schedule?.days ?? []).filter((d) => d.timeline && Object.keys(d.timeline).length).map((d) => [d.n, d.timeline!]));
+  const partsByShot = new Map<ID, number[]>();
+  for (const d of doc.schedule?.days ?? []) for (const id of Object.keys(d.parts ?? {})) if (d.parts![id].length) partsByShot.set(id, [...(partsByShot.get(id) ?? []), d.n]);
   for (const seqId of seqs) {
     const byDay = new Map<number, ID[]>();
     for (const shotId of doc.sequences[seqId]?.shotIds ?? []) {
@@ -62,6 +66,8 @@ export function stripsByDay(doc: ProjectDoc): Map<number, Strip[]> {
       let day = shot.shootingDay ?? 0;
       if (timelines.has(day) && !timelines.get(day)![shotId]) day = 0;
       byDay.set(day, [...(byDay.get(day) ?? []), shotId]);
+      // Plan fractionné : il figure aussi les jours où il a une reprise.
+      for (const pd of partsByShot.get(shotId) ?? []) if (pd !== day) byDay.set(pd, [...(byDay.get(pd) ?? []), shotId]);
     }
     for (const [day, shotIds] of byDay) out.set(day, [...(out.get(day) ?? []), { seqId, shotIds }]);
   }
@@ -281,6 +287,8 @@ export function resizeShot(doc: ProjectDoc, day: number, shotId: ID, deltaMin: n
 
 export interface TimelineEntry {
   shotId: ID;
+  /** 0 = créneau principal ; 1, 2… = reprises. */
+  part: number;
   start: number;
   end: number;
   /** Colonne d'affichage quand des créneaux se chevauchent. */
@@ -292,7 +300,12 @@ export function timelineOf(doc: ProjectDoc, day: number): TimelineEntry[] {
   const d = scheduleDays(doc).find((x) => x.n === day);
   const entries = Object.entries(d?.timeline ?? {})
     .filter(([id]) => doc.shots[id]?.shootingDay === day && doc.shots[id]?.status !== 'abandonné')
-    .map(([shotId, s]) => ({ shotId, start: toMin(s.start), end: toMin(s.end), lane: 0 }))
+    .map(([shotId, s]) => ({ shotId, part: 0, start: toMin(s.start), end: toMin(s.end), lane: 0 }))
+    .concat(
+      Object.entries(d?.parts ?? {}).flatMap(([shotId, list]) =>
+        doc.shots[shotId] && doc.shots[shotId].status !== 'abandonné' ? list.map((s, i) => ({ shotId, part: i + 1, start: toMin(s.start), end: toMin(s.end), lane: 0 })) : [],
+      ),
+    )
     .sort((a, b) => a.start - b.start || a.end - b.end);
   const laneEnds: number[] = [];
   for (const e of entries) {
@@ -355,4 +368,73 @@ export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
 /** Plans retenus pour la feuille de service (ceux du jour, dans l’ordre horaire). */
 export function callSheetStrips(doc: ProjectDoc, day: number): Strip[] {
   return stripsByTime(doc, day);
+}
+
+// --- Plans fractionnés -------------------------------------------------------------------------
+
+/** Coupe le créneau principal en deux : la seconde moitié devient une reprise, déplaçable. */
+export function splitShot(doc: ProjectDoc, day: number, shotId: ID): void {
+  const d = dayOf(doc, day);
+  const slot = d.timeline?.[shotId];
+  if (!slot) return;
+  const [a, b] = [toMin(slot.start), toMin(slot.end)];
+  if (b - a < 2 * SLOT_MIN) return;
+  const mid = a + Math.round((b - a) / 2 / SLOT_MIN) * SLOT_MIN;
+  slot.end = fromMin(mid);
+  d.parts ??= {};
+  (d.parts[shotId] ??= []).push({ start: fromMin(mid), end: fromMin(b) });
+}
+
+function partOf(doc: ProjectDoc, day: number, shotId: ID, part: number) {
+  return dayOf(doc, day).parts?.[shotId]?.[part - 1];
+}
+
+/** Déplace une reprise dans la journée (même durée). */
+export function placePart(doc: ProjectDoc, day: number, shotId: ID, part: number, start: string): void {
+  const p = partOf(doc, day, shotId, part);
+  if (!p) return;
+  const dur = toMin(p.end) - toMin(p.start);
+  p.start = start;
+  p.end = fromMin(toMin(start) + dur);
+}
+
+export function resizePart(doc: ProjectDoc, day: number, shotId: ID, part: number, deltaMin: number): void {
+  const p = partOf(doc, day, shotId, part);
+  if (p) p.end = fromMin(Math.max(toMin(p.start) + SLOT_MIN, toMin(p.end) + deltaMin));
+}
+
+export function removePart(doc: ProjectDoc, day: number, shotId: ID, part: number): void {
+  const d = dayOf(doc, day);
+  const list = d.parts?.[shotId];
+  if (!list) return;
+  list.splice(part - 1, 1);
+  if (!list.length) delete d.parts![shotId];
+}
+
+/** Envoie une reprise sur un autre jour (par exemple : commencé à 22h, terminé le lendemain). */
+export function movePartToDay(doc: ProjectDoc, from: number, shotId: ID, part: number, to: number): void {
+  const p = partOf(doc, from, shotId, part);
+  if (!p || from === to) return;
+  removePart(doc, from, shotId, part);
+  const target = dayOf(doc, to);
+  const start = toMin(target.dayStart ?? DEFAULT_DAY_START);
+  target.parts ??= {};
+  (target.parts[shotId] ??= []).push({ start: fromMin(start), end: fromMin(start + toMin(p.end) - toMin(p.start)) });
+}
+
+/** Jours où un plan a une reprise (en plus de son jour principal). */
+export function partDays(doc: ProjectDoc, shotId: ID): number[] {
+  return (doc.schedule?.days ?? []).filter((d) => d.parts?.[shotId]?.length).map((d) => d.n);
+}
+
+/** Tous les créneaux d'un plan pour un jour donné (principal puis reprises), « 10:00 – 12:00, 16:00 – 17:00 ». */
+export function shotSlotsText(doc: ProjectDoc, day: number, shotId: ID): string {
+  const main = shotSlot(doc, day, shotId);
+  const parts = scheduleDays(doc).find((x) => x.n === day)?.parts?.[shotId] ?? [];
+  return [...(main ? [main] : []), ...parts].map((s) => `${s.start} – ${s.end}`).join(', ');
+}
+
+/** Premier créneau d'un plan ce jour-là (principal, sinon première reprise). */
+export function firstSlot(doc: ProjectDoc, day: number, shotId: ID): { start: string; end: string } | undefined {
+  return shotSlot(doc, day, shotId) ?? scheduleDays(doc).find((x) => x.n === day)?.parts?.[shotId]?.[0];
 }

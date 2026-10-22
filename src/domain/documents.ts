@@ -9,7 +9,7 @@ import { allFloorPlans } from './exports';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { callSheetStrips, dayItinerary, dayStats, scheduleDays, shotSlot, stripRange, stripsByTime } from './schedule';
+import { callSheetStrips, dayItinerary, dayStats, firstSlot, scheduleDays, shotSlotsText, stripRange, stripsByTime } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -139,10 +139,10 @@ export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
     .join('')}</tbody></table>
 <h3>Plans du jour</h3><table><thead><tr><th>Horaire</th><th>Plan</th><th>Sujet</th><th>Valeur</th><th>Angle</th><th>Mouvement</th><th>Focale</th><th>Action</th></tr></thead><tbody>${strips
     .flatMap((s) => s.shotIds)
-    .sort((a, b) => (shotSlot(doc, day, a)?.start ?? '99').localeCompare(shotSlot(doc, day, b)?.start ?? '99'))
+    .sort((a, b) => (firstSlot(doc, day, a)?.start ?? '99').localeCompare(firstSlot(doc, day, b)?.start ?? '99'))
     .map((id) => {
         const sh = doc.shots[id];
-        return `<tr><td class="time">${esc(slotText(shotSlot(doc, day, id)))}</td><td class="code">${esc(shotCode(doc, id))}</td><td>${esc(sh.subject)}</td><td>${esc(sh.value)}</td><td>${esc(renderTokens(sh.angle))}</td><td>${esc(renderTokens(sh.movement, sh.movementSep))}</td><td>${esc(formatFocal(sh.focal, isZoom(sh.movement)))}</td><td>${esc(doc.blocks[sh.actionBlockId]?.text)}</td></tr>`;
+        return `<tr><td class="time">${esc(shotSlotsText(doc, day, id) || '—')}</td><td class="code">${esc(shotCode(doc, id))}</td><td>${esc(sh.subject)}</td><td>${esc(sh.value)}</td><td>${esc(renderTokens(sh.angle))}</td><td>${esc(renderTokens(sh.movement, sh.movementSep))}</td><td>${esc(formatFocal(sh.focal, isZoom(sh.movement)))}</td><td>${esc(doc.blocks[sh.actionBlockId]?.text)}</td></tr>`;
       })
     .join('')}</tbody></table>
 ${d?.notes ? `<h3>Notes</h3><p class="text">${esc(d.notes)}</p>` : ''}`;
