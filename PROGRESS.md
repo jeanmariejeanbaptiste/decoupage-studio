@@ -166,3 +166,6 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 - Plan au sol : lumière occultée par murs, comédiens et drapeaux, diffuseurs, murs blancs, zoom borné, fond de plan, import de plan via consignes IA (format Markdown `# PLAN`).
 - Emploi du temps : blocs détaillés, plans fractionnés (reprises, jour suivant) ; feuille de service, note d'intention et scénario en A4 ; scénario indicatif (vue découpage, répliques).
 - Harmonisation visuelle : palette claire.
+
+- Lumière : les faisceaux secondaires (diffusés, renvoyés par réflecteur ou mur blanc) sont lancés rayon par rayon, coupés par murs, drapeaux et comédiens, et transformés en cascade (2 rebonds max).
+- Plan-séquence : « liaison » entre deux temps (panoramique, travelling, bascule de point…), signalée « à préciser » quand le sujet change ; reprise dans la colonne Mouvement de la grille, les transitions et l'annexe.

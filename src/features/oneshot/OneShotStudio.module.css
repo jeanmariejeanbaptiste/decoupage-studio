@@ -31,3 +31,10 @@
 .foot { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-soft); }
 .foot > span { flex: 1; }
 .quiet { border: 0; background: none; color: var(--ink-soft); text-decoration: underline dotted; cursor: pointer; font-size: 12.5px; }
+.bridge { flex: 0 0 132px; align-self: center; display: flex; flex-direction: column; gap: 5px; padding: 10px 8px; border: 1px dashed var(--rule); border-radius: 6px; background: var(--paper); }
+.bridgeTodo { border-color: var(--rust); }
+.bridgeHead { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
+.bridgeLabel { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.bridgeTodo .bridgeLabel { color: var(--rust); }
+.bridge textarea { font: inherit; font-size: 12.5px; padding: 5px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper-card); color: var(--ink); resize: vertical; }
+.bridge select { font: inherit; font-size: 12px; padding: 3px 4px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper-card); color: var(--ink-soft); }

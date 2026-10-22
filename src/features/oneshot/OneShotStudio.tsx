@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Plus, Trash2, X } from 'lucide-react';
-import { addBeat, formatOneShotDuration, moveBeat, oneShotTiming, removeBeat, toggleOneShot, updateBeat } from '../../domain/oneshot';
+import { addBeat, BRIDGE_PRESETS, formatOneShotDuration, needsBridge, moveBeat, oneShotTiming, removeBeat, toggleOneShot, updateBeat } from '../../domain/oneshot';
 import { shotCode, sequenceHeading } from '../../domain/numbering';
 import { formatTc } from '../../domain/timecode';
 import type { ID, OneShotBeat, ProjectDoc } from '../../domain/types';
@@ -89,8 +89,10 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
         <div className={s.beats}>
           {beats.map((b, i) => {
             const w = t.beats[i];
+            const next = beats[i + 1];
             return (
-              <section key={b.id} id={`beat-${b.id}`} className={[s.card, focus === b.id ? s.cardOn : ''].join(' ')} style={{ borderTopColor: HUES[i % HUES.length] }} onFocus={() => setFocus(b.id)} data-testid="studio-beat">
+              <Fragment key={b.id}>
+              <section id={`beat-${b.id}`} className={[s.card, focus === b.id ? s.cardOn : ''].join(' ')} style={{ borderTopColor: HUES[i % HUES.length] }} onFocus={() => setFocus(b.id)} data-testid="studio-beat">
                 <div className={s.cardHead}>
                   <b style={{ color: HUES[i % HUES.length] }}>T{i + 1}</b>
                   <span className={s.when}>
@@ -133,6 +135,28 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
                   <textarea rows={3} value={b.cue ?? ''} onChange={(e) => set(b, { cue: e.target.value || undefined })} placeholder="Caméra, comédiens, déclencheur du temps suivant…" aria-label={`Repères du temps ${i + 1}`} />
                 </label>
               </section>
+              {next && (
+                <div className={[s.bridge, !b.bridge && needsBridge(b, next) ? s.bridgeTodo : ''].join(' ')} data-testid="studio-bridge">
+                  <span className={s.bridgeHead}>
+                    T{i + 1} <ArrowRight size={12} /> T{i + 2}
+                  </span>
+                  <span className={s.bridgeLabel}>Liaison</span>
+                  <textarea
+                    rows={3}
+                    value={b.bridge ?? ''}
+                    onChange={(e) => set(b, { bridge: e.target.value || undefined })}
+                    placeholder={needsBridge(b, next) ? `Comment passer de ${b.subject} à ${next.subject} ?` : 'Mouvement de passage…'}
+                    aria-label={`Liaison du temps ${i + 1} au temps ${i + 2}`}
+                  />
+                  <select value="" onChange={(e) => e.target.value && set(b, { bridge: e.target.value })} aria-label={`Liaison type du temps ${i + 1} au temps ${i + 2}`}>
+                    <option value="">Choisir…</option>
+                    {BRIDGE_PRESETS.map((v) => (
+                      <option key={v} value={v}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              </Fragment>
             );
           })}
           <button type="button" className={s.add} onClick={() => mutateDoc((d) => addBeat(d, shotId))} data-testid="studio-add-beat">

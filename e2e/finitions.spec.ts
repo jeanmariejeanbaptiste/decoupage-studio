@@ -175,6 +175,10 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
   await t2.getByLabel('Durée minimale du temps 2 (secondes)').fill('10');
   await t2.getByLabel('Durée maximale du temps 2 (secondes)').fill('20');
   await expect(studio).toContainText('0:10 – 0:20');
+  // Liaison entre les temps : le mouvement qui fait passer d'un sujet à l'autre.
+  await studio.getByLabel('Liaison type du temps 1 au temps 2').selectOption('Panoramique droite');
+  await expect(studio.getByLabel('Liaison du temps 1 au temps 2')).toHaveValue('Panoramique droite');
+  await page.screenshot({ path: process.env.SHOT_DIR ? `${process.env.SHOT_DIR}/bridge.png` : undefined });
   await studio.getByRole('button', { name: 'Terminé' }).click();
   await expect(row).toHaveClass(/oneShot/);
   await expect(row.locator('[data-cell$=":number"]')).toHaveText('1');

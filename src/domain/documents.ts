@@ -215,7 +215,7 @@ export function oneShotAnnexDocument(doc: ProjectDoc): DocPage {
             .map((b, i) => {
               const w = t.beats[i];
               const dur = b.minSec !== undefined || b.maxSec !== undefined ? `${formatTc(b.minSec ?? b.maxSec ?? 0)}${b.maxSec !== undefined && b.maxSec !== b.minSec ? `–${formatTc(b.maxSec)}` : ''}` : '—';
-              return `<tr><td class="code" style="color:${BEAT_HUES[i % BEAT_HUES.length]}">T${i + 1}</td><td class="time">${formatTc(w.startMin)}${w.startMax !== w.startMin ? `–${formatTc(w.startMax)}` : ''}</td><td class="time">${dur}</td><td>${esc(b.value)}</td><td>${esc(b.subject)}</td><td>${esc(b.angle)}</td><td>${esc(b.movement)}</td><td>${b.focal ? `${b.focal} mm` : ''}</td><td>${esc(b.cue)}</td></tr>`;
+              return `<tr><td class="code" style="color:${BEAT_HUES[i % BEAT_HUES.length]}">T${i + 1}</td><td class="time">${formatTc(w.startMin)}${w.startMax !== w.startMin ? `–${formatTc(w.startMax)}` : ''}</td><td class="time">${dur}</td><td>${esc(b.value)}</td><td>${esc(b.subject)}</td><td>${esc(b.angle)}</td><td>${esc(b.movement)}</td><td>${b.focal ? `${b.focal} mm` : ''}</td><td>${esc(b.cue)}</td></tr>${b.bridge && i + 1 < beats.length ? `<tr><td></td><td colspan="8" style="font-style:italic">↳ Liaison vers T${i + 2} : ${esc(b.bridge)}</td></tr>` : ''}`;
             })
             .join('');
           const trans = beatTransitions(beats, valueRank, (n) => cameraAt(n))

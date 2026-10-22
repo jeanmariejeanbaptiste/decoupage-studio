@@ -104,12 +104,34 @@ export function formatOneShotDuration(t: OneShotTiming): string {
   return `${formatTc(t.min)} – ${formatTc(t.max)} (≈ ${formatTc(Math.round(t.expected))} ± ${formatTc(Math.round(t.sd))})`;
 }
 
+/** Liaisons usuelles entre deux temps (proposées, la saisie reste libre). */
+export const BRIDGE_PRESETS: readonly string[] = [
+  'Panoramique gauche',
+  'Panoramique droite',
+  'Panoramique vertical',
+  'Travelling latéral',
+  'Travelling avant',
+  'Travelling arrière',
+  'Travelling circulaire',
+  'Suivi du personnage',
+  'Zoom avant',
+  'Zoom arrière',
+  'Bascule de point',
+  'Recadrage',
+  'Le sujet entre dans le champ',
+  'Le sujet sort du champ',
+];
+
+/** Une liaison est attendue quand le sujet change d'un temps à l'autre. */
+export const needsBridge = (a: OneShotBeat, b: OneShotBeat) => !!a.subject && !!b.subject && a.subject.trim() !== b.subject.trim();
+
 /** Texte d'une colonne de plan-séquence : une ligne par temps, numérotée T1, T2… */
 export function beatColumnText(beats: readonly OneShotBeat[], col: ColumnKey, label: (v: string) => string = (v) => v): string {
   return beats
     .map((b, i) => {
       const v = col === 'value' ? label(b.value) : col === 'subject' ? b.subject : col === 'angle' ? b.angle : col === 'focal' ? (b.focal ? `${b.focal}mm` : '') : b.movement;
-      return `T${i + 1} ${v || '—'}`;
+      const line = `T${i + 1} ${v || '—'}`;
+      return col === 'movement' && b.bridge && i + 1 < beats.length ? `${line}\n  ↳ ${b.bridge} → T${i + 2}` : line;
     })
     .join('\n');
 }
@@ -139,6 +161,8 @@ export function beatTransitions(
     const ra = rank(a.value);
     const rb = rank(b.value);
     const zoom = a.focal && b.focal && a.focal !== b.focal;
+    if (a.bridge) notes.push(`Liaison : ${a.bridge}`);
+    else if (needsBridge(a, b)) notes.push('Liaison à préciser (panoramique, travelling, bascule de point…)');
     if (ra >= 0 && rb >= 0 && ra !== rb) {
       const how = zoom ? `zoom ${a.focal} → ${b.focal} mm` : 'la caméra ' + (rb > ra ? 'se rapproche' : 's’éloigne') + ' (focale inchangée)';
       notes.push(`Cadre ${rb > ra ? 'plus serré' : 'plus large'} (${a.value || '?'} → ${b.value || '?'}) : ${how}`);

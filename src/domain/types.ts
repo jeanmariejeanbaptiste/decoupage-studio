@@ -161,6 +161,8 @@ export interface OneShotBeat {
   movement: string;
   /** Repères : position caméra, déplacement des comédiens, déclencheur du temps suivant. */
   cue?: string;
+  /** Liaison vers le temps suivant : le mouvement qui fait passer d'un sujet ou d'un cadre à l'autre. */
+  bridge?: string;
   /** Focale du temps (mm) : elle peut changer en cours de plan (zoom). */
   focal?: number;
   /** Fourchette de durée (s) : le jeu des comédiens fait varier le temps réel. */

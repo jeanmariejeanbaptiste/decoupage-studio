@@ -72,10 +72,18 @@ describe('transitions entre temps', async () => {
       valueRank,
       (n) => (n === 1 ? { x: 0, y: 0 } : n === 2 ? { x: 100, y: 0 } : undefined),
     );
-    expect(t[0].notes[0]).toContain('plus serré');
-    expect(t[0].notes[0]).toContain('se rapproche');
+    expect(t[0].notes[0]).toContain('Liaison à préciser');
+    expect(t[0].notes[1]).toContain('plus serré');
+    expect(t[0].notes[1]).toContain('se rapproche');
     expect(t[0].notes.join(' ')).toContain('Léa → Marc');
     expect(t[0].notes.join(' ')).toContain('5 carreaux vers la droite');
     expect(t[1].notes[0]).toContain('Focale 35 → 85 mm');
+  });
+  it('indique la liaison choisie entre deux temps, en tête des transitions et dans la colonne mouvement', async () => {
+    const { beatColumnText } = await import('./oneshot');
+    const b = (v: Partial<import('./types').OneShotBeat>) => ({ id: 'x', value: '', subject: '', angle: '', movement: '', ...v });
+    const beats = [b({ subject: 'Léa', movement: 'Fixe', bridge: 'Panoramique droite' }), b({ subject: 'Marc', movement: 'Fixe' })];
+    expect(beatTransitions(beats, valueRank)[0].notes[0]).toBe('Liaison : Panoramique droite');
+    expect(beatColumnText(beats, 'movement')).toBe('T1 Fixe\n  ↳ Panoramique droite → T2\nT2 Fixe');
   });
 });
