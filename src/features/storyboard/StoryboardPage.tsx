@@ -43,8 +43,6 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
     void dropShot(from, target.sequenceId, index);
   };
 
-  const pages: ID[][] = [];
-  for (let i = 0; i < allShots.length; i += perPage) pages.push(allShots.slice(i, i + perPage));
 
   const [imaging, setImaging] = useState<PageExportOptions | null>(null);
   const imagesRef = useRef<HTMLDivElement>(null);
@@ -117,12 +115,12 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
 
       {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
       <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
-      <Sheets doc={doc} pages={pages} perPage={perPage} timing={timing} className={s.print} />
+      <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} />
       {imaging && (
         <div ref={imagesRef}>
           <Sheets
             doc={doc}
-            pages={pages}
+            shots={allShots}
             perPage={perPage}
             timing={timing}
             className={[s.print, s.imaging].join(' ')}
@@ -135,15 +133,41 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
 }
 
 /** Grille d'une planche : colonnes × lignes selon le nombre de plans et l'orientation. */
-function sheetGrid(n: number, o: 'landscape' | 'portrait'): React.CSSProperties {
+function sheetDims(n: number, o: 'landscape' | 'portrait'): [number, number] {
   const land: Record<number, [number, number]> = { 1: [1, 1], 2: [2, 1], 3: [3, 1], 4: [2, 2], 6: [3, 2], 9: [3, 3] };
   const port: Record<number, [number, number]> = { 1: [1, 1], 2: [1, 2], 3: [1, 3], 4: [2, 2], 6: [2, 3], 9: [3, 3] };
-  const [c, r] = (o === 'portrait' ? port : land)[n] ?? [2, 2];
-  return { gridTemplateColumns: `repeat(${c}, 1fr)`, gridTemplateRows: `repeat(${r}, 1fr)` };
+  return (o === 'portrait' ? port : land)[n] ?? [2, 2];
 }
 
-function Sheets({ doc, pages, perPage, timing, className, orientation }: { doc: ProjectDoc; pages: ID[][]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait' }) {
+/**
+ * Répartit les plans en planches : chaque keyframe occupe une case entière (même taille qu'un plan
+ * simple), un plan à plusieurs keyframes s'étale donc sur plusieurs cases d'une même ligne.
+ */
+function paginateShots(doc: ProjectDoc, shots: ID[], cols: number, rows: number): Array<Array<{ id: ID; span: number }>> {
+  const pages: Array<Array<{ id: ID; span: number }>> = [[]];
+  let row = 0;
+  let col = 0;
+  for (const id of shots) {
+    const span = Math.min(cols, doc.shots[id] ? framesOf(doc.shots[id]).length : 1);
+    if (col + span > cols) {
+      row++;
+      col = 0;
+    }
+    if (row >= rows) {
+      pages.push([]);
+      row = 0;
+      col = 0;
+    }
+    pages[pages.length - 1].push({ id, span });
+    col += span;
+  }
+  return pages.filter((p) => p.length);
+}
+
+function Sheets({ doc, shots, perPage, timing, className, orientation }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait' }) {
   const ink = !!doc.project.settings.exportInkSaver;
+  const [cols, rows] = sheetDims(perPage, orientation ?? 'landscape');
+  const pages = paginateShots(doc, shots, cols, rows);
   const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
   return (
     <div className={className} aria-hidden="true" style={size as React.CSSProperties | undefined}>
@@ -155,9 +179,11 @@ function Sheets({ doc, pages, perPage, timing, className, orientation }: { doc: 
               planche {i + 1} / {pages.length}
             </span>
           </header>
-          <div className={s.sheetGrid} style={sheetGrid(perPage, orientation ?? 'landscape')}>
-            {ids.map((id) => (
-              <Card key={id} doc={doc} shot={doc.shots[id]} timing={timing} printing />
+          <div className={s.sheetGrid} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
+            {ids.map(({ id, span }) => (
+              <div key={id} style={{ gridColumn: `span ${span}`, minHeight: 0, display: 'flex' }}>
+                <Card doc={doc} shot={doc.shots[id]} timing={timing} printing />
+              </div>
             ))}
           </div>
         </div>
@@ -262,7 +288,9 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
         }}
       >
         {url ? <img src={url} alt={`Storyboard du plan ${label}`} /> : !printing && <ImagePlus size={20} strokeWidth={1} aria-hidden="true" />}
-        <span className={s.code}>{label}</span>
+        <span className={s.code} data-label>
+          {label}
+        </span>
         {!printing && (
           <label className={s.import} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} title={url ? 'Remplacer l’image' : 'Importer une image'}>
             <ImagePlus size={13} strokeWidth={1.5} />

@@ -361,53 +361,59 @@ export function choreography(items: readonly FloorItem[]): ChoreoPath[] {
   return [...groups.values()].map((g) => ({ ...g, points: g.points.sort((a, b) => a.beat - b.beat) })).filter((g) => g.points.length > 0);
 }
 
-/** Segment de modificateur (diffuseur, drapeau, réflecteur) atteint par un faisceau : distance et milieu. */
-function hitOnAxis(b: Beam, m: Reflector): { d: number; mx: number; my: number } | null {
-  const mx = (m.x + m.x2) / 2;
-  const my = (m.y + m.y2) / 2;
-  const d = Math.hypot(mx - b.x, my - b.y);
-  if (d < 1 || d > b.range) return null;
-  const to = (Math.atan2(my - b.y, mx - b.x) * 180) / Math.PI;
-  const off = Math.abs(((((to - b.rot) % 360) + 540) % 360) - 180);
-  return off > b.spread / 2 ? null : { d, mx, my };
+/** Distance le long d'un rayon jusqu'à un segment (ou Infinity). */
+function rayToSegment(x: number, y: number, dx: number, dy: number, s: Reflector): number {
+  const ex = s.x2 - s.x;
+  const ey = s.y2 - s.y;
+  const den = dx * ey - dy * ex;
+  if (Math.abs(den) < 1e-9) return Infinity;
+  const t = ((s.x - x) * ey - (s.y - y) * ex) / den;
+  const u = ((s.x - x) * dy - (s.y - y) * dx) / den;
+  return t > 0.5 && u >= 0 && u <= 1 ? t : Infinity;
 }
 
 /**
- * Éclairage complet d'une vue : faisceaux directs (puissance, ouverture), coupés par les drapeaux
- * (qui projettent une ombre), adoucis et élargis par les diffuseurs, renvoyés par les réflecteurs.
+ * Éclairage complet d'une vue, lancé rayon par rayon : le faisceau s'arrête net là où un drapeau
+ * l'intercepte (le reste passe), et la part qui touche un diffuseur repart plus large et plus douce.
  */
 export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; shadows: Point[][] } {
   const beams: Beam[] = [];
-  const shadows: Point[][] = [];
   const mods = items.filter((i): i is Reflector => i.kind === 'diffuser' || i.kind === 'flag');
+  const N = 72;
   for (const l of items.filter((i): i is Light => i.kind === 'light')) {
     const b = { ...lightBeam(l), intensity: Math.max(0.2, Math.min(1.6, l.power ?? 1)) };
-    const hit = mods
-      .map((m) => ({ m, h: hitOnAxis(b, m) }))
-      .filter((x): x is { m: Reflector; h: { d: number; mx: number; my: number } } => !!x.h)
-      .sort((a, z) => a.h.d - z.h.d)[0];
-    if (!hit) {
-      beams.push(b);
-      continue;
+    const pts: Point[] = [{ x: b.x, y: b.y }];
+    const diffused = new Map<ID, Array<{ x: number; y: number; ang: number; t: number }>>();
+    for (let k = 0; k <= N; k++) {
+      const ang = b.rot - b.spread / 2 + (b.spread * k) / N;
+      const dx = Math.cos((ang * Math.PI) / 180);
+      const dy = Math.sin((ang * Math.PI) / 180);
+      let t = b.range;
+      let hit: Reflector | undefined;
+      for (const m of mods) {
+        const d = rayToSegment(b.x, b.y, dx, dy, m);
+        if (d < t) {
+          t = d;
+          hit = m;
+        }
+      }
+      pts.push({ x: b.x + dx * t, y: b.y + dy * t });
+      if (hit?.kind === 'diffuser') {
+        const list = diffused.get(hit.id) ?? [];
+        list.push({ x: b.x + dx * t, y: b.y + dy * t, ang, t });
+        diffused.set(hit.id, list);
+      }
     }
-    const { m, h } = hit;
-    // Le faisceau direct s'arrête au modificateur.
-    beams.push({ ...b, range: h.d, points: conePoints(b.x, b.y, b.rot, b.spread, h.d) });
-    const rest = b.range - h.d;
-    if (m.kind === 'diffuser') {
-      const rot = (Math.atan2(h.my - b.y, h.mx - b.x) * 180) / Math.PI;
+    beams.push({ ...b, points: pts });
+    for (const [id, hits] of diffused) {
+      const mx = hits.reduce((s, h) => s + h.x, 0) / hits.length;
+      const my = hits.reduce((s, h) => s + h.y, 0) / hits.length;
+      const rot = hits.reduce((s, h) => s + h.ang, 0) / hits.length;
+      const share = hits.length / (N + 1);
+      const rest = Math.max(140, (b.range - hits.reduce((s, h) => s + h.t, 0) / hits.length) * 1.1 + 40);
       const spread = Math.min(170, Math.max(110, b.spread * 2.2));
-      beams.push({ sourceId: m.id, x: h.mx, y: h.my, rot, spread, range: Math.max(60, rest * 0.85), intensity: b.intensity * 0.5, soft: true, points: conePoints(h.mx, h.my, rot, spread, Math.max(60, rest * 0.85)) });
-    } else {
-      // Ombre portée du drapeau : prolongement des rayons passant par ses extrémités.
-      const ext = ([px, py]: [number, number]): Point => {
-        const dx = px - b.x;
-        const dy = py - b.y;
-        const k = (Math.hypot(dx, dy) + rest) / Math.max(1, Math.hypot(dx, dy));
-        return { x: b.x + dx * k, y: b.y + dy * k };
-      };
-      shadows.push([{ x: m.x, y: m.y }, { x: m.x2, y: m.y2 }, ext([m.x2, m.y2]), ext([m.x, m.y])]);
+      beams.push({ sourceId: id, x: mx, y: my, rot, spread, range: rest, intensity: b.intensity * 0.8 * Math.max(0.5, share), soft: true, points: conePoints(mx, my, rot, spread, rest) });
     }
   }
-  return { beams: [...beams, ...reflections(items).map((r) => ({ ...r, soft: true }))], shadows };
+  return { beams: [...beams, ...reflections(items).map((r) => ({ ...r, soft: true }))], shadows: [] };
 }

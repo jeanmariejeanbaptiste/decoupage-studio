@@ -19,8 +19,17 @@ export const a4 = (o: Orientation) => (o === 'portrait' ? { w: 210, h: 297 } : {
 export async function exportNodePages(pages: HTMLElement[], base: string, opts: PageExportOptions, background = '#ffffff'): Promise<number> {
   const { toCanvas } = await import('html-to-image');
   await document.fonts.ready;
+  // Safari omet les images d'URL « blob: » et celles pas encore décodées dans la capture :
+  // on les intègre en données, puis on fait une première passe de préchauffage par page.
+  await inlineImages(pages);
   const canvases: HTMLCanvasElement[] = [];
-  for (const node of pages) canvases.push(await toCanvas(node, { pixelRatio: 3, backgroundColor: background, filter: clean, width: node.offsetWidth, height: node.offsetHeight }));
+  for (const node of pages) {
+    const o = { pixelRatio: 3, backgroundColor: background, filter: clean, width: node.offsetWidth, height: node.offsetHeight };
+    if (node.querySelector('img')) await toCanvas(node, { ...o, pixelRatio: 0.2 });
+    const canvas = await toCanvas(node, o);
+    drawImagesOver(canvas, node, o.pixelRatio);
+    canvases.push(canvas);
+  }
   await finish(canvases, base, opts);
   return canvases.length;
 }
@@ -194,4 +203,60 @@ export async function waitForImages(root: HTMLElement, expected: number, timeout
     await new Promise((r) => setTimeout(r, 50));
   }
   await Promise.all([...root.querySelectorAll('img')].map((i) => i.decode().catch(() => undefined)));
+}
+
+/** Remplace les images « blob: » par des données intégrées (data URL) et attend leur décodage. */
+async function inlineImages(roots: HTMLElement[]): Promise<void> {
+  const imgs = roots.flatMap((r) => [...r.querySelectorAll('img')]);
+  await Promise.all(
+    imgs.map(async (img) => {
+      if (img.src.startsWith('blob:')) {
+        const blob = await (await fetch(img.src)).blob();
+        img.src = await new Promise<string>((ok, ko) => {
+          const r = new FileReader();
+          r.onload = () => ok(String(r.result));
+          r.onerror = () => ko(r.error);
+          r.readAsDataURL(blob);
+        });
+      }
+      await img.decode().catch(() => undefined);
+    }),
+  );
+}
+
+/**
+ * Redessine chaque image directement sur la page rendue, à sa place et en « contain » :
+ * filet de sécurité pour les navigateurs qui omettent les images dans la capture (Safari).
+ */
+function drawImagesOver(canvas: HTMLCanvasElement, node: HTMLElement, ratio: number): void {
+  const ctx = canvas.getContext('2d')!;
+  const origin = node.getBoundingClientRect();
+  for (const img of node.querySelectorAll('img')) {
+    if (!img.complete || !img.naturalWidth) continue;
+    const r = img.getBoundingClientRect();
+    const k = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    const w = img.naturalWidth * k;
+    const h = img.naturalHeight * k;
+    const x = r.left - origin.left + (r.width - w) / 2;
+    const y = r.top - origin.top + (r.height - h) / 2;
+    ctx.drawImage(img, x * ratio, y * ratio, w * ratio, h * ratio);
+  }
+  // Les étiquettes posées sur les images (numéro du plan) repassent au premier plan.
+  for (const el of node.querySelectorAll<HTMLElement>('[data-label]')) {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const [x, y, w, h] = [r.left - origin.left, r.top - origin.top, r.width, r.height].map((v) => v * ratio);
+    ctx.fillStyle = cs.backgroundColor || '#fff';
+    ctx.strokeStyle = cs.borderTopColor || '#ccc';
+    ctx.lineWidth = ratio;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 3 * ratio);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = cs.color;
+    ctx.font = `${cs.fontWeight} ${parseFloat(cs.fontSize) * ratio}px ${cs.fontFamily}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.fillText(el.textContent ?? '', x + w / 2, y + h / 2);
+  }
 }

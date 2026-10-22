@@ -126,19 +126,19 @@ describe('chorégraphie du plan-séquence', async () => {
 describe('éclairage : diffuseur et drapeau', async () => {
   const { computeLighting } = await import('./floorplan');
   const light = { id: 'l', kind: 'light' as const, x: 0, y: 0, rot: 0, spread: 40, range: 400, power: 1.2 };
-  it('le diffuseur coupe le faisceau et le prolonge plus large et plus doux', () => {
+  const reach = (b: { x: number; y: number; points: Array<{ x: number; y: number }> }) => b.points.slice(1).map((p) => Math.hypot(p.x - b.x, p.y - b.y));
+  it('le diffuseur arrête la part du faisceau qu’il intercepte et la prolonge plus large et plus douce', () => {
     const { beams } = computeLighting([light, { id: 'd', kind: 'diffuser', x: 150, y: -40, x2: 150, y2: 40 }]);
-    expect(beams[0].range).toBeCloseTo(150);
-    expect(beams[0].intensity).toBeCloseTo(1.2);
+    expect(Math.min(...reach(beams[0]))).toBeCloseTo(150, 0);
+    expect(Math.max(...reach(beams[0]))).toBeGreaterThan(390);
     expect(beams[1]).toMatchObject({ sourceId: 'd', soft: true });
     expect(beams[1].spread).toBeGreaterThan(40);
-    expect(beams[1].intensity).toBeLessThan(1);
   });
-  it('le drapeau arrête la lumière et projette une ombre', () => {
+  it('le drapeau coupe le faisceau là où il est, le reste passe', () => {
     const { beams, shadows } = computeLighting([light, { id: 'f', kind: 'flag', x: 200, y: -30, x2: 200, y2: 30 }]);
     expect(beams).toHaveLength(1);
-    expect(beams[0].range).toBeCloseTo(200);
-    expect(shadows).toHaveLength(1);
-    expect(shadows[0][2].x).toBeGreaterThan(390);
+    expect(Math.min(...reach(beams[0]))).toBeCloseTo(200, 0);
+    expect(Math.max(...reach(beams[0]))).toBeGreaterThan(390);
+    expect(shadows).toEqual([]);
   });
 });
