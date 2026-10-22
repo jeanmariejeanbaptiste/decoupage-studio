@@ -1,6 +1,7 @@
+import { addKeyframe, framesOf, imageCount, removeFrame, setFrame, type Frame } from '../../domain/keyframes';
 import { createPortal } from 'react-dom';
 import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -51,7 +52,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
     if (!imaging || !imagesRef.current) return;
     const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
     const root = imagesRef.current;
-    const expected = allShots.filter((id) => doc.shots[id]?.storyboard).length;
+    const expected = allShots.reduce((n, id) => n + (doc.shots[id] ? imageCount(doc.shots[id]) : 0), 0);
     void waitForPages(root, '[data-testid="storyboard-sheet"]')
       .then(async (p) => {
         await waitForImages(root, expected);
@@ -170,7 +171,7 @@ function SortableCard(props: { doc: ProjectDoc; shot: Shot; timing: Timing }) {
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined, opacity: isDragging ? 0.85 : 1 }}
+      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined, opacity: isDragging ? 0.85 : 1, gridColumn: props.shot.keyframes?.length ? `span ${Math.min(3, props.shot.keyframes.length + 1)}` : undefined }}
       {...attributes}
       {...listeners}
       aria-roledescription="carte de storyboard déplaçable"
@@ -231,29 +232,22 @@ function AspectPicker({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: Shot; timing: Timing; printing?: boolean }) {
-  const url = useBlobUrl(shot.storyboard?.blobKey);
+/** Une keyframe : image importée ou dessinée, et une précision facultative. */
+function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: ProjectDoc; shot: Shot; index: number; count: number; frame: Frame; printing: boolean; ratio: number }) {
+  const url = useBlobUrl(frame.blobKey);
   const [over, setOver] = useState(false);
   const [sketching, setSketching] = useState(false);
-  const block = doc.blocks[shot.actionBlockId];
-  const ratio = aspectRatio(doc.project.settings.storyboardAspect);
-  const meta = [valueLabel(shot.value, doc.project.settings.labelStyle), formatFocal(shot.focal, isZoom(shot.movement)), renderTokens(shot.movement, shot.movementSep)].filter(Boolean).join(' · ');
+  const label = `${shotCode(doc, shot.id)}${count > 1 ? ` · K${index + 1}` : ''}`;
   const importImage = async (f: File | undefined) => {
     if (!f?.type.startsWith('image/')) return;
     const key = await putBlob(doc.project.id, f.name, f);
-    mutateDoc((d) => void (d.shots[shot.id].storyboard = { blobKey: key }));
-  };
-  const drop = async (e: DragEvent) => {
-    e.preventDefault();
-    setOver(false);
-    await importImage(e.dataTransfer.files[0]);
+    mutateDoc((d) => setFrame(d, shot.id, index, { blobKey: key, baseKey: undefined, sketch: undefined }));
   };
   return (
-    <article className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')} data-testid={printing ? undefined : 'storyboard-card'}>
-      <FrameCell printing={printing}>
+    <div className={s.frameWrap}>
       <div
         className={[s.frame, over ? s.over : ''].join(' ')}
-        style={{ aspectRatio: String(ratio), '--r': ratio } as React.CSSProperties}
+        style={{ aspectRatio: String(ratio) }}
         onDragOver={(e) => {
           if (e.dataTransfer.types.includes('Files')) {
             e.preventDefault();
@@ -261,10 +255,14 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
           }
         }}
         onDragLeave={() => setOver(false)}
-        onDrop={drop}
+        onDrop={(e: DragEvent) => {
+          e.preventDefault();
+          setOver(false);
+          void importImage(e.dataTransfer.files[0]);
+        }}
       >
-        {url ? <img src={url} alt={`Storyboard du plan ${shotCode(doc, shot.id)}`} /> : !printing && <ImagePlus size={20} strokeWidth={1} aria-hidden="true" />}
-        <span className={s.code}>{shotCode(doc, shot.id)}</span>
+        {url ? <img src={url} alt={`Storyboard du plan ${label}`} /> : !printing && <ImagePlus size={20} strokeWidth={1} aria-hidden="true" />}
+        <span className={s.code}>{label}</span>
         {!printing && (
           <label className={s.import} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} title={url ? 'Remplacer l’image' : 'Importer une image'}>
             <ImagePlus size={13} strokeWidth={1.5} />
@@ -273,7 +271,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
               type="file"
               accept="image/*"
               className="visually-hidden"
-              aria-label={`Importer une image pour le plan ${shotCode(doc, shot.id)}`}
+              aria-label={`Importer une image pour le plan ${label}`}
               onChange={(e) => {
                 void importImage(e.target.files?.[0]);
                 e.target.value = '';
@@ -287,20 +285,54 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
             Dessiner
           </button>
         )}
-        {sketching && createPortal(<SketchEditor doc={doc} shotId={shot.id} onClose={() => setSketching(false)} />, document.body)}
-        {!printing && url && (
-          <button
-            type="button"
-            className={s.remove}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => mutateDoc((d) => void (d.shots[shot.id].storyboard = undefined))}
-            aria-label={`Retirer l’image du plan ${shotCode(doc, shot.id)}`}
-          >
+        {sketching && createPortal(<SketchEditor doc={doc} shotId={shot.id} frame={index} onClose={() => setSketching(false)} />, document.body)}
+        {!printing && (url || count > 1) && (
+          <button type="button" className={s.remove} onPointerDown={(e) => e.stopPropagation()} onClick={() => mutateDoc((d) => removeFrame(d, shot.id, index))} aria-label={`Retirer l’image ${label}`}>
             ×
           </button>
         )}
       </div>
+      {count > 1 &&
+        (printing ? (
+          frame.note && <p className={s.frameNote}>{frame.note}</p>
+        ) : (
+          <input
+            className={s.frameNote}
+            value={frame.note ?? ''}
+            placeholder="Précision (facultatif)"
+            aria-label={`Précision pour ${label}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            onChange={(e) => mutateDoc((d) => setFrame(d, shot.id, index, { note: e.target.value || undefined }))}
+          />
+        ))}
+    </div>
+  );
+}
+
+function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: Shot; timing: Timing; printing?: boolean }) {
+  const block = doc.blocks[shot.actionBlockId];
+  const ratio = aspectRatio(doc.project.settings.storyboardAspect);
+  const frames = framesOf(shot);
+  const meta = [valueLabel(shot.value, doc.project.settings.labelStyle), formatFocal(shot.focal, isZoom(shot.movement)), renderTokens(shot.movement, shot.movementSep)].filter(Boolean).join(' · ');
+  return (
+    <article className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')} data-testid={printing ? undefined : 'storyboard-card'}>
+      <FrameCell printing={printing}>
+        {/* Keyframes d'un même plan : côte à côte, reliées, avec une seule fiche de découpage dessous. */}
+        <div className={s.frames} style={{ '--n': frames.length, '--r': ratio } as React.CSSProperties}>
+          {frames.map((f, i) => (
+            <Fragment key={i}>
+              {i > 0 && <span className={s.link} aria-hidden="true">›</span>}
+              <FrameView doc={doc} shot={shot} index={i} count={frames.length} frame={f} printing={printing} ratio={ratio} />
+            </Fragment>
+          ))}
+        </div>
       </FrameCell>
+      {!printing && (
+        <button type="button" className={s.addFrame} onPointerDown={(e) => e.stopPropagation()} onClick={() => mutateDoc((d) => addKeyframe(d, shot.id))} title="Ajouter une keyframe à ce plan (même plan, image suivante)" data-testid="storyboard-add-keyframe">
+          + keyframe
+        </button>
+      )}
       <div className={s.body}>
         <p className={s.meta}>{meta || '—'}</p>
         <p className={s.subject}>{shot.subject}</p>

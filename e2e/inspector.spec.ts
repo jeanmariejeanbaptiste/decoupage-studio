@@ -16,7 +16,7 @@ test('inspecteur : angle de champ, matériel, son et storyboard', async ({ page 
   await expect(insp).toContainText('Rails + dolly ou slider');
   await insp.getByLabel('Son').fill('IN');
   await expect(insp).toContainText('Perche + HF');
-  await insp.locator('input[type=file]').setInputFiles({ name: 'board.png', mimeType: 'image/png', buffer: PNG });
+  await insp.locator('input[type=file]').first().setInputFiles({ name: 'board.png', mimeType: 'image/png', buffer: PNG });
   await expect(insp.getByRole('img', { name: 'Storyboard du plan 2.1' })).toBeVisible();
   await page.getByRole('button', { name: 'Replier l’inspecteur' }).click();
   await expect(insp).toHaveCount(0);

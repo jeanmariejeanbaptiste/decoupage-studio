@@ -1,3 +1,4 @@
+import { framesOf, setFrame } from '../../domain/keyframes';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { ArrowUpRight, Box, Pencil, MousePointer2, Trash2, Type, Undo2, X } from 'lucide-react';
 import { aspectRatio } from '../../domain/aspect';
@@ -16,9 +17,9 @@ type P = [number, number];
 const COLORS = ['#1d1b18', '#c0392b', '#2c5d8a', '#2f8f4e', '#e0a020', '#ffffff'];
 
 /** Dessin sur une case de storyboard : crayon, texte, flèches 2D et flèches en fausse 3D. */
-export function SketchEditor({ doc, shotId, onClose }: { doc: ProjectDoc; shotId: ID; onClose: () => void }) {
+export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: ProjectDoc; shotId: ID; frame?: number; onClose: () => void }) {
   const shot = doc.shots[shotId];
-  const sb = shot?.storyboard;
+  const sb = shot ? framesOf(shot)[frame] : undefined;
   const baseKey = sb?.sketch ? sb.baseKey : sb?.blobKey;
   const baseUrl = useBlobUrl(baseKey);
   const H = Math.round(SKETCH_W / aspectRatio(doc.project.settings.storyboardAspect));
@@ -125,7 +126,7 @@ export function SketchEditor({ doc, shotId, onClose }: { doc: ProjectDoc; shotId
       URL.revokeObjectURL(url);
       const png = await new Promise<Blob>((ok, ko) => canvas.toBlob((b) => (b ? ok(b) : ko(new Error('Rendu impossible'))), 'image/png'));
       const key = await putBlob(doc.project.id, `dessin-${shotCode(doc, shotId)}.png`, png);
-      mutateDoc((d) => void (d.shots[shotId].storyboard = { blobKey: key, baseKey, sketch: items }));
+      mutateDoc((d) => setFrame(d, shotId, frame, { blobKey: key, baseKey, sketch: items }));
       onClose();
     } finally {
       setSaving(false);
@@ -153,7 +154,10 @@ export function SketchEditor({ doc, shotId, onClose }: { doc: ProjectDoc; shotId
     >
       <div className={s.sheet}>
         <header className={s.head}>
-          <strong>Plan {shotCode(doc, shotId)}</strong>
+          <strong>
+            Plan {shotCode(doc, shotId)}
+            {framesOf(shot).length > 1 ? ` · keyframe ${frame + 1}` : ''}
+          </strong>
           <div className={s.tools} role="toolbar">
             {tools.map(([k, label, icon]) => (
               <button key={k} type="button" className={tool === k ? s.on : ''} aria-pressed={tool === k} onClick={() => setTool(k)} data-testid={`sketch-${k}`}>

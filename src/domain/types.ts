@@ -142,7 +142,9 @@ export interface Shot {
   notes?: string;
   status: ShotStatus;
   /** Image affichée ; `baseKey` = image d'origine sous le dessin, `sketch` = annotations modifiables. */
-  storyboard?: { blobKey: string; baseKey?: string; sketch?: import('./sketch').SketchItem[] };
+  storyboard?: { blobKey: string; baseKey?: string; sketch?: import('./sketch').SketchItem[]; note?: string };
+  /** Keyframes supplémentaires du même plan (la première reste `storyboard`). */
+  keyframes?: Array<{ id: ID; blobKey?: string; baseKey?: string; sketch?: import('./sketch').SketchItem[]; note?: string }>;
   shootingDay?: number;
   /** Coupure de fusion forcée avant ce plan, pour les colonnes listées (§12). */
   mergeBreak?: ColumnKey[];

@@ -10,7 +10,7 @@
 .card:active { cursor: grabbing; }
 .dropped { opacity: 0.5; }
 .frame { position: relative; aspect-ratio: 16 / 9; background: var(--paper); border-bottom: 1px solid var(--rule); display: flex; align-items: center; justify-content: center; color: var(--ink-soft); }
-.frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
 .over { outline: 2px dashed var(--rust); outline-offset: -4px; background: var(--tint); }
 .code { position: absolute; top: 6px; left: 6px; background: var(--paper-card); border: 1px solid var(--rule); border-radius: 3px; padding: 0 6px; font-weight: 600; color: var(--rust); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .import { position: absolute; right: 6px; bottom: 6px; display: inline-flex; gap: 4px; align-items: center; background: var(--paper-card); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 7px; font-size: 12px; cursor: pointer; color: var(--ink); opacity: 0.85; }
@@ -41,7 +41,9 @@
 .print .sheetGrid { flex: 1; min-height: 0; display: grid; gap: 5mm; }
 .print .sheetGrid .card { min-height: 0; overflow: hidden; display: flex; flex-direction: column; break-inside: avoid; border-color: #888; }
 .print .sheetGrid .frameCell { flex: 1 1 auto; min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
-.print .sheetGrid .frame { width: min(100cqw, calc(100cqh * var(--r))); height: auto; border: 1px solid #888; }
+.print .sheetGrid .frames { width: 100%; height: 100%; align-items: center; justify-content: center; }
+.print .sheetGrid .frameWrap { flex: 0 0 auto; }
+.print .sheetGrid .frame { width: min(calc((100cqw - (var(--n) - 1) * 18px) / var(--n)), calc((100cqh - 16px) * var(--r))); height: auto; border: 1px solid #888; }
 .print .sheetGrid .body { flex: 0 0 auto; padding: 4px 8px 6px; }
 .print .sheetGrid .action { font-size: 10px; line-height: 1.25; max-height: 3.8em; overflow: hidden; }
 .inkCheck { display: flex; gap: 8px; align-items: center; font-size: 13px; }
@@ -52,3 +54,13 @@
 .aspect input { width: 80px; font-family: var(--font-mono); }
 .draw { position: absolute; left: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; font-size: 11.5px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); color: var(--ink-soft); cursor: pointer; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
 .card:hover .draw, .draw:focus-visible { opacity: 1; }
+
+/* Keyframes d'un même plan : côte à côte, reliées par un chevron, une seule fiche dessous. */
+.frames { display: flex; align-items: flex-start; gap: 2px; }
+.frameWrap { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.link { align-self: center; color: var(--rust); font-size: 22px; line-height: 1; padding: 0 1px; }
+.frameNote { margin: 0; padding: 2px 6px; border: 0; border-top: 1px dotted var(--rule); background: transparent; font: inherit; font-size: 11.5px; font-style: italic; color: var(--ink-soft); width: 100%; }
+.frameNote:focus { outline: none; background: var(--paper); }
+.addFrame { position: absolute; top: 6px; right: 36px; z-index: 2; border: 1px solid var(--rule); background: var(--paper-card); border-radius: 999px; padding: 0 8px; font-size: 11px; color: var(--ink-soft); cursor: pointer; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.card:hover .addFrame, .addFrame:focus-visible { opacity: 1; }
+.card { position: relative; }

@@ -1,3 +1,4 @@
+import { newId } from '../../domain/factory';
 import { formatOneShotDuration, oneShotTiming, toggleOneShot } from '../../domain/oneshot';
 import { useMemo, useState, type DragEvent } from 'react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
@@ -95,6 +96,31 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
             <input type="file" accept="image/*" className="visually-hidden" onChange={(e) => void dropImage(e.target.files?.[0])} />
           </label>
         )}
+      </div>
+
+      <div className={s.keyframes}>
+        {(shot.keyframes ?? []).map((k, i) => (
+          <KeyThumb key={k.id} blobKey={k.blobKey} label={`K${i + 2}`} />
+        ))}
+        <label className={s.addKey} title="Ajouter une image à ce plan (keyframe suivante), visible dans le storyboard">
+          + keyframe
+          <input
+            type="file"
+            accept="image/*"
+            className="visually-hidden"
+            data-testid="inspector-add-keyframe"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f?.type.startsWith('image/')) return;
+              const key = await putBlob(doc.project.id, f.name, f);
+              update((d) => {
+                if (!d.shots[shot.id].storyboard) d.shots[shot.id].storyboard = { blobKey: key };
+                else (d.shots[shot.id].keyframes ??= []).push({ id: newId(), blobKey: key });
+              });
+            }}
+          />
+        </label>
       </div>
 
       {shot.oneShot && (
@@ -217,6 +243,11 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
       )}
     </aside>
   );
+}
+
+function KeyThumb({ blobKey, label }: { blobKey?: string; label: string }) {
+  const url = useBlobUrl(blobKey);
+  return <span className={s.keyThumb}>{url ? <img src={url} alt={label} /> : null}<em>{label}</em></span>;
 }
 
 function Header({ onClose }: { onClose: () => void }) {
