@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useA4Pages } from '../../ui/useA4Pages';
 import { navigate } from '../../app/router';
 import { aggregateEquipment, equipmentCategories } from '../../domain/equipment';
 import { formatFocal } from '../../domain/focal';
@@ -38,6 +39,8 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const [n, setN] = useState<number | undefined>(days[0]?.n);
   const day = days.find((d) => d.n === n) ?? days[0];
   const timing = useMemo(() => computeTiming(doc), [doc]);
+  const sheetRef = useRef<HTMLElement>(null);
+  useA4Pages(sheetRef, [doc, day?.n]);
 
   if (!day) {
     return (
@@ -95,7 +98,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
         </div>
       </header>
 
-      <article className={['a4-sheet', s.sheet].join(' ')} data-testid="callsheet">
+      <article ref={sheetRef} className={['a4-sheet', 'a4-paged', s.sheet].join(' ')} data-testid="callsheet">
         <header className={s.head}>
           <div>
             <p className={s.kicker}>Feuille de service</p>
@@ -221,6 +224,11 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
             </span>
           </h3>
           <table className={s.table} data-testid="callsheet-shots">
+            <colgroup>
+              {[12, 6, 13, 11, 10, 12, 11, 8, 17].map((w, i) => (
+                <col key={i} style={{ width: `${w}%` }} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
                 <th>Horaire</th>
