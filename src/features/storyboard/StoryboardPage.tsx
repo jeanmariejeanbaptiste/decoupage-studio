@@ -181,7 +181,7 @@ function Sheets({ doc, shots, perPage, timing, className, orientation }: { doc: 
           </header>
           <div className={s.sheetGrid} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
             {ids.map(({ id, span }) => (
-              <div key={id} style={{ gridColumn: `span ${span}`, minHeight: 0, display: 'flex' }}>
+              <div key={id} className={s.cell} style={{ gridColumn: `span ${span}` }}>
                 <Card doc={doc} shot={doc.shots[id]} timing={timing} printing />
               </div>
             ))}
@@ -209,7 +209,8 @@ function SortableCard(props: { doc: ProjectDoc; shot: Shot; timing: Timing }) {
 
 /** À l'impression, la case occupe la place libre et le cadre y tient au bon format (centré). */
 function FrameCell({ printing, children }: { printing: boolean; children: React.ReactNode }) {
-  return printing ? <div className={s.frameCell}>{children}</div> : <>{children}</>;
+  void printing;
+  return <>{children}</>;
 }
 
 /** Choix du format d'image du storyboard : formats usuels ou valeur saisie. */
@@ -344,7 +345,11 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
   const frames = framesOf(shot);
   const meta = [valueLabel(shot.value, doc.project.settings.labelStyle), formatFocal(shot.focal, isZoom(shot.movement)), renderTokens(shot.movement, shot.movementSep)].filter(Boolean).join(' · ');
   return (
-    <article className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')} data-testid={printing ? undefined : 'storyboard-card'}>
+    <article
+      className={[s.card, shot.status === 'abandonné' ? s.dropped : ''].join(' ')}
+      style={printing ? ({ '--r': ratio, '--n': frames.length } as React.CSSProperties) : undefined}
+      data-testid={printing ? undefined : 'storyboard-card'}
+    >
       <FrameCell printing={printing}>
         {/* Keyframes d'un même plan : côte à côte, reliées, avec une seule fiche de découpage dessous. */}
         <div className={s.frames} style={{ '--n': frames.length, '--r': ratio } as React.CSSProperties}>

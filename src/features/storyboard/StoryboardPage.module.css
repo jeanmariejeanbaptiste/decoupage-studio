@@ -65,3 +65,20 @@
 .card:hover .addFrame, .addFrame:focus-visible { opacity: 1; }
 .card { position: relative; }
 .print .sheetGrid > div > .card { flex: 1; min-width: 0; }
+
+/* Planches : l'image occupe toute la largeur de la carte, sans encadré intérieur ; la fiche de
+   découpage, compacte et de taille uniforme, épouse la même largeur. La carte se dimensionne
+   pour tenir dans sa case (largeur limitée par la hauteur disponible et le format d'image). */
+.print { --info: 19mm; }
+.print .sheetGrid .cell { min-height: 0; min-width: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+.print .sheetGrid .cell > .card { flex: none; width: min(100cqw, calc((100cqh - var(--info)) * var(--r) * var(--n))); height: auto; padding: 0; border: 1px solid #999; border-radius: 3px; overflow: hidden; display: flex; flex-direction: column; }
+.print .sheetGrid .frames { width: 100%; height: auto; gap: 0; align-items: stretch; }
+.print .sheetGrid .frameWrap { flex: 1 1 0; position: relative; }
+.print .sheetGrid .frame { width: 100%; height: auto; border: 0; border-bottom: 1px solid #999; border-radius: 0; }
+.print .sheetGrid .frameWrap + .link + .frameWrap .frame, .print .sheetGrid .link + .frameWrap .frame { border-left: 1px solid #999; }
+.print .sheetGrid .link { display: none; }
+.print .sheetGrid .frameNote { position: absolute; left: 0; right: 0; bottom: 0; border: 0; padding: 1px 4px; font-size: 7pt; background: rgba(255, 255, 255, 0.85); }
+.print .sheetGrid .body { flex: none; height: var(--info); padding: 1.6mm 2.4mm; gap: 0.6mm; overflow: hidden; }
+.print .sheetGrid .meta, .print .sheetGrid .subject, .print .sheetGrid .action, .print .sheetGrid .foot { font-size: 7.5pt; line-height: 1.25; }
+.print .sheetGrid .action { flex: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-height: none; }
+.print .sheetGrid .code { font-size: 8pt; padding: 0 4px; top: 4px; left: 4px; }
