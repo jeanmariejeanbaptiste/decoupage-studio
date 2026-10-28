@@ -14,7 +14,8 @@ export function useSuggest(query: string, source: ((q: string) => Suggestion[]) 
     setActive(-1);
     setClosed(false);
   }
-  const items = useMemo(() => (source && query.trim() ? source(query) : []), [source, query]);
+  // Champ vide : toute la liste est proposée dès l'ouverture de la cellule.
+  const items = useMemo(() => (source ? source(query.trim() ? query : '') : []), [source, query]);
   const open = !closed && items.length > 0;
 
   /** Renvoie `true` si la touche a été consommée par la liste. */
@@ -29,8 +30,9 @@ export function useSuggest(query: string, source: ((q: string) => Suggestion[]) 
       return true;
     }
     if (e.key === 'Escape') {
+      // Liste ouverte d'office (champ vide) : Échap annule directement l'édition.
       setClosed(true);
-      return true;
+      return !!query.trim();
     }
     return false;
   }
