@@ -155,9 +155,6 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                 ×
               </button>
               <IssueDot issues={model.issues.get(r.shotId)} />
-              <button type="button" className={s.rowAdd} aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`} title="Insérer un plan ici" onMouseDown={(e) => e.stopPropagation()} onClick={() => insertShotAfter(r.shotId)} tabIndex={-1} data-testid="insert-shot">
-                +
-              </button>
             </td>
             {columns.map((col) => {
               if (lines && BEAT_COLUMNS.includes(col)) return beatTd(col, 0);
@@ -251,7 +248,12 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                       )}
                     </span>
                   ) : col === 'number' ? (
-                    <NumberHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} num={text} />
+                    <>
+                      <NumberHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} num={text} />
+                      <button type="button" className={s.rowAdd} aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`} title="Insérer un plan ici" onMouseDown={(e) => e.stopPropagation()} onClick={() => insertShotAfter(r.shotId)} tabIndex={-1} data-testid="insert-shot">
+                        + plan
+                      </button>
+                    </>
                   ) : (
                     <>
                       {repeated && text ? (

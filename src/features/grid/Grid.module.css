@@ -183,5 +183,7 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .row:hover .numHandle { background: color-mix(in srgb, var(--rust) 6%, transparent); }
 /* Supprimer (haut gauche) et insérer (bas droite) : éloignés l'un de l'autre pour éviter les erreurs de clic. */
 .gutter .rowDel { position: absolute; left: 2px; top: 3px; }
-.gutter .rowAdd { left: auto; right: 4px; bottom: 3px; transform: none; }
 .gutter .issueDot { right: 6px; top: 7px; }
+/* « + plan » : posé sur la ligne de séparation sous le plan survolé, hors de la marge, loin du ×. */
+.c_number .rowAdd { left: calc(100% + 8px); right: auto; bottom: -9px; transform: none; width: auto; height: 18px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; line-height: 16px; white-space: nowrap; z-index: 6; }
+.gutter .rowDel { top: 50%; transform: translateY(-50%); }
