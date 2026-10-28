@@ -250,9 +250,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                   ) : col === 'number' ? (
                     <>
                       <NumberHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} num={text} />
-                      <button type="button" className={s.rowAdd} aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`} title="Insérer un plan ici" onMouseDown={(e) => e.stopPropagation()} onClick={() => insertShotAfter(r.shotId)} tabIndex={-1} data-testid="insert-shot">
-                        + plan
-                      </button>
+                      <button type="button" className={s.rowAdd} aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`} title="Insérer un plan ici" onMouseDown={(e) => e.stopPropagation()} onClick={() => insertShotAfter(r.shotId)} tabIndex={-1} data-testid="insert-shot" />
                     </>
                   ) : (
                     <>
