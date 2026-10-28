@@ -3,7 +3,7 @@ import { toggleOneShot } from '../../domain/oneshot';
 import { Fragment, type CSSProperties, type MouseEvent } from 'react';
 import { displayLines, displaySpan } from '../../domain/merge';
 import { deleteSequenceOf, deleteShotById, insertSequenceAt, insertShotAfter, rowOfShot } from './actions';
-import { DroppableBody, DroppableRow, SeqHandle, ShotHandle } from './dnd';
+import { DroppableBody, DroppableRow, NumberHandle, SeqHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { addShot } from '../../domain/ops';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
@@ -151,7 +151,6 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
           <Fragment key={r.shotId}>
           <DroppableRow shotId={r.shotId} className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')} data-shot={r.shotId} data-testid="shot-row">
             <td className={s.gutter} rowSpan={lines ? displayLines(r) : undefined} onContextMenu={(e) => onGutterContextMenu(e, r.shotId)} title="Clic droit : plan-séquence">
-              <ShotHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} />
               <button type="button" className={s.rowDel} aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`} title="Supprimer ce plan" onClick={() => deleteShotById(r.shotId)} tabIndex={-1} data-testid="delete-shot">
                 ×
               </button>
@@ -172,8 +171,9 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                 h = displaySpan(seq.rows, sp.start - seq.firstRow, span);
               }
               const pos = { row, col };
-              const selected = !!rect && row >= rect.r0 && row <= rect.r1 && rect.cols.includes(col);
-              const isFocus = focus?.row === row && focus.col === col;
+              // N° : numéro dérivé et verrouillé, la cellule sert de poignée ; jamais encadrée.
+              const selected = col !== 'number' && !!rect && row >= rect.r0 && row <= rect.r1 && rect.cols.includes(col);
+              const isFocus = col !== 'number' && focus?.row === row && focus.col === col;
               const isEditing = editing?.pos.row === row && editing.pos.col === col;
               const repeated = seq.repeated[col]?.[i] ?? false;
               const text = r.cells[col] ?? '';
@@ -251,7 +251,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                       )}
                     </span>
                   ) : col === 'number' ? (
-                    <span className={s.num}>{text}</span>
+                    <NumberHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} num={text} />
                   ) : (
                     <>
                       {repeated && text ? (

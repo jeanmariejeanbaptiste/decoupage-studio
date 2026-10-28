@@ -41,6 +41,27 @@ export function ShotHandle({ shotId, label }: { shotId: string; label: string })
   );
 }
 
+/** Cellule N° entière servant de poignée : le numéro reste lisible, la main indique qu'on peut glisser. */
+export function NumberHandle({ shotId, label, num }: { shotId: string; label: string; num: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: shotDragId(shotId) });
+  return (
+    <button
+      type="button"
+      ref={setNodeRef}
+      className={[s.numHandle, isDragging ? s.dragging : ''].join(' ')}
+      aria-label={`Déplacer le plan ${label}`}
+      title="Glisser pour déplacer le plan"
+      data-testid="shot-handle"
+      onMouseDown={(e) => e.stopPropagation()}
+      {...attributes}
+      {...listeners}
+      tabIndex={-1}
+    >
+      <span className={s.num}>{num}</span>
+    </button>
+  );
+}
+
 /** Poignée d'une séquence entière, sur la cellule SÉQUENCE. */
 export function SeqHandle({ seqId, label }: { seqId: string; label: string }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: seqDragId(seqId) });

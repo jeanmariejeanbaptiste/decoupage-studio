@@ -14,7 +14,7 @@ async function dragTo(page: Page, from: Locator, to: Locator, offsetY = 0) {
 }
 
 const invariants = (page: Page) => page.evaluate(() => (window as unknown as { __ds: { invariants: () => string[] } }).__ds.invariants());
-const seqRows = (page: Page, n: number) => page.locator(`tbody[data-seq]:nth-of-type(${n}) ${ROWS}`);
+const seqRows = (page: Page, n: number) => page.locator('tbody[data-seq]').nth(n - 1).locator(ROWS);
 
 test.describe('couverture et réordonnancement', () => {
   test.beforeEach(async ({ page }) => {

@@ -168,3 +168,16 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .seqAdd { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; padding: 0 10px; height: 18px; border: 1px solid var(--rust); border-radius: 999px; background: var(--paper-card); color: var(--rust); font-size: 11.5px; cursor: pointer; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
 .spacer:hover .seqAdd, .seqAdd:focus-visible { opacity: 1; }
 .spacer td { height: 12px; }
+
+/* Écart entre séquences : assez haut pour son bouton, toujours visible mais discret. */
+.spacer td { height: 26px; }
+.seqAdd { opacity: 0.45; height: 18px; line-height: 16px; }
+.spacer:hover .seqAdd { opacity: 1; }
+/* Insertion d'un plan : à l'intérieur de la marge, jamais rogné par la ligne suivante. */
+.rowAdd { bottom: 3px; }
+.gutter { overflow: visible; }
+/* Cellule N° = poignée de glisser-déposer, sans encadré de sélection. */
+.c_number { padding: 0 !important; }
+.numHandle { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; width: 100%; border: 0; background: none; padding: 0 4px; cursor: grab; touch-action: none; }
+.numHandle:active { cursor: grabbing; }
+.row:hover .numHandle { background: color-mix(in srgb, var(--rust) 6%, transparent); }

@@ -15,8 +15,7 @@ import {
   moveCurrentShot,
   newSequenceAfter,
   newShotBelow,
-  pasteMatrix,
-} from './actions';
+  pasteMatrix, insertSequenceAt } from './actions';
 import type { CommitMove } from './CellEditor';
 import { cellSpan, moveCell, selectionRect, type GridModel } from './gridModel';
 import { SequenceBody } from './SequenceBody';
@@ -249,6 +248,17 @@ export function Grid({ doc, model }: Props) {
             ))}
           </tr>
         </thead>
+        {model.seqs.length > 0 && (
+          <tbody>
+            <tr className={s.spacer}>
+              <td colSpan={columns.length + 1}>
+                <button type="button" className={s.seqAdd} title="Insérer une séquence en tête" aria-label="Insérer une séquence en tête" onClick={() => insertSequenceAt(0)} tabIndex={-1} data-testid="insert-sequence-first">
+                  + séquence
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        )}
         {model.seqs.map((seq) => (
           <SequenceBody
             key={seq.seqId}
