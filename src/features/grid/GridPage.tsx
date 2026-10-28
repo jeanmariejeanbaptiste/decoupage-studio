@@ -19,7 +19,6 @@ import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
 import { useGridDnd } from './useGridDnd';
 import { TemplatesMenu } from './TemplatesMenu';
-import { AssistantButton } from '../assistant/AssistantButton';
 import { navigate } from '../../app/router';
 import { TrackBar } from './TrackBar';
 import s from './GridPage.module.css';
@@ -27,7 +26,7 @@ import s from './GridPage.module.css';
 const IC = { size: 15, strokeWidth: 1.25 } as const;
 
 export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
-  const { displayDoc: doc, wrap } = useGridDnd(storeDoc);
+  const { displayDoc: doc, wrap, dragging } = useGridDnd(storeDoc);
   const model = useMemo(() => buildGridModel(doc), [doc]);
   const printView = useUi((u) => u.printView);
   const inspectorOpen = useUi((u) => u.inspectorOpen);
@@ -70,11 +69,6 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
     <div className="page page--wide">
       <header className="page-head">
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
-          <div className={s.addGroup} role="group" aria-label="Ajouter">
-            <TemplatesMenu doc={doc} variant="ghost" />
-          </div>
-          <AssistantButton doc={doc} />
-          <span className={s.sep} />
           {linked ? (
             <Button icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés" disabled={printView}>
               Délier
@@ -169,7 +163,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           {doc.project.settings.tcMode === 'piste' && <TrackBar doc={storeDoc} />}
           <div className={s.workspace}>
             <div className={s.main}>
-              {wrap(<Grid doc={doc} model={model} />)}
+              {wrap(<Grid doc={doc} model={model} animate={!!dragging} />)}
               <GridFooter sequences={nSeq} shots={model.rows.length} timing={model.timing} mode={doc.project.settings.tcMode} />
             </div>
             {inspectorOpen && <Inspector doc={storeDoc} shotId={selectedShot} />}

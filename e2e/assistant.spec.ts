@@ -28,7 +28,7 @@ test('assistant désactivé sans clé, puis proposition insérée (API simulée)
       }),
     });
   });
-  await page.goto('/#/grid?seed=fiction');
+  await page.goto('/#/settings?seed=fiction');
   await expect(page.getByTestId('assistant')).toBeDisabled();
   await page.goto('/#/settings');
   await page.getByLabel('Clé API Anthropic').fill('sk-ant-test-123');
@@ -36,9 +36,11 @@ test('assistant désactivé sans clé, puis proposition insérée (API simulée)
   await expect(page.getByText('Assistant actif')).toBeVisible();
   await page.goto('/#/grid');
   await page.locator('[data-cell="9:subject"]').click();
+  await page.goto('/#/settings');
   await page.getByTestId('assistant').click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Proposer' }).click();
   await expect(page.getByTestId('toast').filter({ hasText: '2 plans proposés' })).toBeVisible();
+  await page.goto('/#/grid');
   await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(13);
   expect(body.model).toBe('claude-opus-5-5');
   expect(body.output_config?.format?.type).toBe('json_schema');

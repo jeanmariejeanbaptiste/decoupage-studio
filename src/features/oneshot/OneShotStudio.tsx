@@ -1,6 +1,9 @@
-import { Fragment, useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Plus, Trash2, X } from 'lucide-react';
-import { addBeat, BRIDGE_PRESETS, formatOneShotDuration, needsBridge, moveBeat, oneShotTiming, removeBeat, toggleOneShot, updateBeat } from '../../domain/oneshot';
+import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { ArrowRight, Maximize2, Minimize2, Plus, Trash2, X } from 'lucide-react';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { addBeat, BRIDGE_PRESETS, formatOneShotDuration, needsBridge, oneShotTiming, reorderBeat, removeBeat, toggleOneShot, updateBeat } from '../../domain/oneshot';
 import { shotCode, sequenceHeading } from '../../domain/numbering';
 import { formatTc } from '../../domain/timecode';
 import type { ID, OneShotBeat, ProjectDoc } from '../../domain/types';
@@ -19,6 +22,8 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
   const shot = shotId ? doc.shots[shotId] : undefined;
   const beats = shot?.oneShot?.beats ?? [];
   const [focus, setFocus] = useState<ID | null>(null);
+  const [full, setFull] = useState(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   useEffect(() => {
     if (!shotId) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
@@ -45,7 +50,7 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
   };
 
   return (
-    <div className={s.backdrop} role="dialog" aria-modal="true" aria-label="Chorégraphie du plan-séquence" data-testid="oneshot-studio">
+    <div className={[s.backdrop, full ? s.full : ''].join(' ')} role="dialog" aria-modal="true" aria-label="Chorégraphie du plan-séquence" data-testid="oneshot-studio">
       <div className={s.sheet}>
         <header className={s.head}>
           <div>
@@ -58,6 +63,7 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
             <span>Durée</span>
             <strong>{formatOneShotDuration(t) || 'à estimer'}</strong>
           </div>
+          <Button variant="icon" aria-label={full ? 'Réduire' : 'Plein écran'} title={full ? 'Réduire' : 'Plein écran'} icon={full ? <Minimize2 size={17} /> : <Maximize2 size={17} />} onClick={() => setFull(!full)} data-testid="studio-full" />
           <Button variant="icon" aria-label="Fermer" icon={<X size={18} />} onClick={close} />
         </header>
 
@@ -86,25 +92,30 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
         <datalist id="os-subject">{lists.subject.map((v) => <option key={v} value={v} />)}</datalist>
         <datalist id="os-focal">{COMMON_FOCALS.map((v) => <option key={v} value={v} />)}</datalist>
 
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(e: DragEndEvent) => {
+            const to = beats.findIndex((x) => x.id === e.over?.id);
+            if (e.over && to >= 0) mutateDoc((d) => reorderBeat(d, shotId, String(e.active.id), to));
+          }}
+        >
+        <SortableContext items={beats.map((b) => b.id)} strategy={horizontalListSortingStrategy}>
         <div className={s.beats}>
           {beats.map((b, i) => {
             const w = t.beats[i];
             const next = beats[i + 1];
             return (
               <Fragment key={b.id}>
-              <section id={`beat-${b.id}`} className={[s.card, focus === b.id ? s.cardOn : ''].join(' ')} style={{ borderTopColor: HUES[i % HUES.length] }} onFocus={() => setFocus(b.id)} data-testid="studio-beat">
-                <div className={s.cardHead}>
+              <SortableCard id={b.id} className={[s.card, focus === b.id ? s.cardOn : ''].join(' ')} style={{ borderTopColor: HUES[i % HUES.length] }} onFocus={() => setFocus(b.id)}>
+                {(handle) => (
+                <>
+                <div className={s.cardHead} {...handle} title="Glisser pour déplacer le temps">
                   <b style={{ color: HUES[i % HUES.length] }}>T{i + 1}</b>
                   <span className={s.when}>
                     début {w.startMin === w.startMax ? formatTc(w.startMin) : `${formatTc(w.startMin)} – ${formatTc(w.startMax)}`}
                   </span>
                   <span className={s.tools}>
-                    <button type="button" aria-label="Temps précédent" disabled={i === 0} onClick={() => mutateDoc((d) => moveBeat(d, shotId, b.id, -1))}>
-                      <ArrowLeft size={13} />
-                    </button>
-                    <button type="button" aria-label="Temps suivant" disabled={i === beats.length - 1} onClick={() => mutateDoc((d) => moveBeat(d, shotId, b.id, 1))}>
-                      <ArrowRight size={13} />
-                    </button>
                     <button type="button" aria-label={`Supprimer le temps ${i + 1}`} disabled={beats.length < 2} onClick={() => mutateDoc((d) => removeBeat(d, shotId, b.id))}>
                       <Trash2 size={13} />
                     </button>
@@ -134,7 +145,9 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
                   <span>Repères</span>
                   <textarea rows={3} value={b.cue ?? ''} onChange={(e) => set(b, { cue: e.target.value || undefined })} placeholder="Caméra, comédiens, déclencheur du temps suivant…" aria-label={`Repères du temps ${i + 1}`} />
                 </label>
-              </section>
+                </>
+                )}
+              </SortableCard>
               {next && (
                 <div className={[s.bridge, !b.bridge && needsBridge(b, next) ? s.bridgeTodo : ''].join(' ')} data-testid="studio-bridge">
                   <span className={s.bridgeHead}>
@@ -164,6 +177,8 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
             Ajouter un temps
           </button>
         </div>
+        </SortableContext>
+        </DndContext>
 
         <footer className={s.foot}>
           <span>Les durées absorbent le rythme des comédiens : la durée totale donne la fourchette et l’estimation la plus probable.</span>
@@ -193,5 +208,22 @@ function Field({ label, list, value, onChange }: { label: string; list: string; 
       <span>{label}</span>
       <input list={list} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} />
     </label>
+  );
+}
+
+/** Fiche d'un temps, déplaçable par son en-tête : les autres fiches glissent pour lui faire place. */
+function SortableCard({ id, className, style, onFocus, children }: { id: ID; className: string; style: CSSProperties; onFocus: () => void; children: (handle: Record<string, unknown>) => ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <section
+      ref={setNodeRef}
+      id={`beat-${id}`}
+      className={className}
+      style={{ ...style, transform: CSS.Translate.toString(transform), transition, zIndex: isDragging ? 5 : undefined, boxShadow: isDragging ? '0 14px 30px rgba(42, 40, 36, 0.18)' : undefined }}
+      onFocus={onFocus}
+      data-testid="studio-beat"
+    >
+      {children({ ...attributes, ...listeners })}
+    </section>
   );
 }

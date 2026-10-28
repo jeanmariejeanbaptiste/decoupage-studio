@@ -58,6 +58,16 @@ export function moveBeat(doc: ProjectDoc, shotId: ID, beatId: ID, delta: -1 | 1)
   [beats[i], beats[j]] = [beats[j], beats[i]];
 }
 
+/** Déplace un temps à une nouvelle position (glisser-déposer). */
+export function reorderBeat(doc: ProjectDoc, shotId: ID, beatId: ID, to: number): void {
+  const beats = doc.shots[shotId]?.oneShot?.beats;
+  if (!beats) return;
+  const i = beats.findIndex((b) => b.id === beatId);
+  if (i < 0 || to < 0 || to >= beats.length || i === to) return;
+  const [b] = beats.splice(i, 1);
+  beats.splice(to, 0, b);
+}
+
 export interface BeatWindow {
   /** Le temps commence au plus tôt / au plus tard (s depuis le début du plan). */
   startMin: number;

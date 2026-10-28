@@ -7,6 +7,7 @@ import { shotCode, sequenceHeading } from '../../domain/numbering';
 import {
   addCharacter,
   addSequence,
+  addShot,
   addShotAfter,
   consecutiveRun,
   deleteSequence,
@@ -136,6 +137,11 @@ export function newSequenceAfter(): void {
 /** Insère un plan juste sous ce plan (bouton entre les lignes). */
 export function insertShotAfter(shotId: ID): void {
   select(mutateDoc((x) => addShotAfter(x, shotId)), 'subject');
+}
+
+/** Insère un plan en tête ou en fin de séquence (lignes « + plan »). */
+export function insertShotAt(seqId: ID, index: number): void {
+  select(mutateDoc((x) => addShot(x, seqId, { index })), 'subject');
 }
 
 /** Insère une séquence à cette position (bouton entre les séquences). */

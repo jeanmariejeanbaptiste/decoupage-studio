@@ -1,3 +1,4 @@
+import { useFlip } from '../../ui/useFlip';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { useCallback, useEffect, useMemo, useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { editableText, isEditable, parseTsv, toTsv } from '../../domain/cells';
@@ -18,12 +19,14 @@ import {
   pasteMatrix, insertSequenceAt } from './actions';
 import type { CommitMove } from './CellEditor';
 import { cellSpan, moveCell, selectionRect, type GridModel } from './gridModel';
-import { SequenceBody } from './SequenceBody';
+import { SeqAddRows, SequenceBody } from './SequenceBody';
 import s from './Grid.module.css';
 
 interface Props {
   doc: ProjectDoc;
   model: GridModel;
+  /** Glissement en cours : les lignes glissent vers leur nouvelle place. */
+  animate?: boolean;
 }
 
 const ARROWS: Record<string, 'up' | 'down' | 'left' | 'right'> = {
@@ -33,12 +36,14 @@ const ARROWS: Record<string, 'up' | 'down' | 'left' | 'right'> = {
   ArrowRight: 'right',
 };
 
-export function Grid({ doc, model }: Props) {
+export function Grid({ doc, model, animate = false }: Props) {
   const selection = useUi((u) => u.selection);
   const editing = useUi((u) => u.editing);
   const setSelection = useUi((u) => u.setSelection);
   const setEditing = useUi((u) => u.setEditing);
   const wrapRef = useRef<HTMLDivElement>(null);
+  useFlip(wrapRef, 'tr[data-shot]', 'data-shot', animate);
+  useFlip(wrapRef, 'tbody[data-seq]', 'data-seq', animate);
   const columns = model.columns;
 
   // Garde la sélection dans les bornes après suppression / changement de projet.
@@ -250,13 +255,7 @@ export function Grid({ doc, model }: Props) {
         </thead>
         {model.seqs.length > 0 && (
           <tbody>
-            <tr className={s.spacer}>
-              <td colSpan={columns.length + 1}>
-                <button type="button" className={s.seqAdd} title="Insérer une séquence en tête" aria-label="Insérer une séquence en tête" onClick={() => insertSequenceAt(0)} tabIndex={-1} data-testid="insert-sequence-first">
-                  + séquence
-                </button>
-              </td>
-            </tr>
+            <SeqAddRows span={columns.length + 1} label="Insérer une séquence en tête" onAdd={() => insertSequenceAt(0)} testId="insert-sequence-first" />
           </tbody>
         )}
         {model.seqs.map((seq) => (

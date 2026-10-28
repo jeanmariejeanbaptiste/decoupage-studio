@@ -1,3 +1,5 @@
+import { TemplatesMenu } from '../grid/TemplatesMenu';
+import { AssistantButton } from '../assistant/AssistantButton';
 import { useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
@@ -72,6 +74,12 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
       <header className="page-head">
       </header>
       <div className={s.grid}>
+        <Section title="Découpage" kicker="outils">
+          <div className={s.toolsRow}>
+            <TemplatesMenu doc={doc} variant="outline" />
+            <AssistantButton doc={doc} />
+          </div>
+        </Section>
         <Section title="Projet">
           <label className={s.field}>
             <span>Titre</span>

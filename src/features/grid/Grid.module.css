@@ -187,8 +187,27 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 /* « + plan » : posé sur la ligne de séparation sous le plan survolé, hors de la marge, loin du ×. */
 .c_number .rowAdd { left: calc(100% + 8px); right: auto; bottom: -9px; transform: none; width: auto; height: 18px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; line-height: 16px; white-space: nowrap; z-index: 6; }
 .gutter .rowDel { top: 50%; transform: translateY(-50%); }
-.c_number .rowAdd::before { content: "+ plan"; }
+
 /* Marge réduite à la corbeille, toujours visible. */
 .gutter .rowDel { left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; padding: 2px; opacity: 0.45; color: var(--ink-soft); }
 .gutter .rowDel:hover, .row:hover .gutter .rowDel { opacity: 1; color: var(--rust); }
 .gutter .issueDot { right: 2px; top: 3px; width: 5px; height: 5px; }
+/* Hors de la grille (clic ailleurs) : la sélection reste connue de l'inspecteur mais n'est plus encadrée. */
+.wrap:not(:focus-within) .focus { box-shadow: none; }
+.wrap:not(:focus-within) .linked.focus { box-shadow: inset 3px 0 0 var(--seq-color, var(--rust)); }
+.wrap:not(:focus-within) .selected, .wrap:not(:focus-within) .row:hover .selected { background-color: transparent; }
+/* Hauteur minimale d'une ligne, même vide. */
+.row > td, .subRow > td { height: 30px; }
+
+/* Lignes d'insertion : « + plan » (demi-hauteur, permanentes), écarts et « + séquence » pleine largeur. */
+.planAddRow td { height: 14px; padding: 0; border-bottom: 1px solid var(--rule); background: var(--paper-card); }
+.seqAddRow td { height: 18px; padding: 0; }
+.gapRow td { height: 6px; padding: 0; background: none; border: 0; }
+.planAddBtn, .seqAddBtn { display: block; width: 100%; height: 100%; min-height: 14px; border: 0; padding: 0; margin: 0; cursor: pointer; font-size: 10.5px; line-height: 14px; letter-spacing: 0.04em; text-align: center; transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.planAddBtn { background: none; color: color-mix(in srgb, var(--rust) 45%, transparent); }
+.planAddBtn:hover { background: color-mix(in srgb, var(--rust) 8%, transparent); color: var(--rust); }
+.seqAddBtn { min-height: 18px; background: color-mix(in srgb, var(--kraft) 40%, var(--paper)); color: color-mix(in srgb, var(--rust) 60%, transparent); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.seqAddBtn:hover { background: color-mix(in srgb, var(--rust) 12%, var(--paper)); color: var(--rust); }
+/* « + » entre deux plans, centré dans la colonne N°, sur la ligne de séparation. */
+.c_number .rowAdd { left: 50%; right: auto; bottom: -8px; transform: translateX(-50%); width: 16px; height: 16px; padding: 0; border-radius: 50%; z-index: 6; }
+.c_number .rowAdd::before { content: "+"; font-size: 13px; line-height: 13px; }

@@ -18,3 +18,4 @@
 .vocab button { margin-left: auto; }
 .vocabForm { display: grid; grid-template-columns: 1fr 1fr 1.4fr auto; gap: 6px; }
 .vocabForm input { font-size: 13px; padding: 5px 7px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); min-width: 0; }
+.toolsRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

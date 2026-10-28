@@ -3,7 +3,7 @@ import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
 import { Fragment, type CSSProperties, type MouseEvent } from 'react';
 import { displayLines, displaySpan } from '../../domain/merge';
-import { deleteSequenceOf, deleteShotById, insertSequenceAt, insertShotAfter, rowOfShot } from './actions';
+import { deleteSequenceOf, deleteShotById, insertSequenceAt, insertShotAfter, insertShotAt, rowOfShot } from './actions';
 import { DroppableBody, DroppableRow, NumberHandle, SeqHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { addShot } from '../../domain/ops';
@@ -108,15 +108,14 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
             </button>
           </td>
         </tr>
-        <tr className={s.spacer} aria-hidden="true">
-          <td colSpan={columns.length + 1} />
-        </tr>
+        <SeqAddRows span={columns.length + 1} label={`Insérer une séquence après la séquence ${seqNumber}`} onAdd={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)} />
       </DroppableBody>
     );
   }
 
   return (
     <DroppableBody seqId={seq.seqId} className={s.seq} style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}>
+      <PlanAddRow span={columns.length + 1} label={`Ajouter un plan en tête de la séquence ${seqNumber}`} onAdd={() => insertShotAt(seq.seqId, 0)} />
       {seq.rows.map((r, i) => {
         const row = seq.firstRow + i;
         const shot = doc.shots[r.shotId];
@@ -277,13 +276,42 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
           </Fragment>
         );
       })}
-      <tr className={s.spacer}>
-        <td colSpan={columns.length + 1}>
-          <button type="button" className={s.seqAdd} title="Insérer une séquence ici" aria-label={`Insérer une séquence après la séquence ${seqNumber}`} onClick={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)} tabIndex={-1} data-testid="insert-sequence">
+      <PlanAddRow span={columns.length + 1} label={`Ajouter un plan en fin de séquence ${seqNumber}`} onAdd={() => insertShotAt(seq.seqId, n)} />
+      <SeqAddRows span={columns.length + 1} label={`Insérer une séquence après la séquence ${seqNumber}`} onAdd={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)} />
+    </DroppableBody>
+  );
+}
+
+/** Ligne fine « + plan » (tête et fin de séquence) : toute la largeur est le bouton. */
+function PlanAddRow({ span, label, onAdd }: { span: number; label: string; onAdd: () => void }) {
+  return (
+    <tr className={s.planAddRow}>
+      <td colSpan={span}>
+        <button type="button" className={s.planAddBtn} onClick={onAdd} aria-label={label} title={label} tabIndex={-1} data-testid="add-plan-row">
+          + plan
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+/** Écart entre séquences : mini marge, ligne-bouton « + séquence » sur toute la largeur, mini marge. */
+export function SeqAddRows({ span, label, onAdd, testId = 'insert-sequence' }: { span: number; label: string; onAdd: () => void; testId?: string }) {
+  return (
+    <>
+      <tr className={s.gapRow} aria-hidden="true">
+        <td colSpan={span} />
+      </tr>
+      <tr className={s.seqAddRow}>
+        <td colSpan={span}>
+          <button type="button" className={s.seqAddBtn} onClick={onAdd} aria-label={label} title={label} tabIndex={-1} data-testid={testId}>
             + séquence
           </button>
         </td>
       </tr>
-    </DroppableBody>
+      <tr className={s.gapRow} aria-hidden="true">
+        <td colSpan={span} />
+      </tr>
+    </>
   );
 }

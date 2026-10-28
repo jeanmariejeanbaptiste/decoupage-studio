@@ -38,3 +38,7 @@
 .bridgeTodo .bridgeLabel { color: var(--rust); }
 .bridge textarea { font: inherit; font-size: 12.5px; padding: 5px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper-card); color: var(--ink); resize: vertical; }
 .bridge select { font: inherit; font-size: 12px; padding: 3px 4px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper-card); color: var(--ink-soft); }
+.cardHead { cursor: grab; touch-action: none; }
+.cardHead:active { cursor: grabbing; }
+.full { padding: 0; }
+.full .sheet { max-width: none; border-radius: 0; }

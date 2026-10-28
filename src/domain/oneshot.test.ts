@@ -87,3 +87,13 @@ describe('transitions entre temps', async () => {
     expect(beatColumnText(beats, 'movement')).toBe('T1 Fixe\n  ↳ Panoramique droite → T2\nT2 Fixe');
   });
 });
+
+describe('réordonner les temps', async () => {
+  const { reorderBeat } = await import('./oneshot');
+  it('déplace un temps à sa nouvelle position', () => {
+    const doc = { shots: { s: { oneShot: { beats: ['a', 'b', 'c', 'd'].map((id) => ({ id, value: '', subject: '', angle: '', movement: '' })) } } } } as never;
+    reorderBeat(doc, 's', 'a', 2);
+    expect((doc as { shots: { s: { oneShot: { beats: Array<{ id: string }> } } } }).shots.s.oneShot.beats.map((b) => b.id)).toEqual(['b', 'c', 'a', 'd']);
+  });
+});
+
