@@ -17,7 +17,7 @@
   table-layout: fixed;
   font-variant-numeric: tabular-nums;
 }
-.gutterCol { width: 60px; }
+.gutterCol { width: 24px; }
 .col_sequence { width: 14%; }
 .col_number { width: 36px; }
 .col_subject { width: 9%; }
@@ -188,3 +188,7 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .c_number .rowAdd { left: calc(100% + 8px); right: auto; bottom: -9px; transform: none; width: auto; height: 18px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; line-height: 16px; white-space: nowrap; z-index: 6; }
 .gutter .rowDel { top: 50%; transform: translateY(-50%); }
 .c_number .rowAdd::before { content: "+ plan"; }
+/* Marge réduite à la corbeille, toujours visible. */
+.gutter .rowDel { left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; padding: 2px; opacity: 0.45; color: var(--ink-soft); }
+.gutter .rowDel:hover, .row:hover .gutter .rowDel { opacity: 1; color: var(--rust); }
+.gutter .issueDot { right: 2px; top: 3px; width: 5px; height: 5px; }

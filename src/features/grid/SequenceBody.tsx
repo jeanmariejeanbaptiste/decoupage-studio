@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
 import { Fragment, type CSSProperties, type MouseEvent } from 'react';
@@ -152,7 +153,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
           <DroppableRow shotId={r.shotId} className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')} data-shot={r.shotId} data-testid="shot-row">
             <td className={s.gutter} rowSpan={lines ? displayLines(r) : undefined} onContextMenu={(e) => onGutterContextMenu(e, r.shotId)} title="Clic droit : plan-séquence">
               <button type="button" className={s.rowDel} aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`} title="Supprimer ce plan" onClick={() => deleteShotById(r.shotId)} tabIndex={-1} data-testid="delete-shot">
-                ×
+                <Trash2 size={13} strokeWidth={1.4} />
               </button>
               <IssueDot issues={model.issues.get(r.shotId)} />
             </td>
