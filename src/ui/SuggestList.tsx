@@ -24,13 +24,17 @@ export function SuggestList({ anchor, items, active, onPick, onHover, id }: Prop
   useLayoutEffect(() => {
     const update = () => setRect(anchor.current?.getBoundingClientRect() ?? null);
     update();
+    // L'ancre est parfois rattachée après ce composant (liste placée dans l'élément d'ancrage) : nouvelle mesure à l'image suivante.
+    const raf = requestAnimationFrame(update);
     window.addEventListener('scroll', update, true);
     window.addEventListener('resize', update);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [anchor]);
+    // Mesure aussi quand la liste s'ouvre : au montage, le champ d'ancrage n'existe pas toujours encore.
+  }, [anchor, items.length > 0]);
   if (!rect || items.length === 0) return null;
   const below = window.innerHeight - rect.bottom > 220;
   const style = {

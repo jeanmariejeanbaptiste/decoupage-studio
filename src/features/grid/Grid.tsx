@@ -43,7 +43,6 @@ export function Grid({ doc, model, animate = false }: Props) {
   const setEditing = useUi((u) => u.setEditing);
   const wrapRef = useRef<HTMLDivElement>(null);
   useFlip(wrapRef, 'tr[data-shot]', 'data-shot', animate);
-  useFlip(wrapRef, 'tbody[data-seq]', 'data-seq', animate);
   const columns = model.columns;
 
   // Garde la sélection dans les bornes après suppression / changement de projet.

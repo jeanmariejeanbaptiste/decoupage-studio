@@ -71,3 +71,15 @@ test('naviguer, annuler et supprimer au clavier', async ({ page }) => {
   await page.keyboard.press(`${mod}+Shift+z`);
   await expect(page.locator(ROWS)).toHaveCount(10);
 });
+
+test('les suggestions de vocabulaire s’affichent pendant la saisie', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  await page.locator('[data-cell="0:angle"]').click();
+  await page.keyboard.type('Pl');
+  await expect(page.getByTestId('suggestions').getByRole('option', { name: /Plongée/ }).first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-cell="1:value"]').click();
+  await page.keyboard.type('Gr');
+  await expect(page.getByTestId('suggestions').getByRole('option', { name: /Gros plan/ })).toBeVisible();
+});
