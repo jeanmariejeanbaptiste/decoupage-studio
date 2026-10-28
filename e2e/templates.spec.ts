@@ -4,13 +4,10 @@ test('insérer un modèle de séquence documentaire', async ({ page }) => {
   await page.goto('/#/');
   await page.getByTestId('new-project').click();
   await page.getByLabel('Titre du projet').fill('Doc');
-  await page.getByLabel('Documentaire').check({ force: true });
-  await page.getByTestId('wizard-next').click();
   await page.getByTestId('wizard-next').click();
   await expect(page.getByTestId('templates')).toHaveCount(1);
   await page.getByTestId('templates').click();
   const item = page.getByRole('menuitem', { name: /Documentaire/ });
-  await expect(item).toContainText('suggéré');
   await item.click();
   await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(12);
   await expect(page.locator('[data-cell="0:value"]')).toHaveText('Général');

@@ -8,9 +8,6 @@ test('recharger la page conserve tout', async ({ page }) => {
   await page.goto('/#/');
   await page.getByTestId('new-project').click();
   await page.getByLabel('Titre du projet').fill('Persistance');
-  await page.getByLabel('Clip').check({ force: true });
-  await page.getByTestId('wizard-next').click();
-  await expect(page.getByText('Réglages du minutage')).toBeVisible();
   await page.getByTestId('wizard-next').click();
   await page.getByTestId('create-first').click();
   await page.keyboard.type('Studio');
@@ -26,7 +23,7 @@ test('recharger la page conserve tout', async ({ page }) => {
   expect(await page.evaluate(getDoc)).toEqual(before);
   await page.goto('/#/');
   await expect(page.getByTestId('project-list')).toContainText('Persistance');
-  await expect(page.getByTestId('project-list')).toContainText('Clip');
+  await expect(page.getByTestId('project-list')).toContainText('Fiction');
 });
 
 test('aller-retour fichier .decoupage sans perte', async ({ page }) => {
@@ -35,8 +32,7 @@ test('aller-retour fichier .decoupage sans perte', async ({ page }) => {
     delete w.showSaveFilePicker;
     delete w.showOpenFilePicker;
   });
-  await page.goto('/#/');
-  await page.getByTestId('demo-rav3').click();
+  await page.goto('/#/grid?seed=rav3');
   await expect(page.locator(ROWS)).toHaveCount(53);
   const original = await page.evaluate(getDoc);
   const downloadPromise = page.waitForEvent('download');

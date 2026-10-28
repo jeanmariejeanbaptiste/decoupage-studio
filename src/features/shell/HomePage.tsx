@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FileUp, Film, Plus, Trash2 } from 'lucide-react';
-import { buildFiction } from '../../../seed/fiction';
-import { buildRav3 } from '../../../seed/rav3';
+import { FileUp, Plus, Trash2 } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { deleteProject, listProjects, type ProjectSummary } from '../../store/db';
-import { openDoc, openFromFile, openStoredProject, rememberLastProject } from '../../store/persistence';
+import { openFromFile, openStoredProject, rememberLastProject } from '../../store/persistence';
 import { useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { ask } from '../../ui/dialogStore';
@@ -29,11 +27,6 @@ export function HomePage() {
 
   const open = async (id: string) => {
     if (await openStoredProject(id)) navigate('grid');
-  };
-  const openDemo = async (which: 'rav3' | 'fiction') => {
-    const doc = which === 'rav3' ? buildRav3() : buildFiction();
-    await openDoc(doc);
-    navigate('grid');
   };
   const remove = async (p: ProjectSummary) => {
     const res = await ask({
@@ -80,7 +73,7 @@ export function HomePage() {
       {projects && projects.length === 0 && !wizard && (
         <div className="card empty">
           <span className="hand">Aucun projet pour l’instant</span>
-          <p>Créez votre premier découpage, ouvrez un fichier .decoupage, ou explorez une démonstration.</p>
+          <p>Créez votre premier découpage ou ouvrez un fichier .decoupage.</p>
         </div>
       )}
 
@@ -101,21 +94,6 @@ export function HomePage() {
         </ul>
       )}
 
-      <section className={s.demos}>
-        <h2 className={s.h2}>Démonstrations</h2>
-        <div className={s.demoGrid}>
-          <button type="button" className={['card', s.demo].join(' ')} onClick={() => openDemo('rav3')} data-testid="demo-rav3">
-            <Film size={18} strokeWidth={1.25} />
-            <span className={s.title}>RAV3</span>
-            <span className={s.meta}>Clip · TC musical · 7 séquences, 53 plans — l’export de référence</span>
-          </button>
-          <button type="button" className={['card', s.demo].join(' ')} onClick={() => openDemo('fiction')} data-testid="demo-fiction">
-            <Film size={18} strokeWidth={1.25} />
-            <span className={s.title}>La Consigne</span>
-            <span className={s.meta}>Fiction courte · minutage cumulatif automatique · dialogues</span>
-          </button>
-        </div>
-      </section>
     </div>
   );
 }
