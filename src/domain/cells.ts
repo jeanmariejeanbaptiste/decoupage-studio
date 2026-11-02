@@ -44,6 +44,7 @@ export function editableText(doc: ProjectDoc, shotId: ID, col: ColumnKey): strin
       return block?.dialogue ?? '';
     case 'tc':
       if (s.tcMode === 'piste') return formatRange(block?.tc);
+      if (s.tcMode === 'duree') return block?.overrideSec !== undefined ? formatTc(Math.round(block.overrideSec / shotsOfBlock(doc, shot))) : '';
       if (s.tcGranularity === 'sequence') return seq?.overrideSec !== undefined ? formatTc(seq.overrideSec) : '';
       return block?.overrideSec !== undefined ? formatTc(block.overrideSec) : '';
     case 'aperture':
@@ -128,6 +129,16 @@ export function setCellText(doc: ProjectDoc, shotId: ID, col: ColumnKey, text: s
         const r = parseRange(t);
         if (r === null) return false;
         block.tc = Object.keys(r).length ? r : undefined;
+        return true;
+      }
+      if (s.tcMode === 'duree') {
+        // Durée saisie pour ce plan : l'action liée dure autant de fois que de plans qui la couvrent.
+        if (!t.trim()) block.overrideSec = undefined;
+        else {
+          const d = parseTc(t);
+          if (!d || d.kind !== 'sec') return false;
+          block.overrideSec = d.sec * shotsOfBlock(doc, shot);
+        }
         return true;
       }
       if (!t.trim()) {
@@ -217,4 +228,9 @@ export function parseTsv(text: string): string[][] {
 export function toTsv(matrix: readonly (readonly string[])[]): string {
   const esc = (c: string) => (/[\t\n"]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c);
   return matrix.map((r) => r.map(esc).join('\t')).join('\n');
+}
+
+/** Nombre de plans d'une séquence qui couvrent la même action que ce plan. */
+function shotsOfBlock(doc: ProjectDoc, shot: { sequenceId: ID; actionBlockId: ID }): number {
+  return Math.max(1, doc.sequences[shot.sequenceId]?.shotIds.filter((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId).length ?? 1);
 }

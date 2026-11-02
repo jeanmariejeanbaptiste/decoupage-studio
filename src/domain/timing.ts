@@ -190,6 +190,11 @@ export function shotTcLabel(doc: ProjectDoc, timing: Timing, shotId: ID): string
   const shot = doc.shots[shotId];
   if (!shot) return '';
   const s = doc.project.settings;
+  if (s.tcMode === 'duree') {
+    // Durée propre du plan : celle de son action, partagée entre les plans qui la couvrent.
+    const n = doc.sequences[shot.sequenceId]?.shotIds.filter((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId).length ?? 1;
+    return formatTc(Math.round((timing.blocks.get(shot.actionBlockId)?.durationSec ?? 0) / Math.max(1, n)));
+  }
   if (s.tcMode === 'cumulatif' && s.tcGranularity === 'sequence') return timing.sequences.get(shot.sequenceId)?.label ?? '';
   return timing.blocks.get(shot.actionBlockId)?.label ?? '';
 }

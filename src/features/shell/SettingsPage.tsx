@@ -105,14 +105,14 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
               name="Format"
               value={p.format}
               onChange={(v) => {
-                // Le format pilote le minutage : clip / pub = TC sur la piste, sinon cumulatif.
+                // Le format pilote le minutage : clip / pub = TC sur la piste, sinon durée de chaque plan.
                 mutateDoc((d) => {
                   const def = defaultSettings(v);
                   d.project.format = v;
                   d.project.settings.tcMode = def.tcMode;
                   d.project.settings.tcGranularity = def.tcGranularity;
                 });
-                useUi.getState().toast({ message: `Projet passé en ${v} : minutage ${v === 'clip' || v === 'pub' ? 'calé sur la piste' : 'cumulatif'}.` });
+                useUi.getState().toast({ message: `Projet passé en ${v} : minutage ${v === 'clip' || v === 'pub' ? 'calé sur la piste' : 'en durée de chaque plan'}.` });
               }}
               options={[
                 ['fiction', 'Fiction'],
@@ -128,7 +128,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         <Section title="Minutage" kicker="TC MIN">
           <div className={s.field}>
             <span>Mode</span>
-            <Radio name="Mode de TC" value={st.tcMode} onChange={(v) => set('tcMode', v)} options={[['cumulatif', 'Cumulatif'], ['piste', 'Piste musicale']]} />
+            <Radio name="Mode de TC" value={st.tcMode} onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { tcMode: v, tcModeChosen: true }))} options={[['duree', 'Durée de chaque plan'], ['cumulatif', 'Cumulatif'], ['piste', 'Piste musicale']]} />
           </div>
           <div className={s.field}>
             <span>Granularité</span>

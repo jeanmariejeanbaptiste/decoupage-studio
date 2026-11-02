@@ -28,6 +28,8 @@ export function lastProjectId(): string | null {
 export async function openStoredProject(id: string): Promise<boolean> {
   const doc = await loadProject(id);
   if (!doc) return false;
+  // Les projets créés avant le mode « durée de chaque plan » y passent, sauf choix explicite.
+  if (doc.project.settings.tcMode === 'cumulatif' && !doc.project.settings.tcModeChosen) doc.project.settings.tcMode = 'duree';
   useProjectStore.getState().loadDoc(doc);
   rememberLastProject(id);
   useUi.getState().set({ saveStatus: 'saved', selection: null, editing: null });

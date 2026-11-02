@@ -45,7 +45,10 @@ export interface AudioTrack {
 }
 
 export interface ProjectSettings {
-  tcMode: 'cumulatif' | 'piste';
+  /** Durée de chaque plan (par défaut), minutage cumulatif, ou TC calé sur une piste musicale. */
+  tcMode: 'duree' | 'cumulatif' | 'piste';
+  /** Mode de TC choisi explicitement dans les réglages (sinon les anciens projets passent en durée). */
+  tcModeChosen?: boolean;
   tcGranularity: 'sequence' | 'action';
   dialogueWordsPerSecond: number;
   actionWordsPerSecond: number;

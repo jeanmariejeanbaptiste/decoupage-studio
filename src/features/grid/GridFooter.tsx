@@ -6,7 +6,7 @@ interface Props {
   sequences: number;
   shots: number;
   timing: Timing;
-  mode: 'cumulatif' | 'piste';
+  mode: 'duree' | 'cumulatif' | 'piste';
 }
 
 /** Ligne de total permanente (§4.6). */
@@ -23,7 +23,7 @@ export function GridFooter({ sequences, shots, timing, mode }: Props) {
       </span>
       <span className={s.dot}>·</span>
       <span>
-        {mode === 'piste' ? 'piste' : 'durée calculée'} <b className={s.tc} data-testid="total-calc">{formatTc(timing.totalSec)}</b>
+        {mode === 'piste' ? 'piste' : mode === 'duree' ? 'durée totale' : 'durée calculée'} <b className={s.tc} data-testid="total-calc">{formatTc(timing.totalSec)}</b>
       </span>
       {mode === 'piste' && timing.coveragePct !== undefined && (
         <>

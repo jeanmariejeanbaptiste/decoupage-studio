@@ -49,7 +49,7 @@ function IssueDot({ issues }: { issues: Issue[] | undefined }) {
 
 function onTcContextMenu(e: MouseEvent, shotId: string) {
   const d = useProjectStore.getState().doc;
-  if (!d || d.project.settings.tcMode !== 'cumulatif' || !editableText(d, shotId, 'tc')) return;
+  if (!d || d.project.settings.tcMode === 'piste' || !editableText(d, shotId, 'tc')) return;
   e.preventDefault();
   useUi.getState().set({
     menu: {
@@ -243,7 +243,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                   ) : col === 'tc' ? (
                     <span className={s.tc}>
                       {text}
-                      {(kind === 'sequence' ? seqTiming?.manual : model.timing.blocks.get(shot.actionBlockId)?.manual && doc.project.settings.tcMode === 'cumulatif') && (
+                      {(kind === 'sequence' ? seqTiming?.manual : model.timing.blocks.get(shot.actionBlockId)?.manual && doc.project.settings.tcMode !== 'piste') && (
                         <span className={s.manual} title="Valeur saisie à la main">✎</span>
                       )}
                     </span>

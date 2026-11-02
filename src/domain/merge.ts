@@ -66,7 +66,7 @@ function keyFor(row: MergeRow, col: ColumnKey, opts: MergeOptions): string {
 
 function mergeColumn(rows: readonly MergeRow[], col: ColumnKey, opts: MergeOptions): MergeSpan[] {
   const spans: MergeSpan[] = [];
-  const never = opts.noMerge || col === 'number' || (opts.neverMerge?.includes(col) && col !== 'sequence');
+  const never = opts.noMerge || col === 'number' || (col === 'tc' && opts.tcMode === 'duree') || (opts.neverMerge?.includes(col) && col !== 'sequence');
   let prevKey: string | undefined;
   rows.forEach((row, i) => {
     const key = keyFor(row, col, opts);

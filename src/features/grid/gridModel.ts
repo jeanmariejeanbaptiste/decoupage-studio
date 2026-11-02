@@ -62,6 +62,7 @@ export function spanKind(doc: ProjectDoc, col: ColumnKey): SpanKind {
   if (col === 'action' || col === 'dialogue') return 'block';
   if (col === 'tc') {
     const s = doc.project.settings;
+    if (s.tcMode === 'duree') return 'row';
     return s.tcMode === 'cumulatif' && s.tcGranularity === 'sequence' ? 'sequence' : 'block';
   }
   return 'row';

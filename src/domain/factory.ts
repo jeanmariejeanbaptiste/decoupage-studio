@@ -8,7 +8,7 @@ export const newId = (): ID => nanoid(10);
 export function defaultSettings(format: ProjectFormat): ProjectSettings {
   const musical = format === 'clip' || format === 'pub';
   return {
-    tcMode: musical ? 'piste' : 'cumulatif',
+    tcMode: musical ? 'piste' : 'duree',
     tcGranularity: musical ? 'action' : 'sequence',
     dialogueWordsPerSecond: 2.5,
     actionWordsPerSecond: 2,

@@ -69,7 +69,9 @@ test('changer le type de projet change le minutage', async ({ page }) => {
   await page.getByRole('radiogroup', { name: 'Format' }).getByText('Fiction').click();
   await page.goto('/#/grid');
   await expect(page.getByTestId('track-bar')).toHaveCount(0);
-  await expect(page.getByTestId('grid-footer')).toContainText('durée calculée');
+  await expect(page.getByTestId('grid-footer')).toContainText('durée totale');
+  // Chaque plan affiche sa propre durée, et non une plage.
+  await expect(page.locator('[data-cell="0:tc"]')).toHaveText(/^\d+:\d\d$/);
 });
 
 async function tabExport(page: import('@playwright/test').Page, format: string) {
