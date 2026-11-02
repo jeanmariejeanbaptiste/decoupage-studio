@@ -93,10 +93,14 @@ export function downloadBlob(blob: Blob, name: string) {
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
+  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Safari lit le fichier après coup : l'adresse temporaire reste valable une minute.
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 60_000);
 }
 
 /** ⌘S : enregistre le projet dans un fichier `.decoupage`. */

@@ -19,11 +19,11 @@ export function suggestionSource(doc: ProjectDoc, col: ColumnKey): ((q: string) 
   const custom = doc.customVocabulary;
   switch (col) {
     case 'value':
-      return (q) => suggest(q, vocabularyFor('value', custom)).map((e) => ({ label: e.short, hint: e.abbr ?? e.long }));
+      return (q) => suggest(q, vocabularyFor('value', custom), q.trim() ? 8 : 40).map((e) => ({ label: e.short, hint: e.abbr ?? e.long }));
     case 'angle':
-      return (q) => suggest(q, vocabularyFor('angle', custom)).map((e) => ({ label: e.short, hint: e.long !== e.short ? e.long : e.abbr }));
+      return (q) => suggest(q, vocabularyFor('angle', custom), q.trim() ? 8 : 40).map((e) => ({ label: e.short, hint: e.long !== e.short ? e.long : e.abbr }));
     case 'movement':
-      return (q) => suggest(q, vocabularyFor('movement', custom)).map((e) => ({ label: e.short, hint: e.long !== e.short ? e.long : undefined }));
+      return (q) => suggest(q, vocabularyFor('movement', custom), q.trim() ? 8 : 40).map((e) => ({ label: e.short, hint: e.long !== e.short ? e.long : undefined }));
     case 'subject': {
       const names = sortedCharacters(doc).map((c) => c.name);
       const used = [...new Set(Object.values(doc.shots).map((s) => s.subject.trim()).filter(Boolean))];

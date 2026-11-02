@@ -1,3 +1,4 @@
+import { recoverStaleChunk } from '../../ui/staleChunk';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Columns3, Eye, Link2, PanelRight, Unlink2 } from 'lucide-react';
@@ -122,12 +123,17 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
               </label>
             }
             onExport={async ({ format, orientation, numbers }) => {
-              if (format === 'pdf' || format === 'images') setImaging({ format, orientation, numbers });
-              else if (format === 'annex')
-                await exportDocumentPages(oneShotAnnexDocument(storeDoc).html, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
-              else {
-                const { exportXlsx } = await import('../export/xlsx');
-                downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
+              try {
+                if (format === 'pdf' || format === 'images') setImaging({ format, orientation, numbers });
+                else if (format === 'annex')
+                  await exportDocumentPages(oneShotAnnexDocument(storeDoc).html, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
+                else {
+                  const { exportXlsx } = await import('../export/xlsx');
+                  downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
+                }
+              } catch (err) {
+                if (recoverStaleChunk(err)) return;
+                useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
               }
             }}
           />

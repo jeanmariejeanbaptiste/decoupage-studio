@@ -87,5 +87,7 @@ test('les suggestions de vocabulaire s’affichent pendant la saisie', async ({ 
 test('les suggestions s’ouvrent dès l’édition d’une cellule', async ({ page }) => {
   await page.goto('/#/grid?seed=rav3');
   await page.locator('[data-cell="1:value"]').dblclick();
-  await expect(page.getByTestId('suggestions').getByRole('option', { name: /Gros plan/ })).toBeVisible();
+  await expect(page.getByTestId('suggestions').getByRole('option', { name: /Gros plan/ }).first()).toBeVisible();
+  // Liste complète à l'ouverture, jusqu'à l'insert.
+  await expect(page.getByTestId('suggestions').getByRole('option', { name: /Insert/ })).toBeVisible();
 });

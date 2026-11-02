@@ -1,3 +1,4 @@
+import { recoverStaleChunk } from './ui/staleChunk';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles/fonts';
@@ -16,6 +17,19 @@ import { useProjectStore } from './store/projectStore';
     return d ? checkInvariants(d) : ['aucun projet'];
   },
 };
+
+// Après une mise en ligne, une page restée ouverte réclame d'anciens modules (export Excel, PDF…)
+// qui n'existent plus : on recharge une fois l'application pour récupérer la nouvelle version.
+window.addEventListener('vite:preloadError', (e) => {
+  if (sessionStorage.getItem('ds-reloaded') === '1') return;
+  e.preventDefault();
+  sessionStorage.setItem('ds-reloaded', '1');
+  window.location.reload();
+});
+window.addEventListener('unhandledrejection', (e) => {
+  if (recoverStaleChunk(e.reason)) e.preventDefault();
+});
+window.addEventListener('load', () => setTimeout(() => sessionStorage.removeItem('ds-reloaded'), 10_000));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

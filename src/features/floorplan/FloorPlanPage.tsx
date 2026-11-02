@@ -1,3 +1,4 @@
+import { recoverStaleChunk } from '../../ui/staleChunk';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import {
   Camera,
@@ -594,6 +595,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               for (const p of all) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
               downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
             } catch (err) {
+              if (recoverStaleChunk(err)) return;
               useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
             }
           }}
