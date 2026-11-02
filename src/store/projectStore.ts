@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
 import { useStore } from 'zustand';
+import { apply, type Op } from '../domain/patch';
 import type { ProjectDoc } from '../domain/types';
 
 interface ProjectState {
@@ -13,6 +14,11 @@ interface ProjectState {
 }
 
 export const HISTORY_LIMIT = 150;
+
+/** Garde des modifications (partage en lecture seule) : `false` bloque toute modification locale. */
+let mutationGuard: (() => boolean) | null = null;
+export const setMutationGuard = (g: (() => boolean) | null) => void (mutationGuard = g);
+export const canMutate = () => !mutationGuard || mutationGuard();
 
 export const useProjectStore = create<ProjectState>()(
   temporal(
@@ -26,7 +32,7 @@ export const useProjectStore = create<ProjectState>()(
       },
       mutate: (recipe) =>
         set((s) => {
-          if (!s.doc) return;
+          if (!s.doc || (mutationGuard && !mutationGuard())) return;
           recipe(s.doc);
           s.doc.project.updatedAt = new Date().toISOString();
         }),
@@ -58,3 +64,20 @@ export function useHistory() {
 }
 
 export const useDoc = () => useProjectStore((s) => s.doc);
+
+/** Modifications reçues d'un autre participant : appliquées hors historique d'annulation. */
+let remoteDepth = 0;
+export const isApplyingRemote = () => remoteDepth > 0;
+export function applyRemote(ops: readonly Op[]) {
+  const t = useProjectStore.temporal.getState();
+  t.pause();
+  remoteDepth++;
+  try {
+    useProjectStore.setState((s) => {
+      if (s.doc) apply(s.doc as unknown as Record<string, unknown>, ops);
+    });
+  } finally {
+    remoteDepth--;
+    t.resume();
+  }
+}

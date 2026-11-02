@@ -15,11 +15,12 @@ export type Route =
   | 'registry'
   | 'checks'
   | 'settings'
-  | 'print';
+  | 'print'
+  | 'join';
 
 const ROUTES: readonly Route[] = [
   'home', 'intention', 'scenario', 'breakdown', 'grid', 'storyboard', 'floorplan', 'equipment',
-  'schedule', 'callsheet', 'export', 'registry', 'checks', 'settings', 'print',
+  'schedule', 'callsheet', 'export', 'registry', 'checks', 'settings', 'print', 'join',
 ];
 
 export interface Location { route: Route; params: URLSearchParams }

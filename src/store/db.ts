@@ -67,6 +67,17 @@ export async function putBlob(projectId: string, name: string, blob: Blob): Prom
   return key;
 }
 
-export async function getBlob(key: string): Promise<Blob | undefined> {
-  return (await db.blobs.get(key))?.blob;
+/** Source de secours des images (partage) : les autres participants. */
+let remoteBlobSource: ((key: string) => Promise<Blob | undefined>) | null = null;
+export const setRemoteBlobSource = (src: typeof remoteBlobSource) => void (remoteBlobSource = src);
+
+export async function getBlob(key: string, remote = true): Promise<Blob | undefined> {
+  const local = (await db.blobs.get(key))?.blob;
+  if (local || !remote || !remoteBlobSource) return local;
+  return remoteBlobSource(key);
+}
+
+/** Enregistre une image reçue sous sa clé d'origine. */
+export async function putBlobRaw(key: string, projectId: string, blob: Blob): Promise<void> {
+  await db.blobs.put({ key, projectId, name: key, blob });
 }

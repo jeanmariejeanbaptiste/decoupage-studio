@@ -1,3 +1,4 @@
+import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useState } from 'react';
 import { runChecks } from '../domain/lint';
 import { computeTiming } from '../domain/timing';
@@ -152,6 +153,7 @@ export function App() {
         onToggleTheme={() => setUi({ theme: theme === 'papier' ? 'encre' : 'papier' })}
         userInitial={(doc?.project.director || title || 'D').charAt(0).toUpperCase()}
       />
+      <GuestBanner />
       <div className={s.body}>
         {showSidebar && sidebarOpen && doc && <Sidebar
             projectTitle={title}
@@ -175,6 +177,7 @@ export function App() {
 function Page({ route }: { route: Route }) {
   const doc = useDoc();
   if (route === 'home') return <HomePage />;
+  if (route === 'join') return <JoinPage />;
   if (!doc) {
     return (
       <div className="page">

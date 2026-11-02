@@ -181,3 +181,8 @@ La référence `docs/reference/export-decoupage.png` est absente du dépôt (voi
 
 ## Version 2.0.0 — 2026-10-22
 Série de retours close : plans-séquences en lignes alignées et liaisons, annexe, storyboard (icônes au trait, keyframes en vignettes, plans par ligne), plan au sol (import IA strict, fond réglable, sélection multiple, lampe de jeu, outils par famille, cadrage mémorisé), feuille de service en pages A4, insertion entre les lignes, interface épurée.
+
+## 2026-11-02
+- Exports : téléchargement fiabilisé sous Safari (adresse temporaire conservée 1 min), rechargement automatique quand une page ouverte réclame un module d'une version précédente (cause probable de l'export Excel « qui ne marche pas » après une mise en ligne), erreur affichée en cas d'échec.
+- Suggestions : liste complète du vocabulaire à l'ouverture d'une cellule.
+- Partage en temps réel d'ordinateur à ordinateur (store/share.ts, features/share) : bouton « Partager » (lien + mot de passe, invités en modification ou lecture seule, copie autorisée ou non, liste des connectés, exclusion, fermeture), page « Rejoindre », bandeau invité. Synchronisation champ par champ (domain/patch.ts), relais par l'hôte, images transmises à la demande. Mise en relation : service public PeerJS (ou `localStorage['ds-peer-server']` pour un serveur propre ; serveur local dans e2e/share.spec.ts).

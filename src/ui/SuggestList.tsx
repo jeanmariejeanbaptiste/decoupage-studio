@@ -21,6 +21,7 @@ interface Props {
 /** Popover de suggestions positionné sous l'élément d'ancrage (porté dans <body>). */
 export function SuggestList({ anchor, items, active, onPick, onHover, id }: Props) {
   const [rect, setRect] = useState<DOMRect | null>(null);
+  const hasItems = items.length > 0;
   useLayoutEffect(() => {
     const update = () => setRect(anchor.current?.getBoundingClientRect() ?? null);
     update();
@@ -34,7 +35,7 @@ export function SuggestList({ anchor, items, active, onPick, onHover, id }: Prop
       window.removeEventListener('resize', update);
     };
     // Mesure aussi quand la liste s'ouvre : au montage, le champ d'ancrage n'existe pas toujours encore.
-  }, [anchor, items.length > 0]);
+  }, [anchor, hasItems]);
   if (!rect || items.length === 0) return null;
   const below = window.innerHeight - rect.bottom > 220;
   const style = {

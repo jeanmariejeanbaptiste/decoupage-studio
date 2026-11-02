@@ -1,3 +1,4 @@
+import { ShareButton } from '../share/Share';
 import { Home, Moon, PanelLeft, Redo2, Save, Settings, Sun, Undo2 } from 'lucide-react';
 import { APP_NAME } from '../../app/config';
 import { navigate } from '../../app/router';
@@ -47,6 +48,7 @@ export function Topbar(p: Props) {
         )}
       </div>
       <div className={s.right}>
+        <ShareButton />
         <span className={s.avatar} aria-hidden="true">{p.userInitial}</span>
         <Button
           variant="icon"

@@ -1,0 +1,28 @@
+.wrap { position: relative; }
+.panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; width: 340px; padding: 12px; display: flex; flex-direction: column; gap: 9px; background: var(--paper-card); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: 0 10px 28px rgba(42, 40, 36, 0.14); font-size: 13px; }
+.title { margin: 0; font-family: var(--font-hand); color: var(--rust); font-size: 18px; }
+.sub { margin: 4px 0 0; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.note { margin: 0; font-size: 11.5px; color: var(--ink-soft); }
+.muted { color: var(--ink-soft); font-style: italic; }
+.error { margin: 0; color: var(--rust); font-size: 12.5px; }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; border: 0; padding: 0; margin: 0; }
+.seg legend { width: 100%; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.seg label { padding: 3px 10px; border: 1px solid var(--rule); border-radius: 999px; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.on { background: var(--ink); color: var(--paper); border-color: var(--ink) !important; }
+.check { display: flex; gap: 8px; align-items: center; }
+.field { display: grid; grid-template-columns: 90px 1fr auto; gap: 6px; align-items: center; }
+.field span { font-size: 11.5px; color: var(--ink-soft); }
+.field code { font-family: var(--font-mono); font-size: 11.5px; padding: 3px 6px; background: var(--paper); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field button, .guests button { border: 0; background: none; color: var(--ink-soft); cursor: pointer; display: inline-flex; padding: 3px; }
+.field button:hover, .guests button:hover { color: var(--rust); }
+.guests { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.guests li { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px; border-radius: 3px; }
+.guests li:hover { background: var(--paper); }
+.join { max-width: 380px; margin: 8vh auto 0; display: flex; flex-direction: column; gap: 12px; padding: 22px; }
+.joinTitle { margin: 0 0 4px; font-family: var(--font-display); font-weight: 500; font-size: 24px; }
+.input { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-soft); }
+.input input { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
+.banner { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 5px 12px; font-size: 12.5px; background: color-mix(in srgb, var(--navy) 10%, var(--paper)); color: var(--ink); border-bottom: 1px solid var(--rule); }
+.bannerOff { background: color-mix(in srgb, var(--rust) 12%, var(--paper)); }
+.banner button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: var(--radius); padding: 1px 10px; font-size: 12px; cursor: pointer; }

@@ -61,9 +61,13 @@ export async function flushSave(): Promise<void> {
 }
 
 /** Sauvegarde automatique (débounce 600 ms) de chaque modification du projet. */
+/** Garde de l'enregistrement (invité d'un partage sans copie autorisée) : `false` = ne rien enregistrer. */
+let persistGuard: (() => boolean) | null = null;
+export const setPersistGuard = (g: (() => boolean) | null) => void (persistGuard = g);
+
 export function startAutosave(): () => void {
   const unsub = useProjectStore.subscribe((state, prev) => {
-    if (!state.doc || state.doc === prev.doc) return;
+    if (!state.doc || state.doc === prev.doc || (persistGuard && !persistGuard())) return;
     pending = state.doc;
     useUi.getState().set({ saveStatus: 'dirty' });
     clearTimeout(timer);
