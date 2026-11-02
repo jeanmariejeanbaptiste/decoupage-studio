@@ -12,6 +12,8 @@ export interface Toast {
   actionLabel?: string;
   action?: () => void;
   tone?: 'info' | 'warn';
+  /** Durée d'affichage (ms), 6 s par défaut. */
+  duration?: number;
 }
 
 export interface MenuItem {
@@ -78,7 +80,7 @@ export const useUi = create<UiState>()((set) => ({
   toast: (t) => {
     const id = ++toastSeq;
     set((s) => ({ toasts: [...s.toasts.slice(-3), { ...t, id }] }));
-    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), 6000);
+    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), t.duration ?? 6000);
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
   set: (p) => set(p),

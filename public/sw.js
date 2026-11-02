@@ -1,5 +1,5 @@
 /* Découpage Studio — service worker : l'application fonctionne hors ligne après la première visite. */
-const CACHE = 'decoupage-studio-v1';
+const CACHE = 'decoupage-studio-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest', './favicon.svg', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -21,7 +21,8 @@ self.addEventListener('fetch', (event) => {
   // Pages : le réseau d'abord, le cache en secours.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
+      // Jamais le cache HTTP pour la page : chaque visite récupère la dernière version publiée.
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put('./index.html', copy));

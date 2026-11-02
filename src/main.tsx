@@ -1,3 +1,4 @@
+import { useUi } from './store/uiStore';
 import { recoverStaleChunk } from './ui/staleChunk';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -36,6 +37,27 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+// Nouvelle version publiée pendant que la page est ouverte : on le signale, rechargement en un clic.
+if (import.meta.env.PROD) {
+  const current = document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/"]')?.getAttribute('src');
+  let warned = false;
+  const check = async () => {
+    if (warned || !current) return;
+    try {
+      const html = await (await fetch(`${import.meta.env.BASE_URL}index.html`, { cache: 'no-store' })).text();
+      const latest = /<script[^>]+type="module"[^>]+src="([^"]*\/assets\/[^"]+)"/.exec(html)?.[1];
+      if (latest && latest !== current) {
+        warned = true;
+        useUi.getState().toast({ message: 'Nouvelle version disponible.', actionLabel: 'Recharger', action: () => window.location.reload(), duration: 600_000 });
+      }
+    } catch {
+      /* hors ligne : on réessaiera */
+    }
+  };
+  setInterval(() => void check(), 120_000);
+  window.addEventListener('focus', () => void check());
+}
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator && !navigator.webdriver) {
   window.addEventListener('load', () => {
