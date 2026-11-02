@@ -199,6 +199,7 @@ Série de retours close : plans-séquences en lignes alignées et liaisons, anne
 - Export : un mouvement de caméra vide s'écrit « Fixe » (PDF, Excel, CSV), la grille reste vide.
 - Grille : la hauteur d'une cellule fusionnée (séquence, TC, action liée) est répartie à parts égales entre ses lignes (grid/useEvenRowSpans.ts) ; colonne de suppression des plans placée entre SÉQUENCE et N°.
 - Scénario ↔ découpage : mention de réplique abrégée dans Son (« Rép. « … » », sans le nom déjà en Sujet) ; « + » de fin de phrase hors du flux du texte ; « + » de sélection au ras du curseur, effacé avec la sélection ; une sélection à cheval sur plusieurs scènes est découpée scène par scène, chaque morceau rangé dans la séquence de sa scène ; deux scènes au même lieu donnent deux séquences (fountain.ts → matchSequence par ancre de scène).
+- Scénario → Action : « [Rép.] » (ou « [Rép. (didascalie)] ») marque l'endroit où des répliques s'intercalent entre deux séries d'actions ; ces repères ne comptent pas dans le minutage.
 - Reporté : assistant IA ouvert à tout fournisseur ; partage par serveur hébergé.
 
 ## Version 2.1.0 — 2026-11-02

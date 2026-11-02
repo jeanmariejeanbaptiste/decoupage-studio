@@ -42,6 +42,29 @@ describe('du scénario au découpage', () => {
     expect(p.sound).toBe('Rép. « Tu es en avance, comme… »');
     expect(passageOf(doc, SCRIPT, a, b, { dialogueShown: true }).sound).toBe('');
   });
+  it('marque « [Rép.] » entre deux séries d’actions séparées par des répliques', () => {
+    const doc = createProjectDoc({ title: 't', format: 'fiction' });
+    const src = `INT. BUREAU - JOUR
+
+La DIRECTRICE ouvre son tiroir.
+
+DIRECTRICE
+(ton saccadé)
+Vous pouvez signer !
+
+FLORA prend le contrat.
+
+FLORA
+C'est illisible...
+
+DIRECTRICE
+Asseyez-vous !
+
+La DIRECTRICE lui tend un stylo.
+`;
+    const p = passageOf(doc, src, src.indexOf('La DIRECTRICE ouvre'), src.indexOf('stylo.') + 6, { dialogueShown: true });
+    expect(p.action).toBe('La DIRECTRICE ouvre son tiroir. [Rép. (ton saccadé)] FLORA prend le contrat. [Rép.] La DIRECTRICE lui tend un stylo.');
+  });
   it('range chaque plan dans la séquence de sa scène, créée au besoin, à sa place chronologique', () => {
     const doc = createProjectDoc({ title: 't', format: 'fiction' });
     doc.scenario = SCRIPT;
@@ -97,5 +120,12 @@ LÉA traverse la rue.
     // Une nouvelle sélection dans la 2e scène retrouve la 2e séquence.
     const again = createShotsFromSelection(doc, SRC, SRC.indexOf('Les bureaux'), SRC.indexOf('changé.') + 7, { dialogueShown: true });
     expect(doc.shots[again[0]].sequenceId).toBe(seqs[1]);
+  });
+});
+
+describe('minutage', () => {
+  it('ne compte pas les repères de réplique', async () => {
+    const { countWords } = await import('./text');
+    expect(countWords('Elle entre. [Rép. (ton saccadé)] Elle sort.')).toBe(4);
   });
 });

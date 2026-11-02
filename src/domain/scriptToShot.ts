@@ -69,7 +69,8 @@ export function upperName(text: string, doc?: ProjectDoc): string | undefined {
 }
 
 /**
- * Ce que devient un passage : l'action (didascalies des répliques comprises, entre parenthèses),
+ * Ce que devient un passage : l'action (avec « [Rép.] » là où des répliques s'intercalent entre deux
+ * séries d'actions, didascalies comprises),
  * les répliques, le sujet (personnage qui parle, ou prénom en majuscules dans l'action) et, quand la
  * colonne Dialogue n'est pas affichée, une mention courte de la réplique dans la colonne Son (« Rép. », sans le nom déjà en Sujet).
  */
@@ -77,6 +78,9 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
   const elements = parseFountain(source);
   const action: string[] = [];
   const replies: Array<{ name: string; line: string }> = [];
+  // Répliques survenues depuis la dernière action : marquées « [Rép.] » entre deux séries d'actions,
+  // avec leurs didascalies (« [Rép. (ton saccadé)] »).
+  let pending: string[] | null = null;
   for (const el of elements) {
     if (el.end <= start || el.start >= end) continue;
     const part = el.text.slice(Math.max(start, el.start) - el.start, Math.min(end, el.end) - el.start).trim();
@@ -86,9 +90,17 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
       const last = replies[replies.length - 1];
       if (last && last.name === name) last.line += ` ${part}`;
       else replies.push({ name, line: part });
-    } else if (el.type === 'parenthetical') action.push(part.startsWith('(') ? part : `(${part})`);
-    else if (el.type === 'action' || el.type === 'centered') action.push(part);
+      pending ??= [];
+    } else if (el.type === 'parenthetical') {
+      (pending ??= []).push(part.startsWith('(') ? part : `(${part})`);
+    } else if (el.type === 'action' || el.type === 'centered') {
+      if (pending && action.length) action.push(pending.length ? `[Rép. ${pending.join(' ')}]` : '[Rép.]');
+      pending = null;
+      action.push(part);
+    }
   }
+  // Réplique seule : sa didascalie reste l'action du plan.
+  if (!action.length && pending?.length) action.push(...pending);
   const speakers = [...new Set(replies.map((r) => r.name))];
   const actionText = action.join(' ');
   const subject = speakers[0] ?? upperName(actionText, doc) ?? '';
