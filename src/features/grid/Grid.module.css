@@ -51,8 +51,7 @@
 .th_number { color: var(--rust); text-align: center; }
 .th_tc { font-style: italic; color: var(--ink); }
 .gutter {
-  position: sticky;
-  left: 0;
+  position: relative;
   z-index: 2;
   background: var(--paper-card);
   border-right: 1px solid var(--rule);
@@ -60,7 +59,7 @@
   padding: 0;
   vertical-align: middle;
 }
-thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid var(--ink); }
+thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); border-bottom: 1px solid var(--ink); padding: 0; }
 
 .cell {
   position: relative;
@@ -142,11 +141,11 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
   cursor: grabbing;
 }
 
-.gutter { position: sticky; }
+.gutter { position: relative; }
 .issueDot { position: absolute; right: 3px; top: 9px; width: 6px; height: 6px; border-radius: 50%; }
 .issueWarn { background: var(--ochre); }
 .issueInfo { background: var(--navy); opacity: 0.6; }
-.row .gutter { position: sticky; }
+.row .gutter { position: relative; }
 .addInEmpty { margin-left: 8px; border: 1px solid var(--rule); background: var(--paper); border-radius: var(--radius); padding: 2px 10px; font-size: 12.5px; }
 .rowDel, .seqDel { border: 0; background: none; color: var(--rust); opacity: 0; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; transition: opacity var(--t-fast) var(--ease); }
 .row:hover .rowDel, .seq:hover .seqDel, .rowDel:focus-visible, .seqDel:focus-visible { opacity: 0.85; }

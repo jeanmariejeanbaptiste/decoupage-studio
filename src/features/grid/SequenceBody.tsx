@@ -1,9 +1,16 @@
 import { Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
-import { Fragment, type CSSProperties, type MouseEvent } from 'react';
+import { Fragment, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { displayLines, displaySpan } from '../../domain/merge';
-import { deleteSequenceOf, deleteShotById, insertSequenceAt, insertShotAfter, insertShotAt, rowOfShot } from './actions';
+import {
+  deleteSequenceOf,
+  deleteShotById,
+  insertSequenceAt,
+  insertShotAfter,
+  insertShotAt,
+  rowOfShot,
+} from './actions';
 import { DroppableBody, DroppableRow, NumberHandle, SeqHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { addShot } from '../../domain/ops';
@@ -55,7 +62,12 @@ function onTcContextMenu(e: MouseEvent, shotId: string) {
     menu: {
       x: e.clientX,
       y: e.clientY,
-      items: [{ label: 'Revenir au calcul automatique', action: () => mutateDoc((x) => void setCellText(x, shotId, 'tc', '')) }],
+      items: [
+        {
+          label: 'Revenir au calcul automatique',
+          action: () => mutateDoc((x) => void setCellText(x, shotId, 'tc', '')),
+        },
+      ],
     },
   });
 }
@@ -85,7 +97,25 @@ function onGutterContextMenu(e: MouseEvent, shotId: string) {
   });
 }
 
-export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMouseDown, onCellDoubleClick, onCommit, onCancel }: Props) {
+/** Colonne de suppression des plans : entre SÉQUENCE et N°, pour ne pas la confondre avec la séquence. */
+function withGutter(cells: ReactNode[], gutter: ReactNode): ReactNode[] {
+  const out = [...cells];
+  out.splice(1, 0, gutter);
+  return out;
+}
+
+export function SequenceBody({
+  doc,
+  model,
+  seq,
+  rect,
+  focus,
+  editing,
+  onCellMouseDown,
+  onCellDoubleClick,
+  onCommit,
+  onCancel,
+}: Props) {
   const sequence = doc.sequences[seq.seqId];
   const n = seq.rows.length;
   const columns = model.columns;
@@ -97,25 +127,47 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
     return (
       <DroppableBody seqId={seq.seqId} className={s.seq}>
         <tr>
-          <td className={s.gutter} />
-          <td className={s.emptySeq} colSpan={columns.length}>
-            <strong>{sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase()}</strong> — <span className="hand">séquence vide</span>{' '}
-            <button type="button" className={s.addInEmpty} onClick={() => mutateDoc((d) => void addShot(d, seq.seqId))}>
+          <td className={s.emptySeq} colSpan={columns.length + 1}>
+            <strong>
+              {sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase()}
+            </strong>{' '}
+            — <span className="hand">séquence vide</span>{' '}
+            <button
+              type="button"
+              className={s.addInEmpty}
+              onClick={() => mutateDoc((d) => void addShot(d, seq.seqId))}
+            >
               Ajouter un plan
             </button>{' '}
-            <button type="button" className={s.addInEmpty} onClick={() => void deleteSequenceOf(undefined, seq.seqId)}>
+            <button
+              type="button"
+              className={s.addInEmpty}
+              onClick={() => void deleteSequenceOf(undefined, seq.seqId)}
+            >
               Supprimer la séquence
             </button>
           </td>
         </tr>
-        <SeqAddRows span={columns.length + 1} label={`Insérer une séquence après la séquence ${seqNumber}`} onAdd={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)} />
+        <SeqAddRows
+          span={columns.length + 1}
+          label={`Insérer une séquence après la séquence ${seqNumber}`}
+          onAdd={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)}
+        />
       </DroppableBody>
     );
   }
 
   return (
-    <DroppableBody seqId={seq.seqId} className={s.seq} style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}>
-      <PlanAddRow span={columns.length + 1} label={`Ajouter un plan en tête de la séquence ${seqNumber}`} onAdd={() => insertShotAt(seq.seqId, 0)} />
+    <DroppableBody
+      seqId={seq.seqId}
+      className={s.seq}
+      style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}
+    >
+      <PlanAddRow
+        span={columns.length + 1}
+        label={`Ajouter un plan en tête de la séquence ${seqNumber}`}
+        onAdd={() => insertShotAt(seq.seqId, 0)}
+      />
       {seq.rows.map((r, i) => {
         const row = seq.firstRow + i;
         const shot = doc.shots[r.shotId];
@@ -133,12 +185,27 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
               role="gridcell"
               aria-selected={selected}
               data-cell={k === 0 ? `${row}:${col}` : undefined}
-              className={[s.cell, s[`c_${col}`], s.beatCell, k > 0 ? s.beatNext : '', k < lines!.length - 1 ? s.beatMore : '', l.bridge ? s.bridge : '', selected ? s.selected : '', k === 0 && focus?.row === row && focus.col === col ? s.focus : ''].join(' ')}
+              className={[
+                s.cell,
+                s[`c_${col}`],
+                s.beatCell,
+                k > 0 ? s.beatNext : '',
+                k < lines!.length - 1 ? s.beatMore : '',
+                l.bridge ? s.bridge : '',
+                selected ? s.selected : '',
+                k === 0 && focus?.row === row && focus.col === col ? s.focus : '',
+              ].join(' ')}
               title={l.bridge ? `Liaison : ${v}` : undefined}
               onMouseDown={(e) => e.button === 0 && onCellMouseDown(e, pos)}
               onDoubleClick={() => onCellDoubleClick(pos)}
             >
-              {l.bridge ? (v ? `↳ ${v}` : '') : (
+              {l.bridge ? (
+                v ? (
+                  `↳ ${v}`
+                ) : (
+                  ''
+                )
+              ) : (
                 <>
                   {first && <b className={s.beatTag}>{l.tag}</b>}
                   {v}
@@ -149,135 +216,188 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
         };
         return (
           <Fragment key={r.shotId}>
-          <DroppableRow shotId={r.shotId} className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')} data-shot={r.shotId} data-testid="shot-row">
-            <td className={s.gutter} rowSpan={lines ? displayLines(r) : undefined} onContextMenu={(e) => onGutterContextMenu(e, r.shotId)} title="Clic droit : plan-séquence">
-              <button type="button" className={s.rowDel} aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`} title="Supprimer ce plan" onClick={() => deleteShotById(r.shotId)} tabIndex={-1} data-testid="delete-shot">
-                <Trash2 size={13} strokeWidth={1.4} />
-              </button>
-              <IssueDot issues={model.issues.get(r.shotId)} />
-            </td>
-            {columns.map((col) => {
-              if (lines && BEAT_COLUMNS.includes(col)) return beatTd(col, 0);
-              const kind = spanKind(doc, col);
-              let span = 1;
-              let h = displayLines(r);
-              if (kind !== 'row') {
-                const sp = cellSpan(doc, model, row, col);
-                if (sp.start !== row) return null;
-                span = sp.end - sp.start + 1;
-                h = displaySpan(seq.rows, sp.start - seq.firstRow, span);
-              }
-              const pos = { row, col };
-              // N° : numéro dérivé et verrouillé, la cellule sert de poignée ; jamais encadrée.
-              const selected = col !== 'number' && !!rect && row >= rect.r0 && row <= rect.r1 && rect.cols.includes(col);
-              const isFocus = col !== 'number' && focus?.row === row && focus.col === col;
-              const isEditing = editing?.pos.row === row && editing.pos.col === col;
-              const repeated = seq.repeated[col]?.[i] ?? false;
-              const text = r.cells[col] ?? '';
-              const linked = col === 'action' && span > 1;
-              const conflict = col === 'angle' && hasAngleConflict(shot.angle);
-              const tip =
-                col === 'focal'
-                  ? focalTooltip(shot.focal, doc.project.settings.sensor, doc.project.settings.cropFactor)
-                  : conflict
-                    ? 'Deux axes ou deux hauteurs incompatibles'
-                    : undefined;
-              return (
-                <td
-                  key={col}
-                  rowSpan={h > 1 ? h : undefined}
-                  role="gridcell"
-                  aria-selected={selected}
-                  data-cell={`${row}:${col}`}
-                  className={[
-                    s.cell,
-                    s[`c_${col}`],
-                    selected ? s.selected : '',
-                    isFocus ? s.focus : '',
-                    isEditing ? s.editing : '',
-                    linked ? s.linked : '',
-                    conflict ? s.conflict : '',
-                  ].join(' ')}
-                  title={tip || undefined}
-                  onMouseDown={(e) => e.button === 0 && onCellMouseDown(e, pos)}
-                  onContextMenu={col === 'tc' ? (e) => onTcContextMenu(e, r.shotId) : undefined}
-                  onDoubleClick={() => onCellDoubleClick(pos)}
-                >
-                  {isEditing ? (
-                    <CellEditor
-                      doc={doc}
-                      shotId={r.shotId}
-                      col={col}
-                      initial={editableText(doc, r.shotId, col)}
-                      replace={editing?.initial}
-                      onCommit={onCommit}
-                      onCancel={onCancel}
-                    />
-                  ) : col === 'sequence' ? (
-                    <div className={s.seqCell}>
-                      <SeqHandle seqId={seq.seqId} label={`${seqNumber}`} />
-                      <button
-                        type="button"
-                        className={s.seqDel}
-                        aria-label={`Supprimer la séquence ${seqNumber}`}
-                        title="Supprimer cette séquence"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={() => void deleteSequenceOf(undefined, seq.seqId)}
-                        tabIndex={-1}
-                        data-testid="delete-sequence"
-                      >
-                        <Trash2 size={13} strokeWidth={1.4} />
-                      </button>
-                      <span className={s.seqLabel}>
-                        {sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
-                      </span>
-                      {sequence?.intExt || sequence?.effect ? (
-                        <span className={s.seqMeta}>{[sequence.intExt, sequence.effect].filter(Boolean).join(' · ')}</span>
-                      ) : null}
-                      {seqTiming?.gap && (
-                        <span className={[s.gap, s[`gap_${seqTiming.gap.level}`]].join(' ')} title="Écart entre durée calculée et durée estimée">
-                          {formatGap(seqTiming.gap)}
+            <DroppableRow
+              shotId={r.shotId}
+              className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')}
+              data-shot={r.shotId}
+              data-testid="shot-row"
+            >
+              {withGutter(
+                columns.map((col) => {
+                  if (lines && BEAT_COLUMNS.includes(col)) return beatTd(col, 0);
+                  const kind = spanKind(doc, col);
+                  let span = 1;
+                  let h = displayLines(r);
+                  if (kind !== 'row') {
+                    const sp = cellSpan(doc, model, row, col);
+                    if (sp.start !== row) return null;
+                    span = sp.end - sp.start + 1;
+                    h = displaySpan(seq.rows, sp.start - seq.firstRow, span);
+                  }
+                  const pos = { row, col };
+                  // N° : numéro dérivé et verrouillé, la cellule sert de poignée ; jamais encadrée.
+                  const selected =
+                    col !== 'number' && !!rect && row >= rect.r0 && row <= rect.r1 && rect.cols.includes(col);
+                  const isFocus = col !== 'number' && focus?.row === row && focus.col === col;
+                  const isEditing = editing?.pos.row === row && editing.pos.col === col;
+                  const repeated = seq.repeated[col]?.[i] ?? false;
+                  const text = r.cells[col] ?? '';
+                  const linked = col === 'action' && span > 1;
+                  const conflict = col === 'angle' && hasAngleConflict(shot.angle);
+                  const tip =
+                    col === 'focal'
+                      ? focalTooltip(shot.focal, doc.project.settings.sensor, doc.project.settings.cropFactor)
+                      : conflict
+                        ? 'Deux axes ou deux hauteurs incompatibles'
+                        : undefined;
+                  return (
+                    <td
+                      key={col}
+                      rowSpan={h > 1 ? h : undefined}
+                      role="gridcell"
+                      aria-selected={selected}
+                      data-cell={`${row}:${col}`}
+                      className={[
+                        s.cell,
+                        s[`c_${col}`],
+                        selected ? s.selected : '',
+                        isFocus ? s.focus : '',
+                        isEditing ? s.editing : '',
+                        linked ? s.linked : '',
+                        conflict ? s.conflict : '',
+                      ].join(' ')}
+                      title={tip || undefined}
+                      onMouseDown={(e) => e.button === 0 && onCellMouseDown(e, pos)}
+                      onContextMenu={col === 'tc' ? (e) => onTcContextMenu(e, r.shotId) : undefined}
+                      onDoubleClick={() => onCellDoubleClick(pos)}
+                    >
+                      {isEditing ? (
+                        <CellEditor
+                          doc={doc}
+                          shotId={r.shotId}
+                          col={col}
+                          initial={editableText(doc, r.shotId, col)}
+                          replace={editing?.initial}
+                          onCommit={onCommit}
+                          onCancel={onCancel}
+                        />
+                      ) : col === 'sequence' ? (
+                        <div className={s.seqCell}>
+                          <SeqHandle seqId={seq.seqId} label={`${seqNumber}`} />
+                          <button
+                            type="button"
+                            className={s.seqDel}
+                            aria-label={`Supprimer la séquence ${seqNumber}`}
+                            title="Supprimer cette séquence"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={() => void deleteSequenceOf(undefined, seq.seqId)}
+                            tabIndex={-1}
+                            data-testid="delete-sequence"
+                          >
+                            <Trash2 size={13} strokeWidth={1.4} />
+                          </button>
+                          <span className={s.seqLabel}>
+                            {sequenceNumber(doc, seq.seqId)},{' '}
+                            {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
+                          </span>
+                          {sequence?.intExt || sequence?.effect ? (
+                            <span className={s.seqMeta}>
+                              {[sequence.intExt, sequence.effect].filter(Boolean).join(' · ')}
+                            </span>
+                          ) : null}
+                          {seqTiming?.gap && (
+                            <span
+                              className={[s.gap, s[`gap_${seqTiming.gap.level}`]].join(' ')}
+                              title="Écart entre durée calculée et durée estimée"
+                            >
+                              {formatGap(seqTiming.gap)}
+                            </span>
+                          )}
+                        </div>
+                      ) : col === 'tc' ? (
+                        <span className={s.tc}>
+                          {text}
+                          {(kind === 'sequence'
+                            ? seqTiming?.manual
+                            : model.timing.blocks.get(shot.actionBlockId)?.manual &&
+                              doc.project.settings.tcMode !== 'piste') && (
+                            <span className={s.manual} title="Valeur saisie à la main">
+                              ✎
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </div>
-                  ) : col === 'tc' ? (
-                    <span className={s.tc}>
-                      {text}
-                      {(kind === 'sequence' ? seqTiming?.manual : model.timing.blocks.get(shot.actionBlockId)?.manual && doc.project.settings.tcMode !== 'piste') && (
-                        <span className={s.manual} title="Valeur saisie à la main">✎</span>
-                      )}
-                    </span>
-                  ) : col === 'number' ? (
-                    <>
-                      <NumberHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} num={text} />
-                      <button type="button" className={s.rowAdd} aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`} title="Insérer un plan ici" onMouseDown={(e) => e.stopPropagation()} onClick={() => insertShotAfter(r.shotId)} tabIndex={-1} data-testid="insert-shot" />
-                    </>
-                  ) : (
-                    <>
-                      {repeated && text ? (
-                        <span className={s.repeat} title={text}>
-                          <span className={s.ditto} aria-hidden="true">〃</span>
-                          <span className={s.faded}>{text}</span>
-                        </span>
+                      ) : col === 'number' ? (
+                        <>
+                          <NumberHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} num={text} />
+                          <button
+                            type="button"
+                            className={s.rowAdd}
+                            aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`}
+                            title="Insérer un plan ici"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={() => insertShotAfter(r.shotId)}
+                            tabIndex={-1}
+                            data-testid="insert-shot"
+                          />
+                        </>
                       ) : (
-                        text
+                        <>
+                          {repeated && text ? (
+                            <span className={s.repeat} title={text}>
+                              <span className={s.ditto} aria-hidden="true">
+                                〃
+                              </span>
+                              <span className={s.faded}>{text}</span>
+                            </span>
+                          ) : (
+                            text
+                          )}
+                        </>
                       )}
-                    </>
-                  )}
-                </td>
-              );
-            })}
-          </DroppableRow>
-          {lines?.slice(1).map((_, k) => (
-            <tr key={k} className={[s.row, s.oneShot, s.subRow].join(' ')}>
-              {columns.filter((c) => BEAT_COLUMNS.includes(c)).map((c) => beatTd(c, k + 1))}
-            </tr>
-          ))}
+                    </td>
+                  );
+                }),
+                <td
+                  key="gutter"
+                  className={s.gutter}
+                  data-testid="shot-gutter"
+                  rowSpan={lines ? displayLines(r) : undefined}
+                  onContextMenu={(e) => onGutterContextMenu(e, r.shotId)}
+                  title="Clic droit : plan-séquence"
+                >
+                  <button
+                    type="button"
+                    className={s.rowDel}
+                    aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`}
+                    title="Supprimer ce plan"
+                    onClick={() => deleteShotById(r.shotId)}
+                    tabIndex={-1}
+                    data-testid="delete-shot"
+                  >
+                    <Trash2 size={13} strokeWidth={1.4} />
+                  </button>
+                  <IssueDot issues={model.issues.get(r.shotId)} />
+                </td>,
+              )}
+            </DroppableRow>
+            {lines?.slice(1).map((_, k) => (
+              <tr key={k} className={[s.row, s.oneShot, s.subRow].join(' ')}>
+                {columns.filter((c) => BEAT_COLUMNS.includes(c)).map((c) => beatTd(c, k + 1))}
+              </tr>
+            ))}
           </Fragment>
         );
       })}
-      <PlanAddRow span={columns.length + 1} label={`Ajouter un plan en fin de séquence ${seqNumber}`} onAdd={() => insertShotAt(seq.seqId, n)} />
-      <SeqAddRows span={columns.length + 1} label={`Insérer une séquence après la séquence ${seqNumber}`} onAdd={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)} />
+      <PlanAddRow
+        span={columns.length + 1}
+        label={`Ajouter un plan en fin de séquence ${seqNumber}`}
+        onAdd={() => insertShotAt(seq.seqId, n)}
+      />
+      <SeqAddRows
+        span={columns.length + 1}
+        label={`Insérer une séquence après la séquence ${seqNumber}`}
+        onAdd={() => insertSequenceAt(doc.project.sequenceIds.indexOf(seq.seqId) + 1)}
+      />
     </DroppableBody>
   );
 }
@@ -287,7 +407,15 @@ function PlanAddRow({ span, label, onAdd }: { span: number; label: string; onAdd
   return (
     <tr className={s.planAddRow}>
       <td colSpan={span}>
-        <button type="button" className={s.planAddBtn} onClick={onAdd} aria-label={label} title={label} tabIndex={-1} data-testid="add-plan-row">
+        <button
+          type="button"
+          className={s.planAddBtn}
+          onClick={onAdd}
+          aria-label={label}
+          title={label}
+          tabIndex={-1}
+          data-testid="add-plan-row"
+        >
           + plan
         </button>
       </td>
@@ -296,7 +424,17 @@ function PlanAddRow({ span, label, onAdd }: { span: number; label: string; onAdd
 }
 
 /** Écart entre séquences : mini marge, ligne-bouton « + séquence » sur toute la largeur, mini marge. */
-export function SeqAddRows({ span, label, onAdd, testId = 'insert-sequence' }: { span: number; label: string; onAdd: () => void; testId?: string }) {
+export function SeqAddRows({
+  span,
+  label,
+  onAdd,
+  testId = 'insert-sequence',
+}: {
+  span: number;
+  label: string;
+  onAdd: () => void;
+  testId?: string;
+}) {
   return (
     <>
       <tr className={s.gapRow} aria-hidden="true">
@@ -304,7 +442,15 @@ export function SeqAddRows({ span, label, onAdd, testId = 'insert-sequence' }: {
       </tr>
       <tr className={s.seqAddRow}>
         <td colSpan={span}>
-          <button type="button" className={s.seqAddBtn} onClick={onAdd} aria-label={label} title={label} tabIndex={-1} data-testid={testId}>
+          <button
+            type="button"
+            className={s.seqAddBtn}
+            onClick={onAdd}
+            aria-label={label}
+            title={label}
+            tabIndex={-1}
+            data-testid={testId}
+          >
             + séquence
           </button>
         </td>

@@ -2,7 +2,7 @@ import { useFlip } from '../../ui/useFlip';
 import { useEvenRowSpans } from './useEvenRowSpans';
 import { isShortcut } from '../../store/shortcuts';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
-import { useCallback, useEffect, useMemo, useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { editableText, isEditable, parseTsv, toTsv } from '../../domain/cells';
 import { COLUMN_DEFS } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -217,18 +217,22 @@ export function Grid({ doc, model, animate = false }: Props) {
     >
       <table ref={tableRef} className={s.table} role="grid" aria-rowcount={model.rows.length} aria-colcount={columns.length}>
         <colgroup>
-          <col className={s.gutterCol} />
-          {columns.map((c) => (
-            <col key={c} className={s[`col_${c}`]} />
+          {columns.map((c, i) => (
+            <Fragment key={c}>
+              {i === 1 && <col className={s.gutterCol} />}
+              <col className={s[`col_${c}`]} />
+            </Fragment>
           ))}
         </colgroup>
         <thead>
           <tr>
-            <th className={s.gutter} aria-hidden="true" />
-            {columns.map((c) => (
-              <th key={c} scope="col" className={[s.th, s[`th_${c}`]].join(' ')}>
-                {COLUMN_DEFS[c].label}
-              </th>
+            {columns.map((c, i) => (
+              <Fragment key={c}>
+                {i === 1 && <th className={[s.th, s.gutter].join(' ')} aria-hidden="true" />}
+                <th scope="col" className={[s.th, s[`th_${c}`]].join(' ')}>
+                  {COLUMN_DEFS[c].label}
+                </th>
+              </Fragment>
             ))}
           </tr>
         </thead>

@@ -165,7 +165,7 @@ test('exports A4 : images page par page et PDF assemblé par l’outil', async (
 test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', async ({ page }) => {
   await page.goto('/#/grid?seed=rav3');
   const row = page.locator(ROWS).first();
-  await row.locator('td').first().dispatchEvent('contextmenu', { clientX: 200, clientY: 300, button: 2 });
+  await row.getByTestId('shot-gutter').dispatchEvent('contextmenu', { clientX: 200, clientY: 300, button: 2 });
   await page.getByRole('menuitem', { name: 'Transformer en plan-séquence' }).click();
   // L'éditeur de chorégraphie s'ouvre aussitôt, en plein écran.
   const studio = page.getByTestId('oneshot-studio');
