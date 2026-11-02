@@ -21,7 +21,7 @@ export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
   aperture: { key: 'aperture', label: 'Ouverture', width: 5, optional: true },
   characters: { key: 'characters', label: 'Personnages', width: 9, optional: true },
   dialogue: { key: 'dialogue', label: 'Dialogue', width: 16, optional: true },
-  sound: { key: 'sound', label: 'Son', width: 7, optional: true },
+  sound: { key: 'sound', label: 'Son', width: 11, optional: true },
   light: { key: 'light', label: 'Lumière', width: 9, optional: true },
   grip: { key: 'grip', label: 'Machinerie', width: 10, optional: true },
   shotDuration: { key: 'shotDuration', label: 'Durée', width: 5, optional: true },

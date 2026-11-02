@@ -49,7 +49,7 @@ function commitKey(e: KeyboardEvent, multiline: boolean): CommitMove | null {
 }
 
 function TextEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorProps) {
-  const multiline = col === 'action' || col === 'dialogue' || col === 'notes';
+  const multiline = col === 'action' || col === 'dialogue' || col === 'notes' || col === 'sound' || col === 'light' || col === 'grip';
   const [value, setValue] = useState(replace ?? initial);
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
   const listId = useId();
