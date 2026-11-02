@@ -1,11 +1,12 @@
+import '@fontsource-variable/fraunces/full-italic.css';
+import '@fontsource/barlow-semi-condensed/latin-400.css';
 import { removeProject, undoHome, useHomeHistory } from '../../store/homeHistory';
-import { useCallback, useEffect, useState } from 'react';
-import { FileUp, Moon, Plus, Sun, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowRight, FileUp, Trash2 } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { listProjects, type ProjectSummary } from '../../store/db';
 import { openFromFile, openStoredProject, rememberLastProject } from '../../store/persistence';
 import { useProjectStore } from '../../store/projectStore';
-import { Button } from '../../ui/Button';
 import { useUi } from '../../store/uiStore';
 import { NewProjectWizard } from './NewProjectWizard';
 import s from './HomePage.module.css';
@@ -18,12 +19,19 @@ const FORMAT_LABEL: Record<string, string> = {
   pub: 'Publicité',
 };
 
-const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+const pad = (n: number) => String(n).padStart(2, '0');
 
+/**
+ * Accueil : une salle obscure. Un faisceau de projecteur s'allume, la poussière y flotte, le grain
+ * de la pellicule vibre ; autour, les repères d'un viseur. Les projets sont posés en bas, comme des
+ * plaques de verre.
+ */
 export function HomePage() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [wizard, setWizard] = useState(false);
   const rev = useHomeHistory((h) => h.rev);
+  const theme = useUi((u) => u.theme);
   const refresh = useCallback(() => void listProjects().then(setProjects), []);
   useEffect(refresh, [refresh, rev]);
 
@@ -37,71 +45,102 @@ export function HomePage() {
       useProjectStore.getState().loadDoc(null);
       rememberLastProject(null);
     }
-    useUi.getState().toast({ message: `Projet « ${p.title} » supprimé.`, actionLabel: 'Annuler', action: () => void undoHome() });
+    useUi
+      .getState()
+      .toast({
+        message: `Projet « ${p.title} » supprimé.`,
+        actionLabel: 'Annuler',
+        action: () => void undoHome(),
+      });
   };
 
   const n = projects?.length ?? 0;
-  const theme = useUi((u) => u.theme);
   return (
-    <div className={s.home} data-testid="home">
-      <section className={s.hero}>
-        <FilmEdge />
-        <p className={s.mark} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </p>
-        <h1 className={s.brand}>
-          <span className={s.word}>Découpage</span>
-          <em className={s.word}>Studio</em>
-        </h1>
-        <p className={s.tagline}>Du scénario au plateau, plan par plan.</p>
-        <div className={s.cta}>
-          <Button variant="primary" icon={<Plus size={16} strokeWidth={1.5} />} onClick={() => setWizard(true)} data-testid="new-project">
-            Nouveau projet
-          </Button>
-          <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={async () => (await openFromFile()) && navigate('grid')}>
-            Ouvrir un fichier…
-          </Button>
-        </div>
-        <FrameArt />
-        <footer className={s.foot}>
-          <button type="button" onClick={() => useUi.getState().set({ theme: theme === 'papier' ? 'encre' : 'papier' })} aria-label={theme === 'encre' ? 'Thème papier' : 'Thème encre'}>
-            {theme === 'encre' ? <Sun size={14} /> : <Moon size={14} />}
-            {theme === 'encre' ? 'papier' : 'encre'}
-          </button>
-          <span>Enregistré dans ce navigateur · fonctionne hors ligne</span>
-        </footer>
-      </section>
+    <div className={s.home} data-tone={theme === 'encre' ? 'dark' : 'light'} data-testid="home">
+      <Projector />
+      <div className={s.grain} aria-hidden="true" />
+      <Viewfinder />
 
-      <section className={s.projects} aria-label="Projets">
-        <h2 className={s.h2}>
-          Vos projets {n > 0 && <span className={s.count}>{n}</span>}
-        </h2>
+      <header className={s.top}>
+        <span className={s.brand}>
+          Découpage <em>Studio</em>
+        </span>
+        <span className={s.topRight}>
+          <Timecode />
+          <button
+            type="button"
+            className={s.toggle}
+            onClick={() => useUi.getState().set({ theme: theme === 'papier' ? 'encre' : 'papier' })}
+            aria-label={theme === 'encre' ? 'Thème papier' : 'Thème encre'}
+          >
+            <span className={theme === 'papier' ? s.toggleOn : ''}>Jour</span>
+            <span className={theme === 'encre' ? s.toggleOn : ''}>Nuit</span>
+          </button>
+        </span>
+      </header>
+
+      <main className={s.hero}>
+        <p className={s.kicker}>Préparation de tournage</p>
+        <h1 className={s.title}>
+          <span className={s.titleA}>Du scénario</span>
+          <span className={s.titleB}>au plateau.</span>
+        </h1>
+        <div className={s.cta}>
+          <button
+            type="button"
+            className={s.primary}
+            onClick={() => setWizard(true)}
+            data-testid="new-project"
+          >
+            Nouveau projet <ArrowRight size={16} strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
+            className={s.ghost}
+            onClick={async () => (await openFromFile()) && navigate('grid')}
+          >
+            <FileUp size={15} strokeWidth={1.3} /> Ouvrir un fichier…
+          </button>
+        </div>
+      </main>
+
+      <section className={s.shelf} aria-label="Projets">
+        <p className={s.shelfHead}>
+          <span>Vos projets</span>
+          <span className={s.rule} />
+          <span>{pad(n)}</span>
+        </p>
         {projects && projects.length === 0 && (
           <div className={s.empty}>
-            <span className="hand">Aucun projet pour l’instant</span>
-            <p>Commencez par un nouveau projet, ou ouvrez un fichier .decoupage.</p>
+            <strong>Aucun projet pour l’instant</strong>
+            <span>Le premier commence par « Nouveau projet ».</span>
           </div>
         )}
         {projects && projects.length > 0 && (
           <ul className={s.list} data-testid="project-list">
             {projects.map((p, i) => (
-              <li key={p.id} className={s.item} style={{ animationDelay: `${120 + i * 70}ms` }}>
-                <button type="button" className={s.open} onClick={() => open(p.id)}>
-                  <span className={s.strip} aria-hidden="true">
-                    {Array.from({ length: Math.min(24, Math.max(1, p.sequences)) }, (_, k) => (
-                      <i key={k} />
-                    ))}
+              <li key={p.id} className={s.item} style={{ animationDelay: `${900 + i * 90}ms` }}>
+                <button type="button" className={s.card} onClick={() => open(p.id)}>
+                  <span className={s.cardTop}>
+                    <span>{pad(i + 1)}</span>
+                    <span>
+                      {FORMAT_LABEL[p.format] ?? p.format} · {p.version}
+                    </span>
                   </span>
-                  <span className={s.title}>{p.title}</span>
-                  <span className={s.meta}>
-                    {FORMAT_LABEL[p.format] ?? p.format} · {p.version} · {p.sequences} séquence{p.sequences > 1 ? 's' : ''} · {p.shots} plan{p.shots > 1 ? 's' : ''}
+                  <span className={s.cardTitle}>{p.title}</span>
+                  <span className={s.cardMeta}>
+                    {p.sequences} séq. · {p.shots} plan{p.shots > 1 ? 's' : ''} ·{' '}
+                    {dateFmt.format(new Date(p.updatedAt))}
                   </span>
-                  <span className={s.date}>modifié le {dateFmt.format(new Date(p.updatedAt))}</span>
                 </button>
-                <button type="button" className={s.del} aria-label={`Supprimer ${p.title}`} title="Supprimer" onClick={() => remove(p)}>
-                  <Trash2 size={14} strokeWidth={1.4} />
+                <button
+                  type="button"
+                  className={s.del}
+                  aria-label={`Supprimer ${p.title}`}
+                  title="Supprimer"
+                  onClick={() => remove(p)}
+                >
+                  <Trash2 size={13} strokeWidth={1.4} />
                 </button>
               </li>
             ))}
@@ -118,34 +157,67 @@ export function HomePage() {
   );
 }
 
-/**
- * Décor : trois cases de storyboard (plan large, plan moyen, gros plan) qui se tracent l'une après
- * l'autre, puis une tête de lecture qui passe lentement de case en case.
- */
-function FrameArt() {
+/** Faisceau de projecteur : il s'allume à l'arrivée, vacille à peine, la poussière y danse. */
+function Projector() {
   return (
-    <svg className={s.art} viewBox="0 0 492 96" aria-hidden="true">
-      <g className={s.frames}>
-        <rect x="1" y="1" width="154" height="87" rx="3" />
-        <path d="M 1 66 L 40 44 L 64 58 L 104 30 L 155 62" />
-        <circle cx="128" cy="22" r="7" />
-        <rect x="169" y="1" width="154" height="87" rx="3" />
-        <circle cx="246" cy="36" r="13" />
-        <path d="M 214 88 Q 222 54 246 54 Q 270 54 278 88" />
-        <rect x="337" y="1" width="154" height="87" rx="3" />
-        <circle cx="414" cy="52" r="34" />
-        <path d="M 402 46 h 6 M 420 46 h 6 M 406 66 Q 414 71 422 66" />
-      </g>
-      <rect className={s.playhead} x="1" y="1" width="154" height="87" rx="3" />
-    </svg>
+    <div className={s.projector} aria-hidden="true">
+      <div className={s.beamBlur}>
+        <div className={s.beam} />
+        <div className={s.beamCore} />
+      </div>
+      <div className={s.lens} />
+      <div className={s.dustBox}>
+        {Array.from({ length: 16 }, (_, i) => (
+          <i
+            key={i}
+            className={s.dust}
+            style={{
+              left: `${(i * 37) % 92}%`,
+              top: `${(i * 53) % 96}%`,
+              animationDelay: `${(i * 0.7) % 6}s`,
+              animationDuration: `${9 + (i % 5) * 2}s`,
+            }}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
-/** Perforations de pellicule qui défilent le long de la séparation. */
-function FilmEdge() {
+/** Repères de viseur aux quatre coins, et une règle de cadrage sur le bord gauche. */
+function Viewfinder() {
   return (
-    <div className={s.filmEdge} aria-hidden="true">
-      <span />
+    <div className={s.viewfinder} aria-hidden="true">
+      <i className={s.cornerTL} />
+      <i className={s.cornerTR} />
+      <i className={s.cornerBL} />
+      <i className={s.cornerBR} />
+      <div className={s.ruler}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <span key={i}>{i * 10}</span>
+        ))}
+      </div>
     </div>
+  );
+}
+
+/** Code temporel qui défile à 25 images par seconde depuis l'ouverture de la page. */
+function Timecode() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const t0 = performance.now();
+    const id = window.setInterval(() => {
+      const f = Math.floor(((performance.now() - t0) / 1000) * 25);
+      const sec = Math.floor(f / 25);
+      if (ref.current)
+        ref.current.textContent = `${pad(Math.floor(sec / 3600))}:${pad(Math.floor(sec / 60) % 60)}:${pad(sec % 60)}:${pad(f % 25)}`;
+    }, 40);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <span className={s.tc}>
+      <i className={s.rec} /> TC <span ref={ref}>00:00:00:00</span>
+    </span>
   );
 }
