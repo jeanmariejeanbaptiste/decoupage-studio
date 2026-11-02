@@ -244,3 +244,31 @@ test('export intelligent : une colonne facultative vide disparaît des pages', a
   await go('#/print');
   await expect(page.getByTestId('print-page').first()).not.toHaveAttribute('data-columns', /notes/);
 });
+
+test('raccourcis personnalisables depuis les Paramètres', async ({ page }) => {
+  await page.goto('/#/settings?seed=fiction');
+  const btn = page.getByTestId('shortcut-duplicate');
+  await expect(btn).toHaveText('⌘D');
+  await btn.click();
+  await page.keyboard.press('Control+j');
+  await expect(btn).toHaveText('⌘J');
+  // Combinaison déjà prise : refusée.
+  await page.getByTestId('shortcut-newShot').click();
+  await page.keyboard.press('Control+j');
+  await expect(page.getByText('déjà pris par « Dupliquer le plan »')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.goto('/#/grid');
+  const rows = page.locator('[data-testid="shot-row"]');
+  const n = await rows.count();
+  await page.locator('[data-cell="0:subject"]').click();
+  await page.keyboard.press('Control+j');
+  await expect(rows).toHaveCount(n + 1);
+});
+
+test('une colonne affichée dans la grille est exportée', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByRole('button', { name: 'Colonnes' }).click();
+  await page.getByRole('menu').getByRole('checkbox', { name: /^Notes/ }).check();
+  await page.goto('/#/export');
+  await expect(page.getByRole('checkbox', { name: 'Notes', exact: true })).toBeChecked();
+});

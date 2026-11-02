@@ -14,3 +14,4 @@
 .help dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 28px; margin: 0; }
 .help dl div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
 .help dd { margin: 0; }
+.helpLink { margin-top: 14px; background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--rust); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

@@ -1,3 +1,4 @@
+import { useShortcutLabel } from '../../store/shortcuts';
 import { Settings } from 'lucide-react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
@@ -69,10 +70,10 @@ export function Sidebar({ projectTitle, activeRoute, extraLinks = [] }: Props) {
           <Settings size={15} strokeWidth={1.25} /> Paramètres
         </button>
         <dl className={s.keys}>
-          <div><dt>⌘K</dt><dd>commandes</dd></div>
-          <div><dt>⌘↵</dt><dd>nouveau plan</dd></div>
-          <div><dt>⌘Z</dt><dd>annuler</dd></div>
-          <div><dt>?</dt><dd>raccourcis</dd></div>
+          <div><dt>{useShortcutLabel('palette')}</dt><dd>commandes</dd></div>
+          <div><dt>{useShortcutLabel('newShot')}</dt><dd>nouveau plan</dd></div>
+          <div><dt>{useShortcutLabel('undo')}</dt><dd>annuler</dd></div>
+          <div><dt>{useShortcutLabel('help')}</dt><dd>raccourcis</dd></div>
         </dl>
       </div>
     </aside>

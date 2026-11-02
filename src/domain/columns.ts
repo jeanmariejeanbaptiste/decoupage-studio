@@ -47,3 +47,18 @@ export function columnWidths(columns: readonly ColumnKey[]): Record<string, numb
 export function tcLast<T extends string>(cols: readonly T[]): T[] {
   return [...cols.filter((c) => c !== 'tc'), ...cols.filter((c) => c === 'tc')];
 }
+
+/**
+ * Afficher une colonne dans la grille l'ajoute aux colonnes exportées (à sa place naturelle, après
+ * la colonne exportée qui la précède), la masquer l'en retire.
+ */
+export function syncExportColumn(exportCols: readonly ColumnKey[], col: ColumnKey, shown: boolean): ColumnKey[] {
+  if (!shown) return exportCols.filter((c) => c !== col);
+  if (exportCols.includes(col)) return [...exportCols];
+  const rank = ALL_COLUMNS.indexOf(col);
+  let at = 0;
+  exportCols.forEach((c, i) => {
+    if (ALL_COLUMNS.indexOf(c) < rank) at = i + 1;
+  });
+  return tcLast([...exportCols.slice(0, at), col, ...exportCols.slice(at)]);
+}

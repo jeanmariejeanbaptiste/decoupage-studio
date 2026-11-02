@@ -1,32 +1,27 @@
+import { formatCombo, SHORTCUTS } from '../../domain/shortcuts';
+import { useShortcuts } from '../../store/shortcuts';
+import { navigate } from '../../app/router';
 import { useUi } from '../../store/uiStore';
 import { Hand } from '../../ui/Hand';
 import s from './CommandPalette.module.css';
 
-const SHORTCUTS: Array<[string, string]> = [
+// Touches de saisie, fixes ; les raccourcis d'action viennent des Paramètres.
+const FIXED: Array<[string, string]> = [
   ['↑ ↓ ← →', 'Se déplacer entre les cellules'],
   ['Entrée', 'Éditer / valider et descendre'],
   ['Tab / ⇧Tab', 'Cellule suivante / précédente'],
   ['Échap', 'Annuler l’édition'],
   ['Une lettre', 'Remplacer le contenu de la cellule'],
   ['⇧ + flèches, ⇧ + clic', 'Étendre la sélection'],
-  ['⌘↵', 'Nouveau plan (hérite sujet, focale, angle)'],
-  ['⌘⇧↵', 'Nouvelle séquence'],
-  ['⌘D', 'Dupliquer le plan'],
-  ['⌘⌫', 'Supprimer le plan'],
   ['Suppr', 'Vider les cellules sélectionnées'],
-  ['⌥↑ / ⌥↓', 'Déplacer le plan'],
-  ['⌥⇧↑ / ⌥⇧↓', 'Déplacer la séquence'],
-  ['⌘⇧↓', 'Recopier vers le bas'],
   ['⌘C / ⌘V', 'Copier / coller (compatible Excel, Sheets)'],
-  ['⌘Z / ⌘⇧Z', 'Annuler / rétablir'],
-  ['⌘S', 'Enregistrer le fichier .decoupage'],
-  ['⌘K', 'Palette de commandes'],
   ['↓ puis Entrée', 'Choisir une suggestion'],
   [', ou +', 'Séparer les jetons d’angle ou de mouvement'],
 ];
 
 export function HelpDialog() {
   const open = useUi((u) => u.helpOpen);
+  const map = useShortcuts((x) => x.map);
   const set = useUi((u) => u.set);
   if (!open) return null;
   const close = () => set({ helpOpen: false });
@@ -36,7 +31,7 @@ export function HelpDialog() {
         <Hand>⌘ = Ctrl sous Windows et Linux</Hand>
         <h2 id="help-title">Raccourcis clavier</h2>
         <dl>
-          {SHORTCUTS.map(([k, v]) => (
+          {[...SHORTCUTS.map((d): [string, string] => [formatCombo(map[d.id]), d.label]), ...FIXED].map(([k, v]) => (
             <div key={k}>
               <dt>
                 <kbd>{k}</kbd>
@@ -45,6 +40,9 @@ export function HelpDialog() {
             </div>
           ))}
         </dl>
+        <button type="button" className={s.helpLink} onClick={() => { close(); navigate('settings', { section: 'raccourcis' }); }}>
+          Modifier les raccourcis
+        </button>
         <button type="button" autoFocus className="visually-hidden" onClick={close}>
           Fermer
         </button>

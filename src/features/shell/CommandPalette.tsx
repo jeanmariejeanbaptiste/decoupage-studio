@@ -1,3 +1,5 @@
+import { formatCombo } from '../../domain/shortcuts';
+import { useShortcuts } from '../../store/shortcuts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fold } from '../../domain/text';
 import { useUi } from '../../store/uiStore';
@@ -11,6 +13,7 @@ export function CommandPalette() {
 }
 
 function PaletteBody() {
+  const map = useShortcuts((x) => x.map);
   const set = useUi((u) => u.set);
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
@@ -76,7 +79,7 @@ function PaletteBody() {
             >
               <span className={s.group}>{c.group}</span>
               <span className={s.label}>{c.label}</span>
-              {c.shortcut && <kbd>{c.shortcut}</kbd>}
+              {c.shortcut && <kbd>{formatCombo(map[c.shortcut])}</kbd>}
             </li>
           ))}
         </ul>

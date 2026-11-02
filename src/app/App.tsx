@@ -1,4 +1,5 @@
 import { redoHome, undoHome } from '../store/homeHistory';
+import { isShortcut } from '../store/shortcuts';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useState } from 'react';
 import { runChecks } from '../domain/lint';
@@ -92,30 +93,32 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && (e.key === 's' || e.key === 'S')) {
+      if (isShortcut(e, 'save')) {
         e.preventDefault();
         void saveToFile();
         return;
       }
-      if (mod && (e.key === 'k' || e.key === 'K')) {
+      if (isShortcut(e, 'palette')) {
         e.preventDefault();
         setUi({ paletteOpen: !useUi.getState().paletteOpen });
         return;
       }
       if (e.key === 'Escape' && useUi.getState().helpOpen) setUi({ helpOpen: false });
       if (e.defaultPrevented || isTextTarget(e.target)) return;
-      if (e.key === '?' && !mod) {
+      if (isShortcut(e, 'help')) {
         e.preventDefault();
         setUi({ helpOpen: true });
         return;
       }
-      if (mod && (e.key === 'z' || e.key === 'Z')) {
+      const isUndo = isShortcut(e, 'undo');
+      const isRedo = isShortcut(e, 'redo') || (mod && !e.shiftKey && e.code === 'KeyY');
+      if (isUndo || isRedo) {
         e.preventDefault();
-        // À l'accueil, ⌘Z annule la suppression d'un projet.
+        // À l'accueil, annuler / rétablir portent sur la suppression des projets.
         if (window.location.hash.replace(/^#\/?/, '').split('?')[0] === '' || window.location.hash.startsWith('#/home')) {
-          if (e.shiftKey) void redoHome();
+          if (isRedo) void redoHome();
           else void undoHome();
-        } else if (e.shiftKey) redo();
+        } else if (isRedo) redo();
         else undo();
       }
     };

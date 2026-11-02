@@ -1,3 +1,4 @@
+import type { ShortcutId } from '../../domain/shortcuts';
 import { navigate } from '../../app/router';
 import { saveToFile, openFromFile } from '../../store/persistence';
 import { redo, undo, useProjectStore } from '../../store/projectStore';
@@ -17,7 +18,7 @@ export interface Command {
   id: string;
   label: string;
   group: string;
-  shortcut?: string;
+  shortcut?: ShortcutId;
   run: () => void;
   needsProject?: boolean;
 }
@@ -31,14 +32,14 @@ const toGrid = (fn: () => void) => () => {
 };
 
 export const COMMANDS: readonly Command[] = [
-  { id: 'new-shot', group: 'Grille', label: 'Nouveau plan sous le plan courant', shortcut: '⌘↵', run: toGrid(newShotBelow), needsProject: true },
-  { id: 'new-seq', group: 'Grille', label: 'Nouvelle séquence', shortcut: '⌘⇧↵', run: toGrid(newSequenceAfter), needsProject: true },
-  { id: 'dup', group: 'Grille', label: 'Dupliquer le plan', shortcut: '⌘D', run: toGrid(duplicateCurrent), needsProject: true },
-  { id: 'del-shot', group: 'Grille', label: 'Supprimer le plan', shortcut: '⌘⌫', run: toGrid(deleteCurrentShots), needsProject: true },
+  { id: 'new-shot', group: 'Grille', label: 'Nouveau plan sous le plan courant', shortcut: 'newShot', run: toGrid(newShotBelow), needsProject: true },
+  { id: 'new-seq', group: 'Grille', label: 'Nouvelle séquence', shortcut: 'newSequence', run: toGrid(newSequenceAfter), needsProject: true },
+  { id: 'dup', group: 'Grille', label: 'Dupliquer le plan', shortcut: 'duplicate', run: toGrid(duplicateCurrent), needsProject: true },
+  { id: 'del-shot', group: 'Grille', label: 'Supprimer le plan', shortcut: 'deleteShot', run: toGrid(deleteCurrentShots), needsProject: true },
   { id: 'del-seq', group: 'Grille', label: 'Supprimer la séquence…', run: toGrid(() => void deleteSequenceOf()), needsProject: true },
   { id: 'link', group: 'Grille', label: 'Lier l’action des plans sélectionnés', run: toGrid(linkSelection), needsProject: true },
   { id: 'unlink', group: 'Grille', label: 'Délier l’action', run: toGrid(unlinkSelection), needsProject: true },
-  { id: 'fill', group: 'Grille', label: 'Recopier vers le bas', shortcut: '⌘⇧↓', run: toGrid(fillDown), needsProject: true },
+  { id: 'fill', group: 'Grille', label: 'Recopier vers le bas', shortcut: 'fillDown', run: toGrid(fillDown), needsProject: true },
   {
     id: 'print-view',
     group: 'Grille',
@@ -53,8 +54,8 @@ export const COMMANDS: readonly Command[] = [
     run: toGrid(() => useUi.getState().set({ rightPanel: useUi.getState().rightPanel === 'inspector' ? null : 'inspector' })),
     needsProject: true,
   },
-  { id: 'undo', group: 'Édition', label: 'Annuler', shortcut: '⌘Z', run: undo, needsProject: true },
-  { id: 'redo', group: 'Édition', label: 'Rétablir', shortcut: '⌘⇧Z', run: redo, needsProject: true },
+  { id: 'undo', group: 'Édition', label: 'Annuler', shortcut: 'undo', run: undo, needsProject: true },
+  { id: 'redo', group: 'Édition', label: 'Rétablir', shortcut: 'redo', run: redo, needsProject: true },
   { id: 'go-home', group: 'Aller à', label: 'Accueil — projets', run: () => navigate('home') },
   { id: 'go-intention', group: 'Aller à', label: 'Note d’intention', run: () => navigate('intention'), needsProject: true },
   { id: 'go-scenario', group: 'Aller à', label: 'Scénario', run: () => navigate('scenario'), needsProject: true },
@@ -65,7 +66,7 @@ export const COMMANDS: readonly Command[] = [
   { id: 'go-export', group: 'Aller à', label: 'Exporter', run: () => navigate('export'), needsProject: true },
   { id: 'go-settings', group: 'Aller à', label: 'Réglages', run: () => navigate('settings'), needsProject: true },
   { id: 'pdf', group: 'Fichier', label: 'Exporter en PDF', run: () => navigate('print', { auto: '1' }), needsProject: true },
-  { id: 'save', group: 'Fichier', label: 'Enregistrer le fichier .decoupage', shortcut: '⌘S', run: () => void saveToFile(), needsProject: true },
+  { id: 'save', group: 'Fichier', label: 'Enregistrer le fichier .decoupage', shortcut: 'save', run: () => void saveToFile(), needsProject: true },
   { id: 'open', group: 'Fichier', label: 'Ouvrir un fichier .decoupage…', run: () => void openFromFile().then((ok) => ok && navigate('grid')) },
   {
     id: 'theme',
@@ -73,7 +74,7 @@ export const COMMANDS: readonly Command[] = [
     label: 'Basculer le thème papier / encre',
     run: () => useUi.getState().set({ theme: useUi.getState().theme === 'papier' ? 'encre' : 'papier' }),
   },
-  { id: 'help', group: 'Affichage', label: 'Aide des raccourcis', shortcut: '?', run: () => useUi.getState().set({ helpOpen: true }) },
+  { id: 'help', group: 'Affichage', label: 'Aide des raccourcis', shortcut: 'help', run: () => useUi.getState().set({ helpOpen: true }) },
 ];
 
 export function availableCommands(): Command[] {

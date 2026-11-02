@@ -1,4 +1,5 @@
 import { useFlip } from '../../ui/useFlip';
+import { isShortcut } from '../../store/shortcuts';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { useCallback, useEffect, useMemo, useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { editableText, isEditable, parseTsv, toTsv } from '../../domain/cells';
@@ -105,45 +106,21 @@ export function Grid({ doc, model, animate = false }: Props) {
     const sel = useUi.getState().selection;
     const k = e.key;
 
-    if (mod && (k === 'z' || k === 'Z')) {
+    const run = (fn: () => void) => {
       e.preventDefault();
-      if (e.shiftKey) redo();
-      else undo();
-      return;
-    }
-    if (mod && k === 'y') {
-      e.preventDefault();
-      redo();
-      return;
-    }
-    if (mod && k === 'Enter') {
-      e.preventDefault();
-      if (e.shiftKey) newSequenceAfter();
-      else newShotBelow();
-      return;
-    }
-    if (mod && (k === 'd' || k === 'D')) {
-      e.preventDefault();
-      duplicateCurrent();
-      return;
-    }
-    if (mod && e.shiftKey && k === 'ArrowDown') {
-      e.preventDefault();
-      fillDown();
-      return;
-    }
-    if (mod && k === 'Backspace') {
-      e.preventDefault();
-      deleteCurrentShots();
-      return;
-    }
-    if (e.altKey && (k === 'ArrowUp' || k === 'ArrowDown')) {
-      e.preventDefault();
-      const delta = k === 'ArrowUp' ? -1 : 1;
-      if (e.shiftKey) moveCurrentSequence(delta);
-      else moveCurrentShot(delta);
-      return;
-    }
+      fn();
+    };
+    if (isShortcut(e, 'undo')) return run(undo);
+    if (isShortcut(e, 'redo') || (mod && !e.shiftKey && e.code === 'KeyY')) return run(redo);
+    if (isShortcut(e, 'newShot')) return run(newShotBelow);
+    if (isShortcut(e, 'newSequence')) return run(newSequenceAfter);
+    if (isShortcut(e, 'duplicate')) return run(duplicateCurrent);
+    if (isShortcut(e, 'fillDown')) return run(fillDown);
+    if (isShortcut(e, 'deleteShot')) return run(deleteCurrentShots);
+    if (isShortcut(e, 'moveShotUp')) return run(() => moveCurrentShot(-1));
+    if (isShortcut(e, 'moveShotDown')) return run(() => moveCurrentShot(1));
+    if (isShortcut(e, 'moveSequenceUp')) return run(() => moveCurrentSequence(-1));
+    if (isShortcut(e, 'moveSequenceDown')) return run(() => moveCurrentSequence(1));
     if (!sel) {
       if (ARROWS[k] && model.rows.length) {
         e.preventDefault();

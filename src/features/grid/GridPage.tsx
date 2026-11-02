@@ -4,7 +4,7 @@ import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
-import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, COLUMN_DEFS, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
@@ -217,8 +217,11 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
     mutateDoc((d) => {
       const g = d.project.settings.gridColumns;
       const all = ALL_COLUMNS;
-      const next = g.includes(c) ? g.filter((x) => x !== c) : [...g, c];
+      const shown = !g.includes(c);
+      const next = shown ? [...g, c] : g.filter((x) => x !== c);
       d.project.settings.gridColumns = tcLast(all.filter((x) => next.includes(x)));
+      // Ce qu'on affiche dans la grille, on veut l'exporter (et inversement).
+      d.project.settings.exportColumns = syncExportColumn(d.project.settings.exportColumns, c, shown);
     });
   return (
     <div className={s.menuWrap} ref={ref}>

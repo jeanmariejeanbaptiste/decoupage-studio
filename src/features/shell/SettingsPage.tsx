@@ -1,7 +1,7 @@
 import { TemplatesMenu } from '../grid/TemplatesMenu';
 import { AssistantButton } from '../assistant/AssistantButton';
-import { useState, type ReactNode } from 'react';
-import { Plus, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Moon, Plus, RotateCcw, Sun, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
 import { defaultSettings, newId } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
@@ -14,18 +14,49 @@ import { Hand } from '../../ui/Hand';
 import { ASSISTANT_MODEL, getApiKey, setApiKey } from '../assistant/aiClient';
 import s from './SettingsPage.module.css';
 
+import { conflictOf, comboFromEvent, formatCombo, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId } from '../../domain/shortcuts';
+import { resetShortcuts, setShortcut, useShortcuts } from '../../store/shortcuts';
+import { useUi } from '../../store/uiStore';
+import { useLocation } from '../../app/router';
+
 const set = <K extends keyof ProjectSettings>(k: K, v: ProjectSettings[K]) =>
   mutateDoc((d) => {
     d.project.settings[k] = v;
   });
 
-function Section({ title, kicker, children }: { title: string; kicker?: string; children: ReactNode }) {
+const SECTIONS = [
+  ['projet', 'Projet'],
+  ['minutage', 'Minutage'],
+  ['camera', 'Caméra'],
+  ['decoupage', 'Découpage'],
+  ['vocabulaire', 'Vocabulaire'],
+  ['assistant', 'Assistant IA'],
+  ['raccourcis', 'Raccourcis clavier'],
+  ['apparence', 'Apparence'],
+] as const;
+type SectionId = (typeof SECTIONS)[number][0];
+
+function Section({ id, title, children }: { id: SectionId; title: string; children: ReactNode }) {
   return (
-    <section className={['card', s.section].join(' ')}>
-      {kicker && <Hand>{kicker}</Hand>}
-      <h2 className={s.h2}>{title}</h2>
+    <section id={`reglages-${id}`} data-section={id} className={s.section} aria-labelledby={`reglages-${id}-h`}>
+      <h2 id={`reglages-${id}-h`} className={s.h2}>
+        {title}
+      </h2>
       {children}
     </section>
+  );
+}
+
+/** Une ligne de réglage : intitulé (et précision éventuelle) à gauche, commande à droite. */
+function Row({ label, hint, htmlFor, children }: { label: string; hint?: string; htmlFor?: string; children: ReactNode }) {
+  return (
+    <div className={s.line}>
+      <div className={s.lineLabel}>
+        {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : <span>{label}</span>}
+        {hint && <small>{hint}</small>}
+      </div>
+      <div className={s.lineCtl}>{children}</div>
+    </div>
   );
 }
 
@@ -42,64 +73,90 @@ function Radio<T extends string>({ name, value, options, onChange }: { name: str
   );
 }
 
-function Num({ label, value, onChange, step = 0.1, min = 0.1 }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number }) {
+function Num({ label, hint, value, onChange, min = 0.1 }: { label: string; hint?: string; value: number; onChange: (v: number) => void; min?: number }) {
+  const id = useId();
   return (
-    <label className={s.field}>
-      <span>{label}</span>
+    <Row label={label} hint={hint} htmlFor={id}>
       <input
+        id={id}
+        className={s.num}
         type="number"
         step="any"
         min={min}
-        data-step={step}
         value={value}
         onChange={(e) => {
           const v = Number(e.target.value);
           if (Number.isFinite(v) && v >= min) onChange(v);
         }}
       />
-    </label>
+    </Row>
+  );
+}
+
+function Text({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const id = useId();
+  return (
+    <Row label={label} htmlFor={id}>
+      <input id={id} className={s.text} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </Row>
   );
 }
 
 export function SettingsPage({ doc }: { doc: ProjectDoc }) {
   const st = doc.project.settings;
   const p = doc.project;
+  const { params } = useLocation();
   const [sample, setSample] = useState('Elle prend l’affiche de la vedette et la regarde longuement, émue.');
   const action = previewDuration(sample, st);
   const dialogue = previewDuration(sample, st, true);
+  const [current, setCurrent] = useState<SectionId>('projet');
+  const body = useRef<HTMLDivElement>(null);
+
+  // Rubrique visible = la plus haute dont le titre a passé le haut de l'écran.
+  useEffect(() => {
+    const els = [...(body.current?.querySelectorAll<HTMLElement>('[data-section]') ?? [])];
+    const io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (vis) setCurrent((vis.target as HTMLElement).dataset.section as SectionId);
+      },
+      { rootMargin: '0px 0px -70% 0px' },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  const go = (id: SectionId, smooth = true) => {
+    setCurrent(id);
+    document.getElementById(`reglages-${id}`)?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  };
+  const wanted = params.get('section') as SectionId | null;
+  useEffect(() => {
+    if (wanted) go(wanted, false);
+  }, [wanted]);
 
   return (
-    <div className="page">
-      <header className="page-head">
-      </header>
-      <div className={s.grid}>
-        <Section title="Découpage" kicker="outils">
-          <div className={s.toolsRow}>
-            <TemplatesMenu doc={doc} variant="outline" />
-            <AssistantButton doc={doc} />
-          </div>
-        </Section>
-        <Section title="Projet">
-          <label className={s.field}>
-            <span>Titre</span>
-            <input value={p.title} onChange={(e) => mutateDoc((d) => void (d.project.title = e.target.value))} />
-          </label>
-          <div className={s.row}>
-            <label className={s.field}>
-              <span>Version</span>
-              <input value={p.version} onChange={(e) => mutateDoc((d) => void (d.project.version = e.target.value))} />
-            </label>
-            <label className={s.field}>
-              <span>Réalisation</span>
-              <input value={p.director ?? ''} onChange={(e) => mutateDoc((d) => void (d.project.director = e.target.value || undefined))} />
-            </label>
-            <label className={s.field}>
-              <span>Image</span>
-              <input value={p.dop ?? ''} onChange={(e) => mutateDoc((d) => void (d.project.dop = e.target.value || undefined))} />
-            </label>
-          </div>
-          <div className={s.field}>
-            <span>Format</span>
+    <div className={s.page}>
+      <nav className={s.nav} aria-label="Rubriques des paramètres">
+        <p className={s.navTitle}>Paramètres</p>
+        <ul>
+          {SECTIONS.map(([id, label]) => (
+            <li key={id}>
+              <button type="button" className={current === id ? s.navOn : ''} aria-current={current === id ? 'true' : undefined} onClick={() => go(id)}>
+                {label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <div className={s.body} ref={body}>
+        <Section id="projet" title="Projet">
+          <Text label="Titre" value={p.title} onChange={(v) => mutateDoc((d) => void (d.project.title = v))} />
+          <Text label="Version" value={p.version} onChange={(v) => mutateDoc((d) => void (d.project.version = v))} />
+          <Text label="Réalisation" value={p.director ?? ''} onChange={(v) => mutateDoc((d) => void (d.project.director = v || undefined))} />
+          <Text label="Image" value={p.dop ?? ''} placeholder="Directeur ou directrice de la photographie" onChange={(v) => mutateDoc((d) => void (d.project.dop = v || undefined))} />
+          <Row label="Format" hint="Règle aussi le mode de minutage.">
             <Radio<ProjectFormat>
               name="Format"
               value={p.format}
@@ -120,45 +177,20 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
                 ['pub', 'Publicité'],
               ]}
             />
-          </div>
+          </Row>
         </Section>
 
-        <Section title="Minutage" kicker="TC MIN">
-          <div className={s.field}>
-            <span>Mode</span>
+        <Section id="minutage" title="Minutage">
+          <Row label="Mode">
             <Radio name="Mode de TC" value={st.tcMode} onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { tcMode: v, tcModeChosen: true }))} options={[['duree', 'Durée de chaque plan'], ['cumulatif', 'Cumulatif'], ['piste', 'Piste musicale']]} />
-          </div>
-          <div className={s.field}>
-            <span>Granularité</span>
-            <Radio name="Granularité" value={st.tcGranularity} onChange={(v) => set('tcGranularity', v)} options={[['sequence', 'Par séquence'], ['action', 'Par action']]} />
-          </div>
-          <div className={s.row}>
-            <Num label="Action (mots / s)" value={st.actionWordsPerSecond} onChange={(v) => set('actionWordsPerSecond', v)} />
-            <Num label="Dialogue (mots / s)" value={st.dialogueWordsPerSecond} onChange={(v) => set('dialogueWordsPerSecond', v)} />
-            <Num label="Minimum par action (s)" value={st.minActionSeconds} step={1} min={0} onChange={(v) => set('minActionSeconds', v)} />
-          </div>
-          <label className={s.field}>
-            <span>Aperçu</span>
-            <textarea rows={2} value={sample} onChange={(e) => setSample(e.target.value)} />
-          </label>
-          <p className={s.preview} data-testid="timing-preview">
-            <Hand>
-              ce texte de {action.words} mots = {formatTc(action.sec)}
-            </Hand>{' '}
-            <span>en action · {formatTc(dialogue.sec)} en dialogue</span>
-          </p>
+          </Row>
           {st.tcMode === 'piste' && (
-            <div className={s.row}>
-              <label className={s.field}>
-                <span>Nom de la piste</span>
+            <>
+              <Text label="Nom de la piste" value={st.audioTrack?.name ?? ''} onChange={(v) => set('audioTrack', { durationSec: st.audioTrack?.durationSec ?? 0, ...st.audioTrack, name: v })} />
+              <Row label="Durée de la piste">
                 <input
-                  value={st.audioTrack?.name ?? ''}
-                  onChange={(e) => set('audioTrack', { durationSec: st.audioTrack?.durationSec ?? 0, ...st.audioTrack, name: e.target.value })}
-                />
-              </label>
-              <label className={s.field}>
-                <span>Durée de la piste</span>
-                <input
+                  className={s.num}
+                  aria-label="Durée de la piste"
                   defaultValue={st.audioTrack ? formatTc(st.audioTrack.durationSec) : ''}
                   placeholder="3:01"
                   onBlur={(e) => {
@@ -166,14 +198,28 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
                     if (t?.kind === 'sec') set('audioTrack', { name: st.audioTrack?.name ?? 'Piste', ...st.audioTrack, durationSec: t.sec });
                   }}
                 />
-              </label>
-            </div>
+              </Row>
+            </>
           )}
+          <Row label="Granularité">
+            <Radio name="Granularité" value={st.tcGranularity} onChange={(v) => set('tcGranularity', v)} options={[['sequence', 'Par séquence'], ['action', 'Par action']]} />
+          </Row>
+          <Num label="Action (mots / s)" value={st.actionWordsPerSecond} onChange={(v) => set('actionWordsPerSecond', v)} />
+          <Num label="Dialogue (mots / s)" value={st.dialogueWordsPerSecond} onChange={(v) => set('dialogueWordsPerSecond', v)} />
+          <Num label="Minimum par action (s)" value={st.minActionSeconds} min={0} onChange={(v) => set('minActionSeconds', v)} />
+          <Row label="Essai" htmlFor="reglages-essai">
+            <textarea id="reglages-essai" className={s.text} rows={2} value={sample} onChange={(e) => setSample(e.target.value)} />
+            <p className={s.preview} data-testid="timing-preview">
+              <Hand>
+                ce texte de {action.words} mots = {formatTc(action.sec)}
+              </Hand>{' '}
+              <span>en action · {formatTc(dialogue.sec)} en dialogue</span>
+            </p>
+          </Row>
         </Section>
 
-        <Section title="Image">
-          <div className={s.field}>
-            <span>Capteur</span>
+        <Section id="camera" title="Caméra">
+          <Row label="Capteur">
             <Radio<Sensor>
               name="Capteur"
               value={st.sensor}
@@ -191,17 +237,15 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
                 ['custom', 'Autre'],
               ]}
             />
-          </div>
-          <Num label="Facteur de recadrage" value={st.cropFactor} onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { cropFactor: v, sensor: 'custom' }))} />
+          </Row>
+          <Num label="Facteur de recadrage" hint="Sert aux équivalences de focale." value={st.cropFactor} onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { cropFactor: v, sensor: 'custom' }))} />
         </Section>
 
-        <Section title="Grille et libellés">
-          <div className={s.field}>
-            <span>Libellé des valeurs</span>
+        <Section id="decoupage" title="Découpage">
+          <Row label="Libellé des valeurs">
             <Radio name="Libellés" value={st.labelStyle} onChange={(v) => set('labelStyle', v)} options={[['court', 'Court (Taille)'], ['long', 'Long (Plan taille)']]} />
-          </div>
-          <div className={s.field}>
-            <span>Code des plans</span>
+          </Row>
+          <Row label="Code des plans">
             <Radio<ShotCodeFormat>
               name="Code des plans"
               value={st.shotCodeFormat}
@@ -212,13 +256,118 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
                 ['{seq}{letter}', '3D'],
               ]}
             />
-          </div>
+          </Row>
+          <Row label="Passages du scénario" hint="Où va un passage ajouté depuis le scénario.">
+            <Radio
+              name="Passages du scénario"
+              value={st.scenarioLink ?? 'auto'}
+              onChange={(v) => set('scenarioLink', v)}
+              options={[
+                ['auto', 'Séquence de sa scène'],
+                ['free', 'Au choix'],
+              ]}
+            />
+          </Row>
+          <Row label="Modèles" hint="Ajoute des séquences types au découpage.">
+            <TemplatesMenu doc={doc} variant="outline" />
+          </Row>
         </Section>
 
         <VocabularySection doc={doc} />
-        <AssistantSection />
+        <AssistantSection doc={doc} />
+        <ShortcutsSection />
+        <AppearanceSection />
       </div>
     </div>
+  );
+}
+
+function ShortcutsSection() {
+  const map = useShortcuts((x) => x.map);
+  const [capturing, setCapturing] = useState<ShortcutId | null>(null);
+  const [error, setError] = useState<{ id: ShortcutId; text: string } | null>(null);
+  const changed = SHORTCUTS.some((d) => map[d.id] !== d.combo);
+
+  const capture = (id: ShortcutId) => (e: React.KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') return setCapturing(null);
+    const combo = comboFromEvent(e.nativeEvent);
+    if (!combo) return;
+    if (isReserved(combo)) return setError({ id, text: `${formatCombo(combo)} sert déjà à la saisie.` });
+    const other = conflictOf(map, id, combo);
+    if (other) return setError({ id, text: `${formatCombo(combo)} est déjà pris par « ${other.label} ».` });
+    setShortcut(id, combo);
+    setError(null);
+    setCapturing(null);
+  };
+
+  const groups = [...new Set(SHORTCUTS.map((d) => d.group))];
+  return (
+    <Section id="raccourcis" title="Raccourcis clavier">
+      {groups.map((g) => (
+        <div key={g} className={s.keyGroup}>
+          <p className={s.groupTitle}>{g}</p>
+          {SHORTCUTS.filter((d) => d.group === g).map((d) => (
+            <Row key={d.id} label={d.label}>
+              <div className={s.keyCtl}>
+                <button
+                  type="button"
+                  className={[s.kbd, capturing === d.id ? s.capturing : ''].join(' ')}
+                  onClick={() => {
+                    setError(null);
+                    setCapturing(capturing === d.id ? null : d.id);
+                  }}
+                  onKeyDown={capturing === d.id ? capture(d.id) : undefined}
+                  onBlur={() => capturing === d.id && setCapturing(null)}
+                  aria-label={`Raccourci : ${d.label}`}
+                  data-testid={`shortcut-${d.id}`}
+                >
+                  {capturing === d.id ? 'Appuyez sur les touches…' : formatCombo(map[d.id])}
+                </button>
+                {map[d.id] !== DEFAULT_SHORTCUTS[d.id] && (
+                  <button type="button" className={s.reset} onClick={() => resetShortcuts(d.id)} aria-label={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`} title={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`}>
+                    <RotateCcw size={13} strokeWidth={1.4} />
+                  </button>
+                )}
+              </div>
+              {error?.id === d.id && <p className={s.error}>{error.text}</p>}
+            </Row>
+          ))}
+        </div>
+      ))}
+      <p className={s.foot}>
+        <span>⌘ = Ctrl sous Windows et Linux.</span>
+        {changed && (
+          <Button size="sm" variant="ghost" onClick={() => resetShortcuts()}>
+            Tout rétablir
+          </Button>
+        )}
+      </p>
+    </Section>
+  );
+}
+
+function AppearanceSection() {
+  const theme = useUi((u) => u.theme);
+  return (
+    <Section id="apparence" title="Apparence">
+      <Row label="Thème">
+        <div className={s.seg} role="radiogroup" aria-label="Thème">
+          {(
+            [
+              ['papier', 'Papier', <Sun key="s" size={13} strokeWidth={1.4} />],
+              ['encre', 'Encre', <Moon key="m" size={13} strokeWidth={1.4} />],
+            ] as const
+          ).map(([v, label, icon]) => (
+            <label key={v} className={theme === v ? s.on : ''}>
+              <input type="radio" name="Thème" checked={theme === v} onChange={() => useUi.getState().set({ theme: v })} />
+              {icon} {label}
+            </label>
+          ))}
+        </div>
+      </Row>
+    </Section>
   );
 }
 
@@ -249,11 +398,10 @@ function VocabularySection({ doc }: { doc: ProjectDoc }) {
     setAliases('');
   };
   return (
-    <Section title="Vocabulaire" kicker="vos propres termes">
+    <Section id="vocabulaire" title="Vocabulaire">
       <Radio name="Liste" value={kind} onChange={setKind} options={[['value', 'Valeurs'], ['angle', 'Angles'], ['movement', 'Mouvements']]} />
       <p className={s.note}>
-        {vocabularyFor(kind).length - custom.length} termes intégrés · {custom.length} personnalisé{custom.length > 1 ? 's' : ''}. Ils apparaissent dans les suggestions de la
-        grille.
+        {vocabularyFor(kind).length - custom.length} termes intégrés · {custom.length} personnalisé{custom.length > 1 ? 's' : ''}, proposés dans les suggestions de la grille.
       </p>
       <ul className={s.vocab}>
         {custom.map((e) => (
@@ -290,43 +438,42 @@ function VocabularySection({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-function AssistantSection() {
+function AssistantSection({ doc }: { doc: ProjectDoc }) {
   const [key, setKey] = useState(getApiKey());
   const [saved, setSaved] = useState(!!getApiKey());
   return (
-    <Section title="Assistant IA" kicker="facultatif">
-      <p className={s.note}>
-        Propose un découpage de départ pour une séquence, dans le vocabulaire de l’application. La clé reste dans ce navigateur : elle n’est jamais
-        enregistrée dans le projet ni exportée. Sans clé, l’assistant est désactivé.
-      </p>
-      <form
-        className={s.row}
-        onSubmit={(e) => {
-          e.preventDefault();
-          setApiKey(key);
-          setSaved(!!key.trim());
-        }}
-      >
-        <label className={s.field}>
-          <span>Clé API Anthropic</span>
-          <input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-ant-…" aria-label="Clé API Anthropic" />
-        </label>
-        <Button type="submit" variant="outline">
-          {saved ? 'Mettre à jour' : 'Enregistrer'}
-        </Button>
-        {saved && (
-          <Button
-            onClick={() => {
-              setApiKey('');
-              setKey('');
-              setSaved(false);
-            }}
-          >
-            Oublier la clé
+    <Section id="assistant" title="Assistant IA">
+      <p className={s.note}>Propose un découpage de départ pour une séquence. La clé reste dans ce navigateur : jamais enregistrée dans le projet ni exportée.</p>
+      <Row label="Clé API Anthropic" htmlFor="reglages-cle">
+        <form
+          className={s.inline}
+          onSubmit={(e) => {
+            e.preventDefault();
+            setApiKey(key);
+            setSaved(!!key.trim());
+          }}
+        >
+          <input id="reglages-cle" className={s.text} type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-ant-…" aria-label="Clé API Anthropic" />
+          <Button type="submit" variant="outline">
+            {saved ? 'Mettre à jour' : 'Enregistrer'}
           </Button>
-        )}
-      </form>
-      <p className={s.note}>{saved ? `Assistant actif (modèle ${ASSISTANT_MODEL}).` : 'Assistant désactivé.'}</p>
+          {saved && (
+            <Button
+              onClick={() => {
+                setApiKey('');
+                setKey('');
+                setSaved(false);
+              }}
+            >
+              Oublier la clé
+            </Button>
+          )}
+        </form>
+        <p className={s.status}>{saved ? `Assistant actif (modèle ${ASSISTANT_MODEL}).` : 'Assistant désactivé.'}</p>
+      </Row>
+      <Row label="Proposer un découpage" hint="Pour la séquence sélectionnée dans la grille.">
+        <AssistantButton doc={doc} />
+      </Row>
     </Section>
   );
 }
