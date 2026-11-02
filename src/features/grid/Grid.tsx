@@ -1,4 +1,5 @@
 import { useFlip } from '../../ui/useFlip';
+import { useEvenRowSpans } from './useEvenRowSpans';
 import { isShortcut } from '../../store/shortcuts';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { useCallback, useEffect, useMemo, useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
@@ -43,6 +44,8 @@ export function Grid({ doc, model, animate = false }: Props) {
   const setSelection = useUi((u) => u.setSelection);
   const setEditing = useUi((u) => u.setEditing);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  useEvenRowSpans(tableRef);
   useFlip(wrapRef, 'tr[data-shot]', 'data-shot', animate);
   const columns = model.columns;
 
@@ -212,7 +215,7 @@ export function Grid({ doc, model, animate = false }: Props) {
       data-testid="grid"
       aria-label="Grille de découpage"
     >
-      <table className={s.table} role="grid" aria-rowcount={model.rows.length} aria-colcount={columns.length}>
+      <table ref={tableRef} className={s.table} role="grid" aria-rowcount={model.rows.length} aria-colcount={columns.length}>
         <colgroup>
           <col className={s.gutterCol} />
           {columns.map((c) => (
