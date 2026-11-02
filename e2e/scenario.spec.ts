@@ -15,24 +15,28 @@ async function selectText(page: Page, needle: string, length = needle.length) {
 test.describe('scénario et liaison', () => {
   test('clic droit → créer un plan avec cette action', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
+    const marc = page.getByTestId('scenario-shot').filter({ hasText: 'Marc attend sous la pluie' });
+    await expect(page.getByTestId('scenario-shot').first()).toBeVisible();
+    const before = await marc.count();
     await selectText(page, 'Marc attend sous la pluie');
     await page.getByTestId('scenario-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
-    // Un menu demande la séquence ; celle du passage est proposée en premier.
-    await page.getByRole('menuitem').first().click();
-    await expect(page.getByTestId('toast')).toContainText('Plan 3.4 créé');
-    await expect(page.getByTestId('scenario-shot').filter({ hasText: '3.4' })).toContainText('Marc attend sous la pluie');
-    await page.getByTestId('toast').getByRole('button', { name: 'Voir dans la grille' }).click();
-    await expect(page.locator('[data-cell="11:action"]')).toContainText('Marc attend sous la pluie');
+    // Mode lié (par défaut) : le plan va directement dans la séquence de la scène.
+    await expect(page.getByTestId('toast')).toContainText('ajouté au découpage');
+    await expect(marc).toHaveCount(before + 1);
+    await page.getByTestId('toast').getByRole('button', { name: 'Voir' }).click();
+    await expect(page.locator('[data-cell$=":action"]').filter({ hasText: 'Marc attend sous la pluie' }).first()).toBeVisible();
   });
 
   test('les répliques sélectionnées vont dans le dialogue', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
     const src = "GUICHETIER\nC'est pour combien de temps ?";
+    // Mode libre : la séquence se choisit, celle de la scène est suggérée en premier.
+    await page.getByTestId('scenario-link-mode').uncheck();
     await selectText(page, src);
     await page.getByTestId('create-shot-from-selection').click();
     await expect(page.getByRole('menuitem').first()).toContainText('(suggérée)');
     await page.getByRole('menuitem').first().click();
-    await expect(page.getByTestId('toast')).toContainText('Plan 2.5 créé');
+    await expect(page.getByTestId('toast')).toContainText('ajouté au découpage');
     const doc = await page.evaluate(() => (window as unknown as { __ds: { doc: () => { shots: Record<string, { subject: string; actionBlockId: string }>; blocks: Record<string, { dialogue?: string }> } } }).__ds.doc());
     const shot = Object.values(doc.shots).find((s) => doc.blocks[s.actionBlockId].dialogue === "GUICHETIER : C'est pour combien de temps ?");
     expect(shot?.subject).toBe('Guichetier');
@@ -59,7 +63,7 @@ test.describe('scénario et liaison', () => {
   test('vue page, import et export .fountain', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
     await page.getByRole('radio', { name: 'Page', exact: true }).click();
-    await expect(page.getByTestId('scenario-page')).toContainText('INT. GARE — CONSIGNE - JOUR');
+    await expect(page.getByTestId('script-reader')).toContainText('INT. GARE — CONSIGNE - JOUR');
     await page.getByRole('radio', { name: 'Découpage' }).click();
     await expect(page.getByTestId('scenario-cut')).toContainText('GARE');
     await page.getByRole('radio', { name: 'Page', exact: true }).click();
@@ -70,7 +74,7 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('button', { name: /^Importer/ }).click();
     await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('EXT. TOIT - AUBE\n\nLe soleil se lève.\n') });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
-    await expect(page.getByTestId('scenario-page')).toContainText('Le soleil se lève.');
+    await expect(page.getByTestId('script-reader')).toContainText('Le soleil se lève.');
   });
 
   test('l’inspecteur montre le passage lié', async ({ page }) => {
@@ -79,4 +83,32 @@ test.describe('scénario et liaison', () => {
     await page.locator('[data-cell="4:subject"]').click();
     await expect(page.getByTestId('inspector-passage')).toContainText('Léa pose la valise sur le comptoir.');
   });
+});
+
+test('scénario dans le découpage : un seul panneau à droite, + par phrase et sur sélection', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  const rows = page.locator('[data-testid="shot-row"]');
+  await expect(rows.first()).toBeVisible();
+  const n = await rows.count();
+  await page.getByRole('button', { name: 'Inspecteur' }).click();
+  await page.getByTestId('toggle-scenario').click();
+  const panel = page.getByTestId('scenario-panel');
+  await expect(panel).toBeVisible();
+  // Un seul panneau : l'inspecteur s'est refermé.
+  await expect(page.getByRole('button', { name: 'Inspecteur' })).toHaveAttribute('aria-pressed', 'false');
+  // Survol d'une phrase : le « + » apparaît à sa fin et ajoute la phrase au découpage.
+  const sentence = panel.getByTestId('script-sentence').first();
+  await sentence.hover();
+  await sentence.getByTestId('script-plus').click();
+  await expect(page.getByTestId('toast')).toContainText('ajouté au découpage');
+  await expect(rows).toHaveCount(n + 1);
+  // Sélection libre : un « + » apparaît au-dessus de la fin de la sélection.
+  const target = panel.getByTestId('script-sentence').nth(2).locator('span').first();
+  const box = (await target.boundingBox())!;
+  await page.mouse.move(box.x + 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await panel.getByTestId('script-selection-plus').click();
+  await expect(rows).toHaveCount(n + 2);
 });

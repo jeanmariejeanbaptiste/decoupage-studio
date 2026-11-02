@@ -28,7 +28,8 @@ export interface UiState {
   toasts: Toast[];
   theme: 'papier' | 'encre';
   printView: boolean;
-  inspectorOpen: boolean;
+  /** Un seul panneau à droite du découpage à la fois : l'inspecteur ou le scénario. */
+  rightPanel: 'inspector' | 'scenario' | null;
   sidebarOpen: boolean;
   /** Plan-séquence ouvert dans l'éditeur de chorégraphie. */
   oneShotEditor: ID | null;
@@ -61,7 +62,7 @@ export const useUi = create<UiState>()((set) => ({
   toasts: [],
   theme: initialTheme(),
   printView: false,
-  inspectorOpen: typeof window !== 'undefined' && window.innerWidth >= 1600,
+  rightPanel: typeof window !== 'undefined' && window.innerWidth >= 1600 ? 'inspector' : null,
   oneShotEditor: null,
   sidebarOpen: (() => {
     try {

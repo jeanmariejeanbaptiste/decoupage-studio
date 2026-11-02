@@ -1,7 +1,8 @@
+import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Eye, Link2, PanelRight, Unlink2 } from 'lucide-react';
+import { Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -30,7 +31,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   const { displayDoc: doc, wrap, dragging } = useGridDnd(storeDoc);
   const model = useMemo(() => buildGridModel(doc), [doc]);
   const printView = useUi((u) => u.printView);
-  const inspectorOpen = useUi((u) => u.inspectorOpen);
+  const rightPanel = useUi((u) => u.rightPanel);
   const focusRow = useUi((u) => u.selection?.focus.row);
   const selectedShot = focusRow !== undefined ? model.rows[focusRow]?.shotId : undefined;
   const setUi = useUi((u) => u.set);
@@ -82,12 +83,22 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           <ColumnsMenu doc={doc} />
           <Button
             icon={<PanelRight {...IC} />}
-            aria-pressed={inspectorOpen}
-            onClick={() => setUi({ inspectorOpen: !inspectorOpen })}
+            aria-pressed={rightPanel === 'inspector'}
+            onClick={() => setUi({ rightPanel: rightPanel === 'inspector' ? null : 'inspector' })}
             title="Afficher ou masquer l’inspecteur du plan"
             disabled={printView}
           >
             Inspecteur
+          </Button>
+          <Button
+            icon={<ScrollText {...IC} />}
+            aria-pressed={rightPanel === 'scenario'}
+            onClick={() => setUi({ rightPanel: rightPanel === 'scenario' ? null : 'scenario' })}
+            title="Afficher le scénario à droite (à la place de l’inspecteur)"
+            disabled={printView}
+            data-testid="toggle-scenario"
+          >
+            Scénario
           </Button>
           <span className={s.sep} />
           <Button
@@ -112,6 +123,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
             ]}
             disabled={nSeq === 0 || !!imaging}
             options={
+              <>
               <label className={s.noMerge} title="Chaque ligne porte sa propre valeur (utile pour retraiter le tableau)">
                 <input
                   type="checkbox"
@@ -121,6 +133,16 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
                 />
                 Sans fusion de cellules
               </label>
+              <label className={s.noMerge} title="PDF et images : sur chaque page, les colonnes facultatives vides (dialogue, son, notes…) sont masquées, et l’espace profite aux autres">
+                <input
+                  type="checkbox"
+                  checked={!!storeDoc.project.settings.exportSmart}
+                  onChange={(e) => mutateDoc((d) => void (d.project.settings.exportSmart = e.target.checked || undefined))}
+                  data-testid="grid-export-smart"
+                />
+                Export intelligent (colonnes vides masquées par page)
+              </label>
+              </>
             }
             onExport={async ({ format, orientation, numbers }) => {
               try {
@@ -172,7 +194,8 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
               {wrap(<Grid doc={doc} model={model} animate={!!dragging} />)}
               <GridFooter sequences={nSeq} shots={model.rows.length} timing={model.timing} mode={doc.project.settings.tcMode} />
             </div>
-            {inspectorOpen && <Inspector doc={storeDoc} shotId={selectedShot} />}
+            {rightPanel === 'inspector' && <Inspector doc={storeDoc} shotId={selectedShot} />}
+            {rightPanel === 'scenario' && <ScenarioPanel doc={storeDoc} />}
           </div>
         </>
       )}

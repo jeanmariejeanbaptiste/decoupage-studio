@@ -69,6 +69,10 @@ export interface ProjectSettings {
   exportInkSaver?: boolean;
   /** Exporter le découpage sans fusion de cellules. */
   exportNoMerge?: boolean;
+  /** Export intelligent : sur chaque page, les colonnes facultatives vides sont masquées. */
+  exportSmart?: boolean;
+  /** Passages du scénario ajoutés au découpage : rangés d'office dans la séquence de leur scène, ou séquence choisie. */
+  scenarioLink?: 'auto' | 'free';
   /** Orientation des pages exportées (PDF et images). */
   exportOrientation?: 'landscape' | 'portrait';
   /** Format des images du storyboard (largeur : hauteur). */

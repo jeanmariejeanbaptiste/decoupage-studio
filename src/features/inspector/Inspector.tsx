@@ -34,7 +34,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
   if (!shot) {
     return (
       <aside className={s.panel} aria-label="Inspecteur du plan">
-        <Header onClose={() => set({ inspectorOpen: false })} />
+        <Header onClose={() => set({ rightPanel: null })} />
         <p className={s.empty}>
           <Hand>Sélectionnez un plan</Hand>
           <br />
@@ -61,7 +61,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
 
   return (
     <aside className={s.panel} aria-label="Inspecteur du plan" data-testid="inspector">
-      <Header onClose={() => set({ inspectorOpen: false })} />
+      <Header onClose={() => set({ rightPanel: null })} />
       <div className={s.code}>
         <span className={s.big}>Plan {shotCode(doc, shot.id)}</span>
         <span className={s.meta}>

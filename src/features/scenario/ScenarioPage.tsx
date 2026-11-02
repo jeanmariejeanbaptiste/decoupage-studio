@@ -1,10 +1,9 @@
+import { LinkModeToggle, ScriptReader, addPassageAsShot, commitScenario } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Download, FilePlus2, FileUp, ListTree, ScrollText, SquarePen } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { importScenes, matchSequence, parseDialogue, parseFountain, sceneAt, scenesOf, shiftAnchors, splitSelection, type ScriptElement } from '../../domain/fountain';
+import { importScenes, matchSequence, parseDialogue, parseFountain, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
-import { addSequence, addShot } from '../../domain/ops';
-import { setSequenceDecorByName } from '../../domain/registry';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { downloadBlob, pickFile } from '../../store/persistence';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
@@ -25,14 +24,6 @@ interface Mark {
   color: string;
 }
 
-/** Enregistre le texte (indicatif) et recale les ancres des passages liés ; le découpage n'est pas modifié. */
-function commitScenario(text: string) {
-  mutateDoc((d) => {
-    shiftAnchors(d, d.scenario ?? '', text);
-    d.scenario = text;
-  });
-}
-
 export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const [text, setText] = useState(doc.scenario ?? '');
   const [mode, setMode] = useState<'edit' | 'page' | 'cut'>('edit');
@@ -40,7 +31,6 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const [caretBlock, setCaretBlock] = useState<ID | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const toast = useUi((u) => u.toast);
-  const setUi = useUi((u) => u.set);
 
   // Rechargement quand on change de projet.
   useEffect(() => setText(doc.scenario ?? ''), [doc.project.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -80,42 +70,14 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     if (text !== (useProjectStore.getState().doc?.scenario ?? '')) commitScenario(text);
   };
 
-  /** Crée le plan dans la séquence choisie (menu), jamais par déduction silencieuse. */
+  /** Crée le plan : dans la séquence de la scène (mode lié) ou celle choisie dans un menu (mode libre). */
   const createShot = (start: number, end: number, at?: { x: number; y: number }) => {
     if (end <= start) {
       toast({ message: 'Sélectionnez d’abord un passage du scénario.', tone: 'warn' });
       return;
     }
     flush();
-    const current = useProjectStore.getState().doc;
-    if (!current) return;
-    const sc = sceneAt(scenesOf(text), start);
-    const split = splitSelection(elements, start, end);
-    const make = (seqId: ID | 'new') => {
-      const shotId = mutateDoc((d) => {
-        let target = seqId;
-        if (target === 'new') {
-          target = addSequence(d, undefined, {}, false);
-          const seq = d.sequences[target];
-          seq.label = (sc?.location ?? 'NOUVELLE SÉQUENCE').toUpperCase();
-          seq.intExt = sc?.intExt ?? seq.intExt;
-          seq.effect = sc?.effect ?? seq.effect;
-          if (sc) setSequenceDecorByName(d, target, sc.location);
-        }
-        return addShot(d, target, {
-          init: { subject: split.speakers[0] ?? '' },
-          action: { text: split.action || (split.dialogue ? '' : text.slice(start, end).trim()), dialogue: split.dialogue || undefined, scenarioAnchor: { start, end } },
-        });
-      });
-      const after = useProjectStore.getState().doc;
-      if (shotId && after) toast({ message: `Plan ${shotCode(after, shotId)} créé avec cette action.`, actionLabel: 'Voir dans la grille', action: () => goToShot(useProjectStore.getState().doc!, shotId) });
-    };
-    const suggested = sc ? matchSequence(current, sc) : undefined;
-    const ids = suggested ? [suggested, ...current.project.sequenceIds.filter((id) => id !== suggested)] : current.project.sequenceIds;
-    const items = ids.map((id) => ({ label: `Créer le plan dans ${sequenceHeading(current, id)}${id === suggested ? ' (suggérée)' : ''}`, action: () => make(id) }));
-    items.push({ label: `Créer le plan dans une nouvelle séquence${sc ? ` « ${sc.location.toUpperCase()} »` : ''}`, action: () => make('new') });
-    const pos = at ?? { x: window.innerWidth / 2, y: 160 };
-    setUi({ menu: { x: pos.x, y: pos.y, items } });
+    addPassageAsShot(start, end, at ?? { x: window.innerWidth / 2, y: 160 });
   };
 
   const onContextMenu = (e: MouseEvent<HTMLTextAreaElement>) => {
@@ -201,6 +163,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           >
             Créer un plan
           </Button>
+          <LinkModeToggle doc={doc} />
           <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile}>
             Importer (PDF, Word, MD…)
           </Button>
@@ -222,7 +185,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           ) : mode === 'edit' ? (
             <Editor text={text} onChange={setText} marks={marks} highlighted={highlighted} taRef={taRef} onContextMenu={onContextMenu} onCaret={onCaret} onBlur={flush} />
           ) : (
-            <ScriptPage elements={elements} marks={marks} highlighted={highlighted} onHover={setHoverBlock} />
+            <ScriptReader doc={doc} source={text} />
           )}
         </div>
         <aside className={s.side} aria-label="Séquences et plans liés">
@@ -355,29 +318,6 @@ function Editor({
         placeholder={'INT. CHAMBRE - JOUR\n\nLéa, assise sur le lit, regarde l’affiche.\n\nLÉA\n(murmurant)\nUn jour, ce sera moi.'}
         data-testid="scenario-editor"
       />
-    </div>
-  );
-}
-
-function ScriptPage({ elements, marks, highlighted, onHover }: { elements: ScriptElement[]; marks: Mark[]; highlighted: ID | null; onHover: (id: ID | null) => void }) {
-  const markOf = (el: ScriptElement) => marks.find((m) => el.start < m.end && el.end > m.start);
-  return (
-    <div className={s.script} data-testid="scenario-page">
-      {elements.length === 0 && <p className={s.muted}>Le scénario est vide.</p>}
-      {elements.map((el, i) => {
-        const m = markOf(el);
-        return (
-          <p
-            key={i}
-            className={[s[`el_${el.type}`], m ? (m.blockId === highlighted ? s.markHot : s.mark) : ''].join(' ')}
-            style={m ? { ['--mark' as string]: m.color } : undefined}
-            onMouseEnter={() => m && onHover(m.blockId)}
-            onMouseLeave={() => m && onHover(null)}
-          >
-            {el.text}
-          </p>
-        );
-      })}
     </div>
   );
 }

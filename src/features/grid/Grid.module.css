@@ -150,7 +150,8 @@ thead .gutter { z-index: 4; background: var(--paper); border-bottom: 1px solid v
 .addInEmpty { margin-left: 8px; border: 1px solid var(--rule); background: var(--paper); border-radius: var(--radius); padding: 2px 10px; font-size: 12.5px; }
 .rowDel, .seqDel { border: 0; background: none; color: var(--rust); opacity: 0; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; transition: opacity var(--t-fast) var(--ease); }
 .row:hover .rowDel, .seq:hover .seqDel, .rowDel:focus-visible, .seqDel:focus-visible { opacity: 0.85; }
-.seqDel { position: absolute; right: -4px; top: -2px; }
+.seqDel { position: static; order: 10; display: inline-flex; margin-top: 2px; padding: 3px; color: var(--ink-soft); }
+.seqDel:hover { color: var(--rust); }
 
 /* Plan-séquence : une vraie ligne par temps, alignée d'une colonne à l'autre, liseré rouille. */
 .oneShot .num::after { content: ''; display: inline-block; width: 5px; height: 5px; margin-left: 3px; vertical-align: super; border: 1.5px solid var(--rust); border-radius: 50%; }

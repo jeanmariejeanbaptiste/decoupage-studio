@@ -231,3 +231,16 @@ test('insérer un plan entre deux lignes et une séquence entre deux séquences'
   await seqs.first().getByTestId('insert-sequence').click({ force: true });
   await expect(seqs).toHaveCount(m + 1);
 });
+
+test('export intelligent : une colonne facultative vide disparaît des pages', async ({ page }) => {
+  const go = (h: string) => page.evaluate((x) => void (window.location.hash = x), h);
+  await page.goto('/#/export?seed=fiction');
+  await page.locator('li label').filter({ hasText: /^Notes$/ }).locator('input').check();
+  await go('#/print');
+  await expect(page.getByTestId('print-page').first()).toHaveAttribute('data-columns', /notes/);
+  await go('#/grid');
+  await page.getByTestId('grid-export').click();
+  await page.getByTestId('grid-export-smart').check();
+  await go('#/print');
+  await expect(page.getByTestId('print-page').first()).not.toHaveAttribute('data-columns', /notes/);
+});

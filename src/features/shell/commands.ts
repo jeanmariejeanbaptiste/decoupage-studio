@@ -50,7 +50,7 @@ export const COMMANDS: readonly Command[] = [
     id: 'inspector',
     group: 'Grille',
     label: 'Afficher / masquer l’inspecteur',
-    run: toGrid(() => useUi.getState().set({ inspectorOpen: !useUi.getState().inspectorOpen })),
+    run: toGrid(() => useUi.getState().set({ rightPanel: useUi.getState().rightPanel === 'inspector' ? null : 'inspector' })),
     needsProject: true,
   },
   { id: 'undo', group: 'Édition', label: 'Annuler', shortcut: '⌘Z', run: undo, needsProject: true },

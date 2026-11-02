@@ -30,7 +30,6 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   const cols = useMemo(() => tcLast(columns ?? doc.project.settings.exportColumns), [columns, doc.project.settings.exportColumns]);
   const th = theme ?? doc.project.settings.exportTheme;
   const timing = useMemo(() => computeTiming(doc), [doc]);
-  const widths = columnWidths(cols);
   const sequences = useMemo(
     () => doc.project.sequenceIds.map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols, !!doc.project.settings.exportNoMerge) })),
     [doc, timing, cols],
@@ -73,21 +72,21 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     };
   }, [paper, pageH, sequences, cols, showTitle]);
 
-  const head = (
+  const head = (cs: ColumnKey[], w: Record<string, number> = columnWidths(cs)) => (
     <>
       <colgroup>
-        {cols.map((c) => (
-          <col key={c} style={{ width: `${widths[c]}%` }} />
+        {cs.map((c) => (
+          <col key={c} style={{ width: `${w[c]}%` }} />
         ))}
       </colgroup>
       <thead>
         {!paper && (
           <tr className={s.printSpacer} aria-hidden="true">
-            <td colSpan={cols.length} />
+            <td colSpan={cs.length} />
           </tr>
         )}
         <tr>
-          {cols.map((c) => (
+          {cs.map((c) => (
             <th key={c} className={s[`h_${c}`]}>
               {COLUMN_DEFS[c].label}
             </th>
@@ -97,7 +96,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     </>
   );
 
-  const body = (seqIdx: number, rows: MergeRow[], merges: MergeMap, last: boolean, key: string) => {
+  const body = (seqIdx: number, rows: MergeRow[], merges: MergeMap, last: boolean, key: string, cs: ColumnKey[] = cols) => {
     const seq = sequences[seqIdx];
     return (
       <tbody key={key} className={s.seq}>
@@ -110,7 +109,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
               <td key={c} className={[s[`c_${c}`], s.beatCell, k > 0 ? s.beatNext : '', k < lines!.length - 1 ? s.beatMore : '', l.bridge ? s.bridge : ''].join(' ')}>
                 {l.bridge ? (v ? <i>↳ {v}</i> : null) : (
                   <>
-                    {c === BEAT_COLUMNS.find((x) => cols.includes(x)) && <b className={s.beatTag}>{l.tag}</b>}
+                    {c === BEAT_COLUMNS.find((x) => cs.includes(x)) && <b className={s.beatTag}>{l.tag}</b>}
                     {v}
                   </>
                 )}
@@ -120,7 +119,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
           return (
             <Fragment key={row.shotId}>
               <tr className={lines ? s.oneShot : undefined}>
-                {cols.map((c) => {
+                {cs.map((c) => {
                   if (lines && BEAT_COLUMNS.includes(c)) return beatCell(c, 0);
                   const span = merges.get(c)?.find((m) => m.startRow === i);
                   if (!span) return null;
@@ -134,7 +133,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
               </tr>
               {lines?.slice(1).map((_, k) => (
                 <tr key={k} data-sub="" className={s.oneShot}>
-                  {cols.filter((c) => BEAT_COLUMNS.includes(c)).map((c) => beatCell(c, k + 1))}
+                  {cs.filter((c) => BEAT_COLUMNS.includes(c)).map((c) => beatCell(c, k + 1))}
                 </tr>
               ))}
             </Fragment>
@@ -143,7 +142,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
         {seq.rows.length === 0 && (
           <tr>
             <td className={s.c_sequence}>{`${seqIdx + 1}, ${doc.sequences[seq.id]?.label.toUpperCase() ?? ''}`}</td>
-            {cols.slice(1).map((c) => (
+            {cs.slice(1).map((c) => (
               <Fragment key={c}>
                 <td />
               </Fragment>
@@ -152,12 +151,22 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
         )}
         {last && (
           <tr className={s.spacer} aria-hidden="true">
-            <td colSpan={cols.length} />
+            <td colSpan={cs.length} />
           </tr>
         )}
       </tbody>
     );
   };
+
+  // Export intelligent : sur chaque page, les colonnes facultatives vides y sont masquées.
+  const smart = !!doc.project.settings.exportSmart;
+  const pageColumns = (page: PageSlice[]): ColumnKey[] =>
+    cols.filter((c) => {
+      if (!COLUMN_DEFS[c].optional) return true;
+      return page.some((sl) =>
+        sequences[sl.seq].rows.slice(sl.from, sl.to).some((r) => (r.cells[c] ?? '').trim() || r.lines?.some((l) => (l.cells[c] ?? '').trim())),
+      );
+    });
 
   const sheetClass = [s.sheet, s[`theme_${th}`], doc.project.settings.exportInkSaver ? s.inkSaver : '', paper ? s.paged : ''].join(' ');
   const title = showTitle && <h1 className={s.title}>Découpage technique</h1>;
@@ -165,18 +174,21 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   if (paper && pages)
     return (
       <div className={sheetClass} data-theme-export={th}>
-        {pages.map((page, p) => (
-          <div key={p} className={s.page} style={{ width: `${paperW}mm`, height: `${pageH}mm`, padding: `${PAD_Y}mm 12mm` }} data-testid="print-page">
-            {p === 0 && title}
-            <table className={s.table} data-testid={p === 0 ? 'export-table' : undefined}>
-              {head}
-              {page.map((sl) => {
-                const q = sequences[sl.seq];
-                return body(sl.seq, q.rows.slice(sl.from, sl.to), sliceMerges(q.merges, cols, sl.from, sl.to), sl.to === q.rows.length, `${q.id}-${sl.from}`);
-              })}
-            </table>
-          </div>
-        ))}
+        {pages.map((page, p) => {
+          const cs = smart ? pageColumns(page) : cols;
+          return (
+            <div key={p} className={s.page} style={{ width: `${paperW}mm`, height: `${pageH}mm`, padding: `${PAD_Y}mm 12mm` }} data-testid="print-page" data-columns={cs.join(',')}>
+              {p === 0 && title}
+              <table className={s.table} data-testid={p === 0 ? 'export-table' : undefined}>
+                {head(cs)}
+                {page.map((sl) => {
+                  const q = sequences[sl.seq];
+                  return body(sl.seq, q.rows.slice(sl.from, sl.to), sliceMerges(q.merges, cols, sl.from, sl.to), sl.to === q.rows.length, `${q.id}-${sl.from}`, cs);
+                })}
+              </table>
+            </div>
+          );
+        })}
       </div>
     );
 
@@ -184,7 +196,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     <div ref={measure} className={sheetClass} data-theme-export={th} style={paper ? { padding: '0 12mm', width: `${paperW}mm`, boxSizing: 'border-box' } : undefined}>
       {title}
       <table className={s.table} data-testid={paper ? undefined : 'export-table'}>
-        {head}
+        {head(cols)}
         {!paper && (
           <tfoot className={s.printFoot} aria-hidden="true">
             <tr className={s.printSpacer}>

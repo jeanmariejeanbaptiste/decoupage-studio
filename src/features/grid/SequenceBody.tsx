@@ -226,7 +226,7 @@ export function SequenceBody({ doc, model, seq, rect, focus, editing, onCellMous
                         tabIndex={-1}
                         data-testid="delete-sequence"
                       >
-                        ×
+                        <Trash2 size={13} strokeWidth={1.4} />
                       </button>
                       <span className={s.seqLabel}>
                         {sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}

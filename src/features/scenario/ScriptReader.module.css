@@ -1,0 +1,30 @@
+/* Scénario mis en page, actif : marges proportionnelles pour tenir aussi dans un panneau étroit. */
+.reader { position: relative; font-family: var(--font-script); font-size: 12pt; line-height: 1.4; color: var(--ink); }
+.reader p { margin: 0 0 11pt; white-space: pre-wrap; }
+.el_heading { font-weight: 700; text-transform: uppercase; margin-top: 16pt !important; }
+.el_character { margin: 0 0 0 38% !important; text-transform: uppercase; }
+.el_dialogue { margin: 0 14% 0 18% !important; }
+.el_parenthetical { margin: 0 20% 0 28% !important; }
+.el_transition { text-align: right; text-transform: uppercase; }
+.el_centered { text-align: center; }
+.el_title, .el_section, .el_synopsis { color: var(--ink-soft); font-style: italic; }
+.el_pagebreak { border-top: 1px dashed var(--rule); color: transparent; }
+.muted { color: var(--ink-soft); font-style: italic; }
+
+.sentence { border-radius: 2px; transition: background var(--t-fast) var(--ease); }
+.sentence:hover { background: color-mix(in srgb, var(--rust) 8%, transparent); }
+.reply { position: relative; margin: 12pt 0 11pt; padding: 1px 0; border-radius: 3px; }
+.reply:hover { background: color-mix(in srgb, var(--rust) 6%, transparent); }
+.reply p:last-of-type { margin-bottom: 0; }
+.linked { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--rust) 45%, transparent); }
+
+/* « + » discret : en fin de phrase au survol, en exposant comme un accent. */
+.plus { display: none; width: 15px; height: 15px; margin: 0 0 0 3px; padding: 0; border: 1px solid var(--rust); border-radius: 50%; background: var(--paper-card); color: var(--rust); cursor: pointer; vertical-align: super; font-family: var(--font-ui, sans-serif); font-size: 11px; line-height: 12px; text-align: center; }
+.plus::before { content: '+'; }
+.plus:hover { background: var(--rust); color: var(--paper-card); }
+.sentence:hover > .plus { display: inline-block; }
+.reply > .plus { position: absolute; right: 12%; bottom: 0; }
+.reply:hover > .plus { display: inline-block; }
+.selPlus { position: absolute; z-index: 5; width: 20px; height: 20px; margin: -22px 0 0 -6px; padding: 0; border: 1px solid var(--rust); border-radius: 50%; background: var(--rust); color: var(--paper-card); cursor: pointer; box-shadow: 0 2px 6px rgba(42, 40, 36, 0.25); font-size: 14px; line-height: 17px; }
+.selPlus::before { content: '+'; }
+.linkMode { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui, inherit); font-size: 12px; color: var(--ink-soft); cursor: pointer; }
