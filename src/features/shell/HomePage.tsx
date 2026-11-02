@@ -64,9 +64,7 @@ export function HomePage() {
 
       <header className={s.top}>
         <Timecode />
-        <span className={s.brand}>
-          Découpage <em>Studio</em>
-        </span>
+        <span />
         <button
           type="button"
           className={s.toggle}
@@ -79,10 +77,9 @@ export function HomePage() {
       </header>
 
       <main className={s.hero}>
-        <p className={s.kicker}>Préparation de tournage</p>
         <h1 className={s.title}>
-          <span className={s.titleA}>Du scénario</span>
-          <span className={s.titleB}>au plateau.</span>
+          <span className={s.titleB}>Découpage</span>
+          <span className={s.titleA}>Studio</span>
         </h1>
         <div className={s.cta}>
           <button
