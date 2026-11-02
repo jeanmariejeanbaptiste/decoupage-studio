@@ -4,7 +4,6 @@ import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { COMMON_FOCALS, suggest, vocabularyFor } from '../../domain/vocabulary';
 import type { Suggestion } from '../../ui/Suggestion';
 
-const SOUND = ['IN', 'OFF', 'V.O.', 'Musique diégétique', 'Musique extradiégétique', 'Playback'];
 const STATUS = ['à tourner', 'tourné', 'abandonné'];
 
 function matchList(q: string, list: readonly string[], limit = 8): Suggestion[] {
@@ -46,8 +45,6 @@ export function suggestionSource(doc: ProjectDoc, col: ColumnKey): ((q: string) 
         return matchList(m[2], names, 6).map((x) => ({ label: `${x.label.toUpperCase()} :`, value: `${head}${x.label.toUpperCase()} : `, hint: 'qui parle' }));
       };
     }
-    case 'sound':
-      return (q) => matchList(q, SOUND);
     case 'status':
       return (q) => matchList(q, STATUS);
     default:
