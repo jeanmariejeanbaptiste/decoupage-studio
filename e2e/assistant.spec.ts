@@ -28,15 +28,15 @@ test('assistant désactivé sans clé, puis proposition insérée (API simulée)
       }),
     });
   });
-  await page.goto('/#/settings?seed=fiction');
+  await page.goto('/#/settings?seed=fiction&section=assistant');
   await expect(page.getByTestId('assistant')).toBeDisabled();
-  await page.goto('/#/settings');
+  await page.goto('/#/settings?section=assistant');
   await page.getByLabel('Clé API Anthropic').fill('sk-ant-test-123');
   await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await expect(page.getByText('Assistant actif')).toBeVisible();
   await page.goto('/#/grid');
   await page.locator('[data-cell="9:subject"]').click();
-  await page.goto('/#/settings');
+  await page.goto('/#/settings?section=assistant');
   await page.getByTestId('assistant').click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Proposer' }).click();
   await expect(page.getByTestId('toast').filter({ hasText: '2 plans proposés' })).toBeVisible();

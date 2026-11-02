@@ -39,7 +39,7 @@ describe('du scénario au découpage', () => {
     expect(p.subject).toBe('Marc');
     expect(p.action).toBe('(à voix basse)');
     expect(p.dialogue).toBe('MARC : Tu es en avance, comme toujours.');
-    expect(p.sound).toBe('Réplique MARC « Tu es en avance, comme… »');
+    expect(p.sound).toBe('Rép. « Tu es en avance, comme… »');
     expect(passageOf(doc, SCRIPT, a, b, { dialogueShown: true }).sound).toBe('');
   });
   it('range chaque plan dans la séquence de sa scène, créée au besoin, à sa place chronologique', () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Braces, FolderArchive, FileSpreadsheet, FileText, FileUp, Printer, Table2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Braces, Download, Eye, FolderArchive, FileSpreadsheet, FileUp, Printer, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
@@ -12,7 +12,6 @@ import { Button } from '../../ui/Button';
 import { CsvImport } from './CsvImport';
 import s from './ExportPage.module.css';
 
-const IC = { size: 18, strokeWidth: 1.25 } as const;
 const ALL: ColumnKey[] = [...ALL_COLUMNS];
 
 export function ExportPage({ doc }: { doc: ProjectDoc }) {
@@ -40,15 +39,24 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
     setCols(next);
   };
 
-  return (
-    <div className="page">
-      <header className="page-head">
-      </header>
+  const shown = ALL.filter((c) => cols.includes(c)).sort((a, b) => cols.indexOf(a) - cols.indexOf(b));
+  const hidden = ALL.filter((c) => !cols.includes(c));
+  const setFlag = <K extends 'exportFooter' | 'exportInkSaver' | 'exportSmart' | 'exportNoMerge'>(k: K, v: boolean) =>
+    mutateDoc((d) => {
+      (d.project.settings as Record<K, boolean | undefined>)[k] = v || (k === 'exportFooter' ? false : undefined);
+    });
 
-      <section className={s.formats}>
-        <button
-          type="button"
-          className={['card', s.format, s.zip].join(' ')}
+  return (
+    <div className={s.page}>
+      <section className={s.zip}>
+        <FolderArchive size={22} strokeWidth={1.2} />
+        <div>
+          <h2>Dossier de production</h2>
+          <p>Tout le projet dans une archive rangée par étape : scénario, dépouillement, découpage, storyboard, plans au sol, matériel, plan de travail, feuilles de service.</p>
+        </div>
+        <Button
+          variant="primary"
+          icon={<Download size={15} strokeWidth={1.4} />}
           onClick={async () => {
             toast({ message: 'Préparation du dossier de production…' });
             const { buildProductionZip } = await import('./productionZip');
@@ -56,183 +64,196 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
           }}
           data-testid="export-zip"
         >
-          <FolderArchive {...IC} />
-          <strong>Dossier de production complet</strong>
-          <span>Une archive .zip rangée par étape : projet, scénario, dépouillement, découpage Excel, storyboard, plans au sol, matériel, plan de travail, feuilles de service, registre.</span>
-        </button>
-        <button type="button" className={['card', s.format].join(' ')} onClick={() => navigate('print', { auto: '1' })} data-testid="export-pdf">
-          <Printer {...IC} />
-          <strong>Exporter PDF</strong>
-          <span>Vue d’impression fusionnée, thème {settings.exportTheme}, {settings.exportPaper} paysage.</span>
-        </button>
-        <button type="button" className={['card', s.format].join(' ')} onClick={() => navigate('print')} data-testid="export-preview">
-          <FileText {...IC} />
-          <strong>Aperçu avant impression</strong>
-          <span>Vérifier la mise en page, choisir le thème et le format.</span>
-        </button>
-        <button type="button" className={['card', s.format].join(' ')} onClick={xlsx} data-testid="export-xlsx">
-          <FileSpreadsheet {...IC} />
-          <strong>Excel (.xlsx)</strong>
-          <span>Mêmes fusions et couleurs, onglet « Registre ».</span>
-        </button>
-        <button
-          type="button"
-          className={['card', s.format].join(' ')}
-          onClick={() => downloadBlob(new Blob([toCsv(doc)], { type: 'text/csv;charset=utf-8' }), `${base}.csv`)}
-          data-testid="export-csv"
-        >
-          <Table2 {...IC} />
-          <strong>CSV</strong>
-          <span>Une ligne par plan, sans fusion.</span>
-        </button>
-        <button
-          type="button"
-          className={['card', s.format].join(' ')}
-          onClick={() => downloadBlob(new Blob([serializeDoc(doc)], { type: 'application/json' }), `${base}.json`)}
-          data-testid="export-json"
-        >
-          <Braces {...IC} />
-          <strong>JSON</strong>
-          <span>Projet complet (identique au fichier .decoupage).</span>
-        </button>
+          Télécharger (.zip)
+        </Button>
       </section>
 
-      <div className={s.columns}>
-        <section className="card">
-          <h2 className={s.h2}>Mise en page</h2>
-          <div className={s.field}>
-            <span>Thème</span>
-            <div className={s.seg}>
-              {(['mauve', 'papier', 'sobre'] as ExportTheme[]).map((t) => (
-                <label key={t} className={settings.exportTheme === t ? s.on : ''}>
-                  <input
-                    type="radio"
-                    name="theme"
-                    checked={settings.exportTheme === t}
-                    onChange={() =>
-                      mutateDoc((d) => {
-                        d.project.settings.exportTheme = t;
-                      })
-                    }
-                  />
-                  {t === 'mauve' ? 'Mauve' : t === 'papier' ? 'Papier' : 'Sobre'}
-                </label>
-              ))}
-            </div>
+      <section className={s.card}>
+        <header className={s.cardHead}>
+          <h2>Découpage technique</h2>
+          <div className={s.actions}>
+            <Button variant="ghost" icon={<Eye size={15} strokeWidth={1.3} />} onClick={() => navigate('print')} data-testid="export-preview">
+              Aperçu
+            </Button>
+            <Button variant="outline" icon={<Table2 size={15} strokeWidth={1.3} />} onClick={() => downloadBlob(new Blob([toCsv(doc)], { type: 'text/csv;charset=utf-8' }), `${base}.csv`)} data-testid="export-csv">
+              CSV
+            </Button>
+            <Button variant="outline" icon={<FileSpreadsheet size={15} strokeWidth={1.3} />} onClick={xlsx} data-testid="export-xlsx">
+              Excel
+            </Button>
+            <Button variant="primary" icon={<Printer size={15} strokeWidth={1.3} />} onClick={() => navigate('print', { auto: '1' })} data-testid="export-pdf">
+              PDF
+            </Button>
           </div>
-          <div className={s.field}>
-            <span>Format</span>
-            <div className={s.seg}>
-              {(['A4', 'A3'] as const).map((p) => (
-                <label key={p} className={settings.exportPaper === p ? s.on : ''}>
-                  <input
-                    type="radio"
-                    name="paper"
-                    checked={settings.exportPaper === p}
-                    onChange={() =>
-                      mutateDoc((d) => {
-                        d.project.settings.exportPaper = p;
-                      })
-                    }
-                  />
-                  {p} paysage
-                </label>
-              ))}
-            </div>
-          </div>
-          <label className={s.check}>
-            <input
-              type="checkbox"
-              checked={settings.exportFooter}
-              onChange={(e) =>
-                mutateDoc((d) => {
-                  d.project.settings.exportFooter = e.target.checked;
-                })
-              }
-            />
-            Pied de page : titre · version · date · page x / y
-          </label>
-          <label className={s.check}>
-            <input
-              type="checkbox"
-              checked={!!settings.exportInkSaver}
-              onChange={(e) =>
-                mutateDoc((d) => {
-                  d.project.settings.exportInkSaver = e.target.checked;
-                })
-              }
-            />
-            Économie d’encre : aucun aplat de couleur (en couleur avec Mauve ou Papier, en noir et blanc avec Sobre)
-          </label>
-        </section>
+        </header>
 
-        <section className="card">
-          <h2 className={s.h2}>Colonnes exportées</h2>
-          <ul className={s.colList}>
-            {ALL.filter((c) => cols.includes(c))
-              .sort((a, b) => cols.indexOf(a) - cols.indexOf(b))
-              .concat(ALL.filter((c) => !cols.includes(c)))
-              .map((c) => {
-                const on = cols.includes(c);
+        <div className={s.split}>
+          <div>
+            <h3 className={s.h3}>Mise en page</h3>
+            <div className={s.line}>
+              <span>Thème</span>
+              <Seg
+                name="theme"
+                value={settings.exportTheme}
+                options={[
+                  ['mauve', 'Mauve'],
+                  ['papier', 'Papier'],
+                  ['sobre', 'Sobre'],
+                ]}
+                onChange={(v) => mutateDoc((d) => void (d.project.settings.exportTheme = v as ExportTheme))}
+              />
+            </div>
+            <div className={s.line}>
+              <span>Format</span>
+              <Seg
+                name="paper"
+                value={settings.exportPaper}
+                options={[
+                  ['A4', 'A4 paysage'],
+                  ['A3', 'A3 paysage'],
+                ]}
+                onChange={(v) => mutateDoc((d) => void (d.project.settings.exportPaper = v as 'A4' | 'A3'))}
+              />
+            </div>
+            <h3 className={s.h3}>Options</h3>
+            <Check checked={settings.exportFooter} onChange={(v) => setFlag('exportFooter', v)} label="Pied de page" hint="Titre, version, date, numéro de page." />
+            <Check checked={!!settings.exportInkSaver} onChange={(v) => setFlag('exportInkSaver', v)} label="Économie d’encre" hint="Aucun aplat de couleur." />
+            <Check checked={!!settings.exportSmart} onChange={(v) => setFlag('exportSmart', v)} label="Masquer les colonnes vides" hint="Page par page." />
+            <Check checked={!!settings.exportNoMerge} onChange={(v) => setFlag('exportNoMerge', v)} label="Sans fusion" hint="Chaque cellule répétée en entier." />
+          </div>
+
+          <div>
+            <h3 className={s.h3}>
+              Colonnes <span className={s.count}>{shown.length}</span>
+            </h3>
+            <ul className={s.colList} aria-label="Colonnes exportées">
+              {shown.map((c, i) => {
+                const never = settings.neverMerge.includes(c);
+                const fixed = c === 'sequence' || c === 'number';
                 return (
-                  <li key={c} className={on ? '' : s.off}>
+                  <li key={c}>
                     <label>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={c === 'sequence'}
-                        onChange={() => setCols(on ? cols.filter((x) => x !== c) : [...cols, c])}
-                      />
-                      {COLUMN_DEFS[c].label}
+                      <input type="checkbox" checked disabled={c === 'sequence'} onChange={() => setCols(cols.filter((x) => x !== c))} />
+                      {label(c)}
                     </label>
-                    {on && (
-                      <span className={s.colTools}>
-                        <label className={s.never} title="Ne jamais fusionner cette colonne">
-                          <input
-                            type="checkbox"
-                            checked={settings.neverMerge.includes(c)}
-                            disabled={c === 'sequence' || c === 'number'}
-                            onChange={(e) =>
-                              mutateDoc((d) => {
-                                const n = d.project.settings.neverMerge;
-                                d.project.settings.neverMerge = e.target.checked ? [...n, c] : n.filter((x) => x !== c);
-                              })
-                            }
-                          />
-                          ne jamais fusionner
-                        </label>
-                        <Button variant="icon" size="sm" aria-label={`Monter ${COLUMN_DEFS[c].label}`} onClick={() => move(c, -1)} icon={<ArrowUp size={13} />} />
-                        <Button variant="icon" size="sm" aria-label={`Descendre ${COLUMN_DEFS[c].label}`} onClick={() => move(c, 1)} icon={<ArrowDown size={13} />} />
-                      </span>
-                    )}
+                    <span className={s.colTools}>
+                      {!fixed && !settings.exportNoMerge && (
+                        <button
+                          type="button"
+                          className={[s.merge, never ? s.mergeOff : ''].join(' ')}
+                          aria-pressed={never}
+                          title={never ? 'Cette colonne n’est jamais fusionnée' : 'Les cellules identiques sont fusionnées'}
+                          onClick={() =>
+                            mutateDoc((d) => {
+                              const n = d.project.settings.neverMerge;
+                              d.project.settings.neverMerge = never ? n.filter((x) => x !== c) : [...n, c];
+                            })
+                          }
+                        >
+                          {never ? 'sans fusion' : 'fusion'}
+                        </button>
+                      )}
+                      <Button variant="icon" size="sm" aria-label={`Monter ${label(c)}`} disabled={i === 0} onClick={() => move(c, -1)} icon={<ArrowUp size={13} />} />
+                      <Button variant="icon" size="sm" aria-label={`Descendre ${label(c)}`} disabled={i === shown.length - 1} onClick={() => move(c, 1)} icon={<ArrowDown size={13} />} />
+                    </span>
                   </li>
                 );
               })}
-          </ul>
-        </section>
-
-        <section className="card">
-          <h2 className={s.h2}>Importer</h2>
-          <p className={s.note}>Ouvrir un projet .decoupage ou JSON remplace le projet courant (il reste dans l’accueil).</p>
-          <div className={s.importRow}>
-            <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={async () => (await openFromFile()) && navigate('grid')}>
-              .decoupage / JSON…
-            </Button>
-            <Button
-              variant="outline"
-              icon={<Table2 size={15} strokeWidth={1.25} />}
-              onClick={async () => {
-                const f = await pickFile('.csv,.tsv,.txt,text/csv', false);
-                if (f) setCsvText(await f.text());
-              }}
-              data-testid="import-csv"
-            >
-              CSV / TSV…
-            </Button>
+            </ul>
+            {hidden.length > 0 && (
+              <>
+                <p className={s.sub}>Non exportées</p>
+                <ul className={[s.colList, s.offList].join(' ')}>
+                  {hidden.map((c) => (
+                    <li key={c}>
+                      <label>
+                        <input type="checkbox" checked={false} onChange={() => setCols([...cols, c])} />
+                        {label(c)}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
-          {csvText !== null && <CsvImport text={csvText} onDone={() => setCsvText(null)} />}
-        </section>
-      </div>
+        </div>
+      </section>
+
+      <section className={s.card}>
+        <header className={s.cardHead}>
+          <h2>Fichier du projet</h2>
+        </header>
+        <div className={s.fileRow}>
+          <div>
+            <strong>Sauvegarde complète</strong>
+            <span>Le projet entier au format JSON, identique au fichier .decoupage.</span>
+          </div>
+          <Button variant="outline" icon={<Braces size={15} strokeWidth={1.3} />} onClick={() => downloadBlob(new Blob([serializeDoc(doc)], { type: 'application/json' }), `${base}.json`)} data-testid="export-json">
+            JSON
+          </Button>
+        </div>
+        <div className={s.fileRow}>
+          <div>
+            <strong>Ouvrir un projet</strong>
+            <span>Remplace le projet ouvert, qui reste dans l’accueil.</span>
+          </div>
+          <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.3} />} onClick={async () => (await openFromFile()) && navigate('grid')}>
+            .decoupage / JSON…
+          </Button>
+        </div>
+        <div className={s.fileRow}>
+          <div>
+            <strong>Importer un découpage</strong>
+            <span>Depuis un tableur : une ligne par plan.</span>
+          </div>
+          <Button
+            variant="outline"
+            icon={<Table2 size={15} strokeWidth={1.3} />}
+            onClick={async () => {
+              const f = await pickFile('.csv,.tsv,.txt,text/csv', false);
+              if (f) setCsvText(await f.text());
+            }}
+            data-testid="import-csv"
+          >
+            CSV / TSV…
+          </Button>
+        </div>
+        {csvText !== null && <CsvImport text={csvText} onDone={() => setCsvText(null)} />}
+      </section>
     </div>
+  );
+}
+
+const label = (c: ColumnKey) => {
+  const l = COLUMN_DEFS[c].label;
+  if (l !== l.toUpperCase()) return l;
+  // « SÉQUENCE » → « Séquence », mais « TC MIN » reste tel quel.
+  return l
+    .split(' ')
+    .map((w, i) => (w.length <= 3 ? w : (i ? w.charAt(0).toLowerCase() : w.charAt(0)) + w.slice(1).toLowerCase()))
+    .join(' ');
+};
+
+function Seg({ name, value, options, onChange }: { name: string; value: string; options: Array<[string, string]>; onChange: (v: string) => void }) {
+  return (
+    <div className={s.seg} role="radiogroup" aria-label={name}>
+      {options.map(([v, l]) => (
+        <label key={v} className={value === v ? s.on : ''}>
+          <input type="radio" name={name} checked={value === v} onChange={() => onChange(v)} />
+          {l}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function Check({ checked, onChange, label: l, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint: string }) {
+  return (
+    <label className={s.check}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        {l} <small>{hint}</small>
+      </span>
+    </label>
   );
 }

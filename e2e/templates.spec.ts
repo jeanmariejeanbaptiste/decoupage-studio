@@ -13,7 +13,7 @@ test('insérer un modèle de séquence documentaire', async ({ page }) => {
   await expect(page.locator('[data-cell="0:value"]')).toHaveText('Général');
   await expect(page.locator('[data-cell="11:value"]')).toHaveText('Général');
   await expect(page.locator('[data-cell="4:action"]')).toContainText('Plans de coupe');
-  await page.goto('/#/settings');
+  await page.goto('/#/settings?section=decoupage');
   await page.getByTestId('templates').click();
   await page.getByRole('menuitem', { name: /Interview institutionnelle/ }).click();
   await page.goto('/#/grid');

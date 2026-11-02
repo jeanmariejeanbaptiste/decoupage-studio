@@ -247,6 +247,7 @@ test('export intelligent : une colonne facultative vide disparaît des pages', a
 
 test('raccourcis personnalisables depuis les Paramètres', async ({ page }) => {
   await page.goto('/#/settings?seed=fiction');
+  await page.getByTestId('settings-raccourcis').click();
   const btn = page.getByTestId('shortcut-duplicate');
   await expect(btn).toHaveText('⌘D');
   await btn.click();

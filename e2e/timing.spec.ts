@@ -21,6 +21,7 @@ function wav(seconds: number, rate = 8000): Buffer {
 
 test('réglages : coefficients et aperçu', async ({ page }) => {
   await page.goto('/#/settings?seed=fiction');
+  await page.getByTestId('settings-minutage').click();
   const preview = page.getByTestId('timing-preview');
   await expect(preview).toContainText('ce texte de 11 mots = 0:06');
   await page.getByLabel('Action (mots / s)').fill('1');

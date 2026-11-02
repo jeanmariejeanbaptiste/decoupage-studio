@@ -71,7 +71,7 @@ export function upperName(text: string, doc?: ProjectDoc): string | undefined {
 /**
  * Ce que devient un passage : l'action (didascalies des répliques comprises, entre parenthèses),
  * les répliques, le sujet (personnage qui parle, ou prénom en majuscules dans l'action) et, quand la
- * colonne Dialogue n'est pas affichée, une mention courte de la réplique dans la colonne Son.
+ * colonne Dialogue n'est pas affichée, une mention courte de la réplique dans la colonne Son (« Rép. », sans le nom déjà en Sujet).
  */
 export function passageOf(doc: ProjectDoc, source: string, start: number, end: number, opts: { dialogueShown: boolean }): Passage {
   const elements = parseFountain(source);
@@ -95,7 +95,8 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
   const dialogue = replies.map((r) => `${r.name.toLocaleUpperCase('fr')} : ${r.line}`).join(' ');
   const sound =
     replies.length && !opts.dialogueShown
-      ? replies.map((r) => `Réplique ${r.name.toLocaleUpperCase('fr')} « ${shortQuote(r.line)} »`).join(' · ')
+      ? // Le nom est déjà dans Sujet : on ne le répète que s'il y a plusieurs personnages.
+        replies.map((r) => (speakers.length > 1 ? `Rép. ${r.name.toLocaleUpperCase('fr')} « ${shortQuote(r.line)} »` : `Rép. « ${shortQuote(r.line)} »`)).join(' · ')
       : '';
   return { action: actionText, dialogue, subject, sound, scene: sceneAt(scenesOf(source, elements), start) };
 }

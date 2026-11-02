@@ -1,6 +1,6 @@
 /* Paramètres : rubriques à gauche (fixes), réglages en lignes « intitulé | commande » à droite. */
-.page { display: grid; grid-template-columns: 200px minmax(0, 760px); gap: 48px; padding: 32px 40px 30vh; justify-content: center; }
-@media (max-width: 860px) { .page { grid-template-columns: 1fr; gap: 16px; padding: 20px 16px 30vh; } }
+.page { display: grid; grid-template-columns: 200px minmax(0, 760px); gap: 48px; padding: 32px 40px 48px; justify-content: center; }
+@media (max-width: 860px) { .page { grid-template-columns: 1fr; gap: 16px; padding: 20px 16px 40px; } }
 
 .nav { position: sticky; top: 24px; align-self: start; }
 @media (max-width: 860px) { .nav { position: static; } .nav ul { flex-direction: row !important; flex-wrap: wrap; } }

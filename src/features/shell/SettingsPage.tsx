@@ -1,6 +1,6 @@
 import { TemplatesMenu } from '../grid/TemplatesMenu';
 import { AssistantButton } from '../assistant/AssistantButton';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import { Moon, Plus, RotateCcw, Sun, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
 import { defaultSettings, newId } from '../../domain/factory';
@@ -17,7 +17,7 @@ import s from './SettingsPage.module.css';
 import { conflictOf, comboFromEvent, formatCombo, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId } from '../../domain/shortcuts';
 import { resetShortcuts, setShortcut, useShortcuts } from '../../store/shortcuts';
 import { useUi } from '../../store/uiStore';
-import { useLocation } from '../../app/router';
+import { navigate, useLocation } from '../../app/router';
 
 const set = <K extends keyof ProjectSettings>(k: K, v: ProjectSettings[K]) =>
   mutateDoc((d) => {
@@ -36,7 +36,11 @@ const SECTIONS = [
 ] as const;
 type SectionId = (typeof SECTIONS)[number][0];
 
+const CurrentSection = createContext<SectionId>('projet');
+
+/** Une rubrique n'est affichée que lorsqu'elle est choisie dans la liste de gauche. */
 function Section({ id, title, children }: { id: SectionId; title: string; children: ReactNode }) {
+  if (useContext(CurrentSection) !== id) return null;
   return (
     <section id={`reglages-${id}`} data-section={id} className={s.section} aria-labelledby={`reglages-${id}-h`}>
       <h2 id={`reglages-${id}-h`} className={s.h2}>
@@ -109,31 +113,9 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
   const [sample, setSample] = useState('Elle prend l’affiche de la vedette et la regarde longuement, émue.');
   const action = previewDuration(sample, st);
   const dialogue = previewDuration(sample, st, true);
-  const [current, setCurrent] = useState<SectionId>('projet');
-  const body = useRef<HTMLDivElement>(null);
-
-  // Rubrique visible = la plus haute dont le titre a passé le haut de l'écran.
-  useEffect(() => {
-    const els = [...(body.current?.querySelectorAll<HTMLElement>('[data-section]') ?? [])];
-    const io = new IntersectionObserver(
-      (entries) => {
-        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (vis) setCurrent((vis.target as HTMLElement).dataset.section as SectionId);
-      },
-      { rootMargin: '0px 0px -70% 0px' },
-    );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, []);
-
-  const go = (id: SectionId, smooth = true) => {
-    setCurrent(id);
-    document.getElementById(`reglages-${id}`)?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
-  };
-  const wanted = params.get('section') as SectionId | null;
-  useEffect(() => {
-    if (wanted) go(wanted, false);
-  }, [wanted]);
+  const asked = params.get('section') as SectionId | null;
+  const current: SectionId = SECTIONS.some(([id]) => id === asked) ? (asked as SectionId) : 'projet';
+  const go = (id: SectionId) => navigate('settings', { section: id });
 
   return (
     <div className={s.page}>
@@ -142,7 +124,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         <ul>
           {SECTIONS.map(([id, label]) => (
             <li key={id}>
-              <button type="button" className={current === id ? s.navOn : ''} aria-current={current === id ? 'true' : undefined} onClick={() => go(id)}>
+              <button type="button" className={current === id ? s.navOn : ''} aria-current={current === id ? 'page' : undefined} onClick={() => go(id)} data-testid={`settings-${id}`}>
                 {label}
               </button>
             </li>
@@ -150,7 +132,8 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         </ul>
       </nav>
 
-      <div className={s.body} ref={body}>
+      <CurrentSection.Provider value={current}>
+      <div className={s.body}>
         <Section id="projet" title="Projet">
           <Text label="Titre" value={p.title} onChange={(v) => mutateDoc((d) => void (d.project.title = v))} />
           <Text label="Version" value={p.version} onChange={(v) => mutateDoc((d) => void (d.project.version = v))} />
@@ -278,6 +261,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         <ShortcutsSection />
         <AppearanceSection />
       </div>
+      </CurrentSection.Provider>
     </div>
   );
 }
