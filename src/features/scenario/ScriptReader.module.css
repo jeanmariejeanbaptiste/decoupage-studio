@@ -11,7 +11,7 @@
 .el_pagebreak { border-top: 1px dashed var(--rule); color: transparent; }
 .muted { color: var(--ink-soft); font-style: italic; }
 
-.sentence { border-radius: 2px; transition: background var(--t-fast) var(--ease); }
+.sentence { position: relative; border-radius: 2px; transition: background var(--t-fast) var(--ease); }
 .sentence:hover { background: color-mix(in srgb, var(--rust) 8%, transparent); }
 .reply { position: relative; margin: 12pt 0 11pt; padding: 1px 0; border-radius: 3px; }
 .reply:hover { background: color-mix(in srgb, var(--rust) 6%, transparent); }
@@ -22,7 +22,9 @@
 .plus { display: none; width: 15px; height: 15px; margin: 0 0 0 3px; padding: 0; border: 1px solid var(--rust); border-radius: 50%; background: var(--paper-card); color: var(--rust); cursor: pointer; vertical-align: super; font-family: var(--font-ui, sans-serif); font-size: 11px; line-height: 12px; text-align: center; }
 .plus::before { content: '+'; }
 .plus:hover { background: var(--rust); color: var(--paper-card); }
-.sentence:hover > .plus { display: inline-block; }
+/* Hors du flux du texte : son apparition ne déplace aucun mot. Il se pose juste après la fin de la phrase. */
+.sentence > .plus { position: absolute; right: -18px; bottom: 0.55em; z-index: 2; }
+.sentence:hover > .plus { display: block; }
 .reply > .plus { position: absolute; right: 12%; bottom: 0; }
 .reply:hover > .plus { display: inline-block; }
 .selPlus { position: absolute; z-index: 5; width: 20px; height: 20px; margin: -26px 0 0 6px; padding: 0; border: 1px solid var(--rust); border-radius: 50%; background: var(--rust); color: var(--paper-card); cursor: pointer; box-shadow: 0 2px 6px rgba(42, 40, 36, 0.25); font-size: 14px; line-height: 17px; }
