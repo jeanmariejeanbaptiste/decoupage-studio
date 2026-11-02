@@ -17,10 +17,3 @@
 .app { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
 .sep { color: var(--ink-soft); }
 .title { color: var(--ink-soft); font-style: italic; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; }
-.avatar {
-  width: 28px; height: 28px; border-radius: 50%;
-  border: 1px solid var(--ink);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-size: 15px; font-weight: 600;
-  margin-right: 4px;
-}

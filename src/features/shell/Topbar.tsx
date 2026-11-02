@@ -18,7 +18,6 @@ interface Props {
   onSave: () => void;
   theme: 'papier' | 'encre';
   onToggleTheme: () => void;
-  userInitial: string;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -49,7 +48,6 @@ export function Topbar(p: Props) {
       </div>
       <div className={s.right}>
         <ShareButton />
-        <span className={s.avatar} aria-hidden="true">{p.userInitial}</span>
         <Button
           variant="icon"
           aria-label={p.theme === 'encre' ? 'Thème papier' : 'Thème encre'}

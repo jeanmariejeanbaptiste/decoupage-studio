@@ -1,4 +1,4 @@
-import { redoHome, undoHome, useHomeHistory } from '../store/homeHistory';
+import { redoHome, undoHome } from '../store/homeHistory';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useState } from 'react';
 import { runChecks } from '../domain/lint';
@@ -72,8 +72,6 @@ export function App() {
   };
   const setUi = useUi((u) => u.set);
   const { canUndo, canRedo } = useHistory();
-  const homeUndo = useHomeHistory((h) => h.past.length > 0);
-  const homeRedo = useHomeHistory((h) => h.future.length > 0);
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
@@ -146,20 +144,21 @@ export function App() {
       }}>
         Aller au contenu
       </a>
-      <Topbar
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={showSidebar ? toggleSidebar : undefined}
-        projectTitle={route === 'home' ? undefined : title}
-        saveStatus={doc ? SAVE_LABEL[saveStatus] : ''}
-        canUndo={route === 'home' ? homeUndo : canUndo}
-        canRedo={route === 'home' ? homeRedo : canRedo}
-        onUndo={route === 'home' ? () => void undoHome() : undo}
-        onRedo={route === 'home' ? () => void redoHome() : redo}
-        onSave={() => void saveToFile()}
-        theme={theme}
-        onToggleTheme={() => setUi({ theme: theme === 'papier' ? 'encre' : 'papier' })}
-        userInitial={(doc?.project.director || title || 'D').charAt(0).toUpperCase()}
-      />
+      {route !== 'home' && (
+        <Topbar
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={showSidebar ? toggleSidebar : undefined}
+          projectTitle={title}
+          saveStatus={doc ? SAVE_LABEL[saveStatus] : ''}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={undo}
+          onRedo={redo}
+          onSave={() => void saveToFile()}
+          theme={theme}
+          onToggleTheme={() => setUi({ theme: theme === 'papier' ? 'encre' : 'papier' })}
+        />
+      )}
       <GuestBanner />
       <div className={s.body}>
         {showSidebar && sidebarOpen && doc && <Sidebar

@@ -74,6 +74,7 @@ test('supprimer un projet à l’accueil : annuler et rétablir', async ({ page 
   await expect(page.getByTestId('project-list')).toContainText('À effacer');
   await page.keyboard.press(`${mod}+Shift+z`);
   await expect(page.getByTestId('project-list')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Annuler (⌘Z)' }).click();
+  await page.keyboard.press(`${mod}+z`);
   await expect(page.getByTestId('project-list')).toContainText('À effacer');
+  await expect(page.getByTestId('toggle-sidebar')).toHaveCount(0);
 });
