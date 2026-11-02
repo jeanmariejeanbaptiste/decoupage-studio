@@ -256,17 +256,15 @@
 .list {
   list-style: none;
   margin: 0;
-  padding: 4px 4px 10px;
+  padding: 4px 0 10px;
+  width: min(1060px, 100%);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 14px;
-  max-width: 100%;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
 }
-.list > :first-child { margin-left: auto; }
-.list > :last-child { margin-right: auto; }
-.item { position: relative; flex: 0 0 250px; scroll-snap-align: start; animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.item { position: relative; flex: 0 1 250px; min-width: 0; animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (max-width: 600px) { .item { flex-basis: 100%; } }
 .card {
   width: 100%;
   height: 100%;
