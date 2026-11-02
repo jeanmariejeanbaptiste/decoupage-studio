@@ -40,7 +40,7 @@ test('suppression : plan (annulable) et séquence volumineuse protégée', async
   await page.locator(ROWS).first().hover();
   await page.locator(ROWS).first().getByTestId('delete-shot').click();
   await expect(page.locator(ROWS)).toHaveCount(52);
-  await page.getByTestId('toast').filter({ hasText: 'supprimé' }).getByRole('button', { name: 'Annuler' }).click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
   await expect(page.locator(ROWS)).toHaveCount(53);
   const seq7 = page.locator('tbody[data-seq]').nth(6);
   await seq7.locator('[data-cell$=":sequence"]').hover();

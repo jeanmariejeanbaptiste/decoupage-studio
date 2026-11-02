@@ -893,7 +893,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                           updateFloorItem(d, planKey, id, { x: gx(o.x, g), y: gy(o.y, g), width: Math.max(10, Math.round(o.width * g.k)), rot: o.rot } as Partial<FloorItem>);
                         }
                     });
-                    useUi.getState().toast({ message: `${placed.walls.length} murs, ${placed.doors.length} portes et ${placed.windows.length} fenêtres placés (modifiables, annulable avec ⌘Z).` });
                     setMdImport(null);
                   }}
                 >
@@ -1193,7 +1192,7 @@ function ItemShape({
     case 'wall':
     case 'rail':
       return (
-        <g className={cls} onPointerDown={(e) => onDown(e, item.id)}>
+        <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid={`fp-${item.kind}`}>
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
           <line
             x1={item.x}

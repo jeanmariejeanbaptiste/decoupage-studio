@@ -3,13 +3,11 @@ import { Copy, Users, X } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { joinSession, kickGuest, leaveSession, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';
 import { useDoc } from '../../store/projectStore';
-import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import s from './Share.module.css';
 
-const copy = async (text: string, what: string) => {
+const copy = async (text: string) => {
   await navigator.clipboard.writeText(text).catch(() => undefined);
-  useUi.getState().toast({ message: `${what} copié.` });
 };
 
 /** Bouton « Partager » de la barre du haut : ouvre, règle et ferme le partage du projet. */
@@ -65,18 +63,18 @@ export function ShareButton() {
               <div className={s.field}>
                 <span>Lien</span>
                 <code data-testid="share-link">{shareLink(st.room!)}</code>
-                <button type="button" onClick={() => void copy(shareLink(st.room!), 'Lien')} aria-label="Copier le lien">
+                <button type="button" onClick={() => void copy(shareLink(st.room!))} aria-label="Copier le lien">
                   <Copy size={13} />
                 </button>
               </div>
               <div className={s.field}>
                 <span>Mot de passe</span>
                 <code data-testid="share-password">{st.password}</code>
-                <button type="button" onClick={() => void copy(st.password!, 'Mot de passe')} aria-label="Copier le mot de passe">
+                <button type="button" onClick={() => void copy(st.password!)} aria-label="Copier le mot de passe">
                   <Copy size={13} />
                 </button>
               </div>
-              <Button size="sm" onClick={() => void copy(`${shareLink(st.room!)}\nMot de passe : ${st.password}`, 'Lien et mot de passe')}>
+              <Button size="sm" onClick={() => void copy(`${shareLink(st.room!)}\nMot de passe : ${st.password}`)}>
                 Copier lien et mot de passe
               </Button>
               <fieldset className={s.seg}>

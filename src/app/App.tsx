@@ -1,3 +1,4 @@
+import { redoHome, undoHome, useHomeHistory } from '../store/homeHistory';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useState } from 'react';
 import { runChecks } from '../domain/lint';
@@ -71,6 +72,8 @@ export function App() {
   };
   const setUi = useUi((u) => u.set);
   const { canUndo, canRedo } = useHistory();
+  const homeUndo = useHomeHistory((h) => h.past.length > 0);
+  const homeRedo = useHomeHistory((h) => h.future.length > 0);
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
@@ -110,7 +113,11 @@ export function App() {
       }
       if (mod && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
-        if (e.shiftKey) redo();
+        // À l'accueil, ⌘Z annule la suppression d'un projet.
+        if (window.location.hash.replace(/^#\/?/, '').split('?')[0] === '' || window.location.hash.startsWith('#/home')) {
+          if (e.shiftKey) void redoHome();
+          else void undoHome();
+        } else if (e.shiftKey) redo();
         else undo();
       }
     };
@@ -144,10 +151,10 @@ export function App() {
         onToggleSidebar={showSidebar ? toggleSidebar : undefined}
         projectTitle={route === 'home' ? undefined : title}
         saveStatus={doc ? SAVE_LABEL[saveStatus] : ''}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={undo}
-        onRedo={redo}
+        canUndo={route === 'home' ? homeUndo : canUndo}
+        canRedo={route === 'home' ? homeRedo : canRedo}
+        onUndo={route === 'home' ? () => void undoHome() : undo}
+        onRedo={route === 'home' ? () => void redoHome() : redo}
         onSave={() => void saveToFile()}
         theme={theme}
         onToggleTheme={() => setUi({ theme: theme === 'papier' ? 'encre' : 'papier' })}

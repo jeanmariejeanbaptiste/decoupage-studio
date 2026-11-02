@@ -116,7 +116,7 @@ test('plan au sol : import du fichier .md de l’IA, aperçu ajustable, sélecti
   await page.getByRole('button', { name: 'Agrandir les murs importés' }).click();
   await expect(page.getByTestId('fp-ai-scale')).toHaveText('110 %');
   await page.getByTestId('fp-ai-apply').click();
-  await expect(page.getByTestId('toast')).toContainText('3 murs, 1 portes');
+  await expect(page.getByTestId('fp-wall')).toHaveCount(3);
   await expect(page.getByTestId('fp-ai-ghost')).toHaveCount(0);
   // Rectangle de sélection sur tout le plan, puis suppression groupée.
   const box = (await page.getByTestId('floorplan').boundingBox())!;

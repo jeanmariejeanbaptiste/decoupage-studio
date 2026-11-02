@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, LayoutTemplate } from 'lucide-react';
 import { templatesFor, applyTemplate } from '../../domain/templates';
 import type { ProjectDoc } from '../../domain/types';
-import { mutateDoc, useProjectStore, undo } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { currentShotId, rowOfShot } from './actions';
@@ -19,7 +19,7 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
     return () => window.removeEventListener('mousedown', close);
   }, [open]);
 
-  const insert = (key: string, label: string) => {
+  const insert = (key: string) => {
     setOpen(false);
     const cur = currentShotId();
     const seqId = cur ? doc.shots[cur]?.sequenceId : undefined;
@@ -28,7 +28,6 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
     const after = useProjectStore.getState().doc;
     const first = newSeq && after ? after.sequences[newSeq]?.shotIds[0] : undefined;
     if (after && first) useUi.getState().setSelection({ row: rowOfShot(after, first), col: 'subject' });
-    useUi.getState().toast({ message: `Modèle « ${label} » inséré.`, actionLabel: 'Annuler', action: undo });
   };
 
   return (
@@ -44,7 +43,7 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
         <div className={[s.menu, s.wide].join(' ')} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Insérer un modèle de séquence</p>
           {templatesFor(doc.project.format).map((t) => (
-            <button key={t.key} type="button" role="menuitem" className={s.tplItem} onClick={() => insert(t.key, t.label)}>
+            <button key={t.key} type="button" role="menuitem" className={s.tplItem} onClick={() => insert(t.key)}>
               <strong>
                 {t.label}
                 {t.formats.includes(doc.project.format) && <em>suggéré</em>}

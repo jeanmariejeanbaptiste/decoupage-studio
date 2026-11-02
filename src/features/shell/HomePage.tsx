@@ -1,11 +1,12 @@
+import { removeProject, undoHome, useHomeHistory } from '../../store/homeHistory';
 import { useCallback, useEffect, useState } from 'react';
 import { FileUp, Plus, Trash2 } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { deleteProject, listProjects, type ProjectSummary } from '../../store/db';
+import { listProjects, type ProjectSummary } from '../../store/db';
 import { openFromFile, openStoredProject, rememberLastProject } from '../../store/persistence';
 import { useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
-import { ask } from '../../ui/dialogStore';
+import { useUi } from '../../store/uiStore';
 import { NewProjectWizard } from './NewProjectWizard';
 import s from './HomePage.module.css';
 
@@ -22,26 +23,21 @@ const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long'
 export function HomePage() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [wizard, setWizard] = useState(false);
+  const rev = useHomeHistory((h) => h.rev);
   const refresh = useCallback(() => void listProjects().then(setProjects), []);
-  useEffect(refresh, [refresh]);
+  useEffect(refresh, [refresh, rev]);
 
   const open = async (id: string) => {
     if (await openStoredProject(id)) navigate('grid');
   };
+  // Suppression directe, annulable (⌘Z ou « Annuler ») et rétablissable (⌘⇧Z).
   const remove = async (p: ProjectSummary) => {
-    const res = await ask({
-      title: `Supprimer « ${p.title} » ?`,
-      body: 'Le projet sera effacé de ce navigateur. Pensez à l’enregistrer dans un fichier auparavant.',
-      confirmLabel: 'Supprimer',
-      danger: true,
-    });
-    if (!res.ok) return;
-    await deleteProject(p.id);
+    await removeProject(p.id);
     if (useProjectStore.getState().doc?.project.id === p.id) {
       useProjectStore.getState().loadDoc(null);
       rememberLastProject(null);
     }
-    refresh();
+    useUi.getState().toast({ message: `Projet « ${p.title} » supprimé.`, actionLabel: 'Annuler', action: () => void undoHome() });
   };
 
   const n = projects?.length ?? 0;

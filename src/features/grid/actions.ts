@@ -160,7 +160,6 @@ export function deleteCurrentShots(): void {
   const d = doc();
   const ids = selectedShotIds();
   if (!d || ids.length === 0) return;
-  const label = ids.length === 1 ? `Plan ${shotCode(d, ids[0])} supprimé` : `${ids.length} plans supprimés`;
   const row = ui().selection?.focus.row ?? 0;
   mutateDoc((x) => ids.forEach((id) => deleteShot(x, id)));
   const after = doc();
@@ -169,16 +168,13 @@ export function deleteCurrentShots(): void {
     const col = ui().selection?.focus.col ?? 'subject';
     ui().setSelection(total ? { row: Math.min(row, total - 1), col } : null);
   }
-  ui().toast({ message: label, actionLabel: 'Annuler', action: undo });
 }
 
 /** Supprime un plan précis (bouton de la ligne), annulable. */
 export function deleteShotById(shotId: ID): void {
   const d = doc();
   if (!d?.shots[shotId]) return;
-  const label = `Plan ${shotCode(d, shotId)} supprimé`;
   mutateDoc((x) => deleteShot(x, shotId));
-  ui().toast({ message: label, actionLabel: 'Annuler', action: undo });
 }
 
 /** Seuil à partir duquel la suppression d'une séquence demande une confirmation renforcée. */
@@ -208,7 +204,6 @@ export async function deleteSequenceOf(shotId?: ID, seqIdArg?: ID): Promise<void
   }
   mutateDoc((x) => deleteSequence(x, seqId));
   ui().setSelection(null);
-  ui().toast({ message: 'Séquence supprimée', actionLabel: 'Annuler', action: undo });
 }
 
 export function moveCurrentShot(delta: -1 | 1): void {
@@ -274,7 +269,6 @@ export function linkSelection(): void {
     return;
   }
   mutateDoc((x) => linkAction(x, ids));
-  ui().toast({ message: `Action liée sur ${ids.length} plans.`, actionLabel: 'Annuler', action: undo });
 }
 
 export function unlinkSelection(): void {
@@ -323,5 +317,4 @@ export function pasteMatrix(matrix: string[][], start: CellPos, columns: readonl
       idx++;
     }
   });
-  ui().toast({ message: `${matrix.length} ligne${matrix.length > 1 ? 's' : ''} collée${matrix.length > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
 }

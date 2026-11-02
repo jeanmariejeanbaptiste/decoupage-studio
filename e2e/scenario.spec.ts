@@ -21,10 +21,7 @@ test.describe('scénario et liaison', () => {
     await selectText(page, 'Marc attend sous la pluie');
     await page.getByTestId('scenario-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
     // Mode lié (par défaut) : le plan va directement dans la séquence de la scène.
-    await expect(page.getByTestId('toast')).toContainText('ajouté au découpage');
     await expect(marc).toHaveCount(before + 1);
-    await page.getByTestId('toast').getByRole('button', { name: 'Voir' }).click();
-    await expect(page.locator('[data-cell$=":action"]').filter({ hasText: 'Marc attend sous la pluie' }).first()).toBeVisible();
   });
 
   test('les répliques sélectionnées vont dans le dialogue', async ({ page }) => {
@@ -36,7 +33,6 @@ test.describe('scénario et liaison', () => {
     await page.getByTestId('create-shot-from-selection').click();
     await expect(page.getByRole('menuitem').first()).toContainText('(suggérée)');
     await page.getByRole('menuitem').first().click();
-    await expect(page.getByTestId('toast')).toContainText('ajouté au découpage');
     const doc = await page.evaluate(() => (window as unknown as { __ds: { doc: () => { shots: Record<string, { subject: string; actionBlockId: string }>; blocks: Record<string, { dialogue?: string }> } } }).__ds.doc());
     const shot = Object.values(doc.shots).find((s) => doc.blocks[s.actionBlockId].dialogue === "GUICHETIER : C'est pour combien de temps ?");
     expect(shot?.subject).toBe('Guichetier');
@@ -100,7 +96,6 @@ test('scénario dans le découpage : un seul panneau à droite, + par phrase et 
   const sentence = panel.getByTestId('script-sentence').first();
   await sentence.hover();
   await sentence.getByTestId('script-plus').click();
-  await expect(page.getByTestId('toast')).toContainText('ajouté au découpage');
   await expect(rows).toHaveCount(n + 1);
   // Sélection libre : un « + » apparaît au-dessus de la fin de la sélection.
   const target = panel.getByTestId('script-sentence').nth(2).locator('span').first();

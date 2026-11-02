@@ -130,7 +130,6 @@ export async function saveToFile(): Promise<void> {
     }
   }
   downloadBlob(blob, name);
-  useUi.getState().toast({ message: `Fichier ${name} téléchargé.` });
 }
 
 function pickFileFallback(accept: string): Promise<File | null> {
@@ -163,7 +162,6 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
   try {
     const doc = parseProjectFile(await f.text());
     await openDoc(doc);
-    useUi.getState().toast({ message: `Projet « ${doc.project.title} » ouvert.` });
     return true;
   } catch (e) {
     useUi.getState().toast({ message: (e as Error).message, tone: 'warn' });

@@ -24,7 +24,6 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
   const xlsx = async () => {
     const { exportXlsx } = await import('./xlsx');
     downloadBlob(await exportXlsx(doc), `${base}.xlsx`);
-    toast({ message: `Classeur ${base}.xlsx téléchargé.` });
   };
 
   const setCols = (cols: ColumnKey[]) =>

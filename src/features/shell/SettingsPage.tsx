@@ -4,7 +4,6 @@ import { useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
 import { defaultSettings, newId } from '../../domain/factory';
-import { useUi } from '../../store/uiStore';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
 import type { ProjectDoc, ProjectFormat, ProjectSettings, Sensor, ShotCodeFormat } from '../../domain/types';
@@ -112,7 +111,6 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
                   d.project.settings.tcMode = def.tcMode;
                   d.project.settings.tcGranularity = def.tcGranularity;
                 });
-                useUi.getState().toast({ message: `Projet passé en ${v} : minutage ${v === 'clip' || v === 'pub' ? 'calé sur la piste' : 'en durée de chaque plan'}.` });
               }}
               options={[
                 ['fiction', 'Fiction'],

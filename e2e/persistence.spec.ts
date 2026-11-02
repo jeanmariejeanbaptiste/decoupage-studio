@@ -57,3 +57,23 @@ test('aller-retour fichier .decoupage sans perte', async ({ page }) => {
   const orig = original as { project: { updatedAt: string } };
   expect({ ...reopened, project: { ...reopened.project, updatedAt: '' } }).toEqual({ ...orig, project: { ...orig.project, updatedAt: '' } });
 });
+
+test('supprimer un projet à l’accueil : annuler et rétablir', async ({ page }) => {
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
+  await page.goto('/#/');
+  await page.getByTestId('new-project').click();
+  await page.getByLabel('Titre du projet').fill('À effacer');
+  await page.getByTestId('wizard-next').click();
+  await expect(page.getByTestId('create-first')).toBeVisible();
+  await page.goto('/#/');
+  const list = page.getByTestId('project-list');
+  await expect(list).toContainText('À effacer');
+  await page.getByRole('button', { name: 'Supprimer À effacer' }).click();
+  await expect(list).toHaveCount(0);
+  await page.keyboard.press(`${mod}+z`);
+  await expect(page.getByTestId('project-list')).toContainText('À effacer');
+  await page.keyboard.press(`${mod}+Shift+z`);
+  await expect(page.getByTestId('project-list')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Annuler (⌘Z)' }).click();
+  await expect(page.getByTestId('project-list')).toContainText('À effacer');
+});

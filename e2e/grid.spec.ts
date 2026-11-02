@@ -65,7 +65,8 @@ test('naviguer, annuler et supprimer au clavier', async ({ page }) => {
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
   await page.keyboard.press(`${mod}+Backspace`);
   await expect(page.locator(ROWS)).toHaveCount(10);
-  await expect(page.getByTestId('toast')).toContainText('Plan 1.2 supprimé');
+  // Pas de message pour une suppression courante : ⌘Z suffit.
+  await expect(page.getByTestId('toast')).toHaveCount(0);
   await page.keyboard.press(`${mod}+z`);
   await expect(page.locator(ROWS)).toHaveCount(11);
   await page.keyboard.press(`${mod}+Shift+z`);

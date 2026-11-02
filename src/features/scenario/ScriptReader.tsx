@@ -1,11 +1,10 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
-import { sequenceHeading, shotCode } from '../../domain/numbering';
+import { sequenceHeading } from '../../domain/numbering';
 import { createShotFromPassage, sentencesOf } from '../../domain/scriptToShot';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
-import { goToShot } from '../registry/RegistryPage';
 import s from './ScriptReader.module.css';
 
 /**
@@ -17,11 +16,9 @@ export function addPassageAsShot(start: number, end: number, at: { x: number; y:
   const source = doc?.scenario ?? '';
   if (!doc || end <= start) return;
   const dialogueShown = doc.project.settings.gridColumns.includes('dialogue');
-  const done = (shotId: ID | undefined) => {
-    const after = useProjectStore.getState().doc;
-    if (shotId && after)
-      useUi.getState().toast({ message: `Plan ${shotCode(after, shotId)} ajouté au découpage.`, actionLabel: 'Voir', action: () => goToShot(useProjectStore.getState().doc!, shotId) });
-  };
+  // Pas de message : le plan apparaît aussitôt dans le découpage (et la liste de l'onglet Scénario).
+  const done = (shotId: ID | undefined) => void shotId;
+
   if ((doc.project.settings.scenarioLink ?? 'auto') === 'auto') {
     done(mutateDoc((d) => createShotFromPassage(d, source, start, end, { dialogueShown })));
     return;

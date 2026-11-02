@@ -81,3 +81,22 @@ export async function getBlob(key: string, remote = true): Promise<Blob | undefi
 export async function putBlobRaw(key: string, projectId: string, blob: Blob): Promise<void> {
   await db.blobs.put({ key, projectId, name: key, blob });
 }
+
+/** Projet complet (fiche + images), pour annuler une suppression. */
+export interface ProjectSnapshot {
+  project: StoredProject;
+  blobs: StoredBlob[];
+}
+
+export async function snapshotProject(id: string): Promise<ProjectSnapshot | undefined> {
+  const project = await db.projects.get(id);
+  if (!project) return undefined;
+  return { project, blobs: await db.blobs.where('projectId').equals(id).toArray() };
+}
+
+export async function restoreProject(snap: ProjectSnapshot): Promise<void> {
+  await db.transaction('rw', db.projects, db.blobs, async () => {
+    await db.projects.put(snap.project);
+    await db.blobs.bulkPut(snap.blobs);
+  });
+}
