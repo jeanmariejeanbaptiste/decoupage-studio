@@ -1,5 +1,6 @@
 import { redoHome, undoHome } from '../store/homeHistory';
 import { isShortcut } from '../store/shortcuts';
+import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useState } from 'react';
 import { runChecks } from '../domain/lint';
@@ -159,7 +160,7 @@ export function App() {
           onRedo={redo}
           onSave={() => void saveToFile()}
           theme={theme}
-          onToggleTheme={() => setUi({ theme: theme === 'papier' ? 'encre' : 'papier' })}
+          onToggleTheme={(e) => switchTheme(e)}
         />
       )}
       <GuestBanner />

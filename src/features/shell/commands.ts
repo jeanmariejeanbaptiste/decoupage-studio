@@ -1,3 +1,4 @@
+import { switchTheme } from '../../ui/themeSwitch';
 import type { ShortcutId } from '../../domain/shortcuts';
 import { navigate } from '../../app/router';
 import { saveToFile, openFromFile } from '../../store/persistence';
@@ -72,7 +73,7 @@ export const COMMANDS: readonly Command[] = [
     id: 'theme',
     group: 'Affichage',
     label: 'Basculer le thème papier / encre',
-    run: () => useUi.getState().set({ theme: useUi.getState().theme === 'papier' ? 'encre' : 'papier' }),
+    run: () => switchTheme(),
   },
   { id: 'help', group: 'Affichage', label: 'Aide des raccourcis', shortcut: 'help', run: () => useUi.getState().set({ helpOpen: true }) },
 ];

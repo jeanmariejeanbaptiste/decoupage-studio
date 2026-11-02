@@ -93,3 +93,8 @@ button { cursor: pointer; }
 .shot-icon .si-move { stroke-width: 1; color: var(--rust); stroke: var(--rust); }
 .shot-icon .si-fov { stroke: var(--rust); stroke-width: 0.6; opacity: 0.8; }
 .shot-icon .si-mm { fill: currentColor; stroke: none; font-family: var(--font-mono); font-size: 7px; }
+
+/* Changement de thème à l'iris : l'ancien thème reste dessous, le nouveau s'ouvre en cercle. */
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(root) { z-index: 2; }

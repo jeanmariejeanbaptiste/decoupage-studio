@@ -17,6 +17,7 @@ import s from './SettingsPage.module.css';
 import { conflictOf, comboFromEvent, formatCombo, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId } from '../../domain/shortcuts';
 import { resetShortcuts, setShortcut, useShortcuts } from '../../store/shortcuts';
 import { useUi } from '../../store/uiStore';
+import { switchTheme } from '../../ui/themeSwitch';
 import { navigate, useLocation } from '../../app/router';
 
 const set = <K extends keyof ProjectSettings>(k: K, v: ProjectSettings[K]) =>
@@ -345,7 +346,7 @@ function AppearanceSection() {
             ] as const
           ).map(([v, label, icon]) => (
             <label key={v} className={theme === v ? s.on : ''}>
-              <input type="radio" name="Thème" checked={theme === v} onChange={() => useUi.getState().set({ theme: v })} />
+              <input type="radio" name="Thème" checked={theme === v} onChange={() => theme !== v && switchTheme()} />
               {icon} {label}
             </label>
           ))}

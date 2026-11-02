@@ -18,7 +18,7 @@ interface Props {
   onRedo: () => void;
   onSave: () => void;
   theme: 'papier' | 'encre';
-  onToggleTheme: () => void;
+  onToggleTheme: (e: { clientX: number; clientY: number }) => void;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
 }

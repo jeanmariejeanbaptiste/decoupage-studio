@@ -9,6 +9,7 @@ import { openFromFile, openStoredProject, rememberLastProject } from '../../stor
 import { useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { NewProjectWizard } from './NewProjectWizard';
+import { switchTheme } from '../../ui/themeSwitch';
 import s from './HomePage.module.css';
 
 const FORMAT_LABEL: Record<string, string> = {
@@ -23,9 +24,9 @@ const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
- * Accueil : une salle obscure. Un faisceau de projecteur s'allume, la poussière y flotte, le grain
- * de la pellicule vibre ; autour, les repères d'un viseur. Les projets sont posés en bas, comme des
- * plaques de verre.
+ * Accueil, composé sur un axe central : en haut, l'objectif d'un projecteur dont le faisceau descend
+ * sur le titre ; la poussière y flotte, le grain de la pellicule vibre ; autour, les repères
+ * symétriques d'un viseur. Les projets sont posés en bas, comme des plaques de verre.
  */
 export function HomePage() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -62,21 +63,19 @@ export function HomePage() {
       <Viewfinder />
 
       <header className={s.top}>
+        <Timecode />
         <span className={s.brand}>
           Découpage <em>Studio</em>
         </span>
-        <span className={s.topRight}>
-          <Timecode />
-          <button
-            type="button"
-            className={s.toggle}
-            onClick={() => useUi.getState().set({ theme: theme === 'papier' ? 'encre' : 'papier' })}
-            aria-label={theme === 'encre' ? 'Thème papier' : 'Thème encre'}
-          >
-            <span className={theme === 'papier' ? s.toggleOn : ''}>Jour</span>
-            <span className={theme === 'encre' ? s.toggleOn : ''}>Nuit</span>
-          </button>
-        </span>
+        <button
+          type="button"
+          className={s.toggle}
+          onClick={(e) => switchTheme(e)}
+          aria-label={theme === 'encre' ? 'Thème papier' : 'Thème encre'}
+        >
+          <span className={theme === 'papier' ? s.toggleOn : ''}>Jour</span>
+          <span className={theme === 'encre' ? s.toggleOn : ''}>Nuit</span>
+        </button>
       </header>
 
       <main className={s.hero}>
@@ -106,9 +105,10 @@ export function HomePage() {
 
       <section className={s.shelf} aria-label="Projets">
         <p className={s.shelfHead}>
-          <span>Vos projets</span>
           <span className={s.rule} />
-          <span>{pad(n)}</span>
+          <span>Vos projets</span>
+          <span className={s.count}>{pad(n)}</span>
+          <span className={s.rule} />
         </p>
         {projects && projects.length === 0 && (
           <div className={s.empty}>
@@ -192,11 +192,13 @@ function Viewfinder() {
       <i className={s.cornerTR} />
       <i className={s.cornerBL} />
       <i className={s.cornerBR} />
-      <div className={s.ruler}>
-        {Array.from({ length: 6 }, (_, i) => (
-          <span key={i}>{i * 10}</span>
-        ))}
-      </div>
+      {[s.rulerL, s.rulerR].map((side) => (
+        <div key={side} className={[s.ruler, side].join(' ')}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <span key={i}>{i * 10}</span>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
