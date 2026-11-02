@@ -211,9 +211,19 @@ export function sceneAt(scenes: readonly Scene[], offset: number): Scene | undef
  * Renvoie le nombre de séquences créées et de personnages créés.
  */
 /** Séquence du découpage dont le libellé correspond au lieu de la scène (sans accents ni casse). */
-export function matchSequence(doc: ProjectDoc, scene: Pick<Scene, 'location'>): ID | undefined {
+/**
+ * Séquence du découpage qui correspond à une scène : même lieu, et déjà liée à cette scène précise ;
+ * sinon une séquence du même lieu qui n'est encore liée à aucune scène. Deux scènes
+ * successives au même lieu (« OPEN SPACE » trois fois) donnent ainsi trois séquences distinctes.
+ */
+export function matchSequence(doc: ProjectDoc, scene: Pick<Scene, 'location'> & Partial<Pick<Scene, 'start' | 'end'>>): ID | undefined {
   const key = fold(scene.location);
-  return doc.project.sequenceIds.find((id) => fold(doc.sequences[id]?.label ?? '') === key);
+  const ids = doc.project.sequenceIds;
+  if (scene.start === undefined || scene.end === undefined) return ids.find((id) => fold(doc.sequences[id]?.label ?? '') === key);
+  const { start, end } = scene;
+  const inScene = (a?: { start: number; end: number }) => !!a && a.start >= start && a.start < end;
+  const same = (id: ID) => fold(doc.sequences[id]?.label ?? '') === key;
+  return ids.find((id) => same(id) && inScene(doc.sequences[id]?.scenarioAnchor)) ?? ids.find((id) => same(id) && !doc.sequences[id]?.scenarioAnchor);
 }
 
 /**

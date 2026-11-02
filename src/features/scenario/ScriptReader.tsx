@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading } from '../../domain/numbering';
-import { createShotFromPassage, sentencesOf } from '../../domain/scriptToShot';
+import { createShotsFromSelection, sentencesOf, splitByScene } from '../../domain/scriptToShot';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -17,10 +17,11 @@ export function addPassageAsShot(start: number, end: number, at: { x: number; y:
   if (!doc || end <= start) return;
   const dialogueShown = doc.project.settings.gridColumns.includes('dialogue');
   // Pas de message : le plan apparaît aussitôt dans le découpage (et la liste de l'onglet Scénario).
-  const done = (shotId: ID | undefined) => void shotId;
+  const done = (shotIds: ID[] | undefined) => void shotIds;
 
-  if ((doc.project.settings.scenarioLink ?? 'auto') === 'auto') {
-    done(mutateDoc((d) => createShotFromPassage(d, source, start, end, { dialogueShown })));
+  // Mode lié, ou sélection à cheval sur plusieurs scènes : chaque morceau va dans la séquence de sa scène.
+  if ((doc.project.settings.scenarioLink ?? 'auto') === 'auto' || splitByScene(source, start, end).length > 1) {
+    done(mutateDoc((d) => createShotsFromSelection(d, source, start, end, { dialogueShown })));
     return;
   }
   const sc = sceneAt(scenesOf(source), start);
@@ -28,9 +29,9 @@ export function addPassageAsShot(start: number, end: number, at: { x: number; y:
   const ids = suggested ? [suggested, ...doc.project.sequenceIds.filter((id) => id !== suggested)] : doc.project.sequenceIds;
   const items = ids.map((id) => ({
     label: `Dans ${sequenceHeading(doc, id)}${id === suggested ? ' (suggérée)' : ''}`,
-    action: () => done(mutateDoc((d) => createShotFromPassage(d, source, start, end, { dialogueShown, seqId: id }))),
+    action: () => done(mutateDoc((d) => createShotsFromSelection(d, source, start, end, { dialogueShown, seqId: id }))),
   }));
-  items.push({ label: 'Dans une nouvelle séquence', action: () => done(mutateDoc((d) => createShotFromPassage(d, source, start, end, { dialogueShown }))) });
+  items.push({ label: 'Dans une nouvelle séquence', action: () => done(mutateDoc((d) => createShotsFromSelection(d, source, start, end, { dialogueShown }))) });
   useUi.getState().set({ menu: { x: at.x, y: at.y, items } });
 }
 

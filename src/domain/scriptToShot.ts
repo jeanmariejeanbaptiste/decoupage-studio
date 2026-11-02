@@ -173,3 +173,46 @@ export function createShotFromPassage(
 
 /** Personnage d'une ligne de nom (utile à l'affichage). */
 export const cueName = (cue: string) => displayName(characterName(cue));
+
+/**
+ * Découpe une sélection aux frontières de scènes : un morceau par scène traversée, sans les en-têtes
+ * (INT. … - JOUR) ni les blancs. Une sélection dans une seule scène donne un seul morceau.
+ */
+export function splitByScene(source: string, start: number, end: number): Array<{ start: number; end: number }> {
+  const elements = parseFountain(source);
+  const scenes = scenesOf(source, elements);
+  const cuts = [start, ...scenes.map((s) => s.start).filter((s) => s > start && s < end), end];
+  const parts: Array<{ start: number; end: number }> = [];
+  for (let k = 0; k < cuts.length - 1; k++) {
+    let a = cuts[k];
+    const b = cuts[k + 1];
+    // On saute l'en-tête de scène s'il est dans le morceau.
+    const heading = elements.find((el) => el.type === 'heading' && el.start >= a && el.start < b);
+    if (heading && heading.start <= a + 1) a = Math.max(a, heading.end);
+    while (a < b && /\s/.test(source[a])) a++;
+    let z = b;
+    while (z > a && /\s/.test(source[z - 1])) z--;
+    if (z > a) parts.push({ start: a, end: z });
+  }
+  return parts;
+}
+
+/**
+ * Crée les plans d'une sélection : un par scène traversée, chacun rangé dans la séquence de sa scène.
+ * Avec une séquence imposée (mode libre), seule une sélection d'une scène unique y va ; une sélection
+ * à cheval sur plusieurs scènes est toujours répartie scène par scène. Renvoie les plans créés.
+ */
+export function createShotsFromSelection(
+  doc: ProjectDoc,
+  source: string,
+  start: number,
+  end: number,
+  opts: { seqId?: ID; dialogueShown: boolean },
+): ID[] {
+  const parts = splitByScene(source, start, end);
+  if (parts.length <= 1) {
+    const id = createShotFromPassage(doc, source, parts[0]?.start ?? start, parts[0]?.end ?? end, opts);
+    return id ? [id] : [];
+  }
+  return parts.map((p) => createShotFromPassage(doc, source, p.start, p.end, { dialogueShown: opts.dialogueShown })).filter((id): id is ID => !!id);
+}

@@ -63,3 +63,39 @@ describe('du scénario au découpage', () => {
     expect(chronologicalIndex(doc, seqId, SCRIPT.length)).toBe(3);
   });
 });
+
+describe('sélection sur plusieurs scènes', () => {
+  const SRC = `INT. ENTREPRISE / OPEN SPACE - JOUR
+
+FLORA regarde son ordinateur.
+
+INT. ENTREPRISE / OPEN SPACE - JOUR
+
+Les bureaux ont changé.
+
+EXT. RUE - NUIT
+
+LÉA traverse la rue.
+`;
+  it('découpe la sélection scène par scène, sans les en-têtes', async () => {
+    const { splitByScene } = await import('./scriptToShot');
+    const a = SRC.indexOf('ordinateur');
+    const b = SRC.indexOf('traverse') + 5;
+    const parts = splitByScene(SRC, a, b).map((p) => SRC.slice(p.start, p.end));
+    expect(parts).toEqual(['ordinateur.', 'Les bureaux ont changé.', 'LÉA trave']);
+  });
+  it('range chaque morceau dans la séquence de sa scène, même au même lieu', async () => {
+    const { createShotsFromSelection } = await import('./scriptToShot');
+    const doc = createProjectDoc({ title: 'T', format: 'fiction' });
+    doc.scenario = SRC;
+    const ids = createShotsFromSelection(doc, SRC, SRC.indexOf('FLORA'), SRC.indexOf('rue.') + 4, { dialogueShown: true });
+    expect(ids).toHaveLength(3);
+    const seqs = ids.map((id) => doc.shots[id].sequenceId);
+    expect(new Set(seqs).size).toBe(3);
+    expect(seqs.map((s) => doc.sequences[s].label)).toEqual(['ENTREPRISE / OPEN SPACE', 'ENTREPRISE / OPEN SPACE', 'RUE']);
+    expect(doc.project.sequenceIds.indexOf(seqs[0])).toBeLessThan(doc.project.sequenceIds.indexOf(seqs[1]));
+    // Une nouvelle sélection dans la 2e scène retrouve la 2e séquence.
+    const again = createShotsFromSelection(doc, SRC, SRC.indexOf('Les bureaux'), SRC.indexOf('changé.') + 7, { dialogueShown: true });
+    expect(doc.shots[again[0]].sequenceId).toBe(seqs[1]);
+  });
+});
