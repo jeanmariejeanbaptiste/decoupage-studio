@@ -29,10 +29,10 @@ export function capitalizeFirst(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Mots prononcés ou joués ; les repères « [Rép. …] » insérés dans l'action ne comptent pas. */
+/** Mots prononcés ou joués ; les repères « [Rép]. » insérés dans l'action ne comptent pas. */
 export function countWords(s: string | undefined): number {
   if (!s) return 0;
-  return s.replace(/\[Rép\.[^\]]*\]/g, ' ').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+  return s.replace(/\[Rép[^\]]*\]\.?/g, ' ').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
 }
 
 export function escapeRegExp(s: string): string {

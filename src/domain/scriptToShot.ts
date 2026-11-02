@@ -69,7 +69,7 @@ export function upperName(text: string, doc?: ProjectDoc): string | undefined {
 }
 
 /**
- * Ce que devient un passage : l'action (avec « [Rép.] » là où des répliques s'intercalent entre deux
+ * Ce que devient un passage : l'action (avec « [Rép]. » là où des répliques s'intercalent entre deux
  * séries d'actions, didascalies comprises),
  * les répliques, le sujet (personnage qui parle, ou prénom en majuscules dans l'action) et, quand la
  * colonne Dialogue n'est pas affichée, une mention courte de la réplique dans la colonne Son (« Rép. », sans le nom déjà en Sujet).
@@ -78,8 +78,8 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
   const elements = parseFountain(source);
   const action: string[] = [];
   const replies: Array<{ name: string; line: string }> = [];
-  // Répliques survenues depuis la dernière action : marquées « [Rép.] » entre deux séries d'actions,
-  // avec leurs didascalies (« [Rép. (ton saccadé)] »).
+  // Répliques survenues depuis la dernière action : marquées « [Rép]. » entre deux séries d'actions,
+  // avec leurs didascalies (« [Rép (ton saccadé)]. »).
   let pending: string[] | null = null;
   for (const el of elements) {
     if (el.end <= start || el.start >= end) continue;
@@ -94,7 +94,7 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
     } else if (el.type === 'parenthetical') {
       (pending ??= []).push(part.startsWith('(') ? part : `(${part})`);
     } else if (el.type === 'action' || el.type === 'centered') {
-      if (pending && action.length) action.push(pending.length ? `[Rép. ${pending.join(' ')}]` : '[Rép.]');
+      if (pending && action.length) action.push(pending.length ? `[Rép ${pending.join(' ')}].` : '[Rép].');
       pending = null;
       action.push(part);
     }
