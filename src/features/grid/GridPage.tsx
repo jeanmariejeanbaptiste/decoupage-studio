@@ -2,9 +2,9 @@ import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
-import { ALL_COLUMNS, COLUMN_DEFS, syncExportColumn, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
@@ -216,13 +216,20 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
   const toggle = (c: ColumnKey) =>
     mutateDoc((d) => {
       const g = d.project.settings.gridColumns;
-      const all = ALL_COLUMNS;
       const shown = !g.includes(c);
-      const next = shown ? [...g, c] : g.filter((x) => x !== c);
-      d.project.settings.gridColumns = tcLast(all.filter((x) => next.includes(x)));
+      // Une colonne ajoutée prend sa place naturelle ; l'ordre choisi pour les autres est conservé.
+      d.project.settings.gridColumns = syncExportColumn(g, c, shown);
       // Ce qu'on affiche dans la grille, on veut l'exporter (et inversement).
       d.project.settings.exportColumns = syncExportColumn(d.project.settings.exportColumns, c, shown);
     });
+  const move = (c: ColumnKey, delta: -1 | 1) =>
+    mutateDoc((d) => {
+      const st = d.project.settings;
+      st.gridColumns = moveColumn(tcLast(st.gridColumns), c, delta);
+      st.exportColumns = followOrder(st.exportColumns, st.gridColumns);
+    });
+  const shownCols = tcLast(cols);
+  const listed = [...shownCols, ...ALL_COLUMNS.filter((c) => !cols.includes(c))];
   return (
     <div className={s.menuWrap} ref={ref}>
       <Button icon={<Columns3 {...IC} />} aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -231,18 +238,33 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
       {open && (
         <div className={s.menu} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Colonnes de la grille</p>
-          {ALL_COLUMNS.map((c) => (
-            <label key={c} className={s.menuItem}>
-              <input
-                type="checkbox"
-                checked={cols.includes(c)}
-                disabled={c === 'sequence' || c === 'number'}
-                onChange={() => toggle(c)}
-              />
-              {COLUMN_DEFS[c].label.charAt(0) + COLUMN_DEFS[c].label.slice(1).toLowerCase()}
-              {COLUMN_DEFS[c].optional && <em>option</em>}
-            </label>
-          ))}
+          {listed.map((c) => {
+            const on = cols.includes(c);
+            const label = COLUMN_DEFS[c].label.charAt(0) + COLUMN_DEFS[c].label.slice(1).toLowerCase();
+            const i = shownCols.indexOf(c);
+            const canUp = on && isMovableColumn(c) && i > 0 && isMovableColumn(shownCols[i - 1]);
+            const canDown = on && isMovableColumn(c) && i < shownCols.length - 1 && isMovableColumn(shownCols[i + 1]);
+            return (
+              <div key={c} className={[s.menuItem, on ? '' : s.menuOff, i === shownCols.length - 1 ? s.menuLastOn : ''].join(' ')}>
+                <label>
+                  <input type="checkbox" checked={on} disabled={c === 'sequence' || c === 'number'} onChange={() => toggle(c)} />
+                  {label}
+                </label>
+                {COLUMN_DEFS[c].optional && on ? (
+                  <span className={s.menuMove}>
+                    <button type="button" aria-label={`Déplacer ${label} vers la gauche`} title="Vers la gauche" disabled={!canUp} onClick={() => move(c, -1)}>
+                      <ChevronUp size={13} strokeWidth={1.5} />
+                    </button>
+                    <button type="button" aria-label={`Déplacer ${label} vers la droite`} title="Vers la droite" disabled={!canDown} onClick={() => move(c, 1)}>
+                      <ChevronDown size={13} strokeWidth={1.5} />
+                    </button>
+                  </span>
+                ) : (
+                  COLUMN_DEFS[c].optional && <em>option</em>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -106,4 +106,12 @@ test('scénario dans le découpage : un seul panneau à droite, + par phrase et 
   await page.mouse.up();
   await panel.getByTestId('script-selection-plus').click();
   await expect(rows).toHaveCount(n + 2);
+  // Un clic ailleurs efface la sélection, et le « + » avec elle.
+  await page.mouse.move(box.x + 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(panel.getByTestId('script-selection-plus')).toBeVisible();
+  await page.mouse.click(box.x + box.width / 2, box.y + 200);
+  await expect(panel.getByTestId('script-selection-plus')).toHaveCount(0);
 });

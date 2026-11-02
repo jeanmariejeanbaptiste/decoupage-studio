@@ -11,6 +11,13 @@
 .menuItem { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 3px; font-size: 13px; cursor: pointer; }
 .menuItem:hover { background: var(--hover); }
 .menuItem em { margin-left: auto; font-size: 11px; color: var(--ink-soft); }
+.menuItem > label { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
+.menuOff > label { color: var(--ink-soft); }
+.menuLastOn { margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); border-radius: 3px 3px 0 0; }
+.menuMove { display: inline-flex; gap: 1px; margin-left: auto; }
+.menuMove button { display: inline-flex; padding: 2px; border: 0; border-radius: 4px; background: none; color: var(--ink-soft); cursor: pointer; }
+.menuMove button:hover:not(:disabled) { color: var(--rust); background: var(--paper); }
+.menuMove button:disabled { opacity: 0.25; cursor: default; }
 .printPreview { overflow: auto; border-radius: 10px; box-shadow: 0 1px 0 var(--rule); }
 .printPreview > div { border-radius: 10px; min-width: 1000px; }
 .workspace { display: flex; gap: 14px; align-items: flex-start; }

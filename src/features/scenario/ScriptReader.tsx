@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading } from '../../domain/numbering';
 import { createShotFromPassage, sentencesOf } from '../../domain/scriptToShot';
@@ -125,6 +125,18 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
       </p>,
     );
   }
+
+  // Le « + » suit la sélection : dès qu'elle disparaît (clic ailleurs, Échap…), il disparaît aussi.
+  const hasSel = !!sel;
+  useEffect(() => {
+    if (!hasSel) return;
+    const check = () => {
+      const sl = window.getSelection();
+      if (!sl || sl.isCollapsed || !sl.rangeCount || !root.current?.contains(sl.getRangeAt(0).commonAncestorContainer)) setSel(null);
+    };
+    document.addEventListener('selectionchange', check);
+    return () => document.removeEventListener('selectionchange', check);
+  }, [hasSel]);
 
   const onMouseUp = (e: MouseEvent) => {
     const sl = window.getSelection();

@@ -15,3 +15,19 @@ describe('colonnes exportées suivant la grille', () => {
     expect(syncExportColumn(base, 'subject', false)).toEqual(['sequence', 'number', 'action', 'tc']);
   });
 });
+
+describe('ordre des colonnes', () => {
+  const g: ColumnKey[] = ['sequence', 'number', 'subject', 'action', 'dialogue', 'sound', 'tc'];
+  it('déplace une colonne sans franchir N° ni TC', async () => {
+    const { moveColumn } = await import('./columns');
+    expect(moveColumn(g, 'sound', -1)).toEqual(['sequence', 'number', 'subject', 'action', 'sound', 'dialogue', 'tc']);
+    expect(moveColumn(g, 'subject', -1)).toEqual(g);
+    expect(moveColumn(g, 'sound', 1)).toEqual(g);
+  });
+  it('reporte l’ordre de la grille sur l’export', async () => {
+    const { followOrder } = await import('./columns');
+    const exp: ColumnKey[] = ['sequence', 'number', 'subject', 'action', 'focal', 'dialogue', 'sound', 'tc'];
+    const grid: ColumnKey[] = ['sequence', 'number', 'subject', 'sound', 'action', 'dialogue', 'tc'];
+    expect(followOrder(exp, grid)).toEqual(['sequence', 'number', 'subject', 'sound', 'focal', 'action', 'dialogue', 'tc']);
+  });
+});

@@ -273,3 +273,19 @@ test('une colonne affichée dans la grille est exportée', async ({ page }) => {
   await page.goto('/#/export');
   await expect(page.getByRole('checkbox', { name: 'Image', exact: true })).toBeChecked();
 });
+
+test('réordonner les colonnes facultatives depuis le menu Colonnes', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByRole('button', { name: 'Colonnes' }).click();
+  const menu = page.getByRole('menu');
+  await menu.getByRole('checkbox', { name: /^Image/ }).check();
+  const heads = page.locator('thead th[scope="col"]');
+  await expect(heads.nth(-2)).toHaveText('Image');
+  await menu.getByRole('button', { name: 'Déplacer Image vers la gauche' }).click();
+  await menu.getByRole('button', { name: 'Déplacer Image vers la gauche' }).click();
+  const labels = await heads.allTextContents();
+  expect(labels.indexOf('Image')).toBeLessThan(labels.indexOf('Action'));
+  await page.goto('/#/export');
+  const exported = await page.getByRole('list', { name: 'Colonnes exportées' }).locator('label').allTextContents();
+  expect(exported.indexOf('Image')).toBeLessThan(exported.indexOf('Action'));
+});

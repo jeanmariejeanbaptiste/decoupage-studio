@@ -71,3 +71,24 @@ export function syncExportColumn(exportCols: readonly ColumnKey[], col: ColumnKe
   });
   return tcLast([...exportCols.slice(0, at), col, ...exportCols.slice(at)]);
 }
+
+/** Colonnes figées en tête (SÉQUENCE, N°) et en fin (TC) : les autres se réordonnent entre elles. */
+const PINNED: readonly ColumnKey[] = ['sequence', 'number', 'tc'];
+export const isMovableColumn = (c: ColumnKey) => !PINNED.includes(c);
+
+/** Déplace une colonne d'un cran vers la gauche (-1) ou la droite (+1), sans franchir les colonnes figées. */
+export function moveColumn(cols: readonly ColumnKey[], col: ColumnKey, delta: -1 | 1): ColumnKey[] {
+  const out = [...cols];
+  const i = out.indexOf(col);
+  const j = i + delta;
+  if (i < 0 || !isMovableColumn(col) || j < 0 || j >= out.length || !isMovableColumn(out[j])) return out;
+  [out[i], out[j]] = [out[j], out[i]];
+  return out;
+}
+
+/** Aligne l'ordre de l'export sur celui de la grille pour les colonnes présentes dans les deux. */
+export function followOrder(exportCols: readonly ColumnKey[], gridCols: readonly ColumnKey[]): ColumnKey[] {
+  const shared = gridCols.filter((c) => exportCols.includes(c));
+  let k = 0;
+  return tcLast(exportCols.map((c) => (gridCols.includes(c) ? shared[k++] : c)));
+}
