@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading } from '../../domain/numbering';
 import { createShotFromPassage, sentencesOf } from '../../domain/scriptToShot';
@@ -36,9 +36,17 @@ export function addPassageAsShot(start: number, end: number, at: { x: number; y:
 
 /** Position absolue dans le scénario d'un point de sélection (nœud texte d'un segment repéré). */
 function offsetOf(node: Node, offset: number): number | null {
-  const el = (node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element))?.closest<HTMLElement>('[data-o]');
-  if (!el) return null;
-  return Number(el.dataset.o) + (node.nodeType === Node.TEXT_NODE ? offset : 0);
+  const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
+  const host = el?.closest<HTMLElement>('[data-o]');
+  if (host) return Number(host.dataset.o) + (node.nodeType === Node.TEXT_NODE ? offset : 0);
+  if (!el || node.nodeType === Node.TEXT_NODE) return null;
+  // Point posé entre deux enfants d'un conteneur (phrase, paragraphe) : on prend le segment voisin.
+  const before = el.childNodes[offset - 1];
+  const prev = before instanceof Element ? [...before.querySelectorAll<HTMLElement>('[data-o]')].pop() ?? (before.matches('[data-o]') ? (before as HTMLElement) : null) : null;
+  if (prev) return Number(prev.dataset.o) + (prev.textContent?.length ?? 0);
+  const after = el.childNodes[offset];
+  const next = after instanceof Element ? (after.matches('[data-o]') ? (after as HTMLElement) : after.querySelector<HTMLElement>('[data-o]')) : null;
+  return next ? Number(next.dataset.o) : null;
 }
 
 /**
@@ -138,7 +146,7 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
     return () => document.removeEventListener('selectionchange', check);
   }, [hasSel]);
 
-  const onMouseUp = (e: MouseEvent) => {
+  const onMouseUp = (e: { clientX: number; clientY: number }) => {
     const sl = window.getSelection();
     if (!sl || sl.isCollapsed || !sl.rangeCount || !root.current) return setSel(null);
     const r = sl.getRangeAt(0);
@@ -151,8 +159,17 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
     setSel({ start: a, end: b, x: e.clientX - box.left + root.current.scrollLeft, y: e.clientY - box.top + root.current.scrollTop });
   };
 
+  // Relâcher la souris un peu hors du texte (marge du panneau) doit aussi faire apparaître le « + ».
+  const upRef = useRef(onMouseUp);
+  upRef.current = onMouseUp;
+  useEffect(() => {
+    const up = (e: globalThis.MouseEvent) => upRef.current(e);
+    document.addEventListener('mouseup', up);
+    return () => document.removeEventListener('mouseup', up);
+  }, []);
+
   return (
-    <div ref={root} className={[s.reader, className].join(' ')} onMouseUp={onMouseUp} data-testid="script-reader">
+    <div ref={root} className={[s.reader, className].join(' ')} data-testid="script-reader">
       {elements.length === 0 && <p className={s.muted}>Le scénario est vide.</p>}
       {blocks}
       {sel && (

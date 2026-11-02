@@ -23,6 +23,7 @@
 .plus::before { content: '+'; }
 .plus:hover { background: var(--rust); color: var(--paper-card); }
 /* Hors du flux du texte : son apparition ne déplace aucun mot. Il se pose juste après la fin de la phrase. */
+.plus { user-select: none; }
 .sentence > .plus { position: absolute; right: -18px; bottom: 0.55em; z-index: 2; }
 .sentence:hover > .plus { display: block; }
 .reply > .plus { position: absolute; right: 12%; bottom: 0; }
