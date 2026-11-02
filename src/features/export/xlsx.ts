@@ -77,7 +77,7 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
 
   for (const seqId of doc.project.sequenceIds) {
     const noMerge = !!doc.project.settings.exportNoMerge;
-    const { rows, merges } = sequenceMerges(doc, timing, seqId, columns, noMerge);
+    const { rows, merges } = sequenceMerges(doc, timing, seqId, columns, noMerge, true);
     const firstBeat = BEAT_COLUMNS.find((c) => columns.includes(c));
     // Ligne Excel de départ de chaque plan : un plan-séquence occupe une ligne par temps et par liaison.
     const starts: number[] = [];

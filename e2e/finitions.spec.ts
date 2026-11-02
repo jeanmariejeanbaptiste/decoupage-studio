@@ -235,7 +235,7 @@ test('insérer un plan entre deux lignes et une séquence entre deux séquences'
 test('export intelligent : une colonne facultative vide disparaît des pages', async ({ page }) => {
   const go = (h: string) => page.evaluate((x) => void (window.location.hash = x), h);
   await page.goto('/#/export?seed=fiction');
-  await page.locator('li label').filter({ hasText: /^Notes$/ }).locator('input').check();
+  await page.locator('li label').filter({ hasText: /^Image$/ }).locator('input').check();
   await go('#/print');
   await expect(page.getByTestId('print-page').first()).toHaveAttribute('data-columns', /notes/);
   await go('#/grid');
@@ -269,7 +269,7 @@ test('raccourcis personnalisables depuis les Paramètres', async ({ page }) => {
 test('une colonne affichée dans la grille est exportée', async ({ page }) => {
   await page.goto('/#/grid?seed=fiction');
   await page.getByRole('button', { name: 'Colonnes' }).click();
-  await page.getByRole('menu').getByRole('checkbox', { name: /^Notes/ }).check();
+  await page.getByRole('menu').getByRole('checkbox', { name: /^Image/ }).check();
   await page.goto('/#/export');
-  await expect(page.getByRole('checkbox', { name: 'Notes', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Image', exact: true })).toBeChecked();
 });

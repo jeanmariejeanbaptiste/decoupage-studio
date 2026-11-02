@@ -31,7 +31,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   const th = theme ?? doc.project.settings.exportTheme;
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const sequences = useMemo(
-    () => doc.project.sequenceIds.map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols, !!doc.project.settings.exportNoMerge) })),
+    () => doc.project.sequenceIds.map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols, !!doc.project.settings.exportNoMerge, true) })),
     [doc, timing, cols],
   );
   const measure = useRef<HTMLDivElement>(null);

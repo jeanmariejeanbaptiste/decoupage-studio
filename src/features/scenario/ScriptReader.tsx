@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading } from '../../domain/numbering';
 import { createShotFromPassage, sentencesOf } from '../../domain/scriptToShot';
@@ -126,7 +126,7 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
     );
   }
 
-  const onMouseUp = () => {
+  const onMouseUp = (e: MouseEvent) => {
     const sl = window.getSelection();
     if (!sl || sl.isCollapsed || !sl.rangeCount || !root.current) return setSel(null);
     const r = sl.getRangeAt(0);
@@ -134,9 +134,9 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
     const a = offsetOf(r.startContainer, r.startOffset);
     const b = offsetOf(r.endContainer, r.endOffset);
     if (a === null || b === null || b <= a) return setSel(null);
-    const rect = r.getBoundingClientRect();
+    // Le « + » apparaît au ras du curseur, là où la sélection a été relâchée.
     const box = root.current.getBoundingClientRect();
-    setSel({ start: a, end: b, x: rect.right - box.left, y: rect.top - box.top });
+    setSel({ start: a, end: b, x: e.clientX - box.left + root.current.scrollLeft, y: e.clientY - box.top + root.current.scrollTop });
   };
 
   return (

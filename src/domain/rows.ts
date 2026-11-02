@@ -74,7 +74,14 @@ export function shotDurationSec(doc: ProjectDoc, timing: Timing, shot: Shot): nu
   return (timing.blocks.get(shot.actionBlockId)?.durationSec ?? 0) / Math.max(1, n);
 }
 
-export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, columns: readonly ColumnKey[]): MergeRow[] {
+/** Texte d'une cellule à l'export : un mouvement de caméra laissé vide s'écrit « Fixe ». */
+export function exportCellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: ColumnKey, index: number): string {
+  const text = cellText(doc, timing, shot, col, index);
+  return col === 'movement' && !text.trim() && !shot.oneShot ? 'Fixe' : text;
+}
+
+export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, columns: readonly ColumnKey[], forExport = false): MergeRow[] {
+  const text = forExport ? exportCellText : cellText;
   const seq = doc.sequences[seqId];
   if (!seq) return [];
   return seq.shotIds
@@ -86,12 +93,19 @@ export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, co
       mergeBreak: shot.mergeBreak,
       isolated: !!shot.oneShot,
       lines: shot.oneShot ? beatSubLines(shot.oneShot.beats, (v) => valueLabel(v, doc.project.settings.labelStyle)) : undefined,
-      cells: Object.fromEntries(columns.map((c) => [c, cellText(doc, timing, shot, c, i)])),
+      cells: Object.fromEntries(columns.map((c) => [c, text(doc, timing, shot, c, i)])),
     }));
 }
 
-export function sequenceMerges(doc: ProjectDoc, timing: Timing, seqId: ID, columns: readonly ColumnKey[], noMerge = false): { rows: MergeRow[]; merges: MergeMap } {
-  const rows = buildSequenceRows(doc, timing, seqId, columns);
+export function sequenceMerges(
+  doc: ProjectDoc,
+  timing: Timing,
+  seqId: ID,
+  columns: readonly ColumnKey[],
+  noMerge = false,
+  forExport = false,
+): { rows: MergeRow[]; merges: MergeMap } {
+  const rows = buildSequenceRows(doc, timing, seqId, columns, forExport);
   const s = doc.project.settings;
   return { rows, merges: computeMerges(rows, columns, { neverMerge: s.neverMerge, tcMode: s.tcMode, tcGranularity: s.tcGranularity, noMerge }) };
 }

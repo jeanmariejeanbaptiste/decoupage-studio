@@ -201,7 +201,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
           <input value={shot.light ?? ''} onChange={(e) => update((d) => void setCellText(d, shot.id, 'light', e.target.value))} />
         </label>
         <label className={s.field}>
-          <span>Notes de raccord (costume, accessoire, entrées / sorties de champ)</span>
+          <span>Image</span>
           <textarea rows={3} value={shot.notes ?? ''} onChange={(e) => update((d) => void setCellText(d, shot.id, 'notes', e.target.value))} />
         </label>
         <div className={s.row}>

@@ -27,12 +27,21 @@ export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
   shotDuration: { key: 'shotDuration', label: 'Durée', width: 5, optional: true },
   shootingDay: { key: 'shootingDay', label: 'Jour', width: 4, optional: true },
   status: { key: 'status', label: 'Statut', width: 6, optional: true },
-  notes: { key: 'notes', label: 'Notes', width: 12, optional: true },
+  notes: { key: 'notes', label: 'Image', width: 12, optional: true },
 };
+
+/**
+ * Colonnes retirées du découpage : Personnages et Durée doublonnent Sujet et TC ; Lumière et
+ * Machinerie n'ont pas leur place dans un découpage technique. Les données restent dans le projet.
+ */
+export const RETIRED_COLUMNS: readonly ColumnKey[] = ['characters', 'light', 'grip', 'shotDuration'];
+
+/** Retire les colonnes abandonnées d'une liste enregistrée. */
+export const activeColumns = (cols: readonly ColumnKey[]): ColumnKey[] => cols.filter((c) => !RETIRED_COLUMNS.includes(c));
 
 /** Ordre canonique des colonnes : l'ouverture se range juste après la focale. */
 export const ALL_COLUMNS: readonly ColumnKey[] = (() => {
-  const all = [...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS.filter((c) => c !== 'aperture')] as ColumnKey[];
+  const all = activeColumns([...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS.filter((c) => c !== 'aperture')] as ColumnKey[]);
   all.splice(all.indexOf('focal') + 1, 0, 'aperture');
   return all;
 })();

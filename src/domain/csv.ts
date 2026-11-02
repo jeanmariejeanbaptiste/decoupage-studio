@@ -1,7 +1,7 @@
 import { setCellText } from './cells';
 import { COLUMN_DEFS } from './columns';
 import { addSequence, addShot, linkAction } from './ops';
-import { cellText } from './rows';
+import { exportCellText } from './rows';
 import { fold } from './text';
 import { computeTiming } from './timing';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from './types';
@@ -22,7 +22,7 @@ export function toCsv(doc: ProjectDoc, columns: readonly ColumnKey[] = doc.proje
     seq?.shotIds.forEach((shotId, i) => {
       const shot = doc.shots[shotId];
       if (!shot) return;
-      const cells = [`${si + 1}.${i + 1}`, ...columns.map((c) => cellText(doc, timing, shot, c, i))];
+      const cells = [`${si + 1}.${i + 1}`, ...columns.map((c) => exportCellText(doc, timing, shot, c, i))];
       lines.push(cells.map((v) => esc(v, sep)).join(sep));
     });
   });

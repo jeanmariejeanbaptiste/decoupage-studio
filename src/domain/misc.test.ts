@@ -4,7 +4,7 @@ import { recognizeCharacters, sequenceCharacterIds, sortedCharacters } from './c
 import { columnWidths, COLUMN_DEFS } from './columns';
 import { diagonalFov, formatFocal, fullFrameEquivalent, horizontalFov, parseFocalInput } from './focal';
 import { formatShotCode, letterCode, sequenceHeading, sequenceNumber, shotCode, shotNumber } from './numbering';
-import { cellText, shotDurationSec } from './rows';
+import { cellText, exportCellText, shotDurationSec } from './rows';
 import { computeTiming } from './timing';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS } from './types';
 
@@ -97,6 +97,17 @@ describe('colonnes et cellules', () => {
     expect(shotDurationSec(doc, t, shot)).toBeCloseTo(35 / 3, 5);
     doc.project.settings.labelStyle = 'long';
     expect(cellText(doc, t, shot, 'value', 0)).toBe('Plan taille');
+  });
+
+  it('écrit « Fixe » à l’export quand le mouvement est vide, pas dans la grille', () => {
+    const doc = buildRav3();
+    const t = computeTiming(doc);
+    const shot = doc.shots[doc.sequences[doc.project.sequenceIds[0]].shotIds[0]];
+    shot.movement = [];
+    expect(cellText(doc, t, shot, 'movement', 0)).toBe('');
+    expect(exportCellText(doc, t, shot, 'movement', 0)).toBe('Fixe');
+    shot.movement = ['Pano droite'];
+    expect(exportCellText(doc, t, shot, 'movement', 0)).not.toBe('Fixe');
   });
 });
 
