@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Copy, Users, X } from 'lucide-react';
+import '@fontsource/barlow-semi-condensed/latin-400.css';
+import '@fontsource-variable/fraunces/full-italic.css';
+import { Check, Copy, Eye, PenLine, Users, X } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { joinSession, kickGuest, leaveSession, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';
 import { useDoc } from '../../store/projectStore';
@@ -10,6 +12,34 @@ const copy = async (text: string) => {
   await navigator.clipboard.writeText(text).catch(() => undefined);
 };
 
+/** Choix « modifier / lire seulement » : pastille de verre qui glisse d'une option à l'autre. */
+function ModeSwitch({ name, value, onChange }: { name: string; value: ShareMode; onChange: (m: ShareMode) => void }) {
+  return (
+    <div className={s.modes} role="radiogroup" aria-label="Les invités peuvent" data-mode={value}>
+      <span className={s.thumb} aria-hidden="true" />
+      <label className={value === 'edit' ? s.modeOn : ''}>
+        <input type="radio" name={name} checked={value === 'edit'} onChange={() => onChange('edit')} />
+        <PenLine size={14} strokeWidth={1.4} /> Modifier
+      </label>
+      <label className={value === 'read' ? s.modeOn : ''}>
+        <input type="radio" name={name} checked={value === 'read'} onChange={() => onChange('read')} />
+        <Eye size={14} strokeWidth={1.4} /> Lire seulement
+      </label>
+    </div>
+  );
+}
+
+/** Interrupteur « Ils gardent une copie ». */
+function KeepSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className={s.switchRow}>
+      <span>Ils gardent une copie du projet</span>
+      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <i className={s.switch} aria-hidden="true" />
+    </label>
+  );
+}
+
 /** Bouton « Partager » de la barre du haut : ouvre, règle et ferme le partage du projet. */
 export function ShareButton() {
   const doc = useDoc();
@@ -17,6 +47,7 @@ export function ShareButton() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<ShareMode>('edit');
   const [keep, setKeep] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -25,88 +56,78 @@ export function ShareButton() {
     return () => window.removeEventListener('mousedown', close);
   }, [open]);
   if (!doc || st.role === 'guest') return null;
-  const hosting = st.role === 'host';
+  const hosting = st.role === 'host' && st.status !== 'opening';
+  const copyAs = (key: string, text: string) => {
+    void copy(text);
+    setCopied(key);
+    window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1400);
+  };
   return (
     <div className={s.wrap} ref={ref}>
-      <Button variant={hosting ? 'primary' : 'ghost'} size="sm" icon={<Users size={15} strokeWidth={1.4} />} onClick={() => setOpen(!open)} aria-expanded={open} data-testid="share-button">
+      <button type="button" className={[s.trigger, hosting ? s.live : ''].join(' ')} onClick={() => setOpen(!open)} aria-expanded={open} data-testid="share-button">
+        {hosting ? <i className={s.liveDot} aria-hidden="true" /> : <Users size={15} strokeWidth={1.4} />}
         {hosting ? `Partagé${st.guests.length ? ` · ${st.guests.length}` : ''}` : 'Partager'}
-      </Button>
+      </button>
       {open && (
         <div className={s.panel} role="dialog" aria-label="Partager le projet" data-testid="share-panel">
-          {!hosting || st.status === 'opening' ? (
+          <div className={s.glow} aria-hidden="true" />
+          <div className={s.grain} aria-hidden="true" />
+          <header className={s.head}>
+            <i className={[s.orb, hosting ? s.orbLive : ''].join(' ')} aria-hidden="true" />
+            <div>
+              <p className={s.title}>{hosting ? 'Partage ouvert' : 'Travailler à plusieurs'}</p>
+              <p className={s.kicker}>{hosting ? `${st.guests.length} connecté${st.guests.length > 1 ? 's' : ''}` : 'Un lien, un mot de passe'}</p>
+            </div>
+          </header>
+
+          {!hosting ? (
             <>
-              <p className={s.title}>Travailler à plusieurs</p>
-              <fieldset className={s.seg}>
-                <legend>Les invités peuvent</legend>
-                <label className={mode === 'edit' ? s.on : ''}>
-                  <input type="radio" name="share-mode" checked={mode === 'edit'} onChange={() => setMode('edit')} />
-                  modifier
-                </label>
-                <label className={mode === 'read' ? s.on : ''}>
-                  <input type="radio" name="share-mode" checked={mode === 'read'} onChange={() => setMode('read')} />
-                  seulement lire
-                </label>
-              </fieldset>
-              <label className={s.check}>
-                <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
-                Ils gardent une copie du projet
-              </label>
+              <ModeSwitch name="share-mode" value={mode} onChange={setMode} />
+              <KeepSwitch checked={keep} onChange={setKeep} />
               {st.status === 'error' && <p className={s.error}>{st.error}</p>}
-              <Button variant="primary" disabled={st.status === 'opening'} onClick={() => void startHosting({ mode, keep })} data-testid="share-start">
+              <button type="button" className={s.cta} disabled={st.status === 'opening'} onClick={() => void startHosting({ mode, keep })} data-testid="share-start">
                 {st.status === 'opening' ? 'Ouverture…' : 'Ouvrir le partage'}
-              </Button>
+              </button>
               <p className={s.note}>Le partage reste ouvert tant que cette page est ouverte.</p>
             </>
           ) : (
             <>
-              <p className={s.title}>Partage ouvert</p>
-              <div className={s.field}>
-                <span>Lien</span>
-                <code data-testid="share-link">{shareLink(st.room!)}</code>
-                <button type="button" onClick={() => void copy(shareLink(st.room!))} aria-label="Copier le lien">
-                  <Copy size={13} />
-                </button>
+              <div className={s.secret}>
+                <div className={s.field}>
+                  <span>Lien</span>
+                  <code data-testid="share-link">{shareLink(st.room!)}</code>
+                  <button type="button" onClick={() => copyAs('link', shareLink(st.room!))} aria-label="Copier le lien" title="Copier">
+                    {copied === 'link' ? <Check size={13} /> : <Copy size={13} />}
+                  </button>
+                </div>
+                <div className={s.field}>
+                  <span>Mot de passe</span>
+                  <code data-testid="share-password">{st.password}</code>
+                  <button type="button" onClick={() => copyAs('pass', st.password!)} aria-label="Copier le mot de passe" title="Copier">
+                    {copied === 'pass' ? <Check size={13} /> : <Copy size={13} />}
+                  </button>
+                </div>
               </div>
-              <div className={s.field}>
-                <span>Mot de passe</span>
-                <code data-testid="share-password">{st.password}</code>
-                <button type="button" onClick={() => void copy(st.password!)} aria-label="Copier le mot de passe">
-                  <Copy size={13} />
-                </button>
-              </div>
-              <Button size="sm" onClick={() => void copy(`${shareLink(st.room!)}\nMot de passe : ${st.password}`)}>
-                Copier lien et mot de passe
-              </Button>
-              <fieldset className={s.seg}>
-                <legend>Les invités peuvent</legend>
-                <label className={st.mode === 'edit' ? s.on : ''}>
-                  <input type="radio" name="share-mode-live" checked={st.mode === 'edit'} onChange={() => updateShareSettings({ mode: 'edit' })} />
-                  modifier
-                </label>
-                <label className={st.mode === 'read' ? s.on : ''}>
-                  <input type="radio" name="share-mode-live" checked={st.mode === 'read'} onChange={() => updateShareSettings({ mode: 'read' })} />
-                  seulement lire
-                </label>
-              </fieldset>
-              <label className={s.check}>
-                <input type="checkbox" checked={st.keep} onChange={(e) => updateShareSettings({ keep: e.target.checked })} />
-                Ils gardent une copie du projet
-              </label>
-              <p className={s.sub}>Connectés ({st.guests.length})</p>
+              <button type="button" className={s.ghost} onClick={() => copyAs('both', `${shareLink(st.room!)}\nMot de passe : ${st.password}`)}>
+                {copied === 'both' ? <Check size={14} /> : <Copy size={14} />} {copied === 'both' ? 'Copiés' : 'Copier lien et mot de passe'}
+              </button>
+              <ModeSwitch name="share-mode-live" value={st.mode} onChange={(m) => updateShareSettings({ mode: m })} />
+              <KeepSwitch checked={st.keep} onChange={(v) => updateShareSettings({ keep: v })} />
               <ul className={s.guests} data-testid="share-guests">
-                {st.guests.length === 0 && <li className={s.muted}>personne pour l’instant</li>}
+                {st.guests.length === 0 && <li className={s.muted}>Personne pour l’instant</li>}
                 {st.guests.map((g) => (
                   <li key={g.id}>
-                    {g.name}
+                    <i className={s.avatar} aria-hidden="true">{g.name.charAt(0).toUpperCase()}</i>
+                    <span>{g.name}</span>
                     <button type="button" onClick={() => kickGuest(g.id)} aria-label={`Exclure ${g.name}`} title="Exclure">
                       <X size={12} />
                     </button>
                   </li>
                 ))}
               </ul>
-              <Button variant="danger" size="sm" onClick={stopHosting} data-testid="share-stop">
+              <button type="button" className={s.stop} onClick={stopHosting} data-testid="share-stop">
                 Fermer le partage
-              </Button>
+              </button>
             </>
           )}
         </div>

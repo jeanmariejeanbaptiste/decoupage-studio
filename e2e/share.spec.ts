@@ -52,7 +52,7 @@ test('partager un projet : lien et mot de passe, modifications en direct, lectur
 
   // Lecture seule : les saisies de l'invité ne changent plus rien.
   await host.getByTestId('share-button').click();
-  await host.getByTestId('share-panel').getByText('seulement lire').click();
+  await host.getByTestId('share-panel').getByText('Lire seulement').click();
   await expect(guest.getByTestId('guest-banner')).toContainText('lecture seule');
   await guest.locator('[data-cell="2:subject"]').click();
   await guest.keyboard.type('Interdit');
