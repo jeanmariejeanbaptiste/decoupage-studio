@@ -56,8 +56,8 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
           ))}
         </nav>
         <div className={[s.actions, 'no-print'].join(' ')}>
-          <input className={s.search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher du matériel ou un plan…" aria-label="Rechercher du matériel" />
-          <label className={s.toggle}>
+          <input data-view className={s.search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher du matériel ou un plan…" aria-label="Rechercher du matériel" />
+          <label className={s.toggle} data-view>
             <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />
             Afficher les plans concernés
           </label>

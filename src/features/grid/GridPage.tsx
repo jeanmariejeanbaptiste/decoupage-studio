@@ -1,3 +1,4 @@
+import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
@@ -30,7 +31,9 @@ const IC = { size: 15, strokeWidth: 1.25 } as const;
 export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   const { displayDoc: doc, wrap, dragging } = useGridDnd(storeDoc);
   const model = useMemo(() => buildGridModel(doc), [doc]);
-  const printView = useUi((u) => u.printView);
+  // Lecture seule : toujours l'aperçu, la grille d'édition n'a pas lieu d'être.
+  const readOnly = useReadOnly();
+  const printView = useUi((u) => u.printView) || readOnly;
   const rightPanel = useUi((u) => u.rightPanel);
   const focusRow = useUi((u) => u.selection?.focus.row);
   const selectedShot = focusRow !== undefined ? model.rows[focusRow]?.shotId : undefined;
@@ -100,7 +103,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           >
             Scénario
           </Button>
-          <span className={s.sep} />
+          <span className={s.sep} data-edit />
           <Button
             variant={printView ? 'primary' : 'outline'}
             icon={<Eye {...IC} />}
@@ -184,7 +187,8 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
         </div>
       ) : printView ? (
         <div className={s.printPreview}>
-          <ExportTable doc={doc} />
+          {/* Aperçu à l'écran : toujours le style sobre du papier, le thème coloré reste réservé aux exports. */}
+          <ExportTable doc={doc} theme="papier" />
         </div>
       ) : (
         <>

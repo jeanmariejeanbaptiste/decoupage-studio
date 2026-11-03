@@ -1,3 +1,4 @@
+import { useReadOnly } from '../../store/share';
 import { useEffect, useState } from 'react';
 import type { ProjectDoc } from '../../domain/types';
 import { countWords } from '../../domain/text';
@@ -17,6 +18,7 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
     return () => clearTimeout(t);
   }, [text, doc.intention]);
   const words = countWords(text);
+  const readOnly = useReadOnly();
   return (
     <div className="page">
       <header className="page-head">
@@ -32,7 +34,8 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
           className={s.text}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Le point de vue, le ton, la lumière, le rythme, les références… Ce texte guide le découpage et sera partagé avec l’équipe."
+          placeholder={readOnly ? 'Pas encore de note d’intention.' : 'Le point de vue, le ton, la lumière, le rythme, les références… Ce texte guide le découpage et sera partagé avec l’équipe.'}
+          readOnly={readOnly}
           aria-label="Note d’intention"
         />
       </div>

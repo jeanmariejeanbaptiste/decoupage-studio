@@ -600,7 +600,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             }
           }}
         />
-        <label className={s.seqPick}>
+        <label className={s.seqPick} data-view>
           <span>Séquence</span>
           <select
             value={seqId}
@@ -712,7 +712,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               <Trash2 size={12} /> {plans.length > 1 && !psView ? 'Supprimer cette vue' : 'Vider la vue'}
             </button>
           </div>
-          <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol">
+          <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol" data-edit>
             {TOOL_GROUPS.map((g) => (
               <div key={g.label || 'sel'} className={s.toolGroup} role="group" aria-label={g.label || 'Sélection'}>
                 {g.label && <span className={s.toolGroupLabel}>{g.label}</span>}
@@ -733,9 +733,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             ))}
           </div>
           <div className={s.viewBar}>
-            <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoomer" title="Zoomer (ou pincer)">+</button>
-            <button type="button" onClick={() => zoomBy(1.25)} aria-label="Dézoomer" title="Dézoomer">−</button>
-            <button type="button" onClick={fitView} data-testid="fp-fit" title="Recentrer sur les éléments">Recentrer</button>
+            <button type="button" data-view onClick={() => zoomBy(1 / 1.25)} aria-label="Zoomer" title="Zoomer (ou pincer)">+</button>
+            <button type="button" data-view onClick={() => zoomBy(1.25)} aria-label="Dézoomer" title="Dézoomer">−</button>
+            <button type="button" data-view onClick={fitView} data-testid="fp-fit" title="Recentrer sur les éléments">Recentrer</button>
             <span className={s.viewSep} />
             <label className={s.bgBtn} title="Plan des locaux en fond, pour dessiner les murs par-dessus">
               {bg ? 'Changer le fond' : 'Fond de plan'}
@@ -774,7 +774,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 <button type="button" onClick={() => mutateDoc((d) => void delete d.floorPlans![planKey].bg)} title="Retirer le fond">×</button>
               </>
             )}
-            <label className={s.bgRange} title="Épaisseur des traits : murs, rails, portes, fenêtres, réflecteurs, diffuseurs, drapeaux">
+            <label data-edit className={s.bgRange} title="Épaisseur des traits : murs, rails, portes, fenêtres, réflecteurs, diffuseurs, drapeaux">
               traits
               <input
                 type="range"
@@ -810,7 +810,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             >
               Consignes IA
             </button>
-            <label className={s.aiBtn} title="Importer le fichier Markdown (.md) produit par l’IA : il est analysé puis oublié">
+            <label data-edit className={s.aiBtn} title="Importer le fichier Markdown (.md) produit par l’IA : il est analysé puis oublié">
               Importer le fichier .md
               <input
                 type="file"

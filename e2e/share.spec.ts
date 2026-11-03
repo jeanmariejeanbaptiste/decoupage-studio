@@ -1,6 +1,8 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { PeerServer } from 'peer';
 
+test.describe.configure({ mode: 'serial' });
+
 // Serveur de mise en relation local : le service public de PeerJS n'est pas joignable en test.
 const PORT = 9123;
 let server: ReturnType<typeof PeerServer> | null = null;
@@ -50,16 +52,49 @@ test('partager un projet : lien et mot de passe, modifications en direct, lectur
   await host.keyboard.press('Enter');
   await expect(guest.locator('[data-cell="1:value"]')).toHaveText('Insert');
 
-  // Lecture seule : les saisies de l'invité ne changent plus rien.
+  // Lecture seule : l'invité ne peut plus rien modifier.
   await host.getByTestId('share-button').click();
   await host.getByTestId('share-panel').getByText('Lire seulement').click();
   await expect(guest.getByTestId('guest-banner')).toContainText('lecture seule');
-  await guest.locator('[data-cell="2:subject"]').click();
-  await guest.keyboard.type('Interdit');
-  await guest.keyboard.press('Enter');
-  await expect(host.locator('[data-cell="2:subject"]')).not.toContainText('Interdit');
+  // La grille éditable laisse place à l'aperçu ; même au clavier, rien ne passe.
+  await expect(guest.locator('[data-testid="shot-row"]')).toHaveCount(0);
+  await expect(guest.getByTestId('export-table').first()).toBeVisible();
+  await guest.keyboard.press('Control+Enter');
+  await expect(host.locator('[data-testid="shot-row"]')).toHaveCount(53);
 
   // Fermeture du partage : l'invité est prévenu.
   await host.getByTestId('share-stop').click();
   await expect(guest.getByTestId('guest-banner')).toContainText('Partage fermé');
+});
+
+test('invité en lecture seule : aucune commande d’édition, découpage en aperçu', async ({ browser }) => {
+  const host = await participant(browser);
+  await host.goto('/#/grid?seed=rav3');
+  await host.getByTestId('share-button').click();
+  await host.getByText('Lire seulement').click();
+  await host.getByTestId('share-start').click();
+  const link = await host.getByTestId('share-link').textContent();
+  const password = await host.getByTestId('share-password').textContent();
+  const guest = await participant(browser);
+  await guest.goto(link!);
+  await guest.getByLabel('Votre nom').fill('Léo');
+  await guest.getByLabel('Mot de passe').fill(password!);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('guest-banner')).toContainText('lecture seule');
+  // Découpage : l'aperçu, ni grille éditable ni outils.
+  await expect(guest.getByTestId('export-table').first()).toBeVisible();
+  await expect(guest.getByTestId('shot-row')).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Colonnes' })).toBeHidden();
+  await expect(guest.getByRole('button', { name: /^Annuler/ })).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Réglages' })).toHaveCount(0);
+  // Sans droit de copie : pas d'export.
+  await expect(guest.getByRole('navigation').getByText('Exporter', { exact: true })).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Exporter' })).toBeHidden();
+  // Storyboard et plan au sol : on regarde, on ne modifie pas.
+  await guest.evaluate(() => void (window.location.hash = '#/storyboard'));
+  await expect(guest.getByTestId('storyboard-card').first()).toBeVisible();
+  await expect(guest.getByTestId('storyboard-add-keyframe').first()).toBeHidden();
+  await guest.evaluate(() => void (window.location.hash = '#/floorplan'));
+  await expect(guest.getByRole('toolbar', { name: 'Outils du plan au sol' })).toBeHidden();
+  await expect(guest.getByTestId('fp-fit')).toBeVisible();
 });

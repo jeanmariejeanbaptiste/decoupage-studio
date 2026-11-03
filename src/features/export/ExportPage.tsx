@@ -48,7 +48,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
 
   return (
     <div className={s.page}>
-      <section className={s.zip}>
+      <section className={s.zip} data-view>
         <FolderArchive size={22} strokeWidth={1.2} />
         <div>
           <h2>Dossier de production</h2>
@@ -71,7 +71,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
       <section className={s.card}>
         <header className={s.cardHead}>
           <h2>Découpage technique</h2>
-          <div className={s.actions}>
+          <div className={s.actions} data-view>
             <Button variant="ghost" icon={<Eye size={15} strokeWidth={1.3} />} onClick={() => navigate('print')} data-testid="export-preview">
               Aperçu
             </Button>
@@ -87,7 +87,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
           </div>
         </header>
 
-        <div className={s.split}>
+        <div className={s.split} data-edit>
           <div>
             <h3 className={s.h3}>Mise en page</h3>
             <div className={s.line}>
@@ -183,7 +183,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
         <header className={s.cardHead}>
           <h2>Fichier du projet</h2>
         </header>
-        <div className={s.fileRow}>
+        <div className={s.fileRow} data-view>
           <div>
             <strong>Sauvegarde complète</strong>
             <span>Le projet entier au format JSON, identique au fichier .decoupage.</span>
@@ -192,7 +192,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
             JSON
           </Button>
         </div>
-        <div className={s.fileRow}>
+        <div className={s.fileRow} data-edit>
           <div>
             <strong>Ouvrir un projet</strong>
             <span>Remplace le projet ouvert, qui reste dans l’accueil.</span>
@@ -201,7 +201,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
             .decoupage / JSON…
           </Button>
         </div>
-        <div className={s.fileRow}>
+        <div className={s.fileRow} data-edit>
           <div>
             <strong>Importer un découpage</strong>
             <span>Depuis un tableur : une ligne par plan.</span>

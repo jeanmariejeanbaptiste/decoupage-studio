@@ -69,7 +69,7 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
         />
         <label className={s.search}>
           <Search size={15} strokeWidth={1.25} />
-          <input type="search" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher dans le registre" />
+          <input data-view type="search" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher dans le registre" />
         </label>
       </header>
       <div className={s.tabs} role="tablist">
@@ -157,6 +157,7 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
             {others.length > 0 && (
               <select
                 className={s.addChip}
+                data-edit
                 value=""
                 aria-label="Ajouter un personnage à la séquence"
                 onChange={(e) => {

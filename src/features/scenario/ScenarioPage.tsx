@@ -1,3 +1,4 @@
+import { useReadOnly } from '../../store/share';
 import { LinkModeToggle, ScriptReader, addPassageAsShot, commitScenario } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Download, FilePlus2, FileUp, ListTree, ScrollText, SquarePen } from 'lucide-react';
@@ -26,7 +27,10 @@ interface Mark {
 
 export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const [text, setText] = useState(doc.scenario ?? '');
-  const [mode, setMode] = useState<'edit' | 'page' | 'cut'>('edit');
+  // Lecture seule : le scénario se lit en page, jamais en édition.
+  const readOnly = useReadOnly();
+  const [chosen, setMode] = useState<'edit' | 'page' | 'cut'>('edit');
+  const mode = readOnly && chosen === 'edit' ? 'page' : chosen;
   const [hoverBlock, setHoverBlock] = useState<ID | null>(null);
   const [caretBlock, setCaretBlock] = useState<ID | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -128,6 +132,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               type="button"
               role="radio"
               aria-checked={mode === 'page'}
+              data-view
               className={mode === 'page' ? s.on : ''}
               onClick={() => {
                 flush();
@@ -140,6 +145,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               type="button"
               role="radio"
               aria-checked={mode === 'cut'}
+              data-view
               className={mode === 'cut' ? s.on : ''}
               title="Le découpage technique mis en forme comme un scénario (lecture seule)"
               onClick={() => {

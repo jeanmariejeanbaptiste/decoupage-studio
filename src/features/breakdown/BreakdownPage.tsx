@@ -51,7 +51,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           {doc.project.sequenceIds.map((id) => {
             const n = Object.values(breakdownOf(doc, id)).reduce((k, l) => k + (l?.length ?? 0), 0);
             return (
-              <button key={id} type="button" className={id === seqId ? s.on : ''} aria-current={id === seqId ? 'true' : undefined} onClick={() => setPicked(id)}>
+              <button key={id} type="button" data-view className={id === seqId ? s.on : ''} aria-current={id === seqId ? 'true' : undefined} onClick={() => setPicked(id)}>
                 <span>{sequenceHeading(doc, id)}</span>
                 <em>{n || ''}</em>
               </button>
@@ -61,7 +61,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         <div>
           {seq.summary && <p className={s.summary}>{seq.summary}</p>}
           {nSug > 0 && (
-            <section className={s.suggest} data-testid="breakdown-suggestions">
+            <section className={s.suggest} data-testid="breakdown-suggestions" data-edit>
               <Hand>suggestions</Hand>
               <div className={s.sugList}>
                 {(Object.entries(suggestions) as Array<[BreakdownCategory, string[]]>).flatMap(([cat, items]) =>

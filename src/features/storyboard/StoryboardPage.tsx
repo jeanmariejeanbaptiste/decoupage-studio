@@ -218,7 +218,7 @@ function FrameCell({ printing, children }: { printing: boolean; children: React.
 function PerRowPicker({ doc }: { doc: ProjectDoc }) {
   const v = doc.project.settings.storyboardPerRow;
   return (
-    <label className={s.aspect}>
+    <label className={s.aspect} data-edit>
       <span>Par ligne</span>
       <select
         value={v ?? ''}
@@ -263,7 +263,7 @@ function AspectPicker({ doc }: { doc: ProjectDoc }) {
   const [custom, setCustom] = useState(preset < 0);
   const set = (v: { w: number; h: number }) => mutateDoc((d) => void (d.project.settings.storyboardAspect = v));
   return (
-    <label className={s.aspect}>
+    <label className={s.aspect} data-edit>
       <span>Format</span>
       <select
         value={custom ? 'custom' : String(preset)}

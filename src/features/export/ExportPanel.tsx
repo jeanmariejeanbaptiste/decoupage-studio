@@ -109,7 +109,7 @@ export function ExportPanel({
   );
 
   return (
-    <div className={s.wrap} ref={ref}>
+    <div className={s.wrap} ref={ref} data-view data-export>
       <Button
         variant="primary"
         icon={<Download size={15} strokeWidth={1.25} />}

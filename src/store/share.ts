@@ -306,3 +306,8 @@ export function leaveSession() {
   if (!st.keep) useProjectStore.getState().loadDoc(null);
   useShare.setState({ role: 'none', status: 'idle', room: undefined, guests: [], hostName: undefined, error: undefined });
 }
+
+/** Invité en lecture seule : l'interface ne montre que ce qui sert à regarder. */
+export const useReadOnly = () => useShare((s) => s.role === 'guest' && s.mode === 'read');
+/** L'invité peut-il emporter le projet (exports, enregistrement) ? */
+export const useCanCopy = () => useShare((s) => s.role !== 'guest' || s.keep);

@@ -205,7 +205,7 @@ export function commitScenario(text: string) {
 export function LinkModeToggle({ doc }: { doc: ProjectDoc }) {
   const auto = (doc.project.settings.scenarioLink ?? 'auto') === 'auto';
   return (
-    <label className={s.linkMode} title="Lié : chaque passage va dans la séquence de sa scène (créée au besoin). Libre : vous choisissez la séquence à chaque ajout.">
+    <label className={s.linkMode} data-edit title="Lié : chaque passage va dans la séquence de sa scène (créée au besoin). Libre : vous choisissez la séquence à chaque ajout.">
       <input
         type="checkbox"
         checked={auto}

@@ -98,3 +98,17 @@ button { cursor: pointer; }
 ::view-transition-old(root),
 ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 ::view-transition-new(root) { z-index: 2; }
+
+/*
+ * Invité en lecture seule : tout ce qui modifie disparaît. Restent les commandes qui servent à
+ * regarder (marquées data-view, ou placées dans une zone data-view : onglets, zoom, aperçu, export si
+ * la copie est permise) ; les champs ne réagissent plus.
+ */
+[data-readonly] main button:not([data-view], [data-view] *, [role='tab']),
+[data-readonly] main [data-edit],
+[data-readonly] main label:has(> input[type='file']),
+[data-readonly] main input[placeholder^='Ajouter'] { display: none !important; }
+[data-readonly] main :is(input, textarea, select, [contenteditable='true']):not([data-view], [data-view] *),
+[data-readonly] main label:has(> input:not([data-view])):not([data-view] *) { pointer-events: none; }
+[data-readonly] main :is(input, textarea):not([data-view], [data-view] *) { caret-color: transparent; }
+[data-nocopy] [data-export] { display: none !important; }

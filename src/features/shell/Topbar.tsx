@@ -16,7 +16,10 @@ interface Props {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onSave: () => void;
+  /** Absent : enregistrement indisponible (invité sans droit de copie). */
+  onSave?: () => void;
+  /** Invité en lecture seule : ni enregistrer, ni annuler, ni réglages. */
+  readOnly?: boolean;
   theme: 'papier' | 'encre';
   onToggleTheme: (e: { clientX: number; clientY: number }) => void;
   sidebarOpen?: boolean;
@@ -32,9 +35,15 @@ export function Topbar(p: Props) {
           <Button variant="icon" aria-label="Afficher ou masquer le menu latéral" title="Afficher ou masquer le menu latéral" aria-pressed={p.sidebarOpen} onClick={p.onToggleSidebar} icon={<PanelLeft {...IC} />} data-testid="toggle-sidebar" />
         )}
         <Button variant="icon" aria-label="Accueil" title="Accueil" onClick={() => navigate('home')} icon={<Home {...IC} />} />
-        <Button variant="icon" aria-label={`Enregistrer (${k.save})`} title={`Enregistrer (${k.save})`} onClick={p.onSave} icon={<Save {...IC} />} />
+        {p.onSave && !p.readOnly && (
+          <Button variant="icon" aria-label={`Enregistrer (${k.save})`} title={`Enregistrer (${k.save})`} onClick={p.onSave} icon={<Save {...IC} />} />
+        )}
+        {!p.readOnly && (
+          <>
         <Button variant="icon" aria-label={`Annuler (${k.undo})`} title={`Annuler (${k.undo})`} disabled={!p.canUndo} onClick={p.onUndo} icon={<Undo2 {...IC} />} />
         <Button variant="icon" aria-label={`Rétablir (${k.redo})`} title={`Rétablir (${k.redo})`} disabled={!p.canRedo} onClick={p.onRedo} icon={<Redo2 {...IC} />} />
+          </>
+        )}
         <Hand className={s.status}>
           <span data-testid="save-status">{p.saveStatus}</span>
         </Hand>
@@ -57,7 +66,7 @@ export function Topbar(p: Props) {
           onClick={p.onToggleTheme}
           icon={p.theme === 'encre' ? <Sun {...IC} /> : <Moon {...IC} />}
         />
-        <Button variant="icon" aria-label="Réglages" title="Réglages" onClick={() => navigate('settings')} icon={<Settings {...IC} />} />
+        {!p.readOnly && <Button variant="icon" aria-label="Réglages" title="Réglages" onClick={() => navigate('settings')} icon={<Settings {...IC} />} />}
       </div>
     </header>
   );

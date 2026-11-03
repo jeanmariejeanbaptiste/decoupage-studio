@@ -1,5 +1,6 @@
 import { redoHome, undoHome } from '../store/homeHistory';
 import { isShortcut } from '../store/shortcuts';
+import { useCanCopy, useReadOnly } from '../store/share';
 import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useState } from 'react';
@@ -75,6 +76,8 @@ export function App() {
   const setUi = useUi((u) => u.set);
   const { canUndo, canRedo } = useHistory();
   const [booted, setBooted] = useState(false);
+  const readOnly = useReadOnly();
+  const canCopy = useCanCopy();
 
   useEffect(() => {
     const stop = startAutosave();
@@ -141,7 +144,7 @@ export function App() {
   const showSidebar = route !== 'home' && !!doc;
 
   return (
-    <div className={s.app}>
+    <div className={s.app} data-readonly={readOnly || undefined} data-nocopy={!canCopy || undefined}>
       <a className="skip-link" href="#contenu" onClick={(e) => {
         e.preventDefault();
         document.getElementById('contenu')?.focus();
@@ -158,7 +161,8 @@ export function App() {
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
-          onSave={() => void saveToFile()}
+          onSave={canCopy ? () => void saveToFile() : undefined}
+          readOnly={readOnly}
           theme={theme}
           onToggleTheme={(e) => switchTheme(e)}
         />
@@ -173,7 +177,13 @@ export function App() {
               { label: 'Vérifications', route: 'checks', count: checkCount },
             ]}
           />}
-        <main className={s.main} id="contenu" tabIndex={-1}>{booted && <Page route={route} />}</main>
+        <main
+          className={s.main}
+          id="contenu"
+          tabIndex={-1}
+          // Lecture seule : pas de menus contextuels d'édition.
+          onContextMenuCapture={readOnly ? (e) => e.stopPropagation() : undefined}
+        >{booted && <Page route={route} />}</main>
       </div>
       <Toasts />
       <DialogHost />
@@ -186,6 +196,8 @@ export function App() {
 
 function Page({ route }: { route: Route }) {
   const doc = useDoc();
+  const readOnly = useReadOnly();
+  const canCopy = useCanCopy();
   if (route === 'home') return <HomePage />;
   if (route === 'join') return <JoinPage />;
   if (!doc) {
@@ -202,9 +214,11 @@ function Page({ route }: { route: Route }) {
     );
   }
   if (route === 'grid') return <GridPage doc={doc} />;
-  if (route === 'export') return <ExportPage doc={doc} />;
+  // Invité sans droit de copie : rien à exporter, le découpage à la place.
+  if (route === 'export') return canCopy ? <ExportPage doc={doc} /> : <GridPage doc={doc} />;
   if (route === 'registry') return <RegistryPage doc={doc} />;
-  if (route === 'settings') return <SettingsPage doc={doc} />;
+  // Lecture seule : pas de réglages, le découpage à la place.
+  if (route === 'settings') return readOnly ? <GridPage doc={doc} /> : <SettingsPage doc={doc} />;
   if (route === 'checks') return <ChecksPage doc={doc} />;
   if (route === 'intention') return <IntentionPage doc={doc} />;
   if (route === 'scenario') return <ScenarioPage doc={doc} />;
