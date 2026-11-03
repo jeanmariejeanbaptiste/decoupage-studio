@@ -131,3 +131,6 @@
 .beatTag { display: inline-block; font-size: 0.78em; color: var(--x-red); margin-right: 1.2mm; }
 .bridge { font-size: 0.9em; font-weight: 500; padding-top: 0.4mm; padding-bottom: 0.4mm; color: var(--x-red); }
 .oneShot .c_number::after { content: '°'; color: var(--x-red); }
+
+/* Titres de colonnes : coupure entre les mots seulement, jamais au milieu d'un mot. */
+.headLabel { display: inline-block; max-width: 100%; word-break: keep-all; overflow-wrap: normal; hyphens: none; white-space: normal; }

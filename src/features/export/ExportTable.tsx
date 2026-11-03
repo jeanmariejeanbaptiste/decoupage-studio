@@ -87,9 +87,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
         )}
         <tr>
           {cs.map((c) => (
-            <th key={c} className={s[`h_${c}`]}>
-              {COLUMN_DEFS[c].label}
-            </th>
+            <HeadCell key={c} className={s[`h_${c}`]} label={COLUMN_DEFS[c].label} />
           ))}
         </tr>
       </thead>
@@ -207,5 +205,33 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
         {sequences.map((q, i) => body(i, q.rows, q.merges, true, q.id))}
       </table>
     </div>
+  );
+}
+
+/**
+ * Titre de colonne jamais coupé en plein mot : il passe à la ligne entre deux mots seulement, et si un
+ * mot ne tient pas dans la largeur de la colonne (portrait, colonnes nombreuses), le titre rétrécit.
+ */
+function HeadCell({ className, label }: { className?: string; label: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const span = ref.current;
+    const th = span?.parentElement;
+    if (!span || !th) return;
+    span.style.fontSize = '';
+    const cs = getComputedStyle(th);
+    const room = th.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    let size = parseFloat(getComputedStyle(span).fontSize);
+    for (let k = 0; k < 12 && span.scrollWidth > room + 0.5 && size > 5; k++) {
+      size *= 0.92;
+      span.style.fontSize = `${size}px`;
+    }
+  });
+  return (
+    <th className={className}>
+      <span ref={ref} className={s.headLabel}>
+        {label}
+      </span>
+    </th>
   );
 }
