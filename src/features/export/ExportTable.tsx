@@ -1,6 +1,7 @@
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { COLUMN_DEFS, columnWidths, tcLast } from '../../domain/columns';
+import { nudgeWidths, wordDeficit, type ColumnMeasure } from '../../domain/columnFit';
 import { displaySpan, type MergeMap, type MergeRow } from '../../domain/merge';
 import { cleanCuts, paginate, sliceMerges, type PageSlice } from '../../domain/pagination';
 import { sequenceMerges } from '../../domain/rows';
@@ -40,9 +41,29 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   const [paperW, paperH] = paper ? (orientation === 'portrait' ? [PAPER[paper][1], PAPER[paper][0]] : PAPER[paper]) : [0, 0];
   const pageH = paper ? paperH - (footer ? 10 : 0) - safety : 0;
 
+  // Largeurs ajustées (léger emprunt entre colonnes), propres à ce jeu de colonnes et à ce contenu.
+  const fitKey = `${cols.join(',')}|${paperW}`;
+  const [fit, setFit] = useState<{ key: string; sequences: unknown; widths: Record<string, number> } | null>(null);
+  const widths = fit && fit.key === fitKey && fit.sequences === sequences ? fit.widths : null;
+
+  useLayoutEffect(() => {
+    if (widths) return;
+    let cancelled = false;
+    void document.fonts.ready.then(() =>
+      requestAnimationFrame(() => {
+        const table = measure.current?.querySelector('table');
+        if (cancelled || !table) return;
+        setFit({ key: fitKey, sequences, widths: measureFit(table, cols) });
+      }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [widths, fitKey, sequences, cols]);
+
   // Mesure le rendu continu, puis répartit les lignes en pages.
   useLayoutEffect(() => {
-    if (!paper) return;
+    if (!paper || !widths) return;
     setPages(null);
     let cancelled = false;
     const run = () => {
@@ -70,9 +91,9 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     return () => {
       cancelled = true;
     };
-  }, [paper, pageH, sequences, cols, showTitle]);
+  }, [paper, pageH, sequences, cols, showTitle, widths]);
 
-  const head = (cs: ColumnKey[], w: Record<string, number> = columnWidths(cs)) => (
+  const head = (cs: ColumnKey[], w: Record<string, number> = pickWidths(widths, cs)) => (
     <>
       <colgroup>
         {cs.map((c) => (
@@ -87,7 +108,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
         )}
         <tr>
           {cs.map((c) => (
-            <HeadCell key={c} className={s[`h_${c}`]} label={COLUMN_DEFS[c].label} />
+            <HeadCell key={c} className={s[`h_${c}`]} label={COLUMN_DEFS[c].label} col={c} />
           ))}
         </tr>
       </thead>
@@ -104,7 +125,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
             const l = lines![k];
             const v = l.cells[c] ?? '';
             return (
-              <td key={c} className={[s[`c_${c}`], s.beatCell, k > 0 ? s.beatNext : '', k < lines!.length - 1 ? s.beatMore : '', l.bridge ? s.bridge : ''].join(' ')}>
+              <td key={c} data-col={c} className={[s[`c_${c}`], s.beatCell, k > 0 ? s.beatNext : '', k < lines!.length - 1 ? s.beatMore : '', l.bridge ? s.bridge : ''].join(' ')}>
                 {l.bridge ? (v ? <i>↳ {v}</i> : null) : (
                   <>
                     {c === BEAT_COLUMNS.find((x) => cs.includes(x)) && <b className={s.beatTag}>{l.tag}</b>}
@@ -123,7 +144,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
                   if (!span) return null;
                   const h = displaySpan(rows, i, span.span);
                   return (
-                    <td key={c} rowSpan={h > 1 ? h : undefined} className={s[`c_${c}`]}>
+                    <td key={c} rowSpan={h > 1 ? h : undefined} className={s[`c_${c}`]} data-col={c}>
                       {span.value}
                     </td>
                   );
@@ -212,7 +233,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
  * Titre de colonne jamais coupé en plein mot : il passe à la ligne entre deux mots seulement, et si un
  * mot ne tient pas dans la largeur de la colonne (portrait, colonnes nombreuses), le titre rétrécit.
  */
-function HeadCell({ className, label }: { className?: string; label: string }) {
+function HeadCell({ className, label, col }: { className?: string; label: string; col: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     const span = ref.current;
@@ -228,10 +249,64 @@ function HeadCell({ className, label }: { className?: string; label: string }) {
     }
   });
   return (
-    <th className={className}>
+    <th className={className} data-col={col}>
       <span ref={ref} className={s.headLabel}>
         {label}
       </span>
     </th>
   );
+}
+
+/** Largeurs en % pour un jeu de colonnes : ajustées si disponibles (renormalisées), sinon par défaut. */
+function pickWidths(widths: Record<string, number> | null, cs: ColumnKey[]): Record<string, number> {
+  if (!widths || cs.some((c) => widths[c] === undefined)) return columnWidths(cs);
+  const total = cs.reduce((n, c) => n + widths[c], 0) || 1;
+  return Object.fromEntries(cs.map((c) => [c, (widths[c] / total) * 100]));
+}
+
+let canvas: HTMLCanvasElement | null = null;
+function textWidth(text: string, font: string): number {
+  canvas ??= document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+/** Mesure, colonne par colonne, les mots coupés à une ou deux lettres et la place inoccupée. */
+function measureFit(table: HTMLTableElement, cols: ColumnKey[]): Record<string, number> {
+  const tableW = table.getBoundingClientRect().width || 1;
+  const measures: ColumnMeasure[] = cols.map((c) => {
+    const th = table.querySelector<HTMLElement>(`th[data-col="${c}"]`);
+    const width = th?.getBoundingClientRect().width ?? 0;
+    let deficit = 0;
+    // Débordement (positif) ou marge (négatif) du plus long texte posé sur une seule ligne.
+    let natural = -Infinity;
+    if (th) {
+      const cs = getComputedStyle(th);
+      const room = th.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 1;
+      const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      // Le titre peut passer à la ligne entre ses mots : seul son mot le plus long compte.
+      for (const word of (th.textContent ?? '').split(/\s+/)) if (word) natural = Math.max(natural, textWidth(word, font) - room);
+    }
+    for (const td of table.querySelectorAll<HTMLTableCellElement>(`td[data-col="${c}"]`)) {
+      if (td.colSpan > 1) continue;
+      const cs = getComputedStyle(td);
+      const room = td.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 1;
+      const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      for (const line of (td.innerText || '').split('\n')) {
+        if (!line.trim()) continue;
+        natural = Math.max(natural, textWidth(line, font) - room);
+        for (const word of line.split(/\s+/)) {
+          if (!word) continue;
+          const prefix = [...word].map((_, i) => textWidth(word.slice(0, i + 1), font));
+          deficit = Math.max(deficit, wordDeficit(prefix, room));
+        }
+      }
+    }
+    // Place prêtable : ce que le plus long texte de la colonne, sur une seule ligne, laisse libre.
+    const slack = natural === -Infinity ? width * 0.5 : natural < 0 ? -natural - 2 : 0;
+    return { key: c, width, deficit: deficit ? Math.ceil(deficit) + 1 : 0, slack };
+  });
+  const px = nudgeWidths(measures);
+  return Object.fromEntries(cols.map((c) => [c, (px[c] / tableW) * 100]));
 }
