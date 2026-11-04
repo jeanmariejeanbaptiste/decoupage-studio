@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, List, Plus, X } from 'lucide-react';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { editableText, isEditable, setCellText } from '../../domain/cells';
-import { sequenceHeading, shotCode } from '../../domain/numbering';
+import { sequenceHeading, sequenceNumber, shotCode } from '../../domain/numbering';
 import { addSequence, addShotAfter } from '../../domain/ops';
 import { computeTiming, shotTcLabel } from '../../domain/timing';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
@@ -130,10 +130,16 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
     <div className={s.wrap} data-testid="mobile-cut">
       <header className={s.head}>
         <div>
-          <p className={s.kicker}>
-            {sequenceHeading(doc, shot.sequenceId)}
-            {seq?.intExt || seq?.effect ? ` · ${[seq.intExt, seq.effect].filter(Boolean).join(' · ')}` : ''}
-          </p>
+          {/* Nom de la séquence, modifiable comme dans la grille. */}
+          <label className={s.seqName}>
+            <span>{sequenceNumber(doc, shot.sequenceId)},</span>
+            <SeqInput
+              value={editableText(doc, shot.id, 'sequence')}
+              readOnly={readOnly}
+              onCommit={(v) => mutateDoc((d) => void setCellText(d, shot.id, 'sequence', v))}
+            />
+          </label>
+          {(seq?.intExt || seq?.effect) && <p className={s.kicker}>{[seq.intExt, seq.effect].filter(Boolean).join(' · ')}</p>}
           <h1 className={s.title}>
             Plan {shotCode(doc, shot.id)}
             {tc && <span className={s.tc}>{tc}</span>}
@@ -210,5 +216,29 @@ function Field({ label: l, value, multiline, readOnly, onCommit }: { label: stri
       <span>{l}</span>
       {multiline ? <textarea rows={Math.max(2, Math.ceil(draft.length / 38))} {...common} /> : <input {...common} />}
     </label>
+  );
+}
+
+/** Nom de séquence saisi d'un trait, enregistré en quittant le champ. */
+function SeqInput({ value, readOnly, onCommit }: { value: string; readOnly?: boolean; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setDraft(value);
+  }, [value, focused]);
+  return (
+    <input
+      value={draft}
+      readOnly={readOnly}
+      placeholder="Nom de la séquence"
+      aria-label="Nom de la séquence"
+      onFocus={() => setFocused(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setFocused(false);
+        if (draft !== value) onCommit(draft);
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+    />
   );
 }

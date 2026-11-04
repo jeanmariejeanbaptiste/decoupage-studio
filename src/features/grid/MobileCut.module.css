@@ -40,3 +40,8 @@
 .listBody { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .listBody strong { font-weight: 600; font-size: 15px; }
 .listBody span { font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.seqName { display: flex; align-items: baseline; gap: 6px; margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+.seqName span { opacity: 0.6; }
+.seqName input { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--paper-card) 30%, transparent); padding: 2px 0; background: none; font: inherit; letter-spacing: inherit; text-transform: uppercase; color: inherit; outline: none; }
+.seqName input:focus { border-bottom-color: var(--paper-card); }
