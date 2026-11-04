@@ -17,3 +17,15 @@
 .app { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
 .sep { color: var(--ink-soft); }
 .title { color: var(--ink-soft); font-style: italic; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; }
+
+/* Téléphone : l'essentiel seulement. */
+@media (max-width: 700px) {
+  .topbar { grid-template-columns: auto 1fr auto; gap: 6px; padding: 0 6px; }
+  .status, .app, .sep { display: none; }
+  .center { justify-content: center; min-width: 0; }
+  .title { max-width: 100%; font-style: normal; color: var(--ink); font-weight: 600; }
+}
+@media (max-width: 700px) {
+  /* Enregistrer et Rétablir sont aussi au clavier et dans la palette ; thème et réglages dans le menu. */
+  .left > button:nth-of-type(3), .left > button:nth-of-type(5), .right > :not(:first-child) { display: none; }
+}

@@ -112,3 +112,7 @@ button { cursor: pointer; }
 [data-readonly] main label:has(> input:not([data-view])):not([data-view] *) { pointer-events: none; }
 [data-readonly] main :is(input, textarea):not([data-view], [data-view] *) { caret-color: transparent; }
 [data-nocopy] [data-export] { display: none !important; }
+
+@media (max-width: 700px) {
+  .page, .page--wide { padding: 14px 16px 40px; }
+}

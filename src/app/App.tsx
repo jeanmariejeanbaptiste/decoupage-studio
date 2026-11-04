@@ -169,6 +169,9 @@ export function App() {
       )}
       <GuestBanner />
       <div className={s.body}>
+        {showSidebar && sidebarOpen && doc && (
+          <div className={s.scrim} onClick={toggleSidebar} aria-hidden="true" />
+        )}
         {showSidebar && sidebarOpen && doc && <Sidebar
             projectTitle={title}
             activeRoute={route}

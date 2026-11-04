@@ -2,3 +2,11 @@
 .body { flex: 1; display: flex; min-height: 0; }
 .main { flex: 1; min-width: 0; overflow: auto; }
 @media print { .app, .body { display: block; height: auto; } .main { overflow: visible; } }
+
+/* Téléphone : le menu latéral devient un tiroir posé par-dessus la page. */
+.scrim { display: none; }
+@media (max-width: 700px) {
+  .body { position: relative; }
+  .body > aside { position: fixed; top: var(--topbar-h); bottom: 0; left: 0; z-index: 40; box-shadow: 8px 0 30px rgba(17, 19, 24, 0.15); }
+  .scrim { display: block; position: fixed; inset: var(--topbar-h) 0 0 0; z-index: 39; background: rgba(17, 19, 24, 0.25); }
+}

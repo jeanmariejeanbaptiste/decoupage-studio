@@ -1,3 +1,4 @@
+import { MobileCut, useIsMobile } from './MobileCut';
 import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { recoverStaleChunk } from '../../ui/staleChunk';
@@ -33,6 +34,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   const model = useMemo(() => buildGridModel(doc), [doc]);
   // Lecture seule : toujours l'aperçu, la grille d'édition n'a pas lieu d'être.
   const readOnly = useReadOnly();
+  const isMobile = useIsMobile();
   const printView = useUi((u) => u.printView) || readOnly;
   const rightPanel = useUi((u) => u.rightPanel);
   const focusRow = useUi((u) => u.selection?.focus.row);
@@ -70,6 +72,15 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
     if (!hadRows.current && model.rows.length > 0) document.querySelector<HTMLElement>('[data-testid="grid"]')?.focus();
     hadRows.current = model.rows.length > 0;
   }, [model.rows.length]);
+
+  // Téléphone : pas de tableau, un plan à la fois.
+  if (isMobile) {
+    return (
+      <div className="page">
+        <MobileCut doc={storeDoc} />
+      </div>
+    );
+  }
 
   return (
     <div className="page page--wide">

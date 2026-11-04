@@ -65,6 +65,8 @@ export const useUi = create<UiState>()((set) => ({
   rightPanel: typeof window !== 'undefined' && window.innerWidth >= 1600 ? 'inspector' : null,
   oneShotEditor: null,
   sidebarOpen: (() => {
+    // Sur téléphone, le menu est un tiroir fermé au départ.
+    if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 700px)').matches) return false;
     try {
       return localStorage.getItem('ds-sidebar') !== '0';
     } catch {
