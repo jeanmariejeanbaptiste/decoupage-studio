@@ -114,7 +114,7 @@ export function Grid({ doc, model, animate = false }: Props) {
       fn();
     };
     if (isShortcut(e, 'undo')) return run(undo);
-    if (isShortcut(e, 'redo') || (mod && !e.shiftKey && e.code === 'KeyY')) return run(redo);
+    if (isShortcut(e, 'redo') || (mod && !e.shiftKey && (e.key === 'y' || e.key === 'Y'))) return run(redo);
     if (isShortcut(e, 'newShot')) return run(newShotBelow);
     if (isShortcut(e, 'newSequence')) return run(newSequenceAfter);
     if (isShortcut(e, 'duplicate')) return run(duplicateCurrent);

@@ -92,3 +92,24 @@ test('les suggestions s’ouvrent dès l’édition d’une cellule', async ({ p
   // Liste complète à l'ouverture, jusqu'à l'insert.
   await expect(page.getByTestId('suggestions').getByRole('option', { name: /Insert/ })).toBeVisible();
 });
+
+test('coller depuis un tableur à cheval sur deux séquences : les lignes suivent la grille', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  const rows = page.locator('[data-testid="shot-row"]');
+  await expect(rows.first()).toBeVisible();
+  const n = await rows.count();
+  const firstSeq = page.locator('tbody[data-seq]').first();
+  const inFirst = await firstSeq.locator('[data-testid="shot-row"]').count();
+  // Dernier plan de la 1re séquence, colonne Sujet.
+  await page.locator(`[data-cell="${inFirst - 1}:subject"]`).click();
+  await page.getByTestId('grid').evaluate((el) => {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'Collé A\nCollé B\nCollé C');
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(rows).toHaveCount(n);
+  await expect(firstSeq.locator('[data-testid="shot-row"]')).toHaveCount(inFirst);
+  await expect(page.locator(`[data-cell="${inFirst - 1}:subject"]`)).toHaveText('Collé A');
+  await expect(page.locator(`[data-cell="${inFirst}:subject"]`)).toHaveText('Collé B');
+  await expect(page.locator(`[data-cell="${inFirst + 1}:subject"]`)).toHaveText('Collé C');
+});

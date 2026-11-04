@@ -211,3 +211,5 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 /* « + » entre deux plans, centré dans la colonne N°, sur la ligne de séparation. */
 .c_number .rowAdd { left: 50%; right: auto; bottom: -8px; transform: translateX(-50%); width: 16px; height: 16px; padding: 0; border-radius: 50%; z-index: 6; }
 .c_number .rowAdd::before { content: "+"; font-size: 13px; line-height: 13px; }
+/* Noms de séquence et de sujet : jamais de césure (« AC-CUEIL ») — on y cherche un nom d'un coup d'œil. */
+.c_sequence, .c_subject, .seqName { hyphens: manual; }

@@ -115,7 +115,7 @@ export function App() {
         return;
       }
       const isUndo = isShortcut(e, 'undo');
-      const isRedo = isShortcut(e, 'redo') || (mod && !e.shiftKey && e.code === 'KeyY');
+      const isRedo = isShortcut(e, 'redo') || (mod && !e.shiftKey && (e.key === 'y' || e.key === 'Y'));
       if (isUndo || isRedo) {
         e.preventDefault();
         // À l'accueil, annuler / rétablir portent sur la suppression des projets.

@@ -305,11 +305,13 @@ export function pasteMatrix(matrix: string[][], start: CellPos, columns: readonl
   if (!startShot) return;
   const c0 = columns.indexOf(start.col);
   mutateDoc((x) => {
-    const seq = x.sequences[x.shots[startShot].sequenceId];
-    let idx = seq.shotIds.indexOf(startShot);
+    // Comme dans un tableur : les lignes collées suivent l'ordre de la grille, séquence après
+    // séquence ; au-delà du dernier plan, de nouveaux plans s'ajoutent à la fin de la dernière séquence.
+    const order = x.project.sequenceIds.flatMap((id) => x.sequences[id]?.shotIds ?? []);
+    let idx = order.indexOf(startShot);
     for (const line of matrix) {
-      if (idx >= seq.shotIds.length) addShotAfter(x, seq.shotIds[seq.shotIds.length - 1]);
-      const shotId = seq.shotIds[idx];
+      if (idx >= order.length) order.push(addShotAfter(x, order[order.length - 1]));
+      const shotId = order[idx];
       line.forEach((cell, j) => {
         const col = columns[c0 + j];
         if (col && isEditable(col)) setCellText(x, shotId, col, cell);

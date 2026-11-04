@@ -3,6 +3,7 @@
  * et maintiennent les invariants du §3.
  */
 import { recognizeCharacters } from './characters';
+import { blockDuration } from './timing';
 import { makeBlock, makeSequence, makeShot, newId } from './factory';
 import type { ActionBlock, Character, ID, ProjectDoc, Sequence, Shot } from './types';
 
@@ -125,7 +126,7 @@ export function moveShot(doc: ProjectDoc, shotId: ID, toSeqId: ID, toIndex: numb
       block.sequenceId = to.id;
       block.tc = block.tc ? { ...block.tc } : undefined;
     } else {
-      const copy = makeBlock(to.id, { text: block?.text ?? '', dialogue: block?.dialogue });
+      const copy = makeBlock(to.id, blockData(block));
       doc.blocks[copy.id] = copy;
       shot.actionBlockId = copy.id;
     }
@@ -161,7 +162,7 @@ export function normalizeBlocks(doc: ProjectDoc, seqId: ID): number {
     const block = doc.blocks[bId];
     const foreign = !block || block.sequenceId !== seqId;
     if (foreign || (seen.has(bId) && prev !== bId)) {
-      const copy = makeBlock(seqId, { text: block?.text ?? '', dialogue: block?.dialogue, tc: block?.tc ? { ...block.tc } : undefined });
+      const copy = makeBlock(seqId, blockData(block));
       doc.blocks[copy.id] = copy;
       remap.set(bId, copy.id);
       if (block && !foreign) splits += 1;
@@ -180,6 +181,21 @@ export function normalizeBlocks(doc: ProjectDoc, seqId: ID): number {
   }
   seq.actionBlockIds = ordered;
   return splits;
+}
+
+/**
+ * Copie complète des données d'un bloc d'action (texte, réplique, durée forcée, plage de piste,
+ * passage du scénario) : aucune opération de structure ne doit en perdre une au passage.
+ */
+function blockData(block: ActionBlock | undefined): Partial<ActionBlock> {
+  if (!block) return { text: '' };
+  return {
+    text: block.text,
+    dialogue: block.dialogue,
+    overrideSec: block.overrideSec,
+    tc: block.tc ? { ...block.tc } : undefined,
+    scenarioAnchor: block.scenarioAnchor ? { ...block.scenarioAnchor } : undefined,
+  };
 }
 
 /** Plans consécutifs d'une même séquence ? Renvoie les ids dans l'ordre, sinon `null`. */
@@ -209,11 +225,26 @@ export function linkAction(doc: ProjectDoc, shotIds: readonly ID[]): ID | null {
   // Étend aux plans qui partagent déjà ces blocs, pour ne pas les rendre discontigus.
   const seq = seqOf(doc, seqId);
   for (const id of seq.shotIds) if (blockIds.includes(doc.shots[id].actionBlockId)) doc.shots[id].actionBlockId = target.id;
-  for (const b of blockIds) {
-    const block = doc.blocks[b];
-    if (block?.text.trim() && !texts.includes(block.text.trim())) texts.push(block.text.trim());
-    if (block?.dialogue?.trim()) dialogues.push(block.dialogue.trim());
+  const blocks = blockIds.map((b) => doc.blocks[b]).filter((b): b is ActionBlock => !!b);
+  for (const block of blocks) {
+    if (block.text.trim() && !texts.includes(block.text.trim())) texts.push(block.text.trim());
+    if (block.dialogue?.trim()) dialogues.push(block.dialogue.trim());
   }
+  // Minutage : la durée d'une action liée est la somme des durées des actions réunies. Dès qu'une
+  // d'elles avait une durée forcée, on la garde en forçant la somme (chaque action comptant pour sa
+  // durée forcée ou calculée) ; les plages de piste sont réunies de la plus précoce à la plus tardive.
+  if (blocks.some((b) => b.overrideSec !== undefined)) {
+    target.overrideSec = blocks.reduce((n, b) => n + blockDuration(b, doc.project.settings), 0);
+  }
+  const ranges = blocks.map((b) => b.tc).filter((r): r is NonNullable<ActionBlock['tc']> => !!r);
+  if (ranges.some((r) => r.all)) target.tc = { all: true };
+  else {
+    const ins = ranges.map((r) => r.in).filter((x): x is number => x !== undefined);
+    const outs = ranges.map((r) => r.out).filter((x): x is number => x !== undefined);
+    if (ins.length || outs.length) target.tc = { in: ins.length ? Math.min(...ins) : undefined, out: outs.length ? Math.max(...outs) : undefined };
+  }
+  const anchors = blocks.map((b) => b.scenarioAnchor).filter((a): a is NonNullable<ActionBlock['scenarioAnchor']> => !!a);
+  if (anchors.length) target.scenarioAnchor = { start: Math.min(...anchors.map((a) => a.start)), end: Math.max(...anchors.map((a) => a.end)) };
   target.text = texts.join(' ');
   target.dialogue = dialogues.length ? dialogues.join('\n') : undefined;
   normalizeBlocks(doc, seqId);
@@ -231,7 +262,7 @@ export function unlinkAction(doc: ProjectDoc, shotIds: readonly ID[]): void {
     const sharing = seq.shotIds.filter((x) => doc.shots[x].actionBlockId === shot.actionBlockId);
     if (sharing.length < 2) continue;
     for (const other of sharing.slice(1)) {
-      const copy = makeBlock(seq.id, { text: block?.text ?? '', dialogue: block?.dialogue, tc: block?.tc ? { ...block.tc } : undefined });
+      const copy = makeBlock(seq.id, blockData(block));
       doc.blocks[copy.id] = copy;
       doc.shots[other].actionBlockId = copy.id;
     }
@@ -247,7 +278,7 @@ export function detachAction(doc: ProjectDoc, shotId: ID): void {
   const seq = seqOf(doc, shot.sequenceId);
   if (seq.shotIds.filter((x) => doc.shots[x].actionBlockId === shot.actionBlockId).length < 2) return;
   const block = doc.blocks[shot.actionBlockId];
-  const copy = makeBlock(seq.id, { text: block?.text ?? '', dialogue: block?.dialogue });
+  const copy = makeBlock(seq.id, blockData(block));
   doc.blocks[copy.id] = copy;
   shot.actionBlockId = copy.id;
   normalizeBlocks(doc, seq.id);

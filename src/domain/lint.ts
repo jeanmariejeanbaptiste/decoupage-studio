@@ -1,4 +1,3 @@
-import { recognizeCharacters } from './characters';
 import { shotCode, sequenceHeading } from './numbering';
 import { fold, mergeKey } from './text';
 import type { Timing } from './timing';
@@ -16,8 +15,7 @@ export type CheckCode =
   | 'doc-close-wide'
   | 'estimate-gap'
   | 'drone'
-  | 'stabilizer-safety'
-  | 'unknown-subject';
+  | 'stabilizer-safety';
 
 export interface Issue {
   /** Identifiant stable, utilisé pour « ignorer ici ». */
@@ -41,7 +39,6 @@ export const CHECK_LABELS: Readonly<Record<CheckCode, string>> = {
   'estimate-gap': 'Écart estimé / calculé supérieur à 25 %',
   drone: 'Rappel réglementaire drone',
   'stabilizer-safety': 'Rappel sécurité machiniste',
-  'unknown-subject': 'Sujet absent de la base des personnages',
 };
 
 const DRONE_MSG =
@@ -57,7 +54,6 @@ function isWide(value: string): boolean {
 export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
   const issues: Issue[] = [];
   const ignored = new Set(doc.ignoredChecks);
-  const chars = Object.values(doc.characters);
   const push = (i: Omit<Issue, 'id'>) => {
     const id = `${i.code}:${i.shotId ?? i.sequenceId}`;
     if (!ignored.has(id)) issues.push({ ...i, id });
@@ -107,8 +103,6 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
       if (moves.some((m) => m.includes('drone'))) push({ ...base, code: 'drone', level: 'info', message: DRONE_MSG });
       if (moves.some((m) => m === 'epaule' || m === 'steadicam' || m.includes('epaule') || m.includes('steadicam')))
         push({ ...base, code: 'stabilizer-safety', level: 'info', message: SAFETY_MSG });
-      if (shot.subject.trim() && recognizeCharacters(shot.subject, chars).length === 0)
-        push({ ...base, code: 'unknown-subject', level: 'info', message: `« ${shot.subject.trim()} » n’est pas dans la base des personnages.` });
     });
   }
   return issues;

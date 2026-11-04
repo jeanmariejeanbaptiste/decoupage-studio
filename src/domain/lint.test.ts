@@ -48,19 +48,19 @@ describe('contrôles de la scripte (§9)', () => {
     doc.sequences[doc.project.sequenceIds[0]].estimatedSec = 30;
     expect(codes(doc)).toContain('estimate-gap');
   });
-  it('rappels drone et sécurité, sujet inconnu', () => {
+  it('rappels drone et sécurité ; un sujet qui n’est pas un personnage (insert, objet) n’est pas une erreur', () => {
     const c = codes(docWith([{ init: { subject: 'Affiche', value: 'Général', movement: ['Drone'] } }, { init: { subject: 'a', value: 'Taille', movement: ['Épaule'] } }]));
-    expect(c).toEqual(expect.arrayContaining(['drone', 'stabilizer-safety', 'unknown-subject']));
+    expect(c).toEqual(expect.arrayContaining(['drone', 'stabilizer-safety']));
+    expect(c).not.toContain('unknown-subject');
   });
   it('« ignorer ici » est mémorisé', () => {
     const doc = buildRav3();
     const issues = check(doc);
-    const affiche = issues.find((i) => i.code === 'unknown-subject')!;
-    expect(affiche.message).toContain('Affiche');
+    const affiche = issues.find((i) => i.code === 'jump-cut')!;
     const next = produce(doc, (d) => {
       d.ignoredChecks.push(affiche.id);
     });
     expect(check(next).find((i) => i.id === affiche.id)).toBeUndefined();
-    expect(check(next).some((i) => i.code === 'jump-cut')).toBe(true);
+    expect(check(next).length).toBe(issues.length - 1);
   });
 });

@@ -211,3 +211,43 @@ describe('opérations et invariants §3', () => {
     expect(() => produce(doc, (d) => void duplicateShot(d, 'absent'))).toThrow();
   });
 });
+
+describe('actions liées : aucune donnée de minutage perdue', () => {
+  const setup = () => {
+    const doc = createProjectDoc({ title: 't', format: 'fiction' });
+    const seq = addSequence(doc, undefined, { label: 'A' }, false);
+    const other = addSequence(doc, undefined, { label: 'B' }, false);
+    const ids = [0, 1, 2].map(() => addShot(doc, seq));
+    return { doc, seq, other, ids };
+  };
+  const blockOf = (doc: ProjectDoc, id: string) => doc.blocks[doc.shots[id].actionBlockId];
+
+  it('délier, détacher et déplacer gardent durée forcée, plage et passage', async () => {
+    const { linkAction, unlinkAction, detachAction, moveShot } = await import('./ops');
+    for (const op of ['unlink', 'detach', 'move'] as const) {
+      const { doc, other, ids } = setup();
+      linkAction(doc, ids);
+      Object.assign(blockOf(doc, ids[0]), { overrideSec: 12, tc: { in: 3, out: 15 }, scenarioAnchor: { start: 0, end: 9 } });
+      if (op === 'unlink') unlinkAction(doc, ids);
+      if (op === 'detach') detachAction(doc, ids[2]);
+      if (op === 'move') moveShot(doc, ids[2], other, 0);
+      for (const id of ids) {
+        expect(blockOf(doc, id).overrideSec, op).toBe(12);
+        expect(blockOf(doc, id).tc, op).toEqual({ in: 3, out: 15 });
+        expect(blockOf(doc, id).scenarioAnchor, op).toEqual({ start: 0, end: 9 });
+      }
+    }
+  });
+
+  it('lier additionne les durées et réunit les plages', async () => {
+    const { linkAction } = await import('./ops');
+    const { doc, ids } = setup();
+    Object.assign(blockOf(doc, ids[0]), { text: 'Elle entre.', overrideSec: 5, tc: { in: 0, out: 5 } });
+    Object.assign(blockOf(doc, ids[1]), { text: 'Elle sort.', overrideSec: 7, tc: { in: 5, out: 12 } });
+    linkAction(doc, [ids[0], ids[1]]);
+    const b = blockOf(doc, ids[0]);
+    expect(b.overrideSec).toBe(12);
+    expect(b.tc).toEqual({ in: 0, out: 12 });
+    expect(b.text).toBe('Elle entre. Elle sort.');
+  });
+});

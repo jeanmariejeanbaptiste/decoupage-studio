@@ -19,6 +19,9 @@ describe('raccourcis', () => {
     expect(comboFromEvent(ev('ArrowUp', { alt: true }))).toBe('Alt+ArrowUp');
     expect(comboFromEvent(ev('?', { code: 'Comma', shift: true }))).toBe('?');
     expect(comboFromEvent(ev('Shift', { shift: true }))).toBeNull();
+    // AZERTY : la touche marquée Z est à la place du W d'un clavier QWERTY.
+    expect(comboFromEvent(ev('z', { code: 'KeyW', meta: true }))).toBe('Mod+Z');
+    expect(comboFromEvent(ev('&', { code: 'Digit1', ctrl: true }))).toBe('Mod+1');
   });
 
   it('reconnaît les raccourcis par défaut', () => {

@@ -40,6 +40,9 @@ export interface Timing {
 /** Durée calculée d'un bloc d'action (§6.2). */
 export function blockDuration(block: Pick<ActionBlock, 'text' | 'dialogue' | 'overrideSec'>, settings: ProjectSettings): number {
   if (block.overrideSec !== undefined) return Math.max(0, Math.round(block.overrideSec));
+  const words = countWords(block.text) + countWords(block.dialogue);
+  // Action vide : aucune durée inventée (un plan sans contenu ne compte pas dans le total).
+  if (words === 0) return 0;
   const raw =
     countWords(block.text) / settings.actionWordsPerSecond + countWords(block.dialogue) / settings.dialogueWordsPerSecond;
   return Math.round(Math.max(settings.minActionSeconds, raw));
@@ -193,7 +196,8 @@ export function shotTcLabel(doc: ProjectDoc, timing: Timing, shotId: ID): string
   if (s.tcMode === 'duree') {
     // Durée propre du plan : celle de son action, partagée entre les plans qui la couvrent.
     const n = doc.sequences[shot.sequenceId]?.shotIds.filter((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId).length ?? 1;
-    return formatTc(Math.round((timing.blocks.get(shot.actionBlockId)?.durationSec ?? 0) / Math.max(1, n)));
+    const sec = timing.blocks.get(shot.actionBlockId)?.durationSec ?? 0;
+    return sec > 0 ? formatTc(Math.round(sec / Math.max(1, n))) : '';
   }
   if (s.tcMode === 'cumulatif' && s.tcGranularity === 'sequence') return timing.sequences.get(shot.sequenceId)?.label ?? '';
   return timing.blocks.get(shot.actionBlockId)?.label ?? '';

@@ -1,7 +1,7 @@
 /**
  * Raccourcis clavier personnalisables. Une combinaison s'écrit « Mod+Shift+Enter » : Mod vaut ⌘ sur
- * Mac et Ctrl ailleurs, les lettres et chiffres sont lus d'après la touche physique (indépendants
- * de ⇧ et ⌥), les autres touches d'après leur nom (Enter, ArrowUp, Backspace…).
+ * Mac et Ctrl ailleurs, les lettres et chiffres d'après la lettre de la touche (AZERTY compris),
+ * les autres touches d'après leur nom (Enter, ArrowUp, Backspace…).
  */
 
 export type ShortcutId =
@@ -74,8 +74,11 @@ export function comboFromEvent(e: KeyLike): string | null {
   if (MODIFIERS.has(e.key)) return null;
   const mod = e.metaKey || e.ctrlKey;
   let key = e.key;
+  // La lettre affichée sur la touche fait foi (AZERTY : ⌘Z est bien ⌘Z). La position physique ne
+  // sert que lorsque ⌥ ou ⇧ transforment la touche en un autre signe (⌥D → « ∂ », ⇧1 → « 1 » / « ! »).
   const phys = /^Key([A-Z])$/.exec(e.code ?? '') ?? /^Digit(\d)$/.exec(e.code ?? '');
-  if (phys) key = phys[1];
+  if (/^[a-z0-9]$/i.test(key)) key = key.toUpperCase();
+  else if (phys && (mod || e.altKey)) key = phys[1];
   else if (key.length === 1) {
     key = key.toUpperCase();
     // Signe tapé seul (« ? », « / »…) : ⇧ fait partie du caractère, on ne l'exige pas.

@@ -14,7 +14,9 @@ describe('durées', () => {
     expect(blockDuration({ text: 'a b c d e f g h i j k l' }, settings)).toBe(6);
     expect(blockDuration({ text: '', dialogue: Array(25).fill('mot').join(' ') }, settings)).toBe(10);
     expect(blockDuration({ text: 'x', overrideSec: 12.4 }, settings)).toBe(12);
-    expect(blockDuration({ text: '' }, settings)).toBe(2);
+    // Action vide : aucune durée inventée.
+    expect(blockDuration({ text: '' }, settings)).toBe(0);
+    expect(blockDuration({ text: 'x' }, settings)).toBe(2);
   });
   it('aperçu des réglages', () => {
     expect(previewDuration('a b c d e f g h i j k l', settings)).toEqual({ words: 12, sec: 6 });

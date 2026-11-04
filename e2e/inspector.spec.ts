@@ -15,7 +15,15 @@ test('inspecteur : angle de champ, matériel, son et storyboard', async ({ page 
   await expect(insp).toContainText('Optique fixe 50 mm');
   await expect(insp).toContainText('Rails + dolly ou slider');
   await insp.getByLabel('Son').fill('IN');
+  await insp.getByLabel('Son').press('Enter');
   await expect(insp).toContainText('Perche + HF');
+  // La saisie d'un champ s'annule en une seule fois.
+  const note = insp.locator('textarea').last();
+  await note.fill('Lumière rasante, contre-jour fenêtre');
+  await insp.getByText('Plan 2.1').first().click();
+  await expect(note).toHaveValue('Lumière rasante, contre-jour fenêtre');
+  await page.keyboard.press('Control+z');
+  await expect(note).toHaveValue('');
   await insp.locator('input[type=file]').first().setInputFiles({ name: 'board.png', mimeType: 'image/png', buffer: PNG });
   await expect(insp.getByRole('img', { name: 'Storyboard du plan 2.1' })).toBeVisible();
   await page.getByRole('button', { name: 'Replier l’inspecteur' }).click();
@@ -28,9 +36,9 @@ test('vérifications : liste cliquable, ignorer ici, rétablir', async ({ page }
   await expect(issues.first()).toBeVisible();
   const n = await issues.count();
   expect(n).toBeGreaterThan(3);
-  const affiche = issues.filter({ hasText: 'Affiche' });
-  await expect(affiche).toContainText('Sujet absent de la base des personnages');
-  await affiche.getByRole('button', { name: 'ignorer ici' }).click();
+  // Un sujet qui n'est pas un personnage (« Affiche », insert) ne déclenche plus d'alerte.
+  await expect(issues.filter({ hasText: 'Affiche' })).toHaveCount(0);
+  await issues.first().getByRole('button', { name: 'ignorer ici' }).click();
   await expect(issues).toHaveCount(n - 1);
   await page.getByRole('button', { name: /Rétablir les 1 contrôle/ }).click();
   await expect(issues).toHaveCount(n);

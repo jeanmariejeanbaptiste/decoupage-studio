@@ -1,6 +1,6 @@
 import { newId } from '../../domain/factory';
 import { formatOneShotDuration, oneShotTiming, toggleOneShot } from '../../domain/oneshot';
-import { useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { ImagePlus, PanelRightClose, Trash2 } from 'lucide-react';
 import { setCellText } from '../../domain/cells';
@@ -20,7 +20,6 @@ import { FovCone } from './FovCone';
 import { camerasForShot } from '../../domain/floorplan';
 import s from './Inspector.module.css';
 
-const SOUND = ['IN', 'OFF', 'V.O.', 'Musique diégétique', 'Musique extradiégétique', 'Playback'];
 const STATUSES: ShotStatus[] = ['à tourner', 'tourné', 'abandonné'];
 
 export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undefined }) {
@@ -186,23 +185,18 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
       </section>
 
       <section className={s.block}>
-        <h3>Son, lumière, raccords</h3>
+        <h3>Son, lumière, image</h3>
         <label className={s.field}>
           <span>Son</span>
-          <input list="sound-options" value={shot.sound ?? ''} onChange={(e) => update((d) => void setCellText(d, shot.id, 'sound', e.target.value))} />
-          <datalist id="sound-options">
-            {SOUND.map((x) => (
-              <option key={x} value={x} />
-            ))}
-          </datalist>
+          <Draft value={shot.sound ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'sound', v))} />
         </label>
         <label className={s.field}>
           <span>Lumière (effet, intention)</span>
-          <input value={shot.light ?? ''} onChange={(e) => update((d) => void setCellText(d, shot.id, 'light', e.target.value))} />
+          <Draft value={shot.light ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'light', v))} />
         </label>
         <label className={s.field}>
           <span>Image</span>
-          <textarea rows={3} value={shot.notes ?? ''} onChange={(e) => update((d) => void setCellText(d, shot.id, 'notes', e.target.value))} />
+          <Draft multiline value={shot.notes ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'notes', v))} />
         </label>
         <div className={s.row}>
           <label className={s.field}>
@@ -215,7 +209,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
           </label>
           <label className={s.field}>
             <span>Jour de tournage</span>
-            <input type="number" min={1} value={shot.shootingDay ?? ''} onChange={(e) => update((d) => void setCellText(d, shot.id, 'shootingDay', e.target.value))} />
+            <Draft type="number" value={shot.shootingDay !== undefined ? String(shot.shootingDay) : ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'shootingDay', v))} />
           </label>
         </div>
       </section>
@@ -256,5 +250,39 @@ function Header({ onClose }: { onClose: () => void }) {
       <Hand>Inspecteur</Hand>
       <Button variant="icon" size="sm" aria-label="Replier l’inspecteur" title="Replier l’inspecteur" onClick={onClose} icon={<PanelRightClose size={15} strokeWidth={1.25} />} />
     </div>
+  );
+}
+
+/**
+ * Champ de l'inspecteur saisi d'un trait : la frappe reste locale et n'est enregistrée qu'en quittant
+ * le champ (ou Entrée), si bien qu'une note entière s'annule en une seule fois avec ⌘Z.
+ */
+function Draft({ value, onCommit, multiline, type }: { value: string; onCommit: (v: string) => void; multiline?: boolean; type?: string }) {
+  const [draft, setDraft] = useState(value);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setDraft(value);
+  }, [value, focused]);
+  const commit = () => {
+    setFocused(false);
+    if (draft !== value) onCommit(draft);
+  };
+  const common = {
+    value: draft,
+    onFocus: () => setFocused(true),
+    onBlur: commit,
+    onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
+  };
+  return multiline ? (
+    <textarea rows={3} {...common} />
+  ) : (
+    <input
+      type={type}
+      min={type === 'number' ? 1 : undefined}
+      {...common}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+    />
   );
 }
