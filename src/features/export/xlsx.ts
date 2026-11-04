@@ -10,9 +10,9 @@ import type { ColumnKey, ExportTheme, ProjectDoc } from '../../domain/types';
 
 const PALETTES: Record<ExportTheme, { bg: string; head: string; title: string; ink: string; red: string; brown: string }> = {
   // Un seul style : blanc, noir, bleu (le thème enregistré dans d'anciens projets est ignoré).
-  mauve: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '1F4FD1', brown: '111111' },
-  papier: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '1F4FD1', brown: '111111' },
-  sobre: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '1F4FD1', brown: '111111' },
+  mauve: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '111111', brown: '111111' },
+  papier: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '111111', brown: '111111' },
+  sobre: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '111111', brown: '111111' },
 };
 
 const FONT = 'Inter';

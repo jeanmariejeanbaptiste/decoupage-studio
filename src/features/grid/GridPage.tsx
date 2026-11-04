@@ -73,15 +73,6 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
     hadRows.current = model.rows.length > 0;
   }, [model.rows.length]);
 
-  // Téléphone : pas de tableau, un plan à la fois.
-  if (isMobile) {
-    return (
-      <div className="page">
-        <MobileCut doc={storeDoc} />
-      </div>
-    );
-  }
-
   return (
     <div className="page page--wide">
       <header className="page-head">
@@ -219,6 +210,9 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           {/* Aperçu à l'écran : toujours le style sobre du papier, le thème coloré reste réservé aux exports. */}
           <ExportTable doc={doc} theme="papier" />
         </div>
+      ) : isMobile ? (
+        // Téléphone : mêmes outils (colonnes, aperçu, export, lier), mais un plan à la fois.
+        <MobileCut doc={storeDoc} />
       ) : (
         <>
           {doc.project.settings.tcMode === 'piste' && <TrackBar doc={storeDoc} />}

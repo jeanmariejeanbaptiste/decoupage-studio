@@ -1,39 +1,42 @@
-/* Découpage sur téléphone : un plan à la fois, lecture verticale, commandes au pouce en bas. */
-.wrap { display: flex; flex-direction: column; gap: 18px; padding: 4px 2px 110px; }
-.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.kicker { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-soft); text-transform: uppercase; }
-.title { margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
-.tc { font-size: 14px; font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.iconBtn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper-card); color: var(--ink); cursor: pointer; }
+/* Découpage sur téléphone : cartes douces, grands arrondis, pastilles et boutons sombres (noirs, gris, blanc). */
+.wrap { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 120px; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 18px 20px; border-radius: 28px; background: var(--ink); color: var(--paper-card); }
+.kicker { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6; }
+.title { margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 34px; font-weight: 300; letter-spacing: -0.02em; }
+.tc { font-size: 13px; font-weight: 500; opacity: 0.6; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.iconBtn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--paper-card) 14%, transparent); color: inherit; cursor: pointer; }
+.wrap > .head:only-child, .wrap > .head + .listSeq { color: inherit; }
 
-.fields { display: flex; flex-direction: column; gap: 4px; }
-.field { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
-.field > span { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
-.field input, .field textarea { width: 100%; border: 0; padding: 0; background: none; font: inherit; font-size: 17px; line-height: 1.45; color: var(--ink); resize: none; outline: none; }
-.field input::placeholder, .field textarea::placeholder { color: var(--rule); }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 22px; background: var(--kraft); }
+.field:has(textarea) { grid-column: 1 / -1; }
+.field > span { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.field input, .field textarea { width: 100%; border: 0; padding: 0; background: none; font: inherit; font-size: 17px; font-weight: 500; line-height: 1.4; color: var(--ink); resize: none; outline: none; }
+.field textarea { font-weight: 400; }
+.field input::placeholder, .field textarea::placeholder { color: color-mix(in srgb, var(--ink-soft) 50%, transparent); }
+.field:focus-within { background: var(--paper-card); box-shadow: inset 0 0 0 1.5px var(--ink); }
 
 .bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--paper-card) 92%, transparent);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid var(--rule);
+  position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px;
+  border-radius: 999px; background: var(--ink); color: var(--paper-card);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
-.navBtn { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border: 0; border-radius: 14px; background: var(--ink); color: var(--paper-card); cursor: pointer; }
-.navBtn:disabled { opacity: 0.2; }
-.adds { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.adds > div, .adds { flex: 1; }
-.adds button { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); font: inherit; font-size: 13px; font-weight: 500; color: var(--ink); cursor: pointer; }
-.adds { flex-direction: row; flex-wrap: wrap; justify-content: center; }
-.count { width: 100%; text-align: center; font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.navBtn { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--paper-card) 14%, transparent); color: inherit; cursor: pointer; }
+.navBtn:disabled { opacity: 0.25; }
+.adds { flex: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; }
+.adds button { display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--paper-card); font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.count { width: 100%; text-align: center; font-size: 11px; opacity: 0.6; font-variant-numeric: tabular-nums; }
 
-.primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 48px; border: 0; border-radius: 12px; background: var(--rust); color: #fff; font: inherit; font-weight: 600; }
-.listSeq h2 { margin: 6px 0 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink-soft); }
-.listSeq ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.listSeq button { width: 100%; display: flex; gap: 12px; align-items: flex-start; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--rule); background: none; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
-.listOn { background: var(--selected) !important; border-radius: 8px; }
-.listNum { flex: 0 0 44px; font-weight: 700; color: var(--rust); font-variant-numeric: tabular-nums; }
+.primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 52px; border: 0; border-radius: 999px; background: var(--ink); color: var(--paper-card); font: inherit; font-weight: 600; }
+.listSeq { padding: 14px; border-radius: 26px; background: var(--kraft); }
+.listSeq h2 { margin: 2px 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.listSeq ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.listSeq button { width: 100%; display: flex; gap: 12px; align-items: center; padding: 12px; border: 0; border-radius: 18px; background: var(--paper-card); text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.listOn { background: var(--ink) !important; color: var(--paper-card) !important; }
+.listOn .listNum { background: var(--paper-card); color: var(--ink); }
+.listOn .listBody span { color: inherit; opacity: 0.7; }
+.listNum { flex: 0 0 auto; min-width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--ink); color: var(--paper-card); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .listBody { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .listBody strong { font-weight: 600; font-size: 15px; }
-.listBody span { font-size: 13.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.listBody span { font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

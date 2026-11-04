@@ -6,19 +6,19 @@
   --ink: #111318;
   --ink-soft: #6b7079;
   --rule: #e6e8ec;
-  --rust: #1f4fd1;
-  --navy: #1f4fd1;
-  --sage: #1f4fd1;
+  --rust: #111318;
+  --navy: #111318;
+  --sage: #111318;
   --ochre: #6b7079;
-  --focus: #1f4fd1;
+  --focus: #111318;
   --radius: 4px;
 
-  --tint: rgba(31, 79, 209, 0.05);
+  --tint: rgba(17, 19, 24, 0.04);
   --hover: rgba(17, 19, 24, 0.03);
-  --selected: rgba(31, 79, 209, 0.06);
+  --selected: rgba(17, 19, 24, 0.05);
   --on-navy: #ffffff;
   --grain-opacity: 0;
-  --toast-accent: #9db6ff;
+  --toast-accent: #d0d3d9;
   /* Ombre douce commune aux cartes. */
   --shadow: 0 1px 2px rgba(17, 19, 24, 0.04), 0 4px 14px rgba(17, 19, 24, 0.04);
   --kraft-grain-opacity: 0;
@@ -47,17 +47,17 @@
   --ink: #f2f3f5;
   --ink-soft: #9aa1ab;
   --rule: #272b32;
-  --rust: #7ea6ff;
-  --navy: #7ea6ff;
-  --sage: #7ea6ff;
+  --rust: #f2f3f5;
+  --navy: #f2f3f5;
+  --sage: #f2f3f5;
   --ochre: #9aa1ab;
-  --focus: #7ea6ff;
-  --tint: rgba(126, 166, 255, 0.07);
+  --focus: #f2f3f5;
+  --tint: rgba(242, 243, 245, 0.05);
   --hover: rgba(242, 243, 245, 0.04);
-  --selected: rgba(126, 166, 255, 0.10);
+  --selected: rgba(242, 243, 245, 0.08);
   --on-navy: #0f1115;
   --grain-opacity: 0;
-  --toast-accent: #3557c7;
+  --toast-accent: #3a3f48;
   --kraft-grain-opacity: 0;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }

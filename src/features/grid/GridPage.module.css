@@ -40,3 +40,9 @@
 .addGroup { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--rule); border-radius: var(--radius); }
 .caret { padding-left: 4px; padding-right: 4px; }
 .noMerge { display: flex; align-items: center; gap: 6px; margin: 2px 0 0; font-size: 11.5px; color: var(--ink-soft); cursor: pointer; }
+
+@media (max-width: 700px) {
+  .toolbar { gap: 8px; }
+  .views { flex: 1; }
+  .views button { flex: 1; }
+}
