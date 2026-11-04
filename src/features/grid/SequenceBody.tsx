@@ -1,3 +1,4 @@
+import { SeqMeta } from './SeqMeta';
 import { Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
@@ -300,11 +301,7 @@ export function SequenceBody({
                             {sequenceNumber(doc, seq.seqId)},{' '}
                             {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
                           </span>
-                          {sequence?.intExt || sequence?.effect ? (
-                            <span className={s.seqMeta}>
-                              {[sequence.intExt, sequence.effect].filter(Boolean).join(' · ')}
-                            </span>
-                          ) : null}
+                          <SeqMeta doc={doc} seqId={seq.seqId} />
                           {seqTiming?.gap && (
                             <span
                               className={[s.gap, s[`gap_${seqTiming.gap.level}`]].join(' ')}

@@ -1,3 +1,4 @@
+import { SeqMeta } from './SeqMeta';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, List, Plus, X } from 'lucide-react';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
@@ -124,7 +125,6 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
     );
   }
 
-  const seq = doc.sequences[shot.sequenceId];
   const tc = shotTcLabel(doc, timing, shot.id);
   return (
     <div className={s.wrap} data-testid="mobile-cut">
@@ -139,7 +139,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
               onCommit={(v) => mutateDoc((d) => void setCellText(d, shot.id, 'sequence', v))}
             />
           </label>
-          {(seq?.intExt || seq?.effect) && <p className={s.kicker}>{[seq.intExt, seq.effect].filter(Boolean).join(' · ')}</p>}
+          <SeqMeta doc={doc} seqId={shot.sequenceId} readOnly={readOnly} className={s.kickerMeta} />
           <h1 className={s.title}>
             Plan {shotCode(doc, shot.id)}
             {tc && <span className={s.tc}>{tc}</span>}

@@ -1,0 +1,5 @@
+.meta { display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; letter-spacing: 0.06em; color: var(--ink-soft); }
+.meta select { appearance: none; -webkit-appearance: none; border: 0; padding: 1px 2px; border-radius: 4px; background: none; font: inherit; letter-spacing: inherit; color: inherit; text-align: center; cursor: pointer; }
+.meta select:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.meta select:disabled { cursor: default; opacity: 1; }
+.meta select { field-sizing: content; }

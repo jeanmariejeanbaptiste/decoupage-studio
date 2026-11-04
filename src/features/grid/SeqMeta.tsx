@@ -1,0 +1,45 @@
+import type { Effect, ID, IntExt, ProjectDoc } from '../../domain/types';
+import { mutateDoc } from '../../store/projectStore';
+import s from './SeqMeta.module.css';
+
+const INT_EXT: IntExt[] = ['INT', 'EXT', 'INT/EXT'];
+const EFFECTS: Effect[] = ['JOUR', 'NUIT', 'AUBE', 'CRÉPUSCULE'];
+
+/**
+ * INT / EXT et effet (jour, nuit…) d'une séquence, modifiables sur place : deux petits menus qui se
+ * lisent comme du texte. Utilisé dans la grille et dans la vue téléphone.
+ */
+export function SeqMeta({ doc, seqId, readOnly, className }: { doc: ProjectDoc; seqId: ID; readOnly?: boolean; className?: string }) {
+  const seq = doc.sequences[seqId];
+  if (!seq) return null;
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  return (
+    <span className={[s.meta, className ?? ''].join(' ')} onMouseDown={stop} onClick={stop} onDoubleClick={stop} onKeyDown={stop}>
+      <select
+        value={seq.intExt ?? ''}
+        disabled={readOnly}
+        aria-label="Intérieur ou extérieur"
+        onChange={(e) => mutateDoc((d) => void (d.sequences[seqId].intExt = (e.target.value || undefined) as IntExt | undefined))}
+        data-testid="seq-intext"
+      >
+        <option value="">INT/EXT ?</option>
+        {INT_EXT.map((v) => (
+          <option key={v}>{v}</option>
+        ))}
+      </select>
+      <span aria-hidden="true">·</span>
+      <select
+        value={seq.effect ?? ''}
+        disabled={readOnly}
+        aria-label="Effet"
+        onChange={(e) => mutateDoc((d) => void (d.sequences[seqId].effect = (e.target.value || undefined) as Effect | undefined))}
+        data-testid="seq-effect"
+      >
+        <option value="">Effet ?</option>
+        {EFFECTS.map((v) => (
+          <option key={v}>{v}</option>
+        ))}
+      </select>
+    </span>
+  );
+}

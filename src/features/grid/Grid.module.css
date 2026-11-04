@@ -70,7 +70,7 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
   line-height: 1.35;
   overflow-wrap: break-word;
   hyphens: auto;
-  cursor: cell;
+  cursor: default;
   transition: background var(--t-fast) var(--ease);
 }
 .selected, .row:hover .selected { background-color: var(--selected); }
@@ -240,3 +240,11 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 .row:has(.focus) .linked, .row:has(.selected) .linked { background-color: transparent; }
 .linked.focus, .linked.selected { background-color: var(--selected) !important; }
 .c_focal { white-space: normal; overflow-wrap: anywhere; }
+
+/* Insertion : hauteur fixe, le libellé apparaît en fondu (aucun décalage des lignes au survol). */
+.planAddRow td { height: 12px; }
+.seqAddRow td { height: 14px; }
+.planAddBtn, .seqAddBtn, .planAddBtn:hover, .seqAddBtn:hover { min-height: 0; height: 100%; font-size: 10.5px; line-height: 1; background: none; color: var(--ink-soft); opacity: 0; transition: opacity 220ms cubic-bezier(0.4, 0, 0.2, 1); }
+.planAddBtn:hover, .seqAddBtn:hover, .planAddBtn:focus-visible, .seqAddBtn:focus-visible { opacity: 1; }
+/* Première ligne de chaque séquence : son filet du haut. */
+.planAddRow + .row > td, .planAddRow + tr > td { border-top: 1px solid var(--rule); }

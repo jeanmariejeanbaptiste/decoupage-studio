@@ -45,3 +45,6 @@
 .seqName span { opacity: 0.6; }
 .seqName input { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--paper-card) 30%, transparent); padding: 2px 0; background: none; font: inherit; letter-spacing: inherit; text-transform: uppercase; color: inherit; outline: none; }
 .seqName input:focus { border-bottom-color: var(--paper-card); }
+.kickerMeta { color: inherit !important; opacity: 0.75; font-size: 12px !important; font-weight: 600; margin-bottom: 4px; }
+.kickerMeta select:hover { background: color-mix(in srgb, var(--paper-card) 14%, transparent) !important; color: inherit !important; }
+.kickerMeta option { color: #111; }
