@@ -52,19 +52,13 @@ export function addShot(doc: ProjectDoc, seqId: ID, opts: AddShotOptions = {}): 
   return shot.id;
 }
 
-/** Nouveau plan sous `afterShotId` : hérite du sujet, de la focale et de l'angle (§4.2). */
+/** Nouveau plan sous `afterShotId` : vierge, rien n'est recopié du plan précédent. */
 export function addShotAfter(doc: ProjectDoc, afterShotId: ID): ID {
   const prev = doc.shots[afterShotId];
   if (!prev) throw new Error('Plan inconnu');
   const seq = seqOf(doc, prev.sequenceId);
   return addShot(doc, prev.sequenceId, {
     index: seq.shotIds.indexOf(afterShotId) + 1,
-    init: {
-      subject: prev.subject,
-      characterIds: [...prev.characterIds],
-      focal: { ...prev.focal },
-      angle: [...prev.angle],
-    },
   });
 }
 

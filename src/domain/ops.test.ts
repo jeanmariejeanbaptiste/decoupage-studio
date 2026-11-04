@@ -54,7 +54,7 @@ describe('opérations et invariants §3', () => {
     expect(checkInvariants(moved)).toEqual([]);
   });
 
-  it('addShotAfter hérite du sujet, de la focale et de l’angle', () => {
+  it('addShotAfter crée un plan vierge, sans rien recopier du précédent', () => {
     const doc = fresh();
     const first = seqA(doc).shotIds[0];
     const next = produce(doc, (d) => {
@@ -62,7 +62,7 @@ describe('opérations et invariants §3', () => {
       addShotAfter(d, first);
     });
     const created = next.shots[seqA(next).shotIds[1]];
-    expect(created).toMatchObject({ subject: 'Léa', focal: { from: 35 }, angle: ['Face'], value: '' });
+    expect(created).toMatchObject({ subject: '', focal: {}, angle: [], value: '' });
     expect(next.blocks[created.actionBlockId].text).toBe('');
     expect(checkInvariants(next)).toEqual([]);
   });
