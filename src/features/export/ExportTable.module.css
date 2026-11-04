@@ -1,12 +1,12 @@
-/* Rendu d'export (§8.2). Thème « Mauve » par défaut, réplique de la référence. */
+/* Rendu d'export (§8.2) : un seul style, le plus lisible — blanc, noir, bleu pour les numéros. */
 .sheet {
-  --x-bg: #c98bb4;
-  --x-head: #dfa6d3;
-  --x-title: #7a4e74;
+  --x-bg: #fff;
+  --x-head: #f1f3f6;
+  --x-title: #111;
   --x-ink: #111;
-  --x-red: #c42b2b;
-  --x-brown: #7a2e1f;
-  --x-border: #000;
+  --x-red: #1f4fd1;
+  --x-brown: #111;
+  --x-border: #1a1a1a;
   position: relative;
   background: var(--x-bg);
   color: var(--x-ink);
@@ -15,6 +15,7 @@
   isolation: isolate;
 }
 .sheet::before {
+  display: none;
   content: '';
   position: absolute;
   inset: 0;
@@ -65,7 +66,7 @@
 .seq { break-inside: avoid; page-break-inside: avoid; }
 .c_sequence, .c_subject { color: var(--x-ink); }
 .c_number { color: var(--x-red); }
-.c_value, .c_angle, .c_movement, .c_action { color: var(--x-brown); }
+.c_value, .c_angle, .c_movement, .c_action { color: var(--x-brown); font-weight: 400; }
 .c_focal, .c_aperture { color: var(--x-ink); font-weight: 700; }
 .c_tc { color: var(--x-ink); font-weight: 700; font-style: italic; }
 .spacer td { background: var(--x-head); height: 4.2mm; padding: 0; }

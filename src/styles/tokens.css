@@ -1,35 +1,36 @@
 :root {
-  --paper: #f6f4ef;
+  --paper: #ffffff;
   --paper-card: #ffffff;
-  --kraft: #efebe3;
-  --kraft-deep: #e0d9cc;
-  --ink: #23211e;
-  --ink-soft: #767067;
-  --rule: #e2dcd1;
-  --rust: #9c3d2b;
-  --navy: #2e4263;
-  --sage: #5e7b4c;
-  --ochre: #b88a2e;
-  --focus: #2e4263;
+  --kraft: #f5f6f8;
+  --kraft-deep: #e6e8ec;
+  --ink: #111318;
+  --ink-soft: #6b7079;
+  --rule: #e6e8ec;
+  --rust: #1f4fd1;
+  --navy: #1f4fd1;
+  --sage: #1f4fd1;
+  --ochre: #6b7079;
+  --focus: #1f4fd1;
   --radius: 4px;
 
-  --tint: rgba(156, 61, 43, 0.06);
-  --hover: rgba(42, 40, 36, 0.04);
-  --selected: rgba(46, 66, 99, 0.09);
-  --on-navy: #f6f1e7;
-  --grain-opacity: 0.012;
-  --toast-accent: #f0c2a8;
+  --tint: rgba(31, 79, 209, 0.05);
+  --hover: rgba(17, 19, 24, 0.03);
+  --selected: rgba(31, 79, 209, 0.06);
+  --on-navy: #ffffff;
+  --grain-opacity: 0;
+  --toast-accent: #9db6ff;
   /* Ombre douce commune aux cartes. */
-  --shadow: 0 1px 2px rgba(35, 33, 30, 0.04), 0 4px 14px rgba(35, 33, 30, 0.05);
-  --kraft-grain-opacity: 0.03;
+  --shadow: 0 1px 2px rgba(17, 19, 24, 0.04), 0 4px 14px rgba(17, 19, 24, 0.04);
+  --kraft-grain-opacity: 0;
 
-  --font-display: 'Cormorant Garamond', 'Times New Roman', serif;
-  --font-ui: 'Source Serif 4', Georgia, serif;
-  --font-hand: 'Caveat', 'Bradley Hand', cursive;
-  --font-script: 'Courier Prime', 'Courier New', monospace;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-export-title: 'Fraunces Variable', 'Fraunces', Georgia, serif;
-  --font-export: 'Barlow Semi Condensed', 'Arial Narrow', sans-serif;
+  /* Une seule police : Inter. Chiffres tabulaires là où ils s'alignent. */
+  --font-ui: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: var(--font-ui);
+  --font-hand: var(--font-ui);
+  --font-script: var(--font-ui);
+  --font-mono: var(--font-ui);
+  --font-export-title: var(--font-ui);
+  --font-export: var(--font-ui);
 
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
   --t-fast: 120ms;
@@ -39,24 +40,24 @@
 }
 
 :root[data-theme='encre'] {
-  --paper: #1e1b17;
-  --paper-card: #26221d;
-  --kraft: #2c271f;
-  --kraft-deep: #3a3328;
-  --ink: #ede5d6;
-  --ink-soft: #a89e8c;
-  --rule: #433b30;
-  --rust: #d47a62;
-  --navy: #8fa6cc;
-  --sage: #8fae79;
-  --ochre: #d9ad55;
-  --focus: #8fa6cc;
-  --tint: rgba(212, 122, 98, 0.08);
-  --hover: rgba(237, 229, 214, 0.05);
-  --selected: rgba(143, 166, 204, 0.14);
-  --on-navy: #1e1b17;
-  --grain-opacity: 0.05;
-  --toast-accent: #8a3322;
-  --kraft-grain-opacity: 0.08;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --paper: #0f1115;
+  --paper-card: #16181d;
+  --kraft: #14161b;
+  --kraft-deep: #262a31;
+  --ink: #f2f3f5;
+  --ink-soft: #9aa1ab;
+  --rule: #272b32;
+  --rust: #7ea6ff;
+  --navy: #7ea6ff;
+  --sage: #7ea6ff;
+  --ochre: #9aa1ab;
+  --focus: #7ea6ff;
+  --tint: rgba(126, 166, 255, 0.07);
+  --hover: rgba(242, 243, 245, 0.04);
+  --selected: rgba(126, 166, 255, 0.10);
+  --on-navy: #0f1115;
+  --grain-opacity: 0;
+  --toast-accent: #3557c7;
+  --kraft-grain-opacity: 0;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }

@@ -45,7 +45,7 @@
 
 .quiet { align-self: flex-start; border: 0; background: none; padding: 0; font-size: 12px; color: var(--ink-soft); text-decoration: underline dotted; cursor: pointer; }
 .quiet:hover { color: var(--rust); }
-.cut { font-family: 'Courier Prime', var(--font-mono); font-size: 13.5px; line-height: 1.5; }
+.cut { font-family: var(--font-ui); font-size: 13.5px; line-height: 1.5; }
 .cut h3 { font-size: 13.5px; font-weight: 700; text-transform: uppercase; margin: 22px 0 8px; }
 .cutBlock { position: relative; margin: 0 0 10px; padding-left: 64px; }
 .cutBlock p { margin: 0 0 4px; }

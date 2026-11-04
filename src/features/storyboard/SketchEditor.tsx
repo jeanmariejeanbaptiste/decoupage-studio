@@ -301,7 +301,7 @@ function SketchShape({ item }: { item: SketchItem }) {
       );
     case 'text':
       return (
-        <text x={item.at[0]} y={item.at[1]} fill={item.color} fontSize={item.size} fontFamily="Caveat, cursive" fontWeight={700} stroke="#ffffff" strokeWidth={0.6} paintOrder="stroke">
+        <text x={item.at[0]} y={item.at[1]} fill={item.color} fontSize={item.size} fontFamily="Inter Variable, sans-serif" fontWeight={700} stroke="#ffffff" strokeWidth={0.6} paintOrder="stroke">
           {item.text}
         </text>
       );

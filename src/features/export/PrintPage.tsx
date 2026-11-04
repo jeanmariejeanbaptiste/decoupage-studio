@@ -7,12 +7,6 @@ import { Button } from '../../ui/Button';
 import { ExportTable } from './ExportTable';
 import s from './PrintPage.module.css';
 
-const THEMES: Array<{ key: ExportTheme; label: string }> = [
-  { key: 'mauve', label: 'Mauve' },
-  { key: 'papier', label: 'Papier' },
-  { key: 'sobre', label: 'Sobre' },
-];
-
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 function cssString(s: string) {
@@ -23,7 +17,7 @@ function cssString(s: string) {
 export function PrintPage({ doc }: { doc: ProjectDoc }) {
   const { params } = useLocation();
   const settings = doc.project.settings;
-  const theme = (params.get('theme') as ExportTheme | null) ?? settings.exportTheme;
+  const theme: ExportTheme = 'sobre';
   const paper = settings.exportPaper;
   const footer = settings.exportFooter;
   const footerText = `${doc.project.title} · ${doc.project.version} · ${dateFmt.format(new Date())}`;
@@ -51,12 +45,11 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
     };
   }, [params]);
 
-  const inkSaver = !!settings.exportInkSaver;
-  const pageBg = inkSaver ? '#ffffff' : theme === 'mauve' ? '#c98bb4' : theme === 'papier' ? '#fbf8f2' : '#ffffff';
+  const pageBg = '#ffffff';
   const orientation = settings.exportOrientation ?? 'landscape';
   const pageCss = `@page { size: ${paper} ${orientation}; margin: 0 0 ${footer ? '10mm' : '0'} 0; background: ${pageBg};${
     footer
-      ? ` @bottom-center { content: ${cssString(footerText + ' · page ')} counter(page) " / " counter(pages); font-family: 'Barlow Semi Condensed', sans-serif; font-weight: 600; font-size: 8pt; color: #000; }`
+      ? ` @bottom-center { content: ${cssString(footerText + ' · page ')} counter(page) " / " counter(pages); font-family: 'Inter Variable', sans-serif; font-weight: 600; font-size: 8pt; color: #000; }`
       : ''
   } }`;
 
@@ -67,25 +60,6 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
         <Button icon={<ArrowLeft size={15} strokeWidth={1.25} />} onClick={() => navigate('export')}>
           Retour
         </Button>
-        <div className={s.group} role="radiogroup" aria-label="Thème d’export">
-          {THEMES.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="radio"
-              aria-checked={theme === t.key}
-              className={[s.seg, theme === t.key ? s.on : ''].join(' ')}
-              onClick={() => {
-                mutateDoc((d) => {
-                  d.project.settings.exportTheme = t.key;
-                });
-                if (params.get('theme')) navigate('print');
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
         <div className={s.group} role="radiogroup" aria-label="Format de page">
           {(['A4', 'A3'] as const).map((p) => (
             <button
@@ -115,19 +89,6 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
             }
           />
           Pied de page
-        </label>
-        <label className={s.check}>
-          <input
-            type="checkbox"
-            checked={inkSaver}
-            onChange={(e) =>
-              mutateDoc((d) => {
-                d.project.settings.exportInkSaver = e.target.checked;
-              })
-            }
-            data-testid="ink-saver"
-          />
-          Économie d’encre
         </label>
         <Button variant="primary" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()} data-testid="print-now">
           Imprimer / PDF

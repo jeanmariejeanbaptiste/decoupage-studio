@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import s from './Hand.module.css';
 
-/** Annotation manuscrite (Caveat, rouille), soulignée à main levée. */
+/** Annotation discrète, soulignée à main levée. */
 export function Hand({ children, underline = false, className }: { children: ReactNode; underline?: boolean; className?: string }) {
   return (
     <span className={[s.hand, className ?? ''].join(' ')}>

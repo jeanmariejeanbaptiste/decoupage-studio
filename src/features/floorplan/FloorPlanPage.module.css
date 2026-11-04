@@ -34,7 +34,7 @@
 .shotList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
 .shotList li { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--rule); }
 .shotList b { color: var(--rust); }
-.shotList em { margin-left: auto; font-family: var(--font-hand); color: var(--navy); font-size: 15px; font-style: normal; }
+.shotList em { margin-left: auto; font-family: var(--font-ui); color: var(--navy); font-size: 12.5px; font-style: normal; }
 .shotList em.none { color: var(--ink-soft); }
 .props { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink-soft); width: 100%; }
@@ -56,7 +56,7 @@
 .plans { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .plans button { border: 1px solid var(--rule); background: none; border-radius: var(--radius) var(--radius) 0 0; padding: 3px 10px; font-size: 13px; color: var(--ink-soft); display: inline-flex; gap: 4px; align-items: center; }
 .plans .planOn { background: var(--paper-card); color: var(--ink); border-bottom-color: var(--paper-card); font-weight: 600; }
-.plans .planAdd { border-style: dashed; border-radius: var(--radius); font-family: var(--font-hand); color: var(--rust); font-size: 15px; }
+.plans .planAdd { border-style: dashed; border-radius: var(--radius); font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .quick { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
 .quick button { border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 1px 9px; font-size: 12.5px; }
 .quick .quickOn { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
@@ -110,7 +110,7 @@
 /* Barre d'outils rangée par famille. */
 .tools { gap: 10px; }
 .toolGroup { display: inline-flex; align-items: center; gap: 3px; padding: 2px 4px 2px 2px; border: 1px solid var(--rule); border-radius: calc(var(--radius) + 2px); background: color-mix(in srgb, var(--paper) 60%, transparent); }
-.toolGroupLabel { padding: 0 6px 0 6px; font-family: var(--font-hand); font-size: 14px; color: var(--rust); }
+.toolGroupLabel { padding: 0 6px 0 6px; font-family: var(--font-ui); font-size: 12.5px; color: var(--rust); }
 .toolGroup .tool { border-color: transparent; background: none; }
 .toolGroup .tool:hover { border-color: var(--rule); background: var(--paper-card); }
 .toolGroup .tool.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }

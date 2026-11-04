@@ -4,7 +4,7 @@ import { navigate } from '../../app/router';
 import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
 import { fileNameFor, serializeDoc } from '../../domain/serialize';
-import type { ColumnKey, ExportTheme, ProjectDoc } from '../../domain/types';
+import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { downloadBlob, openFromFile, pickFile } from '../../store/persistence';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -91,19 +91,6 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
           <div>
             <h3 className={s.h3}>Mise en page</h3>
             <div className={s.line}>
-              <span>Thème</span>
-              <Seg
-                name="theme"
-                value={settings.exportTheme}
-                options={[
-                  ['mauve', 'Mauve'],
-                  ['papier', 'Papier'],
-                  ['sobre', 'Sobre'],
-                ]}
-                onChange={(v) => mutateDoc((d) => void (d.project.settings.exportTheme = v as ExportTheme))}
-              />
-            </div>
-            <div className={s.line}>
               <span>Format</span>
               <Seg
                 name="paper"
@@ -117,7 +104,6 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
             </div>
             <h3 className={s.h3}>Options</h3>
             <Check checked={settings.exportFooter} onChange={(v) => setFlag('exportFooter', v)} label="Pied de page" hint="Titre, version, date, numéro de page." />
-            <Check checked={!!settings.exportInkSaver} onChange={(v) => setFlag('exportInkSaver', v)} label="Économie d’encre" hint="Aucun aplat de couleur." />
             <Check checked={!!settings.exportSmart} onChange={(v) => setFlag('exportSmart', v)} label="Masquer les colonnes vides" hint="Page par page." />
             <Check checked={!!settings.exportNoMerge} onChange={(v) => setFlag('exportNoMerge', v)} label="Sans fusion" hint="Chaque cellule répétée en entier." />
           </div>

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
-test('capture de l’export RAV3 (thème Mauve, A4 paysage)', async ({ page }) => {
+test('capture de l’export RAV3 (style unique blanc, A4 paysage)', async ({ page }) => {
   await page.setViewportSize({ width: 1123, height: 794 });
   await page.goto('/#/print?seed=rav3');
   const sheet = page.getByTestId('print-sheet');
@@ -14,7 +14,7 @@ test('capture de l’export RAV3 (thème Mauve, A4 paysage)', async ({ page }) =
   await expect(first.locator('td[rowspan="3"]').filter({ hasText: 'Admiratrice assise' })).toHaveCount(1);
   await expect(sheet.locator('table').first().locator('thead th')).toHaveText(['SÉQUENCE', 'N°', 'Sujet', 'Valeur', 'Angle', 'Mouvement de caméra', 'Focale', 'Action', 'TC MIN']);
   const bg = await sheet.getByTestId('print-page').first().evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(bg).toBe('rgb(201, 139, 180)');
+  expect(bg).toBe('rgb(255, 255, 255)');
   await page.emulateMedia({ media: 'print' });
   await sheet.screenshot({ path: 'test-results/export-rav3.png' });
   await page.emulateMedia({ media: 'screen' });
@@ -68,15 +68,6 @@ test('dossier de production complet (.zip)', async ({ page }) => {
   const names = Object.keys(zip.files).join('\n');
   for (const part of ['00 Projet/la-consigne-v1.decoupage', '02 Scénario/Scénario.fountain', '04 Découpage/Découpage technique.xlsx', '10 Registre/Plans.csv', 'LISEZ-MOI.txt'])
     expect(names).toContain(part);
-});
-
-test('économie d’encre : aucun aplat de couleur', async ({ page }) => {
-  await page.goto('/#/print?seed=rav3');
-  await page.getByTestId('ink-saver').check();
-  const sheet = page.getByTestId('print-page').first();
-  expect(await sheet.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
-  expect(await page.locator('thead th').first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-  expect(await page.locator('tbody td').nth(3).evaluate((el) => getComputedStyle(el).color)).toBe('rgb(122, 46, 31)');
 });
 
 test('exports individuels par onglet', async ({ page }) => {

@@ -14,7 +14,7 @@
 .list li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 4px 10px; padding: 7px 0; border-top: 1px solid var(--rule); }
 .list li:first-child { border-top: 0; }
 .label { font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
-.manual { font-family: var(--font-hand); font-weight: 400; font-size: 14px; color: var(--rust); }
+.manual { font-family: var(--font-ui); font-weight: 400; font-size: 12.5px; color: var(--rust); }
 .nb { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .shots { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
 .shots button { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 0 7px; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--ink-soft); cursor: pointer; }

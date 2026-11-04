@@ -1,17 +1,4 @@
-import '@fontsource/cormorant-garamond/latin-500.css';
-import '@fontsource/cormorant-garamond/latin-500-italic.css';
-import '@fontsource/cormorant-garamond/latin-600.css';
-import '@fontsource/source-serif-4/latin-400.css';
-import '@fontsource/source-serif-4/latin-400-italic.css';
-import '@fontsource/source-serif-4/latin-600.css';
-import '@fontsource/caveat/latin-400.css';
-import '@fontsource/caveat/latin-600.css';
-import '@fontsource-variable/fraunces/full.css';
-import '@fontsource/barlow-semi-condensed/latin-500.css';
-import '@fontsource/barlow-semi-condensed/latin-600.css';
-import '@fontsource/barlow-semi-condensed/latin-600-italic.css';
-import '@fontsource/barlow-semi-condensed/latin-700.css';
-import '@fontsource/barlow-semi-condensed/latin-700-italic.css';
-import '@fontsource/courier-prime/latin-400.css';
-import '@fontsource/courier-prime/latin-700.css';
-import '@fontsource/jetbrains-mono/latin-400.css';
+// Une seule police, la plus lisible à l'écran comme à l'impression : Inter. La hiérarchie passe
+// par la graisse et la taille, jamais par une autre famille.
+import '@fontsource-variable/inter/index.css';
+import '@fontsource-variable/inter/wght-italic.css';

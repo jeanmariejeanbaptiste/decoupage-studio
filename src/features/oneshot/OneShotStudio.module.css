@@ -2,7 +2,7 @@
 .sheet { width: 100%; max-width: 1500px; background: var(--paper); border-radius: 10px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; overflow: hidden; }
 .head { display: flex; align-items: center; gap: 24px; padding: 18px 24px 12px; border-bottom: 1px solid var(--rule); }
 .head > div:first-child { flex: 1; }
-.kicker { margin: 0; font-family: var(--font-hand); color: var(--rust); font-size: 16px; }
+.kicker { margin: 0; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .head h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 28px; }
 .head h2 span { font-size: 15px; color: var(--ink-soft); margin-left: 8px; }
 .total { display: flex; flex-direction: column; align-items: flex-end; }

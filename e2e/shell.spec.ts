@@ -30,7 +30,7 @@ test('aide des raccourcis « ? » et thème encre', async ({ page }) => {
   await page.getByRole('button', { name: 'Thème encre' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'encre');
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(bg).toBe('rgb(30, 27, 23)');
+  expect(bg).toBe('rgb(15, 17, 21)');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'encre');
 });

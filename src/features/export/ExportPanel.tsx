@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Download } from 'lucide-react';
-import type { ExportTheme, ProjectDoc } from '../../domain/types';
+import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import type { Orientation } from './imageExport';
 import s from './ExportPanel.module.css';
-
-const THEMES: Array<{ key: ExportTheme; label: string; swatch: string }> = [
-  { key: 'mauve', label: 'Mauve', swatch: '#c98bb4' },
-  { key: 'papier', label: 'Papier', swatch: '#fbf8f2' },
-  { key: 'sobre', label: 'Sobre', swatch: '#ffffff' },
-];
 
 export interface ExportChoice {
   format: string;
@@ -46,7 +40,6 @@ export function ExportPanel({
   title,
   defaultOrientation = 'landscape',
   extra = [],
-  themed,
   perPage,
   noNumbers,
   disabled,
@@ -68,7 +61,6 @@ export function ExportPanel({
       const all = (d.project.settings.exportPrefs ??= {});
       all[id] = { ...all[id], ...patch };
     });
-  const set = (patch: Partial<typeof st>) => mutateDoc((d) => void Object.assign(d.project.settings, patch));
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -164,33 +156,6 @@ export function ExportPanel({
                   per,
                   (n) => setPrefs({ perPage: n }),
                 )}
-              {themed &&
-                seg(
-                  'theme',
-                  'Thème',
-                  THEMES.map(
-                    (t) =>
-                      [
-                        t.key,
-                        <>
-                          <span className={s.swatch} style={{ background: t.swatch }} />
-                          {t.label}
-                        </>,
-                      ] as const,
-                  ),
-                  st.exportTheme,
-                  (t) => set({ exportTheme: t }),
-                )}
-              {themed && (
-                <label className={s.check}>
-                  <input
-                    type="checkbox"
-                    checked={!!st.exportInkSaver}
-                    onChange={(e) => set({ exportInkSaver: e.target.checked })}
-                  />
-                  Économie d’encre (fond blanc, sans aplats)
-                </label>
-              )}
               {!noNumbers && (
                 <label className={s.check}>
                   <input

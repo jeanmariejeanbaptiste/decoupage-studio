@@ -15,9 +15,9 @@ describe('export Excel', () => {
     expect(ws.getCell('H5').master.address).toBe('H3'); // action [1-3]
     expect(ws.getCell('I8').master.address).toBe('I3'); // TC 0:00 - 0:35
     expect(ws.getCell('G8').master.address).toBe('G3'); // 16mm
-    expect((ws.getCell('A9').fill as { fgColor: { argb: string } }).fgColor.argb).toBe('FFDFA6D3');
-    expect((ws.getCell('E3').font.color as { argb: string }).argb).toBe('FF7A2E1F');
-    expect((ws.getCell('B3').font.color as { argb: string }).argb).toBe('FFC42B2B');
+    expect((ws.getCell('A9').fill as { fgColor: { argb: string } }).fgColor.argb).toBe('FFF1F3F6');
+    expect((ws.getCell('E3').font.color as { argb: string }).argb).toBe('FF111111');
+    expect((ws.getCell('B3').font.color as { argb: string }).argb).toBe('FF1F4FD1');
     expect(ws.getCell('A10').value).toBe('2, PARC DES COQUELICOTS');
     const reg = wb.getWorksheet('Registre')!;
     expect(reg.getCell('B2').value).toBe('CHAMBRE ADMIRATRICE');

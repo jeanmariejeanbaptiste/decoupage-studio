@@ -3,7 +3,7 @@
 .seqs button { display: flex; justify-content: space-between; gap: 6px; text-align: left; border: 0; background: none; padding: 7px 9px; border-radius: 3px; font-size: 13px; }
 .seqs button:hover { background: var(--hover); }
 .seqs .on { background: var(--selected); font-weight: 600; }
-.seqs em { font-family: var(--font-hand); color: var(--rust); font-size: 15px; font-style: normal; }
+.seqs em { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; font-style: normal; }
 .summary { margin: 0 0 12px; font-style: italic; color: var(--ink-soft); }
 .suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 12px; border: 1px dashed var(--rust); border-radius: var(--radius); background: var(--tint); }
 .sugList { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }

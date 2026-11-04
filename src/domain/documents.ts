@@ -25,12 +25,12 @@ const CSS = `
 @page { size: A4 PORTRAIT; margin: 0; }
 table.sheet { width: 100%; border: 0; margin: 0; } table.sheet > * > tr > td { border: 0; padding: 0 13mm; } .pad { height: 13mm; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { font-family: 'Source Serif 4', Georgia, serif; font-size: 10pt; color: #2a2824; margin: 0; background: #fff; }
+body { font-family: 'Inter Variable', 'Helvetica Neue', Arial, sans-serif; font-size: 10pt; color: #2a2824; margin: 0; background: #fff; }
 header.doc { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #2a2824; padding-bottom: 6pt; margin-bottom: 12pt; }
-header.doc .kicker { font-family: 'Caveat', cursive; color: #9c3d2b; font-size: 15pt; margin: 0; }
-header.doc h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 24pt; margin: 0; line-height: 1; }
+header.doc .kicker { font-family: 'Inter Variable', sans-serif; color: #9c3d2b; font-size: 15pt; margin: 0; }
+header.doc h1 { font-family: 'Inter Variable', sans-serif; font-weight: 600; font-size: 24pt; margin: 0; line-height: 1; }
 header.doc .meta { text-align: right; color: #6e675b; font-size: 9pt; }
-h2 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15pt; margin: 14pt 0 5pt; break-after: avoid; }
+h2 { font-family: 'Inter Variable', sans-serif; font-size: 15pt; margin: 14pt 0 5pt; break-after: avoid; }
 h3 { font-size: 8pt; letter-spacing: .14em; text-transform: uppercase; color: #6e675b; margin: 10pt 0 4pt; break-after: avoid; }
 table { width: 100%; border-collapse: collapse; margin-bottom: 6pt; }
 th { text-align: left; font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; color: #6e675b; border-bottom: 1.2pt solid #2a2824; padding: 3pt 4pt; }
@@ -45,7 +45,7 @@ tr { break-inside: avoid; }
 .tone-ext { background: #faf1d2; } .tone-night { background: #e3eaf4; } .tone-extnight { background: #e5efdf; } .tone-twilight { background: #f7e3da; }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
 .plan svg { width: 100%; height: auto; border: .6pt solid #d3c8b4; }
-.time { font-family: 'JetBrains Mono', monospace; font-size: 9pt; white-space: nowrap; }
+.time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
 p.text { white-space: pre-wrap; line-height: 1.6; font-size: 11pt; }
 `;
 

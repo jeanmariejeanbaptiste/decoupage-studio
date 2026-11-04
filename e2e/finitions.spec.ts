@@ -136,7 +136,6 @@ test('exports A4 : images page par page et PDF assemblé par l’outil', async (
     const panel = page.getByTestId(`${id}-export-panel`);
     await panel.getByText(format, { exact: true }).click();
     await panel.getByText(ori, { exact: true }).click();
-    if (id === 'grid') await panel.getByText('Sobre').click();
     await page.getByTestId(`${id}-export-go`).click();
     const d = await dl;
     expect(d.suggestedFilename()).toMatch(name);

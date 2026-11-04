@@ -23,7 +23,7 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 ::selection { background: rgba(156, 61, 43, 0.18); }
 
-.hand { font-family: var(--font-hand); color: var(--rust); font-size: 1.2em; line-height: 1; }
+.hand { font-family: var(--font-ui); color: var(--ink-soft); font-size: 1em; font-weight: 500; line-height: 1.2; }
 .mono { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
 .oldstyle { font-variant-numeric: oldstyle-nums; }
 .tabular { font-variant-numeric: tabular-nums; }
@@ -39,7 +39,7 @@ button { cursor: pointer; }
 }
 .page--wide { max-width: none; padding: 20px 24px 48px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.page-kicker { font-family: var(--font-hand); color: var(--rust); font-size: 20px; margin: 0 0 2px; }
+.page-kicker { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; margin: 0 0 2px; }
 .page-title {
   margin-bottom: 18px !important;
   font-family: var(--font-display);

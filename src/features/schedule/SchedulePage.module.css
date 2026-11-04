@@ -1,5 +1,5 @@
 .toolbar { display: flex; gap: 8px; align-items: flex-end; }
-.cap { display: flex; flex-direction: column; gap: 2px; font-family: var(--font-hand); color: var(--rust); font-size: 15px; }
+.cap { display: flex; flex-direction: column; gap: 2px; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .cap input { width: 64px; font: inherit; font-family: var(--font-ui); font-size: 14px; color: var(--ink); padding: 4px 6px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); }
 .summary { margin: -6px 0 14px; color: var(--ink-soft); font-size: 13px; }
 .bands { display: flex; flex-direction: column; gap: 12px; }
@@ -9,7 +9,7 @@
 .dayHead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .dayHead strong { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
 .dayHead input { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
-.date { font-family: var(--font-hand); color: var(--rust); font-size: 17px; }
+.date { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .stats { margin-left: auto; font-size: 12.5px; color: var(--ink-soft); }
 .strips { display: flex; flex-direction: column; gap: 3px; min-height: 30px; }
 .empty { margin: 4px 0; font-style: italic; color: var(--ink-soft); font-size: 13px; }
@@ -36,13 +36,13 @@
 @media (max-width: 1100px) { .stripMain { grid-template-columns: 30px 90px 1fr 60px; } .decor, .cast { display: none; } }
 .slot { position: absolute; right: 30px; top: 4px; display: inline-flex; gap: 4px; align-items: center; font-size: 12px; color: var(--ink-soft); }
 .slot input, .rdv input { font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 1px 3px; border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--paper-card) 80%, transparent); color: var(--ink); }
-.rdv { display: inline-flex; gap: 6px; align-items: center; font-family: var(--font-hand); color: var(--rust); font-size: 16px; }
+.rdv { display: inline-flex; gap: 6px; align-items: center; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .when { font-family: var(--font-mono); font-size: 12px; color: var(--navy); }
 
 /* Réserve « Non planifié » : liste discrète d'étiquettes, l'emploi du temps reste l'outil principal. */
 .unplanned { padding: 6px 8px; opacity: 0.85; }
 .unplannedHead { margin: 0 0 4px; font-size: 12px; color: var(--ink-soft); }
-.unplannedHead span { font-family: var(--font-hand); color: var(--rust); font-size: 13px; }
+.unplannedHead span { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .unplanned .strips { flex-direction: row; flex-wrap: wrap; gap: 4px; min-height: 0; }
 .unplanned .strip { background: var(--paper-card) !important; border-color: var(--rule); border-radius: 10px; }
 .unplanned .stripMain { display: flex; gap: 6px; padding: 1px 24px 1px 8px; font-size: 11.5px; }

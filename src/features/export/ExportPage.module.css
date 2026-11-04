@@ -16,7 +16,7 @@
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px; padding-top: 6px; }
 @media (max-width: 760px) { .split { grid-template-columns: 1fr; gap: 10px; } }
 .h3 { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
-.count { font-family: var(--font-hand); font-size: 16px; letter-spacing: 0; color: var(--rust); }
+.count { font-family: var(--font-ui); font-size: 12.5px; letter-spacing: 0; color: var(--rust); }
 .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 13.5px; color: var(--ink); }
 .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; width: fit-content; }
 .seg label { padding: 5px 12px; cursor: pointer; color: var(--ink); border-right: 1px solid var(--rule); font-size: 13px; }

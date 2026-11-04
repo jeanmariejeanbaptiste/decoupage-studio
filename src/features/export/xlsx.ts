@@ -9,12 +9,13 @@ import { computeTiming, formatGap } from '../../domain/timing';
 import type { ColumnKey, ExportTheme, ProjectDoc } from '../../domain/types';
 
 const PALETTES: Record<ExportTheme, { bg: string; head: string; title: string; ink: string; red: string; brown: string }> = {
-  mauve: { bg: 'C98BB4', head: 'DFA6D3', title: '7A4E74', ink: '111111', red: 'C42B2B', brown: '7A2E1F' },
-  papier: { bg: 'FBF8F2', head: 'E6DAC0', title: '2A2824', ink: '2A2824', red: '9C3D2B', brown: '5A3A24' },
-  sobre: { bg: 'FFFFFF', head: 'E6E6E6', title: '000000', ink: '000000', red: '000000', brown: '000000' },
+  // Un seul style : blanc, noir, bleu (le thème enregistré dans d'anciens projets est ignoré).
+  mauve: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '1F4FD1', brown: '111111' },
+  papier: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '1F4FD1', brown: '111111' },
+  sobre: { bg: 'FFFFFF', head: 'F1F3F6', title: '111111', ink: '111111', red: '1F4FD1', brown: '111111' },
 };
 
-const FONT = 'Barlow Semi Condensed';
+const FONT = 'Inter';
 const TOTAL_WIDTH = 190; // largeur totale en caractères Excel (A4 paysage)
 
 const border: Partial<Borders> = {
@@ -61,7 +62,7 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
   const title = ws.addRow(['Découpage technique']);
   ws.mergeCells(1, 1, 1, columns.length);
   title.height = 42;
-  title.getCell(1).font = { name: 'Fraunces', size: 26, bold: true, color: { argb: `FF${p.title}` } };
+  title.getCell(1).font = { name: 'Inter', size: 26, bold: true, color: { argb: `FF${p.title}` } };
   title.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
   for (let c = 1; c <= columns.length; c++) title.getCell(c).fill = fill(p.bg);
 

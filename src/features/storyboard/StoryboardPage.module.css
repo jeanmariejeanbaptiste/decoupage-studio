@@ -22,7 +22,7 @@
 .subject { font-weight: 600; }
 .action { font-size: 13px; line-height: 1.35; flex: 1; }
 .foot { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--ink-soft); }
-.open { border: 0; background: none; font-family: var(--font-hand); color: var(--rust); font-size: 16px; padding: 0; cursor: pointer; }
+.open { border: 0; background: none; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; padding: 0; cursor: pointer; }
 .hint { text-align: center; margin-top: 10px; }
 @media print { .import, .remove { display: none; } }
 .print { display: none; }

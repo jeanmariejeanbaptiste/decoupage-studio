@@ -1,13 +1,19 @@
-.toolbar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%; }
+.left, .right { display: flex; align-items: center; gap: 10px; }
+.icons { display: inline-flex; align-items: center; gap: 2px; }
+.iconOn { color: var(--rust) !important; background: var(--selected) !important; }
+.views { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--kraft); }
+.views button { border: 0; background: none; padding: 5px 14px; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; }
+.views .viewOn { background: var(--paper-card); color: var(--ink); box-shadow: 0 1px 2px rgba(17, 19, 24, 0.08); }
 .sep { width: 1px; height: 20px; background: var(--rule); margin: 0 4px; }
 .menuWrap { position: relative; }
 .menu {
   position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
   width: 230px; padding: 8px;
   background: var(--paper-card); border: 1px solid var(--rule); border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(42, 40, 36, 0.12);
+  box-shadow: 0 8px 24px rgba(17, 19, 24, 0.10);
 }
-.menuTitle { margin: 2px 6px 6px; font-family: var(--font-hand); color: var(--rust); font-size: 17px; }
+.menuTitle { margin: 2px 6px 6px; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .menuItem { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 3px; font-size: 13px; cursor: pointer; }
 .menuItem:hover { background: var(--hover); }
 .menuItem em { margin-left: auto; font-size: 11px; color: var(--ink-soft); }
@@ -26,7 +32,7 @@
 .tplItem { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; border: 0; background: none; padding: 7px 8px; border-radius: 3px; }
 .tplItem:hover, .tplItem:focus-visible { background: var(--hover); outline: none; }
 .tplItem strong { font-weight: 600; font-size: 13.5px; display: flex; gap: 8px; align-items: baseline; }
-.tplItem em { font-family: var(--font-hand); color: var(--rust); font-weight: 400; font-size: 15px; font-style: normal; }
+.tplItem em { font-family: var(--font-ui); color: var(--rust); font-weight: 400; font-size: 12.5px; font-style: normal; }
 .tplItem span { font-size: 12px; color: var(--ink-soft); }
 .emptyActions { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
 

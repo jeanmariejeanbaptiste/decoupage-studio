@@ -73,10 +73,12 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
   cursor: cell;
   transition: background var(--t-fast) var(--ease);
 }
-.row:hover .cell { background-color: var(--hover); }
 .selected, .row:hover .selected { background-color: var(--selected); }
-.focus { box-shadow: inset 0 0 0 2px var(--focus); z-index: 1; }
-.editing { background: var(--paper-card) !important; box-shadow: inset 0 0 0 2px var(--rust); cursor: text; }
+.focus { background-color: var(--selected); }
+/* Ligne du plan cliqué : à peine teintée. */
+.row:has(.focus) .cell, .row:has(.selected) .cell { background-color: color-mix(in srgb, var(--selected) 45%, transparent); }
+.row:has(.focus) .focus, .row .selected { background-color: var(--selected); }
+.editing { background: var(--paper-card) !important; cursor: text; }
 
 .c_sequence {
   vertical-align: middle;
@@ -93,16 +95,16 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 
 .num { color: var(--rust); font-weight: 600; font-variant-numeric: oldstyle-nums tabular-nums; }
 .tc { font-family: var(--font-mono); font-size: 12.5px; }
-.manual { font-family: var(--font-hand); color: var(--rust); font-size: 16px; margin-left: 4px; }
+.manual { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; margin-left: 4px; }
 .linked {
   vertical-align: middle;
   background: var(--tint);
   box-shadow: inset 3px 0 0 var(--seq-color, var(--rust));
 }
-.linked.focus { box-shadow: inset 3px 0 0 var(--seq-color, var(--rust)), inset 0 0 0 2px var(--focus); }
+.linked.focus { box-shadow: inset 3px 0 0 var(--seq-color, var(--rust)); }
 
 .repeat { display: inline-flex; gap: 6px; align-items: baseline; max-width: 100%; }
-.ditto { font-family: var(--font-hand); color: var(--rust); font-size: 18px; line-height: 0.8; }
+.ditto { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; line-height: 0.8; }
 .faded { color: var(--ink-soft); opacity: 0.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .seqCell { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
@@ -180,7 +182,6 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 .c_number { padding: 0 !important; }
 .numHandle { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; width: 100%; border: 0; background: none; padding: 0 4px; cursor: grab; touch-action: none; }
 .numHandle:active { cursor: grabbing; }
-.row:hover .numHandle { background: color-mix(in srgb, var(--rust) 6%, transparent); }
 /* Supprimer (haut gauche) et insérer (bas droite) : éloignés l'un de l'autre pour éviter les erreurs de clic. */
 .gutter .rowDel { position: absolute; left: 2px; top: 3px; }
 .gutter .issueDot { right: 6px; top: 7px; }
@@ -213,3 +214,29 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 .c_number .rowAdd::before { content: "+"; font-size: 13px; line-height: 13px; }
 /* Noms de séquence et de sujet : jamais de césure (« AC-CUEIL ») — on y cherche un nom d'un coup d'œil. */
 .c_sequence, .c_subject, .seqName { hyphens: manual; }
+
+/* ——— Épure (refonte minimaliste) ———
+ * La grille ne montre que le contenu ; les commandes (corbeille, poignée, insertion) n'apparaissent
+ * qu'au survol, et aucune bordure de couleur n'encadre la grille ni la cellule. */
+.wrap { border: 0; border-radius: 0; background: transparent; }
+.wrap:focus-visible { box-shadow: none; }
+.gap { display: none; }
+.gutter .rowDel { opacity: 0; }
+.row:hover .gutter .rowDel, .gutter .rowDel:focus-visible { opacity: 0.6; color: var(--ink-soft); }
+.gutter .rowDel:hover { opacity: 1 !important; color: var(--ink) !important; }
+.seqDel { opacity: 0; }
+.seq:hover .seqDel { opacity: 0.6; }
+/* Insertion : des lignes fines, le libellé n'apparaît qu'au survol. */
+.planAddRow td { height: 6px; border-bottom: 0; }
+.seqAddRow td { height: 10px; }
+.planAddBtn, .seqAddBtn { min-height: 6px; font-size: 0; line-height: 6px; background: none; border: 0; color: transparent; }
+.seqAddBtn { min-height: 10px; }
+.planAddBtn:hover, .seqAddBtn:hover { font-size: 11px; line-height: 16px; min-height: 16px; color: var(--rust); background: var(--selected); }
+.issueWarn, .issueInfo { background: var(--ink-soft); opacity: 0.5; }
+/* Lignes : séparations fines et neutres. */
+.cell { border-color: var(--rule); }
+/* Action liée : un simple filet gris à gauche, sans aplat. */
+.linked, .linked.focus, .wrap:not(:focus-within) .linked.focus { background: transparent; box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ink-soft) 45%, transparent); }
+.row:has(.focus) .linked, .row:has(.selected) .linked { background-color: transparent; }
+.linked.focus, .linked.selected { background-color: var(--selected) !important; }
+.c_focal { white-space: normal; overflow-wrap: anywhere; }

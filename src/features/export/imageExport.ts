@@ -78,7 +78,7 @@ export async function finish(canvases: HTMLCanvasElement[], base: string, opts: 
     canvases.forEach((c, i) => {
       const ctx = c.getContext('2d')!;
       const mm = c.width / a4(opts.orientation).w;
-      ctx.font = `${Math.round(2.8 * mm)}px "Barlow Semi Condensed", "Helvetica Neue", sans-serif`;
+      ctx.font = `${Math.round(2.8 * mm)}px "Inter Variable", "Helvetica Neue", sans-serif`;
       ctx.fillStyle = '#555';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';

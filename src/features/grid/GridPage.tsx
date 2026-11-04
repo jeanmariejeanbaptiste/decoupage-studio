@@ -3,7 +3,7 @@ import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Columns3, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -51,6 +51,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
       return shot && Object.values(doc.shots).some((o) => o.id !== id && o.actionBlockId === shot.actionBlockId);
     });
   }, [sel, model, doc]);
+  const multi = !!sel && sel.anchor.row !== sel.focus.row;
   // Export image : le rendu d'export est monté hors écran le temps de la capture.
   const [imaging, setImaging] = useState<PageExportOptions | null>(null);
   const imageRef = useRef<HTMLDivElement>(null);
@@ -74,50 +75,66 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
     <div className="page page--wide">
       <header className="page-head">
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
-          {linked ? (
-            <Button icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés" disabled={printView}>
-              Délier
-            </Button>
-          ) : (
-            <Button icon={<Link2 {...IC} />} onClick={linkSelection} title="Lier l’action des plans sélectionnés (au moins deux plans consécutifs)" disabled={printView}>
-              Lier l’action
-            </Button>
-          )}
-          <ColumnsMenu doc={doc} />
-          <Button
-            icon={<PanelRight {...IC} />}
-            aria-pressed={rightPanel === 'inspector'}
-            onClick={() => setUi({ rightPanel: rightPanel === 'inspector' ? null : 'inspector' })}
-            title="Afficher ou masquer l’inspecteur du plan"
-            disabled={printView}
-          >
-            Inspecteur
-          </Button>
-          <Button
-            icon={<ScrollText {...IC} />}
-            aria-pressed={rightPanel === 'scenario'}
-            onClick={() => setUi({ rightPanel: rightPanel === 'scenario' ? null : 'scenario' })}
-            title="Afficher le scénario à droite (à la place de l’inspecteur)"
-            disabled={printView}
-            data-testid="toggle-scenario"
-          >
-            Scénario
-          </Button>
-          <span className={s.sep} data-edit />
-          <Button
-            variant={printView ? 'primary' : 'outline'}
-            icon={<Eye {...IC} />}
-            aria-pressed={printView}
-            onClick={() => setUi({ printView: !printView, editing: null })}
-            data-testid="toggle-print"
-          >
-            Aperçu
-          </Button>
+          {/* Gauche : ce qu'on regarde (édition ou aperçu), puis l'action liée à la sélection. */}
+          <div className={s.left}>
+            <div className={s.views} role="radiogroup" aria-label="Affichage">
+              <button type="button" role="radio" aria-checked={!printView} className={!printView ? s.viewOn : ''} onClick={() => setUi({ printView: false })}>
+                Découpage
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={printView}
+                aria-pressed={printView}
+                className={printView ? s.viewOn : ''}
+                onClick={() => setUi({ printView: true, editing: null })}
+                data-testid="toggle-print"
+              >
+                Aperçu
+              </button>
+            </div>
+            {!printView && (linked || multi) && (
+              linked ? (
+                <Button size="sm" icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés">
+                  Délier
+                </Button>
+              ) : (
+                <Button size="sm" icon={<Link2 {...IC} />} onClick={linkSelection} title="Une seule action pour les plans sélectionnés">
+                  Lier l’action
+                </Button>
+              )
+            )}
+          </div>
+          {/* Droite : les panneaux (icônes), puis l'export. */}
+          <div className={s.right}>
+            {!printView && (
+              <div className={s.icons}>
+                <ColumnsMenu doc={doc} />
+                <Button
+                  variant="icon"
+                  icon={<PanelRight {...IC} />}
+                  aria-label="Inspecteur"
+                  aria-pressed={rightPanel === 'inspector'}
+                  className={rightPanel === 'inspector' ? s.iconOn : ''}
+                  onClick={() => setUi({ rightPanel: rightPanel === 'inspector' ? null : 'inspector' })}
+                  title="Inspecteur du plan"
+                />
+                <Button
+                  variant="icon"
+                  icon={<ScrollText {...IC} />}
+                  aria-label="Scénario"
+                  aria-pressed={rightPanel === 'scenario'}
+                  className={rightPanel === 'scenario' ? s.iconOn : ''}
+                  onClick={() => setUi({ rightPanel: rightPanel === 'scenario' ? null : 'scenario' })}
+                  title="Scénario à droite"
+                  data-testid="toggle-scenario"
+                />
+              </div>
+            )}
           <ExportPanel
             doc={storeDoc}
             id="grid"
             title="Exporter le découpage"
-            themed
             extra={[
               { key: 'excel', label: 'Excel', hint: 'Classeur avec fusions, couleurs et onglet Registre.' },
               ...(Object.values(storeDoc.shots).some((x) => x.oneShot)
@@ -162,6 +179,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
               }
             }}
           />
+          </div>
         </div>
       </header>
 
@@ -236,9 +254,7 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
   const listed = [...shownCols, ...ALL_COLUMNS.filter((c) => !cols.includes(c))];
   return (
     <div className={s.menuWrap} ref={ref}>
-      <Button icon={<Columns3 {...IC} />} aria-expanded={open} onClick={() => setOpen(!open)}>
-        Colonnes
-      </Button>
+      <Button variant="icon" icon={<Columns3 {...IC} />} aria-label="Colonnes" title="Colonnes" aria-expanded={open} onClick={() => setOpen(!open)} />
       {open && (
         <div className={s.menu} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Colonnes de la grille</p>

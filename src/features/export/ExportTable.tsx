@@ -29,7 +29,9 @@ const PX_PER_MM = 96 / 25.4;
 /** Rendu fusionné, identique à l'export (§8.2). Lecture seule. */
 export function ExportTable({ doc, columns, theme, showTitle = true, paper, footer, orientation = 'landscape', safety = 12 }: Props) {
   const cols = useMemo(() => tcLast(columns ?? doc.project.settings.exportColumns), [columns, doc.project.settings.exportColumns]);
-  const th = theme ?? doc.project.settings.exportTheme;
+  // Un seul style d'export : blanc, noir, bleu. Le paramètre `theme` n'est plus utilisé.
+  void theme;
+  const th = 'sobre';
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const sequences = useMemo(
     () => doc.project.sequenceIds.map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols, !!doc.project.settings.exportNoMerge, true) })),
@@ -187,7 +189,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
       );
     });
 
-  const sheetClass = [s.sheet, s[`theme_${th}`], doc.project.settings.exportInkSaver ? s.inkSaver : '', paper ? s.paged : ''].join(' ');
+  const sheetClass = [s.sheet, paper ? s.paged : ''].join(' ');
   const title = showTitle && <h1 className={s.title}>Découpage technique</h1>;
 
   if (paper && pages)

@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import '@fontsource/barlow-semi-condensed/latin-400.css';
-import '@fontsource-variable/fraunces/full-italic.css';
 import { Check, Copy, Eye, PenLine, Users, X } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { joinSession, kickGuest, leaveSession, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';

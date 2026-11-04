@@ -50,6 +50,6 @@
   font-variant-numeric: tabular-nums;
 }
 .zoom { animation: grow var(--t-med) var(--ease); }
-.word { font-family: var(--font-hand); color: var(--rust); font-size: 15px; }
+.word { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .mm { color: var(--ink-soft); font-size: 12px; user-select: none; }
 @keyframes grow { from { opacity: 0.4; transform: scaleX(0.92); transform-origin: left; } }

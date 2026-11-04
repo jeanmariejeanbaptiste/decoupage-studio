@@ -1,5 +1,3 @@
-import '@fontsource-variable/fraunces/full-italic.css';
-import '@fontsource/barlow-semi-condensed/latin-400.css';
 import { removeProject, undoHome, useHomeHistory } from '../../store/homeHistory';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, FileUp, Trash2 } from 'lucide-react';
