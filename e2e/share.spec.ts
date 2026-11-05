@@ -62,9 +62,12 @@ test('partager un projet : lien et mot de passe, modifications en direct, lectur
   await guest.keyboard.press('Control+Enter');
   await expect(host.locator('[data-testid="shot-row"]')).toHaveCount(53);
 
-  // Fermeture du partage : l'invité est prévenu.
+  // Fermeture du partage, copie permise : l'invité revient à l'accueil, où figure sa copie.
+  await host.getByTestId('share-panel').getByText('Ils gardent une copie du projet').click();
   await host.getByTestId('share-stop').click();
-  await expect(guest.getByTestId('guest-banner')).toContainText('Partage fermé');
+  await expect(guest.getByTestId('home')).toBeVisible();
+  await expect(guest.getByTestId('guest-banner')).toHaveCount(0);
+  await expect(guest.getByTestId('project-list').locator('li')).toHaveCount(1);
 });
 
 test('invité en lecture seule : aucune commande d’édition, découpage en aperçu', async ({ browser }) => {
@@ -97,4 +100,8 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await guest.evaluate(() => void (window.location.hash = '#/floorplan'));
   await expect(guest.getByRole('toolbar', { name: 'Outils du plan au sol' })).toBeHidden();
   await expect(guest.getByTestId('fp-fit')).toBeVisible();
+  // Fermeture sans copie permise : retour à l'accueil, rien de conservé.
+  await host.getByTestId('share-stop').click();
+  await expect(guest.getByTestId('home')).toBeVisible();
+  await expect(guest.getByTestId('project-list').locator('li')).toHaveCount(0);
 });

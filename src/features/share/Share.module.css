@@ -113,5 +113,4 @@
 .input { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-soft); }
 .input input { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
 .banner { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 5px 12px; font-size: 12.5px; background: color-mix(in srgb, var(--navy) 10%, var(--paper)); color: var(--ink); border-bottom: 1px solid var(--rule); }
-.bannerOff { background: color-mix(in srgb, var(--rust) 12%, var(--paper)); }
 .banner button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: var(--radius); padding: 1px 10px; font-size: 12px; cursor: pointer; }

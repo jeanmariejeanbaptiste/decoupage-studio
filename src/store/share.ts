@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import type { DataConnection, Peer } from 'peerjs';
 import { diff, type Op } from '../domain/patch';
 import type { ProjectDoc } from '../domain/types';
-import { getBlob, putBlobRaw, setRemoteBlobSource } from './db';
-import { setPersistGuard } from './persistence';
+import { navigate } from '../app/router';
+import { getBlob, putBlobRaw, saveProject, setRemoteBlobSource } from './db';
+import { rememberLastProject, setPersistGuard } from './persistence';
 import { applyRemote, isApplyingRemote, setMutationGuard, useProjectStore } from './projectStore';
+import { useUi } from './uiStore';
 
 /**
  * Travail à plusieurs, d'ordinateur à ordinateur : le navigateur de l'hôte fait office de serveur.
@@ -280,7 +282,7 @@ export async function joinSession(room: string, password: string, name: string):
         else if (m.t === 'blob') receiveBlob(m);
       });
       conn.on('close', () => {
-        if (useShare.getState().status === 'joined') useShare.setState({ status: 'closed' });
+        if (useShare.getState().status === 'joined') void expelled();
       });
       peer?.on('error', (e) => {
         clearTimeout(timer);
@@ -292,6 +294,30 @@ export async function joinSession(room: string, password: string, name: string):
     useShare.setState({ status: 'error', error: (e as Error).message });
     return false;
   }
+}
+
+/**
+ * L'hôte a fermé le partage (ou retiré l'invité) : retour à l'accueil. Copie autorisée : le projet,
+ * dans son dernier état, est enregistré dans ce navigateur et figure à l'accueil.
+ */
+async function expelled() {
+  const { keep } = useShare.getState();
+  const doc = useProjectStore.getState().doc;
+  useShare.setState({ status: 'closed' });
+  let saved = false;
+  if (keep && doc) {
+    try {
+      await saveProject(doc);
+      rememberLastProject(doc.project.id);
+      saved = true;
+    } catch {
+      /* stockage indisponible : pas de copie */
+    }
+  }
+  leaveSession();
+  useProjectStore.getState().loadDoc(null);
+  navigate('home');
+  useUi.getState().toast({ message: saved ? 'Partage fermé par l’hôte. Votre copie est à l’accueil.' : 'Partage fermé par l’hôte.' });
 }
 
 /** Quitte le partage ; sans copie autorisée, le projet reçu est retiré de ce navigateur. */

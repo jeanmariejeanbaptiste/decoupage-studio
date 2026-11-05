@@ -185,18 +185,14 @@ export function JoinPage() {
 /** Bandeau de l'invité : qui partage, quels droits, et quitter. */
 export function GuestBanner() {
   const st = useShare();
-  if (st.role !== 'guest' || (st.status !== 'joined' && st.status !== 'closed')) return null;
+  if (st.role !== 'guest' || st.status !== 'joined') return null;
   return (
-    <div className={[s.banner, st.status === 'closed' ? s.bannerOff : ''].join(' ')} role="status" data-testid="guest-banner">
-      {st.status === 'closed' ? (
-        <span>Partage fermé par l’hôte.{st.keep ? ' Votre copie est conservée.' : ''}</span>
-      ) : (
-        <span>
-          Projet partagé par <b>{st.hostName}</b> · {st.mode === 'read' ? 'lecture seule' : 'modification'}
-          {st.guests.length > 1 ? ` · ${st.guests.length} personnes connectées` : ''}
-          {st.keep ? '' : ' · rien n’est enregistré sur cet ordinateur'}
-        </span>
-      )}
+    <div className={s.banner} role="status" data-testid="guest-banner">
+      <span>
+        Projet partagé par <b>{st.hostName}</b> · {st.mode === 'read' ? 'lecture seule' : 'modification'}
+        {st.guests.length > 1 ? ` · ${st.guests.length} personnes connectées` : ''}
+        {st.keep ? '' : ' · rien n’est enregistré sur cet ordinateur'}
+      </span>
       <button
         type="button"
         onClick={() => {
