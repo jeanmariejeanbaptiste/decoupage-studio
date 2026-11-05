@@ -249,3 +249,7 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 /* Première ligne de chaque séquence : son filet du haut. */
 .planAddRow + .row > td { border-top: 1px solid var(--rule); }
 .seqAddRow td, .gapRow td, .planAddRow td { border: 0 !important; box-shadow: none !important; }
+/* Écarts entre séquences : transparents (aucune bande claire en thème sombre), un peu plus courts. */
+.spacer td, .seqAddRow td, .gapRow td { background: transparent !important; border: 0 !important; }
+.spacer td { height: 18px; }
+.seqAddBtn, .seqAddBtn:hover { background: transparent !important; }

@@ -13,3 +13,8 @@
 .tick { position: absolute; bottom: -15px; transform: translateX(-50%); font-family: var(--font-mono); font-size: 10px; color: var(--ink-soft); pointer-events: none; }
 .tick::before { content: ''; position: absolute; left: 50%; top: -4px; height: 3px; border-left: 1px solid var(--rule); }
 .empty { margin: 8px 0 4px; font-size: 13px; color: var(--ink-soft); font-style: italic; }
+/* Sans couleur : noirs et gris seulement. */
+.range { background: color-mix(in srgb, var(--ink) 5%, transparent); border-left-color: color-mix(in srgb, var(--ink) 20%, transparent); border-right-color: color-mix(in srgb, var(--ink) 20%, transparent); }
+.current { background: color-mix(in srgb, var(--ink) 14%, transparent); border-color: var(--ink); }
+.live { background: color-mix(in srgb, var(--ink) 22%, transparent); border-color: var(--ink); }
+canvas, svg { filter: grayscale(1); }

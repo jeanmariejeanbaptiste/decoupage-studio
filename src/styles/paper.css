@@ -119,3 +119,4 @@ button { cursor: pointer; }
 
 /* Aucune couleur hors noirs, gris et blanc : décors colorés (accueil, partage) passés en niveaux de gris. */
 [data-testid="home"] > :not(main):not(section):not(header), [data-testid="share-panel"], [data-testid="share-button"] { filter: grayscale(1); }
+[data-testid="track-bar"] { filter: grayscale(1); }
