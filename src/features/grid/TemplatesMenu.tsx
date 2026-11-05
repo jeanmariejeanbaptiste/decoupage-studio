@@ -46,7 +46,6 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
             <button key={t.key} type="button" role="menuitem" className={s.tplItem} onClick={() => insert(t.key)}>
               <strong>
                 {t.label}
-                {t.formats.includes(doc.project.format) && <em>suggéré</em>}
               </strong>
               <span>{t.description}</span>
             </button>
