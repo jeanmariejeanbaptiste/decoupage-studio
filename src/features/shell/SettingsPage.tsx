@@ -152,9 +152,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
               options={[
                 ['fiction', 'Fiction'],
                 ['clip', 'Clip'],
-                ['documentaire', 'Documentaire'],
                 ['institutionnel', 'Institutionnel'],
-                ['pub', 'Publicité'],
               ]}
             />
           </Row>
@@ -163,7 +161,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         <Section id="minutage" title="Minutage">
           {/* Le mode dépend du format : piste musicale pour un clip ou une publicité, sinon durée ou cumul. */}
           {musical ? (
-            <Row label="Mode" hint="Clip et publicité : chaque action se cale sur la musique.">
+            <Row label="Mode" hint="Clip : chaque action se cale sur la musique.">
               <span className={s.status}>Piste musicale</span>
             </Row>
           ) : (

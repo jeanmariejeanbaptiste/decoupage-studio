@@ -6,7 +6,7 @@ import { EMPTY_CUSTOM_VOCABULARY } from './vocabulary';
 export const newId = (): ID => nanoid(10);
 
 export function defaultSettings(format: ProjectFormat): ProjectSettings {
-  const musical = format === 'clip' || format === 'pub';
+  const musical = format === 'clip';
   return {
     tcMode: musical ? 'piste' : 'duree',
     tcGranularity: musical ? 'action' : 'sequence',
@@ -80,16 +80,19 @@ export function makeShot(sequenceId: ID, actionBlockId: ID, init: Partial<Shot> 
   };
 }
 
-/** Clip et publicité se calent sur une piste musicale ; les autres formats non. */
-export const isMusicalFormat = (f: ProjectFormat) => f === 'clip' || f === 'pub';
+/** Le clip se cale sur une piste musicale ; la fiction et l'institutionnel non. */
+export const isMusicalFormat = (f: ProjectFormat) => f === 'clip';
 
 /**
  * Cohérence du minutage avec le format, appliquée partout (changement de format, modèle, ouverture
  * d'un projet) :
- * - clip / publicité : minutage sur la piste musicale, par action, piste toujours présente ;
- * - fiction, documentaire, institutionnel : jamais de piste ; durée de chaque plan ou cumulatif.
+ * - clip : minutage sur la piste musicale, par action, piste toujours présente ;
+ * - fiction (publicité comprise), institutionnel : jamais de piste ; durée de chaque plan ou cumulatif.
  */
 export function normalizeTiming(doc: ProjectDoc): void {
+  // Formats retirés : la publicité est de la fiction, le documentaire rejoint l'institutionnel.
+  if (doc.project.format === 'pub') doc.project.format = 'fiction';
+  if (doc.project.format === 'documentaire') doc.project.format = 'institutionnel';
   const st = doc.project.settings;
   if (isMusicalFormat(doc.project.format)) {
     st.tcMode = 'piste';

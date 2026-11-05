@@ -32,15 +32,15 @@ describe('contrôles de la scripte (§9)', () => {
     expect(codes(docWith([{ init: base }, { init: base }]))).toContain('jump-cut');
     expect(codes(docWith([{ init: base }, { init: { ...base, movement: ['Trav avant'] } }]))).not.toContain('jump-cut');
   });
-  it('séquence vide et documentaire sans plan large', () => {
+  it('séquence vide et institutionnel sans plan large', () => {
     const empty = createProjectDoc({ title: 't', format: 'fiction' });
     addSequence(empty, undefined, { label: 'vide' }, false);
     expect(codes(empty)).toEqual(['empty-sequence']);
-    const doc = docWith([{ init: { subject: 'a', value: 'Gros plan' } }, { init: { subject: 'a', value: 'Insert' } }], 'documentaire');
+    const doc = docWith([{ init: { subject: 'a', value: 'Gros plan' } }, { init: { subject: 'a', value: 'Insert' } }], 'institutionnel');
     expect(codes(doc)).toEqual(expect.arrayContaining(['doc-open-wide', 'doc-close-wide']));
-    const ok = docWith([{ init: { subject: 'a', value: 'Général' } }, { init: { subject: 'a', value: 'Moyen' } }], 'documentaire');
+    const ok = docWith([{ init: { subject: 'a', value: 'Général' } }, { init: { subject: 'a', value: 'Moyen' } }], 'institutionnel');
     expect(codes(ok)).not.toContain('doc-open-wide');
-    const single = docWith([{ init: { subject: 'a', value: 'Insert' } }], 'documentaire');
+    const single = docWith([{ init: { subject: 'a', value: 'Insert' } }], 'institutionnel');
     expect(check(single).find((i) => i.code === 'doc-close-wide')?.shotId).toBeUndefined();
   });
   it('écart estimé / calculé > 25 %', () => {

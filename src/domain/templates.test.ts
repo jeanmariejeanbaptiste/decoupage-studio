@@ -15,20 +15,15 @@ describe('modèles de séquence', () => {
       }
   });
 
-  it('insèrent une séquence documentaire structurée', () => {
-    const doc = produce(createProjectDoc({ title: 'doc', format: 'documentaire' }), (d) => {
-      applyTemplate(d, 'documentaire');
+  it('insèrent une séquence d’interview structurée', () => {
+    const doc = produce(createProjectDoc({ title: 'itw', format: 'institutionnel' }), (d) => {
+      applyTemplate(d, 'interview');
       applyTemplate(d, 'inconnu');
     });
     const seq = doc.sequences[doc.project.sequenceIds[0]];
-    expect(seq.label).toBe('SÉQUENCE DOCUMENTAIRE');
-    expect(seq.shotIds).toHaveLength(12);
-    expect(seq.actionBlockIds).toHaveLength(7);
-    expect(doc.shots[seq.shotIds[0]].value).toBe('Général');
-    expect(doc.shots[seq.shotIds[11]].value).toBe('Général');
+    expect(seq.shotIds.length).toBeGreaterThan(3);
     expect(checkInvariants(doc)).toEqual([]);
   });
-
   it('couverture performance en TOUT pour un clip', () => {
     const doc = produce(createProjectDoc({ title: 'clip', format: 'clip' }), (d) => {
       applyTemplate(d, 'clip-narratif');

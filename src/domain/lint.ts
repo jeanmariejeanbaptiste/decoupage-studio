@@ -65,7 +65,7 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
     const where = sequenceHeading(doc, seqId);
     if (seq.shotIds.length === 0) {
       push({ code: 'empty-sequence', level: 'warn', sequenceId: seqId, where, message: 'Cette séquence ne contient aucun plan.' });
-    } else if (doc.project.format === 'documentaire') {
+    } else if (doc.project.format === 'institutionnel') {
       const first = doc.shots[seq.shotIds[0]];
       const last = doc.shots[seq.shotIds[seq.shotIds.length - 1]];
       if (first && !isWide(first.value))
