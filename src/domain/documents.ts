@@ -17,6 +17,7 @@ import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
 import type { ProjectDoc } from './types';
 import { isZoom, valueRank } from './vocabulary';
+import { questionsFor, type InterviewQuestion } from './interview';
 
 export const esc = (s: string | number | undefined | null) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -237,21 +238,29 @@ export function interviewDocument(doc: ProjectDoc): DocPage {
   const subjects = itw?.subjects ?? [];
   const body = subjects
     .map((s, i) => {
-      const qs = (itw?.questions ?? []).filter((q) => !q.subjectId || q.subjectId === s.id);
-      const cams = s.cameras.map((c) => `<tr><td class="code">Caméra ${esc(c.name)}</td><td>${esc(c.value)}</td><td>${esc(c.angle)}</td><td>${esc(c.focal ? `${c.focal} mm` : '')}</td><td>${esc(c.note ?? '')}</td></tr>`).join('');
+      const qRows = (qs: InterviewQuestion[]) =>
+        qs.length
+          ? `<table><thead><tr><th>N°</th><th>Question</th><th>Réponse attendue</th></tr></thead><tbody>${qs.map((q, k) => `<tr><td class="code">${k + 1}</td><td>${esc(q.text)}${q.note ? `<br><span class="muted">${esc(q.note)}</span>` : ''}</td><td>${esc(q.expected ?? '')}</td></tr>`).join('')}</tbody></table>`
+          : '<p class="muted">Aucune question.</p>';
+      const setups = s.setups
+        .map((st) => {
+          const cams = st.cameras.map((c) => `<tr><td class="code">Caméra ${esc(c.name)}</td><td>${esc(c.value)}</td><td>${esc(c.angle)}</td><td>${esc(c.focal ? `${c.focal} mm` : '')}</td><td>${esc(c.note ?? '')}</td></tr>`).join('');
+          return `<h3>${esc(st.name)}</h3>
+<table><thead><tr><th>Caméra</th><th>Valeur</th><th>Axe</th><th>Focale</th><th>Note</th></tr></thead><tbody>${cams}</tbody></table>
+<p>${esc(EYELINE[st.eyeline] ?? '')}</p>
+<div class="grid">
+<div><h3>Lieu</h3><p>${esc(st.place) || '—'}</p></div>
+<div><h3>Arrière-plan</h3><p>${esc(st.background) || '—'}</p></div>
+<div><h3>Lumière</h3><p>${esc(st.light) || '—'}</p></div>
+<div><h3>Son</h3><p>${esc(st.sound) || '—'}</p></div>
+</div>
+<h3>Questions · ${esc(st.name)}</h3>
+${qRows(itw ? questionsFor(itw, s.id, st.id) : [])}`;
+        })
+        .join('');
       return `<section class="plan">
 <h2>${esc(s.name || `Intervenant ${i + 1}`)}${s.role ? ` — <span class="muted">${esc(s.role)}</span>` : ''}</h2>
-<h3>Dispositif</h3>
-<table><thead><tr><th>Caméra</th><th>Valeur</th><th>Axe</th><th>Focale</th><th>Note</th></tr></thead><tbody>${cams}</tbody></table>
-<p>${esc(EYELINE[s.eyeline] ?? '')}</p>
-<div class="grid">
-<div><h3>Lieu</h3><p>${esc(s.place) || '—'}</p></div>
-<div><h3>Arrière-plan</h3><p>${esc(s.background) || '—'}</p></div>
-<div><h3>Lumière</h3><p>${esc(s.light) || '—'}</p></div>
-<div><h3>Son</h3><p>${esc(s.sound) || '—'}</p></div>
-</div>
-<h3>Questions</h3>
-${qs.length ? `<table><tbody>${qs.map((q, k) => `<tr><td class="code">${k + 1}</td><td>${esc(q.text)}${q.note ? `<br><span class="muted">${esc(q.note)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Aucune question.</p>'}
+${setups}
 ${s.notes ? `<h3>Notes</h3><p class="text">${esc(s.notes)}</p>` : ''}
 </section>`;
     })

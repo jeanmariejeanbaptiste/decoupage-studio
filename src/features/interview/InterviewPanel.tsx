@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Plus, Trash2, X } from 'lucide-react';
 import { newId } from '../../domain/factory';
-import { addInterviewee, CHECKLIST, ensureInterview, moveQuestion, questionsFor, removeInterviewee, type Interviewee } from '../../domain/interview';
+import { addInterviewee, addSetup, ensureInterview, moveQuestion, questionsFor, removeInterviewee, removeSetup, type Interviewee, type InterviewSetup } from '../../domain/interview';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { useReadOnly } from '../../store/share';
@@ -10,7 +10,7 @@ import s from './InterviewPanel.module.css';
 /**
  * Institutionnel, A-roll : la fiche d'interview. Un intervenant à la fois (onglets si plusieurs),
  * avec ce qui se prépare réellement avant de tourner : dispositif caméra, regard, son, décor et
- * lumière, questions, vérifications.
+ * lumière, questions et réponses attendues ; plusieurs cadres possibles par personne.
  */
 export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
@@ -18,27 +18,40 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const subjects = itw?.subjects ?? [];
   const [picked, setPicked] = useState<ID | undefined>(subjects[0]?.id);
   const subject = subjects.find((x) => x.id === picked) ?? subjects[0];
+  const [pickedSetup, setPickedSetup] = useState<ID | undefined>();
+  const setup = subject?.setups.find((x) => x.id === pickedSetup) ?? subject?.setups[0];
 
   // L'interview existe dès qu'on ouvre l'onglet : un intervenant par défaut.
   useEffect(() => {
     if (!doc.interview?.subjects.length && !readOnly) mutateDoc((d) => void ensureInterview(d));
   }, [doc.interview, readOnly]);
-  if (!itw || !subject) return null;
+  if (!itw || !subject || !setup) return null;
 
   const edit = (fn: (x: Interviewee) => void) => mutateDoc((d) => void fn(d.interview!.subjects.find((x) => x.id === subject.id)!));
-  const questions = questionsFor(itw, subject.id);
+  const editSetup = (fn: (x: InterviewSetup) => void) =>
+    edit((x) => void fn(x.setups.find((y) => y.id === setup.id)!));
+  const questions = questionsFor(itw, subject.id, setup.id);
   const shared = subjects.length > 1;
+  const multi = subject.setups.length > 1;
+  // Portée d'une question : commune → cet intervenant → ce cadre (si plusieurs cadres) → commune.
+  const nextScope = (q: { subjectId?: ID; setupId?: ID }): { subjectId?: ID; setupId?: ID } => {
+    if (!q.subjectId) return { subjectId: subject.id };
+    if (!q.setupId && multi) return { subjectId: subject.id, setupId: setup.id };
+    return shared ? {} : { subjectId: subject.id };
+  };
+  const scopeLabel = (q: { subjectId?: ID; setupId?: ID }) => (q.setupId ? 'Ce cadre' : q.subjectId ? (shared ? 'Cet intervenant' : 'Tous ses cadres') : 'Commune à tous');
+  const canScope = shared || multi;
 
   return (
     <div className={s.wrap} data-testid="interview">
       <nav className={s.people} aria-label="Intervenants">
         {subjects.map((x, i) => (
-          <button key={x.id} type="button" className={x.id === subject.id ? s.on : ''} onClick={() => setPicked(x.id)}>
+          <button key={x.id} type="button" className={x.id === subject.id ? s.on : ''} onClick={() => (setPicked(x.id), setPickedSetup(undefined))}>
             {x.name || `Intervenant ${i + 1}`}
           </button>
         ))}
         {!readOnly && (
-          <button type="button" className={s.add} onClick={() => setPicked(mutateDoc((d) => addInterviewee(d)))} data-testid="add-interviewee">
+          <button type="button" className={s.add} onClick={() => (setPicked(mutateDoc((d) => addInterviewee(d))), setPickedSetup(undefined))} data-testid="add-interviewee">
             <Plus size={14} /> Intervenant
           </button>
         )}
@@ -50,6 +63,27 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             <h3>Intervenant</h3>
             <Field label="Nom" value={subject.name} onCommit={(v) => edit((x) => void (x.name = v))} readOnly={readOnly} placeholder="Prénom Nom" />
             <Field label="Fonction (synthé)" value={subject.role} onCommit={(v) => edit((x) => void (x.role = v))} readOnly={readOnly} placeholder="Directrice de la communication" />
+            {subjects.length > 1 && !readOnly && (
+              <button type="button" className={s.ghost} onClick={() => mutateDoc((d) => removeInterviewee(d, subject.id))}>
+                <Trash2 size={13} /> Retirer cet intervenant
+              </button>
+            )}
+          </section>
+
+          <section className={s.card}>
+            <nav className={s.setups} aria-label="Cadres">
+              {subject.setups.map((y) => (
+                <button key={y.id} type="button" className={y.id === setup.id ? s.on : ''} onClick={() => setPickedSetup(y.id)}>
+                  {y.name}
+                </button>
+              ))}
+              {!readOnly && (
+                <button type="button" className={s.add} onClick={() => setPickedSetup(mutateDoc((d) => addSetup(d, subject.id, setup.id)))} data-testid="add-setup">
+                  <Plus size={14} /> Cadre
+                </button>
+              )}
+            </nav>
+            <Field label="Nom du cadre" value={setup.name} onCommit={(v) => editSetup((x) => void (x.name = v.trim() || x.name))} readOnly={readOnly} placeholder="Au bureau, debout dans l’atelier…" />
             <div className={s.line}>
               <span>Regard</span>
               <div className={s.seg} role="radiogroup" aria-label="Regard">
@@ -60,44 +94,36 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                     ['droite', 'À droite'],
                   ] as const
                 ).map(([v, l]) => (
-                  <button key={v} type="button" role="radio" aria-checked={subject.eyeline === v} className={subject.eyeline === v ? s.segOn : ''} disabled={readOnly} onClick={() => edit((x) => void (x.eyeline = v))}>
+                  <button key={v} type="button" role="radio" aria-checked={setup.eyeline === v} className={setup.eyeline === v ? s.segOn : ''} disabled={readOnly} onClick={() => editSetup((x) => void (x.eyeline = v))}>
                     {l}
                   </button>
                 ))}
               </div>
             </div>
-            {shared && subject.eyeline !== 'camera' && subjects.some((o) => o.id !== subject.id && o.eyeline === subject.eyeline) && (
+            {shared && setup.eyeline !== 'camera' && subjects.some((o) => o.id !== subject.id && o.setups.some((y) => y.eyeline === setup.eyeline)) && (
               <p className={s.warn}>Même regard qu’un autre intervenant : ils ne pourront pas se répondre au montage.</p>
             )}
-            {subjects.length > 1 && !readOnly && (
-              <button type="button" className={s.ghost} onClick={() => mutateDoc((d) => removeInterviewee(d, subject.id))}>
-                <Trash2 size={13} /> Retirer cet intervenant
-              </button>
-            )}
-          </section>
-
-          <section className={s.card}>
             <h3>Dispositif caméra</h3>
             <div className={s.cams}>
-              {subject.cameras.map((c, k) => (
+              {setup.cameras.map((c, k) => (
                 <div key={c.id} className={s.cam}>
                   <span className={s.camName}>{c.name}</span>
-                  <Field label="Valeur" value={c.value} onCommit={(v) => edit((x) => void (x.cameras[k].value = v))} readOnly={readOnly} />
-                  <Field label="Axe" value={c.angle} onCommit={(v) => edit((x) => void (x.cameras[k].angle = v))} readOnly={readOnly} />
-                  <Field label="Focale (mm)" value={c.focal} onCommit={(v) => edit((x) => void (x.cameras[k].focal = v))} readOnly={readOnly} numeric />
-                  {!readOnly && subject.cameras.length > 1 && (
-                    <button type="button" className={s.iconBtn} aria-label={`Retirer la caméra ${c.name}`} onClick={() => edit((x) => void x.cameras.splice(k, 1))}>
+                  <Field label="Valeur" value={c.value} onCommit={(v) => editSetup((x) => void (x.cameras[k].value = v))} readOnly={readOnly} />
+                  <Field label="Axe" value={c.angle} onCommit={(v) => editSetup((x) => void (x.cameras[k].angle = v))} readOnly={readOnly} />
+                  <Field label="Focale (mm)" value={c.focal} onCommit={(v) => editSetup((x) => void (x.cameras[k].focal = v))} readOnly={readOnly} numeric />
+                  {!readOnly && setup.cameras.length > 1 && (
+                    <button type="button" className={s.iconBtn} aria-label={`Retirer la caméra ${c.name}`} onClick={() => editSetup((x) => void x.cameras.splice(k, 1))}>
                       <X size={13} />
                     </button>
                   )}
                 </div>
               ))}
             </div>
-            {!readOnly && subject.cameras.length < 4 && (
+            {!readOnly && (
               <button
                 type="button"
                 className={s.ghost}
-                onClick={() => edit((x) => void x.cameras.push({ id: newId(), name: String.fromCharCode(65 + x.cameras.length), value: 'Large', angle: 'Face', focal: '24' }))}
+                onClick={() => editSetup((x) => void x.cameras.push({ id: newId(), name: cameraName(x.cameras.length), value: 'Large', angle: 'Face', focal: '24' }))}
               >
                 <Plus size={13} /> Caméra
               </button>
@@ -106,10 +132,15 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
 
           <section className={s.card}>
             <h3>Lieu, lumière, son</h3>
-            <Field label="Lieu" value={subject.place} onCommit={(v) => edit((x) => void (x.place = v))} readOnly={readOnly} placeholder="Bureau de la direction, 3e étage" />
-            <Field label="Arrière-plan" value={subject.background} onCommit={(v) => edit((x) => void (x.background = v))} readOnly={readOnly} placeholder="Profondeur, bibliothèque floue, logo discret" />
-            <Field label="Lumière" value={subject.light} onCommit={(v) => edit((x) => void (x.light = v))} readOnly={readOnly} placeholder="Face douce côté fenêtre, contre-jour léger" />
-            <Field label="Son" value={subject.sound} onCommit={(v) => edit((x) => void (x.sound = v))} readOnly={readOnly} />
+            <Field label="Lieu" value={setup.place} onCommit={(v) => editSetup((x) => void (x.place = v))} readOnly={readOnly} placeholder="Bureau de la direction, 3e étage" />
+            <Field label="Arrière-plan" value={setup.background} onCommit={(v) => editSetup((x) => void (x.background = v))} readOnly={readOnly} placeholder="Profondeur, bibliothèque floue, logo discret" />
+            <Field label="Lumière" value={setup.light} onCommit={(v) => editSetup((x) => void (x.light = v))} readOnly={readOnly} placeholder="Face douce côté fenêtre, contre-jour léger" />
+            <Field label="Son" value={setup.sound} onCommit={(v) => editSetup((x) => void (x.sound = v))} readOnly={readOnly} />
+            {multi && !readOnly && (
+              <button type="button" className={s.ghost} onClick={() => (mutateDoc((d) => removeSetup(d, subject.id, setup.id)), setPickedSetup(undefined))}>
+                <Trash2 size={13} /> Retirer ce cadre
+              </button>
+            )}
             <Field label="Notes" value={subject.notes ?? ''} multiline onCommit={(v) => edit((x) => void (x.notes = v || undefined))} readOnly={readOnly} />
           </section>
         </div>
@@ -140,23 +171,31 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                       readOnly={readOnly}
                       onCommit={(v) => mutateDoc((d) => void (d.interview!.questions.find((x) => x.id === q.id)!.text = v))}
                     />
-                    {shared && !readOnly && (
+                    <Field
+                      label="Réponse attendue"
+                      value={q.expected ?? ''}
+                      multiline
+                      readOnly={readOnly}
+                      placeholder="Idées clés, chiffre, anecdote…"
+                      onCommit={(v) => mutateDoc((d) => void (d.interview!.questions.find((x) => x.id === q.id)!.expected = v.trim() || undefined))}
+                    />
+                    {canScope && !readOnly && (
                       <button
                         type="button"
                         className={s.scope}
-                        onClick={() => mutateDoc((d) => void (d.interview!.questions.find((x) => x.id === q.id)!.subjectId = q.subjectId ? undefined : subject.id))}
-                        title="Commune : posée à tous les intervenants"
+                        onClick={() => mutateDoc((d) => void Object.assign(d.interview!.questions.find((x) => x.id === q.id)!, { subjectId: undefined, setupId: undefined }, nextScope(q)))}
+                        title="Portée de la question"
                       >
-                        {q.subjectId ? 'Pour cet intervenant' : 'Commune à tous'}
+                        {scopeLabel(q)}
                       </button>
                     )}
                   </div>
                   {!readOnly && (
                     <span className={s.qTools}>
-                      <button type="button" aria-label="Monter" disabled={k === 0} onClick={() => mutateDoc((d) => moveQuestion(d.interview!, subject.id, q.id, -1))}>
+                      <button type="button" aria-label="Monter" disabled={k === 0} onClick={() => mutateDoc((d) => moveQuestion(d.interview!, subject.id, q.id, -1, setup.id))}>
                         <ArrowUp size={13} />
                       </button>
-                      <button type="button" aria-label="Descendre" disabled={k === questions.length - 1} onClick={() => mutateDoc((d) => moveQuestion(d.interview!, subject.id, q.id, 1))}>
+                      <button type="button" aria-label="Descendre" disabled={k === questions.length - 1} onClick={() => mutateDoc((d) => moveQuestion(d.interview!, subject.id, q.id, 1, setup.id))}>
                         <ArrowDown size={13} />
                       </button>
                       <button type="button" aria-label="Supprimer la question" onClick={() => mutateDoc((d) => void (d.interview!.questions = d.interview!.questions.filter((x) => x.id !== q.id)))}>
@@ -180,31 +219,15 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             <p className={s.tip}>Des questions ouvertes (« Racontez… », « Comment… ») ; l’intervenant reprend la question dans sa réponse.</p>
           </section>
 
-          <section className={s.card}>
-            <h3>Avant de tourner</h3>
-            <ul className={s.checklist}>
-              {CHECKLIST.map(([key, label]) => {
-                const on = subject.checked.includes(key);
-                return (
-                  <li key={key}>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={readOnly}
-                        onChange={() => edit((x) => void (x.checked = on ? x.checked.filter((c) => c !== key) : [...x.checked, key]))}
-                      />
-                      {label}
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
         </div>
       </div>
     </div>
   );
+}
+
+/** A, B… Z, puis AA, AB… */
+function cameraName(i: number): string {
+  return (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + (i % 26));
 }
 
 /** Champ saisi d'un trait, enregistré en quittant le champ (une seule étape d'annulation). */
