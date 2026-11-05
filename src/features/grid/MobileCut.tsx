@@ -1,10 +1,12 @@
 import { SeqMeta } from './SeqMeta';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, List, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, List, Plus, Trash2, X } from 'lucide-react';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { editableText, isEditable, setCellText } from '../../domain/cells';
 import { sequenceHeading, sequenceNumber, shotCode } from '../../domain/numbering';
-import { addSequence, addShotAfter } from '../../domain/ops';
+import { addSequence, addShotAfter, deleteShot, duplicateShot } from '../../domain/ops';
+import { suggestionSource } from './suggestions';
+import type { Suggestion } from '../../ui/SuggestList';
 import { computeTiming, shotTcLabel } from '../../domain/timing';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
@@ -30,6 +32,8 @@ const label = (c: ColumnKey) => {
   const l = COLUMN_DEFS[c].label;
   return l === l.toUpperCase() && l.length > 3 ? l.charAt(0) + l.slice(1).toLowerCase() : l;
 };
+/** Point de départ du glissement du doigt (un seul doigt à la fois). */
+const swipe = { x: 0, y: 0 };
 const MULTILINE: ColumnKey[] = ['action', 'dialogue', 'notes', 'sound'];
 
 /**
@@ -63,6 +67,18 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
     if (!shotId) return;
     const id = mutateDoc((d) => addShotAfter(d, shotId));
     if (id) setCurrent(id);
+  };
+  const duplicate = () => {
+    if (!shotId) return;
+    const id = mutateDoc((d) => duplicateShot(d, shotId));
+    if (id) setCurrent(id);
+  };
+  // Supprimer : on reste sur le plan voisin ; ⌘Z (ou l'annulation du haut) le fait revenir.
+  const remove = () => {
+    if (!shotId) return;
+    const next = order[i + 1] ?? order[i - 1];
+    mutateDoc((d) => deleteShot(d, shotId));
+    setCurrent(next);
   };
   const addSeq = () => {
     const seqId = shot?.sequenceId;
@@ -126,8 +142,36 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
   }
 
   const tc = shotTcLabel(doc, timing, shot.id);
+  // Glisser le doigt vers la gauche / la droite : plan suivant / précédent.
+  const onTouchStart = (e: React.TouchEvent) => {
+    swipe.x = e.touches[0].clientX;
+    swipe.y = e.touches[0].clientY;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const t0 = e.target as HTMLElement;
+    if (t0.closest('input, textarea, select')) return;
+    const dx = e.changedTouches[0].clientX - swipe.x;
+    const dy = e.changedTouches[0].clientY - swipe.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? i + 1 : i - 1);
+  };
   return (
-    <div className={s.wrap} data-testid="mobile-cut">
+    <div className={s.wrap} data-testid="mobile-cut" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* Séquences : on saute directement à la première de ses plans. */}
+      <nav className={s.seqTabs} aria-label="Séquences">
+        {doc.project.sequenceIds.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={id === shot.sequenceId ? s.seqTabOn : ''}
+            onClick={() => {
+              const first = doc.sequences[id]?.shotIds[0];
+              if (first) setCurrent(first);
+            }}
+          >
+            {sequenceHeading(doc, id)}
+          </button>
+        ))}
+      </nav>
       <header className={s.head}>
         <div>
           {/* Nom de la séquence, modifiable comme dans la grille. */}
@@ -145,9 +189,21 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
             {tc && <span className={s.tc}>{tc}</span>}
           </h1>
         </div>
-        <button type="button" className={s.iconBtn} onClick={() => setList(true)} aria-label="Vue d’ensemble" data-testid="mobile-overview">
-          <List size={18} strokeWidth={1.6} />
-        </button>
+        <div className={s.headActions}>
+          <button type="button" className={s.iconBtn} onClick={() => setList(true)} aria-label="Vue d’ensemble" data-testid="mobile-overview">
+            <List size={18} strokeWidth={1.6} />
+          </button>
+          {!readOnly && (
+            <>
+              <button type="button" className={s.iconBtn} onClick={duplicate} aria-label="Dupliquer le plan" title="Dupliquer">
+                <Copy size={16} strokeWidth={1.6} />
+              </button>
+              <button type="button" className={s.iconBtn} onClick={remove} aria-label="Supprimer le plan" title="Supprimer">
+                <Trash2 size={16} strokeWidth={1.6} />
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <div className={s.fields}>
@@ -159,6 +215,8 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
               value={editableText(doc, shot.id, c)}
               multiline={MULTILINE.includes(c)}
               readOnly={readOnly || !isEditable(c)}
+              suggest={readOnly ? undefined : suggestionSource(doc, c)}
+              numeric={c === 'focal' || c === 'aperture'}
               onCommit={(v) => mutateDoc((d) => void setCellText(d, shot.id, c, v))}
             />
           ),
@@ -193,7 +251,23 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
 }
 
 /** Champ saisi d'un trait, enregistré en quittant le champ. */
-function Field({ label: l, value, multiline, readOnly, onCommit }: { label: string; value: string; multiline?: boolean; readOnly?: boolean; onCommit: (v: string) => void }) {
+function Field({
+  label: l,
+  value,
+  multiline,
+  readOnly,
+  suggest,
+  numeric,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+  readOnly?: boolean;
+  suggest?: (q: string) => Suggestion[];
+  numeric?: boolean;
+  onCommit: (v: string) => void;
+}) {
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -211,10 +285,36 @@ function Field({ label: l, value, multiline, readOnly, onCommit }: { label: stri
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
     'aria-label': l,
   };
+  // Suggestions à toucher (vocabulaire, focales…) : pour la dernière valeur saisie après une virgule.
+  const last = draft.split(/,\s*/).pop() ?? '';
+  // Valeur déjà complète : on propose toute la liste, pour changer d'un geste.
+  const matches = focused && suggest ? suggest(last) : [];
+  const chips = (matches.length <= 1 && suggest && focused ? suggest('') : matches).slice(0, 12);
+  const pick = (sg: Suggestion) => {
+    const v = sg.value ?? sg.label;
+    const parts = draft.split(/,\s*/);
+    parts[parts.length - 1] = v;
+    const next = parts.filter(Boolean).join(', ');
+    setDraft(next);
+    onCommit(next);
+  };
   return (
     <label className={s.field}>
       <span>{l}</span>
-      {multiline ? <textarea rows={Math.max(2, Math.ceil(draft.length / 38))} {...common} /> : <input {...common} />}
+      {multiline ? (
+        <textarea rows={Math.max(2, Math.ceil(draft.length / 38))} {...common} />
+      ) : (
+        <input {...common} inputMode={numeric ? 'decimal' : undefined} enterKeyHint="next" />
+      )}
+      {chips.length > 0 && (
+        <span className={s.chips}>
+          {chips.map((sg) => (
+            <button key={sg.label} type="button" onPointerDown={(e) => e.preventDefault()} onClick={() => pick(sg)}>
+              {sg.label}
+            </button>
+          ))}
+        </span>
+      )}
     </label>
   );
 }
