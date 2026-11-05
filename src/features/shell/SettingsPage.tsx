@@ -3,7 +3,7 @@ import { AssistantButton } from '../assistant/AssistantButton';
 import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import { Moon, Plus, RotateCcw, Sun, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
-import { applyFormat, newId } from '../../domain/factory';
+import { applyFormat, isMusicalFormat, newId } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
 import type { ProjectDoc, ProjectFormat, ProjectSettings, Sensor, ShotCodeFormat } from '../../domain/types';
@@ -110,6 +110,7 @@ function Text({ label, value, onChange, placeholder }: { label: string; value: s
 export function SettingsPage({ doc }: { doc: ProjectDoc }) {
   const st = doc.project.settings;
   const p = doc.project;
+  const musical = isMusicalFormat(p.format);
   const { params } = useLocation();
   const [sample, setSample] = useState('Elle prend l’affiche de la vedette et la regarde longuement, émue.');
   const action = previewDuration(sample, st);
@@ -160,9 +161,24 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         </Section>
 
         <Section id="minutage" title="Minutage">
-          <Row label="Mode">
-            <Radio name="Mode de TC" value={st.tcMode} onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { tcMode: v, tcModeChosen: true }))} options={[['duree', 'Durée de chaque plan'], ['cumulatif', 'Cumulatif'], ['piste', 'Piste musicale']]} />
-          </Row>
+          {/* Le mode dépend du format : piste musicale pour un clip ou une publicité, sinon durée ou cumul. */}
+          {musical ? (
+            <Row label="Mode" hint="Clip et publicité : chaque action se cale sur la musique.">
+              <span className={s.status}>Piste musicale</span>
+            </Row>
+          ) : (
+            <Row label="Mode">
+              <Radio
+                name="Mode de TC"
+                value={st.tcMode}
+                onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { tcMode: v, tcModeChosen: true }))}
+                options={[
+                  ['duree', 'Durée de chaque plan'],
+                  ['cumulatif', 'Cumulatif'],
+                ]}
+              />
+            </Row>
+          )}
           {st.tcMode === 'piste' && (
             <>
               <Text label="Nom de la piste" value={st.audioTrack?.name ?? ''} onChange={(v) => set('audioTrack', { durationSec: st.audioTrack?.durationSec ?? 0, ...st.audioTrack, name: v })} />
@@ -180,9 +196,11 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
               </Row>
             </>
           )}
-          <Row label="Granularité">
-            <Radio name="Granularité" value={st.tcGranularity} onChange={(v) => set('tcGranularity', v)} options={[['sequence', 'Par séquence'], ['action', 'Par action']]} />
-          </Row>
+          {st.tcMode === 'cumulatif' && (
+            <Row label="Granularité" hint="Le TC cumulé s'affiche par séquence ou par action.">
+              <Radio name="Granularité" value={st.tcGranularity} onChange={(v) => set('tcGranularity', v)} options={[['sequence', 'Par séquence'], ['action', 'Par action']]} />
+            </Row>
+          )}
           <Num label="Action (mots / s)" value={st.actionWordsPerSecond} onChange={(v) => set('actionWordsPerSecond', v)} />
           <Num label="Dialogue (mots / s)" value={st.dialogueWordsPerSecond} onChange={(v) => set('dialogueWordsPerSecond', v)} />
           <Num label="Minimum par action (s)" value={st.minActionSeconds} min={0} onChange={(v) => set('minActionSeconds', v)} />

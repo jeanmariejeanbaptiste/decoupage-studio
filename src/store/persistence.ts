@@ -1,5 +1,6 @@
 import { parseProjectFile, serializeDoc, fileNameFor, FILE_EXTENSION } from '../domain/serialize';
 import { activeColumns } from '../domain/columns';
+import { normalizeTiming } from '../domain/factory';
 import type { ProjectDoc } from '../domain/types';
 import { loadProject, saveProject } from './db';
 import { useProjectStore } from './projectStore';
@@ -31,6 +32,8 @@ export async function openStoredProject(id: string): Promise<boolean> {
   if (!doc) return false;
   // Les projets créés avant le mode « durée de chaque plan » y passent, sauf choix explicite.
   if (doc.project.settings.tcMode === 'cumulatif' && !doc.project.settings.tcModeChosen) doc.project.settings.tcMode = 'duree';
+  // Minutage toujours cohérent avec le format (piste pour un clip, jamais pour une fiction…).
+  normalizeTiming(doc);
   // Colonnes retirées (Personnages, Lumière, Machinerie, Durée) : plus affichées ni exportées.
   doc.project.settings.gridColumns = activeColumns(doc.project.settings.gridColumns);
   doc.project.settings.exportColumns = activeColumns(doc.project.settings.exportColumns);

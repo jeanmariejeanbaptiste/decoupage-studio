@@ -80,16 +80,33 @@ export function makeShot(sequenceId: ID, actionBlockId: ID, init: Partial<Shot> 
   };
 }
 
+/** Clip et publicité se calent sur une piste musicale ; les autres formats non. */
+export const isMusicalFormat = (f: ProjectFormat) => f === 'clip' || f === 'pub';
+
 /**
- * Format et minutage vont ensemble : clip et publicité se calent sur une piste musicale, les autres
- * formats comptent la durée de chaque plan. Changer l'un met l'autre à jour.
+ * Cohérence du minutage avec le format, appliquée partout (changement de format, modèle, ouverture
+ * d'un projet) :
+ * - clip / publicité : minutage sur la piste musicale, par action, piste toujours présente ;
+ * - fiction, documentaire, institutionnel : jamais de piste ; durée de chaque plan ou cumulatif.
  */
+export function normalizeTiming(doc: ProjectDoc): void {
+  const st = doc.project.settings;
+  if (isMusicalFormat(doc.project.format)) {
+    st.tcMode = 'piste';
+    st.tcGranularity = 'action';
+    st.audioTrack ??= { name: 'Piste musicale', durationSec: 0 };
+  } else if (st.tcMode === 'piste') {
+    st.tcMode = 'duree';
+    st.tcGranularity = 'sequence';
+  }
+}
+
+/** Change le format du projet : son minutage par défaut suit. */
 export function applyFormat(doc: ProjectDoc, format: ProjectFormat): void {
   const def = defaultSettings(format);
-  const st = doc.project.settings;
   doc.project.format = format;
-  st.tcMode = def.tcMode;
-  st.tcGranularity = def.tcGranularity;
-  st.tcModeChosen = false;
-  if (st.tcMode === 'piste') st.audioTrack ??= { name: 'Piste musicale', durationSec: 0 };
+  doc.project.settings.tcMode = def.tcMode;
+  doc.project.settings.tcGranularity = def.tcGranularity;
+  doc.project.settings.tcModeChosen = false;
+  normalizeTiming(doc);
 }

@@ -1,5 +1,6 @@
 import { defaultSettings } from './factory';
 import { activeColumns } from './columns';
+import { normalizeTiming } from './factory';
 import { EMPTY_CUSTOM_VOCABULARY } from './vocabulary';
 import { SCHEMA_VERSION, type ProjectDoc } from './types';
 
@@ -53,6 +54,7 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   p.settings = { ...defaultSettings(p.format ?? 'fiction'), ...(p.settings ?? {}) };
   p.settings.gridColumns = activeColumns(p.settings.gridColumns);
   p.settings.exportColumns = activeColumns(p.settings.exportColumns);
+  normalizeTiming(doc);
   p.schemaVersion = SCHEMA_VERSION;
   p.title = p.title ?? 'Projet sans titre';
   p.version = p.version ?? 'V1';
