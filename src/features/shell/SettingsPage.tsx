@@ -3,7 +3,7 @@ import { AssistantButton } from '../assistant/AssistantButton';
 import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import { Moon, Plus, RotateCcw, Sun, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
-import { defaultSettings, newId } from '../../domain/factory';
+import { applyFormat, newId } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
 import type { ProjectDoc, ProjectFormat, ProjectSettings, Sensor, ShotCodeFormat } from '../../domain/types';
@@ -146,12 +146,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
               value={p.format}
               onChange={(v) => {
                 // Le format pilote le minutage : clip / pub = TC sur la piste, sinon durée de chaque plan.
-                mutateDoc((d) => {
-                  const def = defaultSettings(v);
-                  d.project.format = v;
-                  d.project.settings.tcMode = def.tcMode;
-                  d.project.settings.tcGranularity = def.tcGranularity;
-                });
+                mutateDoc((d) => applyFormat(d, v));
               }}
               options={[
                 ['fiction', 'Fiction'],

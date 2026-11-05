@@ -1,4 +1,5 @@
 import { addSequence, addShot } from './ops';
+import { applyFormat } from './factory';
 import type { ID, ProjectDoc, ProjectFormat } from './types';
 
 interface TemplateShot {
@@ -168,13 +169,12 @@ export function templatesFor(format: ProjectFormat): SequenceTemplate[] {
 export function applyTemplate(doc: ProjectDoc, key: string, index?: number): ID | undefined {
   const tpl = TEMPLATES.find((t) => t.key === key);
   if (!tpl) return undefined;
+  // Premier modèle d'un projet vide : le projet prend le format du modèle, et son minutage avec
+  // (piste musicale pour un clip, durée de chaque plan pour une fiction). Ensuite, un modèle de clip
+  // inséré dans un autre format fait au moins passer le minutage sur la piste.
+  if (doc.project.sequenceIds.length === 0 && !tpl.formats.includes(doc.project.format)) applyFormat(doc, tpl.formats[0]);
+  else if (tpl.key.startsWith('clip-') && doc.project.settings.tcMode !== 'piste') applyFormat(doc, 'clip');
   const seqId = addSequence(doc, index, { label: tpl.sequenceLabel }, false);
-  // Modèle de clip : le découpage passe en mode piste, pour importer et caler la musique.
-  if (tpl.key.startsWith('clip-') && doc.project.settings.tcMode !== 'piste') {
-    doc.project.settings.tcMode = 'piste';
-    doc.project.settings.tcModeChosen = true;
-    doc.project.settings.audioTrack ??= { name: 'Piste musicale', durationSec: 0 };
-  }
   const piste = doc.project.settings.tcMode === 'piste';
   const blocks = new Map<string, ID>();
   for (const s of tpl.shots) {

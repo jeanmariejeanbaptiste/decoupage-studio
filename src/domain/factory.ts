@@ -79,3 +79,17 @@ export function makeShot(sequenceId: ID, actionBlockId: ID, init: Partial<Shot> 
     ...init,
   };
 }
+
+/**
+ * Format et minutage vont ensemble : clip et publicité se calent sur une piste musicale, les autres
+ * formats comptent la durée de chaque plan. Changer l'un met l'autre à jour.
+ */
+export function applyFormat(doc: ProjectDoc, format: ProjectFormat): void {
+  const def = defaultSettings(format);
+  const st = doc.project.settings;
+  doc.project.format = format;
+  st.tcMode = def.tcMode;
+  st.tcGranularity = def.tcGranularity;
+  st.tcModeChosen = false;
+  if (st.tcMode === 'piste') st.audioTrack ??= { name: 'Piste musicale', durationSec: 0 };
+}

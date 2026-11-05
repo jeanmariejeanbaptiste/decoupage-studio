@@ -31,3 +31,20 @@ describe('ordre des colonnes', () => {
     expect(followOrder(exp, grid)).toEqual(['sequence', 'number', 'subject', 'sound', 'focal', 'action', 'dialogue', 'tc']);
   });
 });
+
+describe('format et minutage liés', () => {
+  it('changer de format change le minutage ; le premier modèle donne son format au projet', async () => {
+    const { createProjectDoc, applyFormat } = await import('./factory');
+    const { applyTemplate } = await import('./templates');
+    const doc = createProjectDoc({ title: 't', format: 'fiction' });
+    applyFormat(doc, 'clip');
+    expect(doc.project.settings.tcMode).toBe('piste');
+    expect(doc.project.settings.audioTrack).toBeDefined();
+    applyFormat(doc, 'fiction');
+    expect(doc.project.settings.tcMode).toBe('duree');
+    const empty = createProjectDoc({ title: 'c', format: 'fiction' });
+    applyTemplate(empty, 'clip-performance');
+    expect(empty.project.format).toBe('clip');
+    expect(empty.project.settings.tcMode).toBe('piste');
+  });
+});
