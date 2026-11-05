@@ -30,7 +30,7 @@ const sh = (group: string, value: string, angle: string[], movement: string[], s
 export const TEMPLATES: readonly SequenceTemplate[] = [
   {
     key: 'fiction-dialogue',
-    label: 'Fiction — dialogue champ / contrechamp',
+    label: 'Dialogue champ / contrechamp',
     sequenceLabel: 'SCÈNE DE DIALOGUE',
     formats: ['fiction'],
     description: 'Plan d’installation, deux-plan, champ et contrechamp qui se resserrent, réaction, insert.',
@@ -53,7 +53,7 @@ export const TEMPLATES: readonly SequenceTemplate[] = [
   },
   {
     key: 'fiction-action',
-    label: 'Fiction — scène d’action',
+    label: 'Scène d’action',
     sequenceLabel: 'SCÈNE D’ACTION',
     formats: ['fiction'],
     description: 'Large pour situer, caméra qui accompagne le mouvement, réactions, détails, plan de résolution.',
@@ -76,7 +76,7 @@ export const TEMPLATES: readonly SequenceTemplate[] = [
   },
   {
     key: 'interview',
-    label: 'Interview institutionnelle',
+    label: 'Interview',
     sequenceLabel: 'INTERVIEW',
     formats: ['institutionnel'],
     description: 'Large d’ouverture, axe épaule hauteur regard, gros plan aux questions, plans de coupe, large de fin.',
@@ -99,7 +99,7 @@ export const TEMPLATES: readonly SequenceTemplate[] = [
   },
   {
     key: 'clip-performance',
-    label: 'Clip — couverture performance',
+    label: 'Couverture performance',
     sequenceLabel: 'PERFORMANCE',
     formats: ['clip'],
     description: 'La performance couverte sur toute la piste (TOUT), du large au détail.',
@@ -116,7 +116,7 @@ export const TEMPLATES: readonly SequenceTemplate[] = [
   },
   {
     key: 'clip-narratif',
-    label: 'Clip — séquence narrative',
+    label: 'Séquence narrative',
     sequenceLabel: 'SÉQUENCE NARRATIVE',
     formats: ['clip'],
     description: 'Une action racontée sur la musique : du plan moyen au gros plan, puis un insert.',
@@ -135,14 +135,9 @@ export function templatesFor(format: ProjectFormat): SequenceTemplate[] {
   return [...TEMPLATES].sort((a, b) => Number(b.formats.includes(format)) - Number(a.formats.includes(format)));
 }
 
-/**
- * Modèles proposés dans un projet : seulement ceux de son format (un clip ne propose pas de scène de
- * fiction, et inversement). Projet encore vide : tous, puisque le premier modèle choisit le format.
- */
+/** Modèles proposés dans un projet : uniquement ceux de son format, choisi dans les réglages. */
 export function templatesForProject(doc: ProjectDoc): SequenceTemplate[] {
-  if (doc.project.sequenceIds.length === 0) return templatesFor(doc.project.format);
-  const own = TEMPLATES.filter((t) => t.formats.includes(doc.project.format));
-  return own.length ? own : templatesFor(doc.project.format);
+  return TEMPLATES.filter((t) => t.formats.includes(doc.project.format));
 }
 
 /** Insère une séquence pré-remplie à l'index donné (fin par défaut). Renvoie son identifiant. */

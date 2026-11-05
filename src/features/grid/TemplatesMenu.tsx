@@ -48,7 +48,6 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
       )}
       {open && (
         <div className={[s.menu, s.wide].join(' ')} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
-          <p className={s.menuTitle}>Insérer un modèle de séquence</p>
           {templatesForProject(doc).map((t) => (
             <button key={t.key} type="button" role="menuitem" className={s.tplItem} onClick={() => insert(t.key)}>
               <strong>

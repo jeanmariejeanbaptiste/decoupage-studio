@@ -4,9 +4,11 @@ test('institutionnel : fiche d’interview (A-roll) et illustrations (B-roll)', 
   await page.goto('/#/');
   await page.getByTestId('new-project').click();
   await page.getByLabel('Titre du projet').fill('Instit');
+  await page.getByRole('radio', { name: 'Institutionnel' }).click();
   await page.getByTestId('wizard-next').click();
+  await page.getByTestId('tab-broll').click();
   await page.getByTestId('templates').click();
-  await page.getByRole('menuitem', { name: /Interview institutionnelle/ }).click();
+  await page.getByRole('menuitem', { name: /^Interview/ }).click();
   // Le projet devient institutionnel : la colonne TC est facultative (masquée).
   await page.getByTestId('tab-interview').click();
   const itw = page.getByTestId('interview');

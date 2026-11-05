@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { navigate } from '../../app/router';
-import { createProjectDoc } from '../../domain/factory';
+import { applyFormat, createProjectDoc } from '../../domain/factory';
+import type { ProjectFormat } from '../../domain/types';
 import { openDoc } from '../../store/persistence';
 import { Button } from '../../ui/Button';
 import s from './NewProjectWizard.module.css';
 
-/** Nouveau projet : le titre seulement ; format fiction et réglages par défaut (modifiables dans Paramètres). */
+/** Nouveau projet : titre et format ; le reste suit le format (modifiable dans Paramètres). */
 export function NewProjectWizard({ onCancel }: { onCancel: () => void }) {
   const [title, setTitle] = useState('');
+  const [format, setFormat] = useState<ProjectFormat>('fiction');
   const create = async () => {
-    const doc = createProjectDoc({ title: title.trim() || 'Projet sans titre', format: 'fiction' });
+    const doc = createProjectDoc({ title: title.trim() || 'Projet sans titre', format });
+    applyFormat(doc, format);
     await openDoc(doc);
     navigate('grid');
   };
@@ -28,6 +31,19 @@ export function NewProjectWizard({ onCancel }: { onCancel: () => void }) {
         <span>Titre du projet</span>
         <input value={title} onChange={(e) => setTitle(e.target.value)} name="title" autoFocus />
       </label>
+      <div className={s.seg} role="radiogroup" aria-label="Format">
+        {(
+          [
+            ['fiction', 'Fiction'],
+            ['clip', 'Clip'],
+            ['institutionnel', 'Institutionnel'],
+          ] as const
+        ).map(([v, l]) => (
+          <button key={v} type="button" role="radio" aria-checked={format === v} className={format === v ? s.segOn : ''} onClick={() => setFormat(v)}>
+            {l}
+          </button>
+        ))}
+      </div>
       <div className={s.actions}>
         <Button onClick={onCancel}>Annuler</Button>
         <Button type="submit" variant="primary" data-testid="wizard-next">

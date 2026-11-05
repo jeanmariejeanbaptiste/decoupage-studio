@@ -21,3 +21,7 @@
 .preview { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 4px; color: var(--ink-soft); font-size: 13px; font-style: italic; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 @keyframes in { from { opacity: 0; transform: translateY(4px); } }
+.seg { display: inline-flex; align-self: flex-start; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button { height: 34px; padding: 0 14px; border: 0; background: none; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg .segOn { background: var(--ink); color: var(--paper-card); }
