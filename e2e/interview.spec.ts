@@ -25,4 +25,7 @@ test('institutionnel : fiche d’interview (A-roll) et illustrations (B-roll)', 
   await page.getByTestId('seq-slot').first().press('Enter');
   await page.getByTestId('tab-interview').click();
   await expect(itw.getByLabel('Question', { exact: true }).last()).toHaveValue('Racontez-nous votre métier.');
+  await page.getByTestId('toggle-print').click();
+  await expect(page.getByTestId('interview-preview').contentFrame().getByText('Racontez-nous votre métier.')).toBeVisible();
+  await expect(page.locator('[data-testid="shot-row"], table').first()).toBeVisible();
 });

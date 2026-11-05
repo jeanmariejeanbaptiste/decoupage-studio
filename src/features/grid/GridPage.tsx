@@ -1,4 +1,4 @@
-import { InterviewPanel } from '../interview/InterviewPanel';
+import { InterviewPanel, InterviewPreview } from '../interview/InterviewPanel';
 import { MobileCut, useIsMobile } from './MobileCut';
 import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
@@ -221,7 +221,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
       )}
       {interviewView ? (
         <InterviewPanel doc={storeDoc} />
-      ) : nSeq === 0 ? (
+      ) : nSeq === 0 && !(printView && institutional) ? (
         <div className="card empty">
           <span className="hand">Aucune séquence pour l’instant</span>
           <p>Créez la première, ou importez un scénario.</p>
@@ -238,7 +238,8 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
       ) : printView ? (
         <div className={s.printPreview}>
           {/* Aperçu à l'écran : toujours le style sobre du papier, le thème coloré reste réservé aux exports. */}
-          <ExportTable doc={doc} theme="papier" />
+          {institutional && <InterviewPreview doc={storeDoc} />}
+          {nSeq > 0 && <ExportTable doc={doc} theme="papier" />}
         </div>
       ) : isMobile ? (
         // Téléphone : mêmes outils (colonnes, aperçu, export, lier), mais un plan à la fois.

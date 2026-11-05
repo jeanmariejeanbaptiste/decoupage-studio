@@ -38,3 +38,14 @@ describe('interview institutionnelle', () => {
     expect(itw.questions).toHaveLength(0);
   });
 });
+
+it('les anciennes fiches (dispositif à plat) passent en cadres au chargement', async () => {
+  const { upgradeInterview } = await import('./interview');
+  const doc = createProjectDoc({ title: 'T', format: 'institutionnel' } as never);
+  doc.interview = { subjects: [{ id: 's', name: 'A', role: '', eyeline: 'droite', cameras: [], place: 'Bureau', background: '', light: '', sound: '', checked: [] } as never], questions: [] };
+  upgradeInterview(doc);
+  const s = doc.interview.subjects[0];
+  expect(s.setups[0].eyeline).toBe('droite');
+  expect(s.setups[0].place).toBe('Bureau');
+  expect('checked' in s).toBe(false);
+});

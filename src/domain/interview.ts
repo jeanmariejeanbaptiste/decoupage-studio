@@ -113,6 +113,14 @@ function upgrade(s: Interviewee): void {
   delete (s as { checked?: unknown }).checked;
 }
 
+/** Au chargement : fiches d'interview d'anciennes versions remises au format courant. */
+export function upgradeInterview(doc: ProjectDoc): void {
+  if (!doc.interview) return;
+  doc.interview.subjects = Array.isArray(doc.interview.subjects) ? doc.interview.subjects : [];
+  doc.interview.questions = Array.isArray(doc.interview.questions) ? doc.interview.questions : [];
+  doc.interview.subjects.forEach(upgrade);
+}
+
 /** L'interview du projet, créée au besoin avec un intervenant (cas par défaut). */
 export function ensureInterview(doc: ProjectDoc): Interview {
   doc.interview ??= { subjects: [makeInterviewee(0)], questions: [] };

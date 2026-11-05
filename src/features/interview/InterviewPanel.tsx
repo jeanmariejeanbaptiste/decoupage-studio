@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { interviewDocument } from '../../domain/documents';
 import { ArrowDown, ArrowUp, Check, Plus, Trash2, X } from 'lucide-react';
 import { newId } from '../../domain/factory';
 import { addInterviewee, addSetup, ensureInterview, moveQuestion, questionsFor, removeInterviewee, removeSetup, type Interviewee, type InterviewSetup } from '../../domain/interview';
@@ -19,11 +20,11 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const [picked, setPicked] = useState<ID | undefined>(subjects[0]?.id);
   const subject = subjects.find((x) => x.id === picked) ?? subjects[0];
   const [pickedSetup, setPickedSetup] = useState<ID | undefined>();
-  const setup = subject?.setups.find((x) => x.id === pickedSetup) ?? subject?.setups[0];
+  const setup = subject?.setups?.find((x) => x.id === pickedSetup) ?? subject?.setups?.[0];
 
   // L'interview existe dès qu'on ouvre l'onglet : un intervenant par défaut.
   useEffect(() => {
-    if (!doc.interview?.subjects.length && !readOnly) mutateDoc((d) => void ensureInterview(d));
+    if (!readOnly && (!doc.interview?.subjects?.length || doc.interview.subjects.some((x) => !Array.isArray(x.setups)))) mutateDoc((d) => void ensureInterview(d));
   }, [doc.interview, readOnly]);
   if (!itw || !subject || !setup) return null;
 
@@ -271,4 +272,17 @@ function Field({
       {multiline ? <textarea rows={Math.max(1, Math.ceil(draft.length / 60))} {...common} /> : <input {...common} inputMode={numeric ? 'decimal' : undefined} />}
     </label>
   );
+}
+
+/** Aperçu de la fiche d'interview, telle qu'elle sera exportée (document isolé, hauteur ajustée). */
+export function InterviewPreview({ doc }: { doc: ProjectDoc }) {
+  const html = useMemo(() => interviewDocument(doc).html, [doc]);
+  const ref = useRef<HTMLIFrameElement>(null);
+  const fit = () => {
+    const f = ref.current;
+    const h = f?.contentDocument?.documentElement.scrollHeight;
+    if (f && h) f.style.height = `${h}px`;
+  };
+  useEffect(fit, [html]);
+  return <iframe ref={ref} className={s.preview} srcDoc={html} title="Fiche d’interview" onLoad={fit} data-testid="interview-preview" />;
 }

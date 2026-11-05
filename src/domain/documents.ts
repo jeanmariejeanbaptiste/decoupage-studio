@@ -242,7 +242,7 @@ export function interviewDocument(doc: ProjectDoc): DocPage {
         qs.length
           ? `<table><thead><tr><th>N°</th><th>Question</th><th>Réponse attendue</th></tr></thead><tbody>${qs.map((q, k) => `<tr><td class="code">${k + 1}</td><td>${esc(q.text)}${q.note ? `<br><span class="muted">${esc(q.note)}</span>` : ''}</td><td>${esc(q.expected ?? '')}</td></tr>`).join('')}</tbody></table>`
           : '<p class="muted">Aucune question.</p>';
-      const setups = s.setups
+      const setups = (s.setups ?? [])
         .map((st) => {
           const cams = st.cameras.map((c) => `<tr><td class="code">Caméra ${esc(c.name)}</td><td>${esc(c.value)}</td><td>${esc(c.angle)}</td><td>${esc(c.focal ? `${c.focal} mm` : '')}</td><td>${esc(c.note ?? '')}</td></tr>`).join('');
           return `<h3>${esc(st.name)}</h3>
