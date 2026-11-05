@@ -25,6 +25,13 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
     const seqId = cur ? doc.shots[cur]?.sequenceId : undefined;
     const index = seqId ? doc.project.sequenceIds.indexOf(seqId) + 1 : undefined;
     const newSeq = mutateDoc((d) => applyTemplate(d, key, index));
+    // Une séquence insérée se voit : en institutionnel, on passe sur le volet des illustrations.
+    useUi.getState().set({ itwTab: 'broll' });
+    try {
+      localStorage.setItem('ds-itw-tab', 'broll');
+    } catch {
+      /* stockage indisponible */
+    }
     const after = useProjectStore.getState().doc;
     const first = newSeq && after ? after.sequences[newSeq]?.shotIds[0] : undefined;
     if (after && first) useUi.getState().setSelection({ row: rowOfShot(after, first), col: 'subject' });

@@ -114,6 +114,8 @@ export interface Sequence {
   shotIds: ID[];
   actionBlockIds: ID[];
   scenarioAnchor?: { start: number; end: number };
+  /** Institutionnel (B-roll) : créneau horaire de tournage, « 10:30–11:00 ». */
+  slot?: string;
 }
 
 export interface TrackRange {
@@ -250,6 +252,8 @@ export interface ProjectDoc {
   breakdownExtra?: string[];
   /** Postes de matériel ajoutés par l'utilisateur. */
   equipmentExtra?: string[];
+  /** Institutionnel : l'interview (A-roll). */
+  interview?: import('./interview').Interview;
 }
 
 export const SCHEMA_VERSION = 1;

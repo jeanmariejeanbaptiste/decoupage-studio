@@ -111,5 +111,12 @@ export function applyFormat(doc: ProjectDoc, format: ProjectFormat): void {
   doc.project.settings.tcMode = def.tcMode;
   doc.project.settings.tcGranularity = def.tcGranularity;
   doc.project.settings.tcModeChosen = false;
+  // Institutionnel : pas de minutage millimétré, la colonne TC devient facultative (masquée) ;
+  // elle revient dans les autres formats.
+  for (const key of ['gridColumns', 'exportColumns'] as const) {
+    const cols = doc.project.settings[key];
+    if (format === 'institutionnel') doc.project.settings[key] = cols.filter((c) => c !== 'tc');
+    else if (!cols.includes('tc')) doc.project.settings[key] = [...cols, 'tc'];
+  }
   normalizeTiming(doc);
 }

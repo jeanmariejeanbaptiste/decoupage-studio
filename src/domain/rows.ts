@@ -77,6 +77,9 @@ export function shotDurationSec(doc: ProjectDoc, timing: Timing, shot: Shot): nu
 /** Texte d'une cellule à l'export : un mouvement de caméra laissé vide s'écrit « Fixe ». */
 export function exportCellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: ColumnKey, index: number): string {
   const text = cellText(doc, timing, shot, col, index);
+  // Institutionnel : le créneau de tournage accompagne le nom de la séquence.
+  const slot = doc.sequences[shot.sequenceId]?.slot;
+  if (col === 'sequence' && slot && doc.project.format === 'institutionnel') return `${text}\n${slot}`;
   return col === 'movement' && !text.trim() && !shot.oneShot ? 'Fixe' : text;
 }
 

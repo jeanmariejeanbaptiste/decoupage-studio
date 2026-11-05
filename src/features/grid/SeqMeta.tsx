@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { Effect, ID, IntExt, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import s from './SeqMeta.module.css';
@@ -40,6 +41,31 @@ export function SeqMeta({ doc, seqId, readOnly, className }: { doc: ProjectDoc; 
           <option key={v}>{v}</option>
         ))}
       </select>
+      {doc.project.format === 'institutionnel' && (
+        <>
+          <span aria-hidden="true">·</span>
+          <SlotInput value={seq.slot ?? ''} readOnly={readOnly} onCommit={(v) => mutateDoc((d) => void (d.sequences[seqId].slot = v.trim() || undefined))} />
+        </>
+      )}
     </span>
+  );
+}
+
+/** Créneau de tournage (B-roll institutionnel), saisi librement : « 10:30–11:00 ». */
+function SlotInput({ value, readOnly, onCommit }: { value: string; readOnly?: boolean; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <input
+      className={s.slot}
+      value={draft}
+      readOnly={readOnly}
+      placeholder="Horaire ?"
+      aria-label="Créneau de tournage"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => draft !== value && onCommit(draft)}
+      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      data-testid="seq-slot"
+    />
   );
 }

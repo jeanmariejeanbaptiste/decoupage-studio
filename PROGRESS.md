@@ -206,3 +206,10 @@ Série de retours close : plans-séquences en lignes alignées et liaisons, anne
 
 ## Version 2.1.0 — 2026-11-02
 Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exporter réorganisé, colonnes réordonnables et allégées, « Fixe » à l'export, répartition des sélections du scénario par scène, nombreuses corrections de la grille.
+
+## Version 2.2.0 — 2026-11-05
+- Découpage épuré (une police, noir / blanc / gris), sélection discrète, barre rangée, vue téléphone complète (un plan à la fois, glisser, onglets de séquences, suggestions à toucher, dupliquer / supprimer, nom et effets de séquence modifiables).
+- Formats : Fiction (publicité comprise), Clip, Institutionnel. Le format règle le minutage (piste musicale pour le clip, jamais ailleurs), les modèles proposés et, en institutionnel, masque la colonne TC (facultative). Projets existants remis en cohérence à l'ouverture.
+- Institutionnel : deux volets dans le découpage. « Interview » (A-roll, features/interview) : une fiche par intervenant (un par défaut), nom et fonction pour le synthé, regard à gauche / caméra / à droite (alterné entre intervenants, alerte si deux regards identiques), dispositif caméra A / B (≈ 30°, même balance), lieu, arrière-plan, lumière, son (cravate + perche), questions ordonnées, communes ou propres à un intervenant, cochables « posées », liste « Avant de tourner » (droit à l'image, synthé, tenue, micro, bruits, balance des blancs, synchro, reformulation, 30 s de silence plateau). « Illustrations » (B-roll) : la grille classique, avec un créneau horaire par séquence au lieu d'un minutage. Export « Fiche d'interview » (PDF, une page par intervenant).
+- Modèles : deux de fiction (dialogue, action), deux de clip, un institutionnel ; seuls ceux du format sont proposés (tous dans un projet vide, le premier choisit le format).
+- Corrections : plans-séquences à hauteur stable, nouveaux plans vierges, collage multi-séquences, actions liées sans perte de minutage, plans vides sans durée, annulation d'un trait dans l'inspecteur, raccourcis AZERTY.

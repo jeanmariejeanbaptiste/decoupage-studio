@@ -1,3 +1,4 @@
+import { InterviewPanel } from '../interview/InterviewPanel';
 import { MobileCut, useIsMobile } from './MobileCut';
 import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
@@ -15,7 +16,7 @@ import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
 import { exportDocumentPages, exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
-import { oneShotAnnexDocument } from '../../domain/documents';
+import { interviewDocument, oneShotAnnexDocument } from '../../domain/documents';
 import { ExportPanel } from '../export/ExportPanel';
 import { linkSelection, newSequenceAfter, unlinkSelection } from './actions';
 import { Grid } from './Grid';
@@ -35,7 +36,20 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
   // Lecture seule : toujours l'aperçu, la grille d'édition n'a pas lieu d'être.
   const readOnly = useReadOnly();
   const isMobile = useIsMobile();
-  const printView = useUi((u) => u.printView) || readOnly;
+  const printViewRaw = useUi((u) => u.printView) || readOnly;
+  // Institutionnel : deux volets, l'interview (A-roll) et les illustrations (B-roll, la grille).
+  const institutional = storeDoc.project.format === 'institutionnel';
+  const itwTab = useUi((u) => u.itwTab) === 'itw';
+  const interviewView = institutional && itwTab && !printViewRaw;
+  const printView = printViewRaw;
+  const pickItw = (on: boolean) => {
+    setUi({ printView: false, itwTab: on ? 'itw' : 'broll' });
+    try {
+      localStorage.setItem('ds-itw-tab', on ? 'itw' : 'broll');
+    } catch {
+      /* stockage indisponible */
+    }
+  };
   const rightPanel = useUi((u) => u.rightPanel);
   const focusRow = useUi((u) => u.selection?.focus.row);
   const selectedShot = focusRow !== undefined ? model.rows[focusRow]?.shotId : undefined;
@@ -80,9 +94,20 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           {/* Gauche : ce qu'on regarde (édition ou aperçu), puis l'action liée à la sélection. */}
           <div className={s.left}>
             <div className={s.views} role="radiogroup" aria-label="Affichage">
-              <button type="button" role="radio" aria-checked={!printView} className={!printView ? s.viewOn : ''} onClick={() => setUi({ printView: false })}>
-                Découpage
-              </button>
+              {institutional ? (
+                <>
+                  <button type="button" role="radio" aria-checked={interviewView} className={interviewView ? s.viewOn : ''} onClick={() => pickItw(true)} data-testid="tab-interview">
+                    Interview
+                  </button>
+                  <button type="button" role="radio" aria-checked={!printView && !interviewView} className={!printView && !interviewView ? s.viewOn : ''} onClick={() => pickItw(false)} data-testid="tab-broll">
+                    Illustrations
+                  </button>
+                </>
+              ) : (
+                <button type="button" role="radio" aria-checked={!printView} className={!printView ? s.viewOn : ''} onClick={() => setUi({ printView: false })}>
+                  Découpage
+                </button>
+              )}
               <button
                 type="button"
                 role="radio"
@@ -95,7 +120,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
                 Aperçu
               </button>
             </div>
-            {!printView && (linked || multi) && (
+            {!printView && !interviewView && (linked || multi) && (
               linked ? (
                 <Button size="sm" icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés">
                   Délier
@@ -109,7 +134,7 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           </div>
           {/* Droite : les panneaux (icônes), puis l'export. */}
           <div className={s.right}>
-            {!printView && (
+            {!printView && !interviewView && (
               <div className={s.icons}>
                 <ColumnsMenu doc={doc} />
                 <Button
@@ -138,12 +163,13 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
             id="grid"
             title="Exporter le découpage"
             extra={[
+              ...(institutional ? [{ key: 'interview', label: 'Fiche d’interview', hint: 'PDF A4 : une page par intervenant (dispositif, lieu, lumière, son, questions).' }] : []),
               { key: 'excel', label: 'Excel', hint: 'Classeur avec fusions, couleurs et onglet Registre.' },
               ...(Object.values(storeDoc.shots).some((x) => x.oneShot)
                 ? [{ key: 'annex', label: 'Annexe plans-séquences', hint: 'PDF A4 : une page par plan-séquence (frise des temps, tableau, transitions en clair, plan au sol dédié).' }]
                 : []),
             ]}
-            disabled={nSeq === 0 || !!imaging}
+            disabled={(nSeq === 0 && !institutional) || !!imaging}
             options={
               <>
               <label className={s.noMerge} title="Chaque ligne porte sa propre valeur (utile pour retraiter le tableau)">
@@ -169,6 +195,8 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
             onExport={async ({ format, orientation, numbers }) => {
               try {
                 if (format === 'pdf' || format === 'images') setImaging({ format, orientation, numbers });
+                else if (format === 'interview')
+                  await exportDocumentPages(interviewDocument(storeDoc).html, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-interview`, { format: 'pdf', orientation: 'portrait', numbers });
                 else if (format === 'annex')
                   await exportDocumentPages(oneShotAnnexDocument(storeDoc).html, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
                 else {
@@ -191,7 +219,9 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           <ExportTable doc={storeDoc} paper="A4" orientation={imaging.orientation} safety={0} />
         </div>
       )}
-      {nSeq === 0 ? (
+      {interviewView ? (
+        <InterviewPanel doc={storeDoc} />
+      ) : nSeq === 0 ? (
         <div className="card empty">
           <span className="hand">Aucune séquence pour l’instant</span>
           <p>Créez la première, ou importez un scénario.</p>

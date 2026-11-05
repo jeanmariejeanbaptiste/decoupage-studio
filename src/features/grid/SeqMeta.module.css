@@ -3,3 +3,6 @@
 .meta select:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
 .meta select:disabled { cursor: default; opacity: 1; }
 .meta select { field-sizing: content; }
+.slot { width: 78px; border: 0; padding: 1px 2px; border-radius: 4px; background: none; font: inherit; letter-spacing: inherit; color: inherit; text-align: center; outline: none; }
+.slot:hover, .slot:focus { background: var(--hover); color: var(--ink); }
+.meta { flex-wrap: wrap; }

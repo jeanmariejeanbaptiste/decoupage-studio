@@ -27,7 +27,7 @@ table.sheet { width: 100%; border: 0; margin: 0; } table.sheet > * > tr > td { b
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { font-family: 'Inter Variable', 'Helvetica Neue', Arial, sans-serif; font-size: 10pt; color: #2a2824; margin: 0; background: #fff; }
 header.doc { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #2a2824; padding-bottom: 6pt; margin-bottom: 12pt; }
-header.doc .kicker { font-family: 'Inter Variable', sans-serif; color: #9c3d2b; font-size: 15pt; margin: 0; }
+header.doc .kicker { font-family: 'Inter Variable', sans-serif; color: #111111; font-size: 15pt; margin: 0; }
 header.doc h1 { font-family: 'Inter Variable', sans-serif; font-weight: 600; font-size: 24pt; margin: 0; line-height: 1; }
 header.doc .meta { text-align: right; color: #6e675b; font-size: 9pt; }
 h2 { font-family: 'Inter Variable', sans-serif; font-size: 15pt; margin: 14pt 0 5pt; break-after: avoid; }
@@ -36,13 +36,13 @@ table { width: 100%; border-collapse: collapse; margin-bottom: 6pt; }
 th { text-align: left; font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; color: #6e675b; border-bottom: 1.2pt solid #2a2824; padding: 3pt 4pt; }
 td { border-bottom: .6pt solid #d3c8b4; padding: 3pt 4pt; vertical-align: top; }
 tr { break-inside: avoid; }
-.code { color: #9c3d2b; font-weight: 600; white-space: nowrap; }
+.code { color: #111111; font-weight: 600; white-space: nowrap; }
 .muted { color: #6e675b; font-style: italic; }
 .block { break-inside: avoid; margin-bottom: 8pt; }
 .chips span { display: inline-block; border: .6pt solid #d3c8b4; border-radius: 8pt; padding: 0 5pt; margin: 0 3pt 3pt 0; font-size: 8.5pt; }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4pt 14pt; }
 .day { break-inside: avoid; margin-bottom: 10pt; }
-.tone-ext { background: #faf1d2; } .tone-night { background: #e3eaf4; } .tone-extnight { background: #e5efdf; } .tone-twilight { background: #f7e3da; }
+.tone-ext { background: #f4f4f4; } .tone-night { background: #e6e6e6; } .tone-extnight { background: #ececec; } .tone-twilight { background: #f0f0f0; }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
 .plan svg { width: 100%; height: auto; border: .6pt solid #d3c8b4; }
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
@@ -227,4 +227,34 @@ export function oneShotAnnexDocument(doc: ProjectDoc): DocPage {
         .join('')
     : '<p class="muted">Aucun plan-séquence dans ce découpage.</p>';
   return shell(doc, '', 'Annexe · plans-séquences', body);
+}
+
+const EYELINE: Record<string, string> = { gauche: 'Regard à gauche de la caméra (vers l’intervieweur)', droite: 'Regard à droite de la caméra (vers l’intervieweur)', camera: 'Face caméra' };
+
+/** Fiche d'interview (institutionnel, A-roll) : une page par intervenant. */
+export function interviewDocument(doc: ProjectDoc): DocPage {
+  const itw = doc.interview;
+  const subjects = itw?.subjects ?? [];
+  const body = subjects
+    .map((s, i) => {
+      const qs = (itw?.questions ?? []).filter((q) => !q.subjectId || q.subjectId === s.id);
+      const cams = s.cameras.map((c) => `<tr><td class="code">Caméra ${esc(c.name)}</td><td>${esc(c.value)}</td><td>${esc(c.angle)}</td><td>${esc(c.focal ? `${c.focal} mm` : '')}</td><td>${esc(c.note ?? '')}</td></tr>`).join('');
+      return `<section class="plan">
+<h2>${esc(s.name || `Intervenant ${i + 1}`)}${s.role ? ` — <span class="muted">${esc(s.role)}</span>` : ''}</h2>
+<h3>Dispositif</h3>
+<table><thead><tr><th>Caméra</th><th>Valeur</th><th>Axe</th><th>Focale</th><th>Note</th></tr></thead><tbody>${cams}</tbody></table>
+<p>${esc(EYELINE[s.eyeline] ?? '')}</p>
+<div class="grid">
+<div><h3>Lieu</h3><p>${esc(s.place) || '—'}</p></div>
+<div><h3>Arrière-plan</h3><p>${esc(s.background) || '—'}</p></div>
+<div><h3>Lumière</h3><p>${esc(s.light) || '—'}</p></div>
+<div><h3>Son</h3><p>${esc(s.sound) || '—'}</p></div>
+</div>
+<h3>Questions</h3>
+${qs.length ? `<table><tbody>${qs.map((q, k) => `<tr><td class="code">${k + 1}</td><td>${esc(q.text)}${q.note ? `<br><span class="muted">${esc(q.note)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Aucune question.</p>'}
+${s.notes ? `<h3>Notes</h3><p class="text">${esc(s.notes)}</p>` : ''}
+</section>`;
+    })
+    .join('');
+  return shell(doc, '', 'Interview', body || '<p class="muted">Aucun intervenant.</p>');
 }

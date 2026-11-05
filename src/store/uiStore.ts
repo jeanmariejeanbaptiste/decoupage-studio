@@ -28,6 +28,8 @@ export interface UiState {
   toasts: Toast[];
   theme: 'papier' | 'encre';
   printView: boolean;
+  /** Institutionnel : volet affiché (interview ou illustrations). */
+  itwTab: 'itw' | 'broll';
   /** Un seul panneau à droite du découpage à la fois : l'inspecteur ou le scénario. */
   rightPanel: 'inspector' | 'scenario' | null;
   sidebarOpen: boolean;
@@ -62,6 +64,13 @@ export const useUi = create<UiState>()((set) => ({
   toasts: [],
   theme: initialTheme(),
   printView: false,
+  itwTab: (() => {
+    try {
+      return localStorage.getItem('ds-itw-tab') === 'broll' ? 'broll' : 'itw';
+    } catch {
+      return 'itw';
+    }
+  })(),
   rightPanel: typeof window !== 'undefined' && window.innerWidth >= 1600 ? 'inspector' : null,
   oneShotEditor: null,
   sidebarOpen: (() => {
