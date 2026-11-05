@@ -4,7 +4,7 @@ import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Columns3, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Columns3, Link2, Music, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -111,6 +111,23 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
           <div className={s.right}>
             {!printView && (
               <div className={s.icons}>
+                <Button
+                  variant="icon"
+                  icon={<Music {...IC} />}
+                  aria-label="Piste musicale"
+                  aria-pressed={storeDoc.project.settings.tcMode === 'piste'}
+                  className={storeDoc.project.settings.tcMode === 'piste' ? s.iconOn : ''}
+                  title="Piste musicale : importer la musique et caler les actions dessus"
+                  onClick={() =>
+                    mutateDoc((d) => {
+                      const st = d.project.settings;
+                      st.tcMode = st.tcMode === 'piste' ? 'duree' : 'piste';
+                      st.tcModeChosen = true;
+                      if (st.tcMode === 'piste') st.audioTrack ??= { name: 'Piste musicale', durationSec: 0 };
+                    })
+                  }
+                  data-testid="toggle-track"
+                />
                 <ColumnsMenu doc={doc} />
                 <Button
                   variant="icon"

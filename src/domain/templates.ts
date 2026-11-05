@@ -28,6 +28,52 @@ const sh = (group: string, value: string, angle: string[], movement: string[], s
 /** Gabarits de séquence (§14 P12) : des plans pré-remplis (valeur, axe) à compléter. */
 export const TEMPLATES: readonly SequenceTemplate[] = [
   {
+    key: 'fiction-dialogue',
+    label: 'Fiction — dialogue champ / contrechamp',
+    sequenceLabel: 'SCÈNE DE DIALOGUE',
+    formats: ['fiction'],
+    description: 'Plan d’installation, deux-plan, champ et contrechamp qui se resserrent, réaction, insert.',
+    actions: {
+      installe: 'Installation : les deux personnages dans le décor',
+      echange: 'Échange : A parle, B écoute',
+      reponse: 'Réponse : B parle, A écoute',
+      bascule: 'Moment de bascule',
+      detail: 'Détail qui porte la scène',
+    },
+    shots: [
+      sh('installe', 'Ensemble', ['Face', HR], ['Fixe'], 'A, B'),
+      sh('installe', 'Américain', ['3/4 Face', HR], ['Fixe'], 'A, B'),
+      sh('echange', 'Rapproché', ['3/4 Face', HR], ['Fixe'], 'A'),
+      sh('reponse', 'Rapproché', ['3/4 Face', HR], ['Fixe'], 'B'),
+      sh('bascule', 'Gros plan', ['3/4 Face', HR], ['Fixe'], 'A'),
+      sh('bascule', 'Gros plan', ['3/4 Face', HR], ['Fixe'], 'B'),
+      sh('detail', 'Insert', ['Plongée'], ['Fixe']),
+    ],
+  },
+  {
+    key: 'fiction-action',
+    label: 'Fiction — scène d’action',
+    sequenceLabel: 'SCÈNE D’ACTION',
+    formats: ['fiction'],
+    description: 'Large pour situer, caméra qui accompagne le mouvement, réactions, détails, plan de résolution.',
+    actions: {
+      situe: 'Situer l’espace et les enjeux',
+      mouvement: 'Le mouvement : on suit l’action',
+      reaction: 'Réactions',
+      detail: 'Détails de l’action',
+      fin: 'Résolution',
+    },
+    shots: [
+      sh('situe', 'Général', ['Face', 'Plongée'], ['Fixe'], 'Lieu'),
+      sh('mouvement', 'Moyen', ['3/4 Face', HR], ['Épaule']),
+      sh('mouvement', 'Taille', ['Profil gauche', HR], ['Trav latéral']),
+      sh('reaction', 'Gros plan', ['Face', HR], ['Fixe']),
+      sh('detail', 'Insert', ['Low angle'], ['Fixe'], 'Mains'),
+      sh('detail', 'Insert', ['Plongée'], ['Fixe'], 'Objet'),
+      sh('fin', 'Ensemble', ['Face', 'Contre-plongée'], ['Trav arrière']),
+    ],
+  },
+  {
     key: 'documentaire',
     label: 'Documentaire',
     sequenceLabel: 'SÉQUENCE DOCUMENTAIRE',
@@ -101,8 +147,8 @@ export const TEMPLATES: readonly SequenceTemplate[] = [
     key: 'clip-narratif',
     label: 'Clip — séquence narrative',
     sequenceLabel: 'SÉQUENCE NARRATIVE',
-    formats: ['clip', 'pub', 'fiction'],
-    description: 'Une action racontée : du plan moyen au gros plan, puis un insert.',
+    formats: ['clip', 'pub'],
+    description: 'Une action racontée sur la musique : du plan moyen au gros plan, puis un insert.',
     actions: { recit: 'Action narrative', detail: 'Détail' },
     shots: [
       sh('recit', 'Moyen', ['Face', HR], ['Trav arrière']),
@@ -123,6 +169,12 @@ export function applyTemplate(doc: ProjectDoc, key: string, index?: number): ID 
   const tpl = TEMPLATES.find((t) => t.key === key);
   if (!tpl) return undefined;
   const seqId = addSequence(doc, index, { label: tpl.sequenceLabel }, false);
+  // Modèle de clip : le découpage passe en mode piste, pour importer et caler la musique.
+  if (tpl.key.startsWith('clip-') && doc.project.settings.tcMode !== 'piste') {
+    doc.project.settings.tcMode = 'piste';
+    doc.project.settings.tcModeChosen = true;
+    doc.project.settings.audioTrack ??= { name: 'Piste musicale', durationSec: 0 };
+  }
   const piste = doc.project.settings.tcMode === 'piste';
   const blocks = new Map<string, ID>();
   for (const s of tpl.shots) {
