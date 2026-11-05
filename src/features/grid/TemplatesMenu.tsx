@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, LayoutTemplate } from 'lucide-react';
-import { templatesFor, applyTemplate } from '../../domain/templates';
+import { templatesForProject, applyTemplate } from '../../domain/templates';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -42,7 +42,7 @@ export function TemplatesMenu({ doc, variant = 'ghost' }: { doc: ProjectDoc; var
       {open && (
         <div className={[s.menu, s.wide].join(' ')} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Insérer un modèle de séquence</p>
-          {templatesFor(doc.project.format).map((t) => (
+          {templatesForProject(doc).map((t) => (
             <button key={t.key} type="button" role="menuitem" className={s.tplItem} onClick={() => insert(t.key)}>
               <strong>
                 {t.label}

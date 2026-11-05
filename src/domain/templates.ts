@@ -165,15 +165,23 @@ export function templatesFor(format: ProjectFormat): SequenceTemplate[] {
   return [...TEMPLATES].sort((a, b) => Number(b.formats.includes(format)) - Number(a.formats.includes(format)));
 }
 
+/**
+ * Modèles proposés dans un projet : seulement ceux de son format (un clip ne propose pas de scène de
+ * fiction, et inversement). Projet encore vide : tous, puisque le premier modèle choisit le format.
+ */
+export function templatesForProject(doc: ProjectDoc): SequenceTemplate[] {
+  if (doc.project.sequenceIds.length === 0) return templatesFor(doc.project.format);
+  const own = TEMPLATES.filter((t) => t.formats.includes(doc.project.format));
+  return own.length ? own : templatesFor(doc.project.format);
+}
+
 /** Insère une séquence pré-remplie à l'index donné (fin par défaut). Renvoie son identifiant. */
 export function applyTemplate(doc: ProjectDoc, key: string, index?: number): ID | undefined {
   const tpl = TEMPLATES.find((t) => t.key === key);
   if (!tpl) return undefined;
   // Premier modèle d'un projet vide : le projet prend le format du modèle, et son minutage avec
-  // (piste musicale pour un clip, durée de chaque plan pour une fiction). Ensuite, un modèle de clip
-  // inséré dans un autre format fait au moins passer le minutage sur la piste.
+  // (piste musicale pour un clip, durée de chaque plan pour une fiction).
   if (doc.project.sequenceIds.length === 0 && !tpl.formats.includes(doc.project.format)) applyFormat(doc, tpl.formats[0]);
-  else if (tpl.key.startsWith('clip-') && doc.project.settings.tcMode !== 'piste') applyFormat(doc, 'clip');
   const seqId = addSequence(doc, index, { label: tpl.sequenceLabel }, false);
   const piste = doc.project.settings.tcMode === 'piste';
   const blocks = new Map<string, ID>();
