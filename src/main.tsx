@@ -32,6 +32,9 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 window.addEventListener('load', () => setTimeout(() => sessionStorage.removeItem('ds-reloaded'), 10_000));
 
+// Projets gardés durablement par le navigateur (Safari efface sinon les données d'un site inactif).
+void navigator.storage?.persist?.().catch(() => undefined);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

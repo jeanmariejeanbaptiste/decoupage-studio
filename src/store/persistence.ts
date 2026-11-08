@@ -1,8 +1,8 @@
-import { migrate, parseProjectFile, serializeDoc, fileNameFor, FILE_EXTENSION } from '../domain/serialize';
+import { mediaKeys, mediaOfFile, migrate, parseProjectFile, serializeDoc, fileNameFor, FILE_EXTENSION, type MediaEntry } from '../domain/serialize';
 import { newId } from '../domain/factory';
 import type { ProjectDoc } from '../domain/types';
 import { ask } from '../ui/dialogStore';
-import { db, loadProject, saveProject } from './db';
+import { db, getBlob, loadProject, putBlobRaw, saveProject } from './db';
 import { useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
 
@@ -174,13 +174,42 @@ export function downloadBlob(blob: Blob, name: string) {
   }, 60_000);
 }
 
-/** ⌘S : enregistre le projet dans un fichier `.decoupage`. */
+const toBase64 = (blob: Blob) =>
+  new Promise<string>((ok, ko) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ''));
+    r.onerror = () => ko(r.error);
+    r.readAsDataURL(blob);
+  });
+
+/** Médias du projet, en base 64, pour un fichier autonome. */
+export async function collectMedia(doc: ProjectDoc): Promise<Record<string, MediaEntry>> {
+  const out: Record<string, MediaEntry> = {};
+  for (const key of mediaKeys(doc)) {
+    const b = await getBlob(key);
+    if (b) out[key] = { type: b.type || 'application/octet-stream', data: await toBase64(b) };
+  }
+  return out;
+}
+
+/** Médias d'un fichier ouvert : rangés dans ce navigateur sous leur clé d'origine. */
+async function restoreMedia(text: string, projectId: string): Promise<void> {
+  for (const [key, m] of Object.entries(mediaOfFile(text))) {
+    if (await getBlob(key, false)) continue;
+    const bin = atob(m.data);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    await putBlobRaw(key, projectId, new Blob([bytes], { type: m.type }));
+  }
+}
+
+/** ⌘S : enregistre le projet dans un fichier `.decoupage` (images et piste comprises). */
 export async function saveToFile(): Promise<void> {
   flushEditors();
   const doc = useProjectStore.getState().doc;
   if (!doc) return;
   await flushSave();
-  const blob = new Blob([serializeDoc(doc)], { type: 'application/json' });
+  const blob = new Blob([serializeDoc(doc, undefined, await collectMedia(doc))], { type: 'application/json' });
   const name = fileNameFor(doc);
   const w = window as unknown as FilePickerWindow;
   if (w.showSaveFilePicker) {
@@ -226,7 +255,8 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
   const f = file ?? (await pickFile(`${FILE_EXTENSION},.json,application/json`));
   if (!f) return false;
   try {
-    let doc = parseProjectFile(await f.text());
+    const text = await f.text();
+    let doc = parseProjectFile(text);
     // Même projet déjà présent ici, et plus récent : on demande avant de le remplacer.
     const local = await db.projects.get(doc.project.id);
     if (local && local.updatedAt > doc.project.updatedAt) {
@@ -240,6 +270,7 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
       if (r.alt) doc = { ...doc, project: { ...doc.project, id: newId(), title: `${doc.project.title} (copie)` } };
       else if (!r.ok) return false;
     }
+    await restoreMedia(text, doc.project.id);
     await openDoc(doc);
     return true;
   } catch (e) {

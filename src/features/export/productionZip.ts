@@ -5,6 +5,7 @@ import { scheduleDays } from '../../domain/schedule';
 import { fileNameFor, serializeDoc } from '../../domain/serialize';
 import type { ProjectDoc } from '../../domain/types';
 import { getBlob } from '../../store/db';
+import { collectMedia } from '../../store/persistence';
 
 const README = (doc: ProjectDoc) => `DOSSIER DE PRODUCTION — ${doc.project.title} (${doc.project.version})
 Exporté le ${new Date().toLocaleString('fr-FR')}.
@@ -33,7 +34,7 @@ export async function buildProductionZip(doc: ProjectDoc): Promise<Blob> {
   const zip = new JSZip();
   const root = zip.folder(safe(`${doc.project.title || 'Projet'} — dossier de production`))!;
   root.file('LISEZ-MOI.txt', README(doc));
-  root.file(`00 Projet/${fileNameFor(doc)}`, serializeDoc(doc));
+  root.file(`00 Projet/${fileNameFor(doc)}`, serializeDoc(doc, undefined, await collectMedia(doc)));
   if (doc.intention?.trim()) root.file('01 Intention/Note d’intention.txt', doc.intention);
   if (doc.scenario?.trim()) root.file('02 Scénario/Scénario.fountain', doc.scenario);
   root.file('03 Dépouillement/Dépouillement.csv', breakdownCsv(doc));
@@ -41,9 +42,12 @@ export async function buildProductionZip(doc: ProjectDoc): Promise<Blob> {
   root.file('04 Découpage/Découpage technique.csv', toCsv(doc));
   for (const seqId of doc.project.sequenceIds)
     for (const id of doc.sequences[seqId]?.shotIds ?? []) {
-      const key = doc.shots[id]?.storyboard?.blobKey;
-      const blob = key ? await getBlob(key) : undefined;
-      if (blob) root.file(`05 Storyboard/Plan ${shotCode(doc, id)}.${(blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`, blob);
+      const shot = doc.shots[id];
+      const keys = [shot?.storyboard?.blobKey, ...(shot?.keyframes ?? []).map((k) => k.blobKey)];
+      for (const [k, key] of keys.entries()) {
+        const blob = key ? await getBlob(key) : undefined;
+        if (blob) root.file(`05 Storyboard/Plan ${shotCode(doc, id)}${keys.length > 1 ? ` K${k + 1}` : ''}.${(blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`, blob);
+      }
     }
   for (const p of allFloorPlans(doc)) root.file(`06 Plans au sol/${safe(p.name)}.svg`, p.svg);
   root.file('07 Matériel/Listes de matériel.csv', equipmentCsv(doc));

@@ -54,3 +54,20 @@ describe('fichier .decoupage', () => {
     expect(fileNameFor(d)).toBe('projet.decoupage');
   });
 });
+
+describe('médias intégrés au fichier', () => {
+  it('liste les images du storyboard, des keyframes, des fonds de plan et la piste', async () => {
+    const { mediaKeys, mediaOfFile } = await import('./serialize');
+    const doc = buildRav3();
+    const [a, b] = Object.keys(doc.shots);
+    doc.shots[a].storyboard = { blobKey: 'p:1', baseKey: 'p:0' };
+    doc.shots[b].keyframes = [{ id: 'k', blobKey: 'p:2' }];
+    doc.floorPlans = { x: { items: [], bg: { blobKey: 'p:3', opacity: 1, x: 0, y: 0, w: 100 } } };
+    doc.project.settings.audioTrack = { name: 'piste', durationSec: 10, blobKey: 'p:4' };
+    expect(mediaKeys(doc).sort()).toEqual(['p:0', 'p:1', 'p:2', 'p:3', 'p:4']);
+    const text = serializeDoc(doc, undefined, { 'p:1': { type: 'image/png', data: 'AAAA' } });
+    expect(mediaOfFile(text)['p:1'].type).toBe('image/png');
+    expect(parseProjectFile(text).project.id).toBe(doc.project.id);
+    expect(mediaOfFile(serializeDoc(doc))).toEqual({});
+  });
+});

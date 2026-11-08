@@ -9,16 +9,51 @@ import { SCHEMA_VERSION, type ProjectDoc } from './types';
 export const FILE_EXTENSION = '.decoupage';
 export const FILE_MIME = 'application/x-decoupage+json';
 
+/** Média intégré au fichier (image, piste audio), en base 64. */
+export interface MediaEntry {
+  type: string;
+  data: string;
+}
+
 export interface ProjectFile {
   format: 'decoupage-studio';
   schemaVersion: number;
   savedAt: string;
   doc: ProjectDoc;
+  /** Images et sons du projet : le fichier se suffit à lui-même (autre navigateur, autre ordinateur). */
+  media?: Record<string, MediaEntry>;
 }
 
-export function serializeDoc(doc: ProjectDoc, savedAt = new Date().toISOString()): string {
-  const file: ProjectFile = { format: 'decoupage-studio', schemaVersion: SCHEMA_VERSION, savedAt, doc };
-  return JSON.stringify(file, null, 2);
+export function serializeDoc(doc: ProjectDoc, savedAt = new Date().toISOString(), media?: Record<string, MediaEntry>): string {
+  const file: ProjectFile = { format: 'decoupage-studio', schemaVersion: SCHEMA_VERSION, savedAt, doc, ...(media && Object.keys(media).length ? { media } : {}) };
+  return JSON.stringify(file, null, media ? undefined : 2);
+}
+
+/** Médias intégrés à un fichier (absents des fichiers d'avant cette version). */
+export function mediaOfFile(text: string): Record<string, MediaEntry> {
+  try {
+    const raw = JSON.parse(text) as { media?: Record<string, MediaEntry> };
+    return raw && typeof raw.media === 'object' && raw.media ? raw.media : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Toutes les clés de médias utilisées par un projet : storyboard (images et dessins), fonds de plan, piste. */
+export function mediaKeys(doc: ProjectDoc): string[] {
+  const keys = new Set<string>();
+  const add = (k?: string) => k && keys.add(k);
+  for (const sh of Object.values(doc.shots)) {
+    add(sh.storyboard?.blobKey);
+    add(sh.storyboard?.baseKey);
+    for (const k of sh.keyframes ?? []) {
+      add(k.blobKey);
+      add(k.baseKey);
+    }
+  }
+  for (const p of Object.values(doc.floorPlans ?? {})) add(p.bg?.blobKey);
+  add(doc.project.settings.audioTrack?.blobKey);
+  return [...keys];
 }
 
 export class ProjectFileError extends Error {}
