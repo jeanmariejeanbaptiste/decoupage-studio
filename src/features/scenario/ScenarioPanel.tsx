@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { useDraft } from '../../ui/useDraft';
 import { BookOpen, PenLine, X } from 'lucide-react';
 import type { ProjectDoc } from '../../domain/types';
 import { useUi } from '../../store/uiStore';
@@ -22,17 +23,9 @@ const readWidth = () => {
 export function ScenarioPanel({ doc }: { doc: ProjectDoc }) {
   const [mode, setMode] = useState<'read' | 'write'>('read');
   const [width, setWidth] = useState(readWidth);
-  const [draft, setDraft] = useState(doc.scenario ?? '');
-  const editing = useRef(false);
-  // Texte modifié ailleurs (onglet Scénario, autre participant) : repris tant qu'on n'écrit pas ici.
-  useEffect(() => {
-    if (!editing.current) setDraft(doc.scenario ?? '');
-  }, [doc.scenario]);
-  useEffect(() => {
-    if (draft === (doc.scenario ?? '')) return;
-    const t = setTimeout(() => commitScenario(draft), 700);
-    return () => clearTimeout(t);
-  }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Texte modifié ailleurs (onglet Scénario, autre participant) : repris tant qu'on n'écrit pas ici ;
+  // la saisie est appliquée après une pause, en quittant le champ, la page, ou avant d'enregistrer.
+  const [draft, setDraft, flushDraft] = useDraft(doc.scenario ?? '', commitScenario, 700);
 
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -82,11 +75,7 @@ export function ScenarioPanel({ doc }: { doc: ProjectDoc }) {
             className={s.editor}
             value={draft}
             spellCheck={false}
-            onFocus={() => (editing.current = true)}
-            onBlur={() => {
-              editing.current = false;
-              if (draft !== (doc.scenario ?? '')) commitScenario(draft);
-            }}
+            onBlur={flushDraft}
             onChange={(e) => setDraft(e.target.value)}
             aria-label="Scénario (syntaxe Fountain)"
             data-testid="scenario-panel-editor"

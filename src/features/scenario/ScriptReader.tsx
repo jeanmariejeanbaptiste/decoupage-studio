@@ -195,6 +195,7 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
 
 /** Enregistre le texte du scénario et recale les ancres des passages déjà liés au découpage. */
 export function commitScenario(text: string) {
+  if (text === (useProjectStore.getState().doc?.scenario ?? '')) return;
   mutateDoc((d) => {
     shiftAnchors(d, d.scenario ?? '', text);
     d.scenario = text;

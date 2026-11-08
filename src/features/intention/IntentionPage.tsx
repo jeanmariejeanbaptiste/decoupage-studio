@@ -1,6 +1,6 @@
 import { useReadOnly } from '../../store/share';
-import { useEffect, useState } from 'react';
 import type { ProjectDoc } from '../../domain/types';
+import { useDraft } from '../../ui/useDraft';
 import { countWords } from '../../domain/text';
 import { mutateDoc } from '../../store/projectStore';
 import { Hand } from '../../ui/Hand';
@@ -10,13 +10,7 @@ import { intentionDocument } from '../../domain/documents';
 
 /** Note d'intention : un texte libre, enregistré dans le projet (validé au bout de la frappe). */
 export function IntentionPage({ doc }: { doc: ProjectDoc }) {
-  const [text, setText] = useState(doc.intention ?? '');
-  useEffect(() => setText(doc.intention ?? ''), [doc.project.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (text === (doc.intention ?? '')) return;
-    const t = setTimeout(() => mutateDoc((d) => void (d.intention = text)), 500);
-    return () => clearTimeout(t);
-  }, [text, doc.intention]);
+  const [text, setText, flush] = useDraft(doc.intention ?? '', (v) => mutateDoc((d) => void (d.intention = v)));
   const words = countWords(text);
   const readOnly = useReadOnly();
   return (
@@ -34,6 +28,7 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
           className={s.text}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onBlur={flush}
           placeholder={readOnly ? 'Pas encore de note d’intention.' : 'Le point de vue, le ton, la lumière, le rythme, les références… Ce texte guide le découpage et sera partagé avec l’équipe.'}
           readOnly={readOnly}
           aria-label="Note d’intention"
