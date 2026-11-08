@@ -124,9 +124,9 @@
 .cards .line b { font-weight: 600; }
 .cards .line em { font-weight: 400; color: var(--ink-soft); }
 .cards .tValue { color: var(--rust); }
-.cards .tAngle { color: #3b5f86; }
-.cards .tMove { color: #4f7a3a; }
-.cards .tFocal { color: #8a6a1e; font-family: var(--font-mono); font-size: 11px; }
+.cards .tAngle { color: var(--ink-soft); }
+.cards .tMove { color: var(--ink); font-style: italic; }
+.cards .tFocal { color: var(--ink-soft); font-family: var(--font-mono); font-size: 11px; }
 .cards .tDur { color: var(--ink-soft); font-family: var(--font-mono); font-size: 11px; }
 .cards .dot { color: var(--ink-soft); opacity: 0.6; }
 .cards .icons { position: absolute; right: 4px; bottom: 3px; background: var(--paper-card); border-radius: 4px; box-shadow: -6px 0 6px var(--paper-card); }

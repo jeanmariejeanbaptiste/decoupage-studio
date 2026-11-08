@@ -27,12 +27,13 @@
 .shots li { display: flex; gap: 8px; align-items: center; }
 .shots b { color: var(--rust); }
 .shots select { margin-left: auto; font-size: 12px; }
-/* Couleurs classiques du dépouillement : INT jour blanc, EXT jour jaune, INT nuit bleu, EXT nuit vert, aube / crépuscule rose. */
+/* Bandes en gris (charte noir et blanc), du plus clair au plus soutenu : INT jour, EXT jour, INT nuit,
+   EXT nuit ; aube et crépuscule hachurés. Lisibles en thème clair comme en thème encre. */
 .tIntDay { background: var(--paper-card); }
-.tExtDay { background: color-mix(in srgb, #f2dc8f 55%, var(--paper-card)); }
-.tIntNight { background: color-mix(in srgb, #9fb7d9 50%, var(--paper-card)); }
-.tExtNight { background: color-mix(in srgb, #a9c99a 50%, var(--paper-card)); }
-.tTwilight { background: color-mix(in srgb, #eab59e 50%, var(--paper-card)); }
+.tExtDay { background: color-mix(in srgb, var(--ink) 6%, var(--paper-card)); }
+.tIntNight { background: color-mix(in srgb, var(--ink) 15%, var(--paper-card)); }
+.tExtNight { background: color-mix(in srgb, var(--ink) 23%, var(--paper-card)); }
+.tTwilight { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink) 11%, var(--paper-card)) 0 5px, var(--paper-card) 5px 10px); }
 @media (max-width: 1100px) { .stripMain { grid-template-columns: 30px 90px 1fr 60px; } .decor, .cast { display: none; } }
 .slot { position: absolute; right: 30px; top: 4px; display: inline-flex; gap: 4px; align-items: center; font-size: 12px; color: var(--ink-soft); }
 .slot input, .rdv input { font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 1px 3px; border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--paper-card) 80%, transparent); color: var(--ink); }

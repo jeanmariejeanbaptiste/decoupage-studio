@@ -43,7 +43,7 @@ tr { break-inside: avoid; }
 .chips span { display: inline-block; border: .6pt solid #d6d8dd; border-radius: 8pt; padding: 0 5pt; margin: 0 3pt 3pt 0; font-size: 8.5pt; }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4pt 14pt; }
 .day { break-inside: avoid; margin-bottom: 10pt; }
-.tone-ext { background: #f4f4f4; } .tone-night { background: #e6e6e6; } .tone-extnight { background: #ececec; } .tone-twilight { background: #f0f0f0; }
+.tone-ext { background: #f1f1f1; } .tone-night { background: #e0e0e0; } .tone-extnight { background: #d0d0d0; } .tone-twilight { background: repeating-linear-gradient(135deg, #e6e6e6 0 4px, #ffffff 4px 8px); }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
 .plan svg { width: 100%; height: auto; border: .6pt solid #d6d8dd; }
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }

@@ -78,7 +78,7 @@
   --x-title: var(--ink);
   --x-ink: var(--ink);
   --x-red: var(--rust);
-  --x-brown: #5a3a24;
+  --x-brown: var(--ink);
   --x-border: var(--ink-soft);
 }
 .theme_papier .title { font-weight: 600; }
