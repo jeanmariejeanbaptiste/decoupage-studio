@@ -56,8 +56,64 @@ function baseIndent(lines: SourceLine[]): number {
   return best ? best[0] / 50 : 0;
 }
 
+const isHeadingLine = (t: string) => HEADING.test(t) && /^(?:\d+[A-Z]?[.)]?\s+)?(int|ext|est|i\/e)/i.test(t);
+
+/**
+ * Page de garde reconnue avant la première séquence : titre, « écrit par » et auteur, d'après,
+ * date, coordonnées. Rendue en clés Fountain ; rien si le début ressemble déjà à du texte de film.
+ */
+export function detectTitlePage(lines: readonly SourceLine[]): { title: Record<string, string>; used: number } | null {
+  const first = lines.findIndex((l) => isHeadingLine(l.text.trim()));
+  const head = (first < 0 ? lines.slice(0, 12) : lines.slice(0, first)).map((l) => l.text.trim()).filter(Boolean);
+  if (!head.length || head.length > 16 || head.some((t) => t.length > 90 || TRANSITION.test(t))) return null;
+  // Un début de scénario sans en-tête (action longue, répliques) n'est pas une page de garde.
+  if (first < 0 && head.some((t) => t.length > 60)) return null;
+  const title: Record<string, string> = {};
+  const contact: string[] = [];
+  const source: string[] = [];
+  for (let i = 0; i < head.length; i++) {
+    const t = head[i];
+    if (!title.Title && !/^(écrit|ecrit|scénario|scenario|written|un film|d['’]après|based)/i.test(t)) {
+      title.Title = t;
+      continue;
+    }
+    if (/^(écrit|ecrit|scénario|scenario|written|un film de|réalisé|realise)/i.test(t) && !title.Credit) {
+      const m = /^(.*?\b(?:par|de|by))\s+(.+)$/i.exec(t);
+      if (m) {
+        title.Credit = m[1];
+        title.Author = m[2];
+      } else {
+        title.Credit = t;
+        if (head[i + 1] && !title.Author) title.Author = head[++i];
+      }
+      continue;
+    }
+    if (/^(d['’]après|based on|adapté)/i.test(t)) source.push(t);
+    else if (/\b(19|20)\d{2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b|^(version|v\d|draft|brouillon)/i.test(t) && !/@/.test(t) && !title['Draft date']) title['Draft date'] = t;
+    else if (/@|\+?\d[\d .-]{7,}|\b(rue|avenue|bd|boulevard|chemin|place)\b|\b\d{5}\b/i.test(t)) contact.push(t);
+    else if (!title.Author && title.Credit) title.Author = t;
+    else source.push(t);
+  }
+  if (!title.Title) return null;
+  if (contact.length) title.Contact = contact.join('\n');
+  if (source.length) title.Source = source.join('\n');
+  return { title, used: first < 0 ? head.length : first };
+}
+
+/** Bloc de page de garde Fountain (« Clé: valeur », lignes suivantes en retrait). */
+function titleBlock(title: Record<string, string>): string {
+  return Object.entries(title)
+    .map(([k, v]) => {
+      const [firstLine, ...rest] = v.split('\n');
+      return rest.length ? `${k}:\n${[firstLine, ...rest].map((x) => `    ${x}`).join('\n')}` : `${k}: ${firstLine}`;
+    })
+    .join('\n');
+}
+
 export function linesToFountain(input: SourceLine[]): string {
-  const lines = input.filter((l) => l.text.trim() && !PAGE_NOISE.test(l.text.trim()));
+  const all = input.filter((l) => l.text.trim() && !PAGE_NOISE.test(l.text.trim()));
+  const tp = detectTitlePage(all);
+  const lines = tp ? all.slice(tp.used) : all;
   const base = baseIndent(lines);
   const indented = (l: SourceLine, by: number) => !!l.center || (l.x0 ?? 0) > base + by;
   const blocks: string[] = [];
@@ -122,5 +178,5 @@ export function linesToFountain(input: SourceLine[]): string {
     }
     blocks.push(para.join(' ').replace(/^([A-ZÀ-Ü])/, '$1'));
   }
-  return `${blocks.join('\n\n')}\n`;
+  return `${tp ? `${titleBlock(tp.title)}\n\n` : ''}${blocks.join('\n\n')}\n`;
 }

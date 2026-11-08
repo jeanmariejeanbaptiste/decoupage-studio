@@ -39,3 +39,21 @@ describe('import de scénarios mis en page', () => {
     expect(parseFountain(f).find((e) => e.type === 'action')?.text).toBe('Nina range.');
   });
 });
+
+describe('page de garde à l’import', () => {
+  it('titre, crédit et auteur, date, coordonnées reconnus avant la première séquence', async () => {
+    const { linesToFountain, textToLines } = await import('./scenarioImport');
+    const { blocksFromSource, parseTitlePage } = await import('./screenplay');
+    const txt = `LUNDI\n\nÉcrit par Jean-Marie Jean-Baptiste\n\nD'après une idée de la Mission Locale\n\nVersion du 12/10/2026\n\njm@exemple.fr\n06 12 34 56 78\n\nINT. OPEN SPACE - JOUR\n\nFlora entre.\n`;
+    const src = linesToFountain(textToLines(txt));
+    const tb = blocksFromSource(src).blocks.find((b) => b.type === 'title');
+    expect(tb).toBeDefined();
+    expect(parseTitlePage(tb!.text)).toMatchObject({ Title: 'LUNDI', Credit: 'Écrit par', Author: 'Jean-Marie Jean-Baptiste', 'Draft date': 'Version du 12/10/2026' });
+    expect(parseTitlePage(tb!.text).Contact).toContain('jm@exemple.fr');
+    expect(src).toContain('INT. OPEN SPACE - JOUR');
+  });
+  it('un scénario qui commence directement n’a pas de page de garde', async () => {
+    const { linesToFountain, textToLines } = await import('./scenarioImport');
+    expect(linesToFountain(textToLines('INT. GARE - JOUR\n\nLéa arrive.\n'))).not.toMatch(/^Title:/);
+  });
+});

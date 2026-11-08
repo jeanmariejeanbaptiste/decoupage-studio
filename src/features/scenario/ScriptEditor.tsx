@@ -342,7 +342,7 @@ function TitleDialog({ initial, onSave, onClose }: { initial: Record<string, str
         className={[m.modal, s.titleDialog].join(' ')}
         role="dialog"
         aria-modal="true"
-        aria-label="Page de titre"
+        aria-label="Page de garde"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           e.stopPropagation();
@@ -354,17 +354,32 @@ function TitleDialog({ initial, onSave, onClose }: { initial: Record<string, str
           onSave({ ...initial, ...f });
         }}
       >
-        <h2 className={m.title}>Page de titre</h2>
-        {TITLE_FIELDS.map(([k, label], i) => (
-          <label key={k} className={s.tdField}>
-            <span>{label}</span>
-            {k === 'Contact' ? (
-              <textarea rows={2} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-            ) : (
-              <input value={f[k]} autoFocus={i === 0} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-            )}
-          </label>
-        ))}
+        <h2 className={m.title}>Page de garde</h2>
+        <div className={s.tdBody}>
+          <div className={s.tdFields}>
+            {TITLE_FIELDS.map(([k, label], i) => (
+              <label key={k} className={s.tdField}>
+                <span>{label}</span>
+                {k === 'Contact' ? (
+                  <textarea rows={3} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+                ) : (
+                  <input value={f[k]} autoFocus={i === 0} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+                )}
+              </label>
+            ))}
+          </div>
+          {/* La page telle qu'à l'impression : titre et crédits au centre, contact en bas à gauche, date en bas à droite. */}
+          <div className={s.tdSheet} aria-hidden="true">
+            <div className={s.tdCenter}>
+              <p className={s.tdTitle}>{(f.Title || 'Sans titre').toLocaleUpperCase('fr')}</p>
+              {f.Credit && <p>{f.Credit}</p>}
+              {f.Author && <p>{f.Author}</p>}
+              {f.Source && <p>{f.Source}</p>}
+            </div>
+            <p className={s.tdContact}>{f.Contact}</p>
+            <p className={s.tdDate}>{f['Draft date']}</p>
+          </div>
+        </div>
         <div className={m.actions}>
           <Button variant="ghost" onClick={onClose}>
             Annuler

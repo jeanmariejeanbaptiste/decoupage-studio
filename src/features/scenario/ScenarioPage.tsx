@@ -1,7 +1,7 @@
 import { useReadOnly } from '../../store/share';
 import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, FilePlus2, FileUp } from 'lucide-react';
+import { ChevronDown, FilePlus2, FileText, FileUp } from 'lucide-react';
 import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { BLOCK_LABELS, blockLabel, scriptStats, type BlockType } from '../../domain/screenplay';
@@ -138,7 +138,10 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
         <div className={s.tools}>
           {!readOnly && view === 'script' && (
             <>
-              <TypePicker type={activeType} onPick={(t) => api.current?.setType(t)} onTitle={() => api.current?.editTitle()} />
+              <TypePicker type={activeType} onPick={(t) => api.current?.setType(t)} />
+              <Button icon={<FileText size={15} strokeWidth={1.25} />} onMouseDown={(e) => e.preventDefault()} onClick={() => api.current?.editTitle()} data-testid="edit-title-page">
+                Page de garde
+              </Button>
               <Button
                 icon={<FilePlus2 size={15} strokeWidth={1.25} />}
                 onMouseDown={(e) => e.preventDefault()}
@@ -246,7 +249,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
 }
 
 /** Type du paragraphe courant ; le menu garde le curseur dans le texte. */
-function TypePicker({ type, onPick, onTitle }: { type: BlockType | null; onPick: (t: BlockType) => void; onTitle: () => void }) {
+function TypePicker({ type, onPick }: { type: BlockType | null; onPick: (t: BlockType) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -288,18 +291,6 @@ function TypePicker({ type, onPick, onTitle }: { type: BlockType | null; onPick:
               <kbd>{blockTypeKey(i + 1)}</kbd>
             </li>
           ))}
-          <li
-            role="option"
-            aria-selected={false}
-            className={s.pickSep}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setOpen(false);
-              onTitle();
-            }}
-          >
-            <span>Page de titre…</span>
-          </li>
         </ul>
       )}
     </div>

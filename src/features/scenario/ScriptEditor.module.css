@@ -61,10 +61,19 @@
 .flow .t_title { padding: 24px 0; }
 .flow .tpLine { position: static; display: block; white-space: pre-wrap; }
 .flow .tpTitle { margin-bottom: 16px; }
-.titleDialog { display: flex; flex-direction: column; gap: 10px; width: min(480px, 92vw); }
+.titleDialog { display: flex; flex-direction: column; gap: 10px; width: min(820px, 94vw); }
+.tdBody { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+@media (max-width: 700px) { .tdBody { grid-template-columns: 1fr; } .tdSheet { display: none; } }
+.tdFields { display: flex; flex-direction: column; gap: 10px; }
+.tdSheet { position: relative; aspect-ratio: 210 / 297; background: var(--sheet); border: 1px solid var(--rule); box-shadow: var(--shadow); font-family: var(--font-page); font-size: 8px; line-height: 1.3; color: var(--ink); }
+.tdSheet p { margin: 0 0 6px; white-space: pre-wrap; }
+.tdCenter { position: absolute; top: 34%; left: 12%; right: 12%; text-align: center; }
+.tdTitle { text-decoration: underline; margin-bottom: 14px !important; }
+.tdContact { position: absolute; left: 12%; bottom: 8%; max-width: 50%; }
+.tdDate { position: absolute; right: 12%; bottom: 8%; text-align: right; }
 .tdField { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-ui); }
 .tdField span { font-size: 11.5px; color: var(--ink-soft); }
-.tdField input, .tdField textarea { font: inherit; font-size: 13.5px; padding: 6px 9px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); resize: vertical; }
+.tdField input, .tdField textarea { font: inherit; font-size: 13.5px; padding: 6px 9px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); resize: vertical; }
 .t_pagebreak { height: 1px; min-height: 0; border-top: 1px dashed var(--rule); overflow: hidden; }
 
 /* Téléphone ou panneau étroit : retraits proportionnels, sans pages. */

@@ -94,7 +94,7 @@ test.describe('scénario et liaison', () => {
     // Page de titre mise en forme, modifiable par ses champs.
     await expect(page.getByTestId('title-page')).toContainText('La Consigne');
     await page.getByTestId('title-page').click();
-    await page.getByRole('dialog', { name: 'Page de titre' }).getByLabel('Auteur').fill('Nina Roy');
+    await page.getByRole('dialog', { name: 'Page de garde' }).getByLabel('Auteur').fill('Nina Roy');
     await page.getByTestId('title-save').click();
     await expect(page.getByTestId('title-page')).toContainText('Nina Roy');
     // Page A4 au gabarit du modèle (une ligne de 12,1 pt = 16 px).
