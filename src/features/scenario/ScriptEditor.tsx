@@ -34,6 +34,7 @@ import {
   TITLE_FIELDS,
 } from '../../domain/screenplay';
 import { SCRIPT_COLUMNS, SCRIPT_PAGE, paginateItems, plainText, titlePageLines } from '../../domain/scriptLayout';
+import { blockTypeDigit } from '../../domain/shortcuts';
 import { fold } from '../../domain/text';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { undo as appUndo, redo as appRedo } from '../../store/projectStore';
@@ -819,10 +820,11 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       setType(cycleType(b.type, e.shiftKey ? -1 : 1));
       return;
     }
-    // ⌥1 … ⌥8 : type du bloc (touche physique, quelle que soit la disposition du clavier).
-    if (e.altKey && !mod && /^Digit[1-8]$/.test(e.code)) {
+    // Type du bloc : ⌃1 … ⌃8 sur Mac (⌥ + chiffre y tape « » ’ [ {), Alt + 1 … 8 ailleurs.
+    const digit = blockTypeDigit(e);
+    if (digit) {
       e.preventDefault();
-      const t = BLOCK_LABELS[Number(e.code.slice(5)) - 1]?.[0];
+      const t = BLOCK_LABELS[digit - 1]?.[0];
       if (t) setType(t);
     }
   };

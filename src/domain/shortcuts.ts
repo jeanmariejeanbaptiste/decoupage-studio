@@ -127,3 +127,20 @@ export function conflictOf(map: ShortcutMap, id: ShortcutId, combo: string): Sho
 export function isReserved(combo: string): boolean {
   return /^(Shift\+)?(Arrow(Up|Down|Left|Right)|Tab|Enter|Escape|Backspace|Delete|F2)$/.test(combo) || /^(Shift\+)?[A-Z0-9]$/.test(combo) || /^Mod\+[CVX]$/.test(combo);
 }
+
+/** Le clavier est-il celui d'un Mac (⌥ y sert à taper des caractères : « » ’ [ { …) ? */
+export const isMacPlatform = (): boolean => typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+
+/**
+ * Changement de type d'un paragraphe du scénario au clavier : ⌃1 à ⌃8 sur Mac (⌥ + chiffre y tape
+ * des guillemets, des crochets…), Alt + 1 à 8 ailleurs. Renvoie le rang (1 à 8) ou null.
+ */
+export function blockTypeDigit(e: KeyLike & { code?: string }, mac = isMacPlatform()): number | null {
+  const m = /^Digit([1-8])$/.exec(e.code ?? '');
+  if (!m || e.metaKey) return null;
+  const ok = mac ? e.ctrlKey && !e.altKey : e.altKey && !e.ctrlKey;
+  return ok ? Number(m[1]) : null;
+}
+
+/** Libellé du raccourci de type n (« ⌃3 » sur Mac, « Alt+3 » ailleurs). */
+export const blockTypeKey = (n: number, mac = isMacPlatform()) => (mac ? `⌃${n}` : `Alt+${n}`);

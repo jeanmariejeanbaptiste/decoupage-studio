@@ -51,3 +51,17 @@ describe('raccourcis', () => {
     expect(isReserved('Alt+ArrowUp')).toBe(false);
   });
 });
+
+describe('type de paragraphe du scénario au clavier', () => {
+  it('Mac : ⌃ + chiffre ; ⌥ + chiffre reste libre pour taper « » ’ [ {', async () => {
+    const { blockTypeDigit, blockTypeKey } = await import('./shortcuts');
+    const key = (code: string, mods: Partial<Record<'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey', boolean>>) => ({ key: '', code, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...mods });
+    expect(blockTypeDigit(key('Digit7', { altKey: true }), true)).toBeNull();
+    expect(blockTypeDigit(key('Digit3', { ctrlKey: true }), true)).toBe(3);
+    expect(blockTypeDigit(key('Digit3', { altKey: true }), false)).toBe(3);
+    expect(blockTypeDigit(key('Digit3', { ctrlKey: true, altKey: true }), false)).toBeNull();
+    expect(blockTypeDigit(key('Digit9', { ctrlKey: true }), true)).toBeNull();
+    expect(blockTypeKey(2, true)).toBe('⌃2');
+    expect(blockTypeKey(2, false)).toBe('Alt+2');
+  });
+});

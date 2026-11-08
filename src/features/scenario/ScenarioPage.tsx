@@ -5,6 +5,7 @@ import { ChevronDown, FilePlus2, FileUp } from 'lucide-react';
 import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { BLOCK_LABELS, blockLabel, scriptStats, type BlockType } from '../../domain/screenplay';
+import { blockTypeKey } from '../../domain/shortcuts';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { pickFile, registerFlush } from '../../store/persistence';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
@@ -277,7 +278,7 @@ function TypePicker({ type, onPick, onTitle }: { type: BlockType | null; onPick:
               }}
             >
               <span>{label}</span>
-              <kbd>⌥{i + 1}</kbd>
+              <kbd>{blockTypeKey(i + 1)}</kbd>
             </li>
           ))}
           <li
