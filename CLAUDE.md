@@ -19,3 +19,16 @@ Vite 5 + React 18 + TypeScript strict · Zustand + immer + zundo · Dexie (Index
 - Routage par hash (`#/grid`, `#/print`…) pour GitHub Pages.
 - Commits en français à l'impératif, un par sous-tâche significative. Jamais de force-push.
 - Pas de Tailwind, pas de kit UI, pas d'emoji dans l'interface.
+
+## Préférences de l'utilisateur (durables, prioritaires)
+- Répondre en français, style élégant ; ne jamais imiter sa façon d'écrire. Réponses courtes, économes en tokens.
+- Aucun artefact, fichier de présentation ou mise en page coûteuse sans son accord : texte simple par défaut, proposer le reste.
+- Design : uniquement noir, gris, blanc (pas de bleu ni de couleur d'accent). Une seule police : Inter. Icônes au trait, fines.
+- Minimaliste et ergonomique : pas d'astuces, de tutoriels, de textes d'aide ni de toasts inutiles ; pas de doublons dans l'interface (libellés, menus, titres qui se répètent).
+- Ne pas appliquer bêtement une demande : penser aux interdépendances (format ↔ minutage ↔ colonnes ↔ modèles ↔ exports), être force de proposition, s'auto-relire et corriger avant de livrer.
+- Publier = pousser sur `main` (GitHub Pages). Tester avant (tsc, lint, vitest, e2e concernés). Les tags git ne passent pas (403), c'est accepté.
+
+## Chantiers en cours (au 8 nov. 2026, v2.3.0+)
+- Sauvegarde cloud facultative via Google Drive (dossier `appDataFolder`, scope `drive.appdata`, Google Identity Services côté client, aucune donnée sur GitHub). En attente : l'ID client OAuth que l'utilisateur doit créer (origine `https://jeanmariejeanbaptiste.github.io`).
+- Partage invité : la copie conservée garde l'identifiant du projet de l'hôte ; proposer d'en faire un projet distinct si besoin.
+- Historique complet des demandes : fichier `decoupage-studio-historique.md` fourni par l'utilisateur en pièce jointe (hors dépôt).
