@@ -1,4 +1,3 @@
-import { TemplatesMenu } from '../grid/TemplatesMenu';
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Plus, RotateCcw, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
@@ -252,7 +251,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
           <div className={s.body}>
             <TimingSection doc={doc} />
             <CameraSection />
-            <CuttingSection doc={doc} />
+            <CuttingSection />
             <VocabularySection />
             <Section id="assistant" title="Assistant IA">
               <p className={s.note}>Fournisseur, clé et modèle restent dans ce navigateur : jamais enregistrés dans le projet ni exportés.</p>
@@ -376,7 +375,7 @@ function CameraSection() {
   );
 }
 
-function CuttingSection({ doc }: { doc: ProjectDoc }) {
+function CuttingSection() {
   const { st, patch } = useSettings();
   return (
     <Section id="decoupage" title="Découpage">
@@ -394,9 +393,6 @@ function CuttingSection({ doc }: { doc: ProjectDoc }) {
             ['{seq}{letter}', '3D'],
           ]}
         />
-      </Row>
-      <Row label="Modèles" hint="Ajoute aussitôt des séquences types au découpage.">
-        <TemplatesMenu doc={doc} variant="outline" />
       </Row>
     </Section>
   );
