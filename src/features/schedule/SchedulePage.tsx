@@ -4,10 +4,9 @@ import { ChevronDown, ChevronRight, Clock, Plus, Sparkles, Trash2 } from 'lucide
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { stripRange, stripsByTime, addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay, type Strip, stripCharacterIds } from '../../domain/schedule';
-import { formatTc } from '../../domain/timecode';
+import { stripRange, stripsByTime, addDay, assignShots, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
-import type { ID, ProjectDoc } from '../../domain/types';
+import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc, undo } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
@@ -18,17 +17,14 @@ import { TabExport } from '../export/TabExport';
 import { scheduleCsv } from '../../domain/exports';
 import { scheduleDocument } from '../../domain/documents';
 
-const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-function stripTone(doc: ProjectDoc, seqId: ID): string {
-  const seq = doc.sequences[seqId];
-  const night = seq?.effect === 'NUIT';
-  const twilight = seq?.effect === 'AUBE' || seq?.effect === 'CRÉPUSCULE';
-  const ext = seq?.intExt === 'EXT';
-  if (twilight) return s.tTwilight;
-  if (night) return ext ? s.tExtNight : s.tIntNight;
-  return ext ? s.tExtDay : s.tIntDay;
-}
+const TONE: Record<StripTone, string> = {
+  'int-day': s.tIntDay,
+  'ext-day': s.tExtDay,
+  'int-night': s.tIntNight,
+  'ext-night': s.tExtNight,
+  'int-twilight': s.tIntTwilight,
+  'ext-twilight': s.tExtTwilight,
+};
 
 /** Plan de travail (§15.3) : bandes par jour de tournage. */
 export function SchedulePage({ doc }: { doc: ProjectDoc }) {
@@ -93,20 +89,26 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
             return (
               <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} days={days.map((x) => x.n)} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
                 <div className={s.dayHead}>
-                  <strong>Jour {d.n}</strong>
-                  <input
-                    type="date"
-                    value={d.date ?? ''}
-                    onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { date: e.target.value || undefined }))}
-                    aria-label={`Date du jour ${d.n}`}
-                  />
-                  {d.date && <span className={s.date}>{dateFmt.format(new Date(`${d.date}T12:00`))}</span>}
+                  <strong>
+                    Jour {d.n} <span className={s.of}>sur {days.length}</span>
+                  </strong>
+                  {/* La date longue est le libellé du sélecteur de date : une seule mention à l'écran. */}
+                  <label className={[s.date, d.date ? '' : s.dateEmpty].join(' ')}>
+                    {longDate(d.date) || 'Date'}
+                    <input
+                      type="date"
+                      value={d.date ?? ''}
+                      onClick={(e) => e.currentTarget.showPicker?.()}
+                      onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { date: e.target.value || undefined }))}
+                      aria-label={`Date du jour ${d.n}`}
+                    />
+                  </label>
                   <label className={s.rdv}>
                     RDV
                     <input type="time" value={d.callTime ?? ''} onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { callTime: e.target.value || undefined }))} aria-label={`Rendez-vous du jour ${d.n}`} />
                   </label>
                   <span className={s.stats} data-testid={`day-stats-${d.n}`}>
-                    {st.shots} plan{st.shots > 1 ? 's' : ''} · <span className="mono">{formatTc(st.screenSec)}</span> d’écran · {st.decorIds.length} décor{st.decorIds.length > 1 ? 's' : ''}
+                    {dayTotalsText(doc, st)}
                   </span>
                   <Button
                     size="sm"
@@ -169,7 +171,7 @@ function StripRow({ doc, day, strip, days }: { doc: ProjectDoc; day: number; str
   return (
     <div
       ref={setNodeRef}
-      className={[s.strip, stripTone(doc, strip.seqId), isDragging ? s.dragging : ''].join(' ')}
+      className={[s.strip, TONE[stripTone(seq)], isDragging ? s.dragging : ''].join(' ')}
       style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 10 } : undefined}
       data-testid="strip"
     >

@@ -171,3 +171,50 @@ describe('plan de travail : cohérence des jours', () => {
     expect(showTime('25:30')).toBe('01:30 (+1)');
   });
 });
+
+describe('plan de travail : en-têtes et codage des bandes', () => {
+  it('date longue, titre « jour n sur N » et rendez-vous', async () => {
+    const { longDate, dayTitle } = await import('./schedule');
+    expect(longDate('2026-11-16')).toBe('lundi 16 novembre 2026');
+    expect(longDate('n’importe quoi')).toBe('');
+    expect(longDate(undefined)).toBe('');
+    expect(dayTitle({ n: 2, date: '2026-11-16', callTime: '07:00' }, 5)).toBe('Jour 2 sur 5 · lundi 16 novembre 2026 · RDV 07:00');
+    expect(dayTitle({ n: 1 }, 1)).toBe('Jour 1 sur 1');
+  });
+
+  it('totaux du jour : séquences, plans, durée, décors, comédiens (sans les figurants)', async () => {
+    const { dayTotalsText } = await import('./schedule');
+    const doc = buildRav3();
+    const [a, b] = doc.project.sequenceIds;
+    const next = produce(doc, (d) => assignShots(d, [...d.sequences[a].shotIds, ...d.sequences[b].shotIds], 1));
+    const st = dayStats(next, computeTiming(next), 1);
+    const cast = st.characterIds.filter((id) => next.characters[id].kind !== 'figurant').length;
+    const text = dayTotalsText(next, st);
+    expect(text).toMatch(new RegExp(`^2 séq\\. · ${st.shots} plans · \\d+:\\d\\d d’écran · ${st.decorIds.length} décors? · ${cast} comédiens?$`));
+  });
+
+  it('bandes : INT/EXT × jour, nuit, aube et crépuscule', async () => {
+    const { stripTone } = await import('./schedule');
+    expect(stripTone({ intExt: 'INT', effect: 'JOUR' })).toBe('int-day');
+    expect(stripTone({ intExt: 'EXT', effect: 'JOUR' })).toBe('ext-day');
+    expect(stripTone({ intExt: 'INT/EXT', effect: 'NUIT' })).toBe('ext-night');
+    expect(stripTone({ intExt: 'INT', effect: 'NUIT' })).toBe('int-night');
+    expect(stripTone({ intExt: 'EXT', effect: 'AUBE' })).toBe('ext-twilight');
+    expect(stripTone({ effect: 'CRÉPUSCULE' })).toBe('int-twilight');
+    expect(stripTone(undefined)).toBe('int-day');
+  });
+
+  it('supprimer un jour renumérote les suivants (plans et créneaux suivent)', () => {
+    const doc = buildRav3();
+    const [a, b] = doc.project.sequenceIds;
+    const next = produce(doc, (d) => {
+      assignShots(d, d.sequences[a].shotIds, 1);
+      assignShots(d, d.sequences[b].shotIds.slice(0, 1), 3);
+      placeShot(d, 3, d.sequences[b].shotIds[0], '09:00');
+      removeDay(d, 1);
+    });
+    expect(scheduleDays(next).map((x) => x.n)).toEqual([1]);
+    expect(next.shots[doc.sequences[b].shotIds[0]].shootingDay).toBe(1);
+    expect(next.schedule!.days.find((x) => x.n === 1)!.timeline?.[doc.sequences[b].shotIds[0]]).toEqual({ start: '09:00', end: '09:30' });
+  });
+});

@@ -11,7 +11,7 @@ import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { callSheetStrips, dayEquipment, dayStats, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripRange, stripsByTime } from './schedule';
+import { callSheetStrips, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripRange, stripsByTime, stripTone } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -51,7 +51,10 @@ tr { break-inside: avoid; }
 .cs-depts { grid-template-columns: repeat(3, 1fr); }
 .itw-frames { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6pt; margin-top: 6pt; } .itw-frames figure { margin: 0; break-inside: avoid; } .itw-frames img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: .6pt solid #d6d8dd; display: block; } .itw-frames figcaption { font-size: 8pt; color: #6b7079; margin-top: 2pt; }
 .day { break-inside: avoid; margin-bottom: 10pt; }
-.tone-ext { background: #f1f1f1; } .tone-night { background: #e0e0e0; } .tone-extnight { background: #d0d0d0; } .tone-twilight { background: repeating-linear-gradient(135deg, #e6e6e6 0 4px, #ffffff 4px 8px); }
+.tone-ext-day { background: #eeeeef; } .tone-int-night { background: #dcdddf; } .tone-ext-night { background: #c8c9cc; }
+.tone-int-twilight { background: repeating-linear-gradient(135deg, #e1e2e4 0 4px, #ffffff 4px 8px); } .tone-ext-twilight { background: repeating-linear-gradient(135deg, #d7d8da 0 4px, #eeeeef 4px 8px); }
+.day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10pt; border-bottom: 1.2pt solid #111318; padding-bottom: 3pt; margin: 14pt 0 4pt; break-after: avoid; }
+.day-head h2 { margin: 0; } .day-head .totals { color: #6b7079; font-size: 8.5pt; text-align: right; }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
 .plan svg { width: 100%; height: auto; border: .6pt solid #d6d8dd; }
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
@@ -106,11 +109,11 @@ export function equipmentDocument(doc: ProjectDoc, showShots: boolean): DocPage 
   return shell(doc, 'Étape 7', 'Listes de matériel', body);
 }
 
+/** Classe de la bande imprimée (mêmes paliers de gris qu'à l'écran) ; aucune en économie d'encre. */
 function tone(doc: ProjectDoc, seqId: string): string {
-  const s = doc.sequences[seqId];
-  if (s?.effect === 'AUBE' || s?.effect === 'CRÉPUSCULE') return 'tone-twilight';
-  if (s?.effect === 'NUIT') return s.intExt === 'EXT' ? 'tone-extnight' : 'tone-night';
-  return s?.intExt === 'EXT' ? 'tone-ext' : '';
+  if (doc.project.settings.exportInkSaver) return '';
+  const t = stripTone(doc.sequences[seqId]);
+  return t === 'int-day' ? '' : `tone-${t}`;
 }
 
 const slotText = (slot?: { start?: string; end?: string }) => (slot?.start || slot?.end ? `${slot.start ?? '…'} – ${slot.end ?? '…'}` : '');
@@ -123,14 +126,12 @@ export function scheduleDocument(doc: ProjectDoc): DocPage {
         .map((d) => {
           const st = dayStats(doc, t, d.n);
           const strips = stripsByTime(doc, d.n);
-          return `<section class="day"><h2>Jour ${d.n}${d.date ? ` — ${esc(new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}` : ''}${
-            d.callTime ? ` <span class="time">RDV ${esc(d.callTime)}</span>` : ''
-          }</h2><table><thead><tr><th>Horaire</th><th>Séq.</th><th>INT/EXT</th><th>Décor</th><th>Personnages</th><th>Plans</th></tr></thead><tbody>${strips
+          return `<section class="day"><div class="day-head"><h2>${esc(dayTitle(d, days.length))}</h2><span class="totals">${esc(dayTotalsText(doc, st))}</span></div><table><thead><tr><th>Horaire</th><th>Séq.</th><th>INT/EXT</th><th>Décor</th><th>Personnages</th><th>Plans</th></tr></thead><tbody>${strips
             .map((s) => {
               const seq = doc.sequences[s.seqId];
               return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(stripRange(doc, d.n, s)))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(stripCharacterIds(doc, s).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td></tr>`;
             })
-            .join('')}</tbody></table><p class="muted">${st.shots} plan${st.shots > 1 ? 's' : ''} · ${formatTc(st.screenSec)} d’écran · ${st.decorIds.length} décor${st.decorIds.length > 1 ? 's' : ''}</p></section>`;
+            .join('')}</tbody></table></section>`;
         })
         .join('')
     : '<p class="muted">Aucun jour de tournage.</p>';

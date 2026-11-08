@@ -33,4 +33,18 @@ describe('documents imprimables', () => {
     expect(intentionDocument(doc).html).toContain('Un film &lt;sobre&gt;.');
     expect(floorPlansDocument(doc).html).toContain('<svg');
   });
+  it('plan de travail : en-tête « jour n sur N », totaux et bandes en gris (sauf économie d’encre)', () => {
+    const n = doc.schedule!.days.length;
+    const html = scheduleDocument(doc).html;
+    expect(html).toContain(`Jour 1 sur ${n}`);
+    expect(html).toMatch(/\d+ séq\. · \d+ plans? · /);
+    const toned = produce(doc, (d) => {
+      const seq = d.sequences[d.project.sequenceIds[0]];
+      seq.intExt = 'EXT';
+      seq.effect = 'NUIT';
+    });
+    expect(scheduleDocument(toned).html).toContain('class="tone-ext-night"');
+    const saver = produce(toned, (d) => void (d.project.settings.exportInkSaver = true));
+    expect(scheduleDocument(saver).html).not.toContain('class="tone-');
+  });
 });

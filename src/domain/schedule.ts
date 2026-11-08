@@ -1,6 +1,7 @@
 import { sequenceCharacterIds } from './characters';
 import { shotDurationSec } from './rows';
 import { fold } from './text';
+import { formatTc } from './timecode';
 import type { Timing } from './timing';
 import type { ID, ProjectDoc } from './types';
 
@@ -103,11 +104,14 @@ export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay
   else sch.days.push({ n, ...patch });
 }
 
-/** Supprime un jour : ses plans redeviennent non planifiés. */
+/** Supprime un jour : ses plans redeviennent non planifiés, les jours suivants sont renumérotés (« jour n sur N » sans trou). */
 export function removeDay(doc: ProjectDoc, n: number): void {
   const sch = ensureSchedule(doc);
   sch.days = sch.days.filter((d) => d.n !== n);
   for (const s of Object.values(doc.shots)) if (s.shootingDay === n) s.shootingDay = undefined;
+  const rank = new Map(scheduleDays(doc).map((d, i) => [d.n, i + 1]));
+  for (const d of sch.days) d.n = rank.get(d.n) ?? d.n;
+  for (const s of Object.values(doc.shots)) if (s.shootingDay !== undefined) s.shootingDay = rank.get(s.shootingDay) ?? s.shootingDay;
 }
 
 export function assignShots(doc: ProjectDoc, shotIds: readonly ID[], day: number | undefined): void {
@@ -206,6 +210,42 @@ export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
     for (const id of Object.keys(d.parts ?? {})) if (!doc.shots[id]) delete d.parts![id];
   }
   return day;
+}
+
+// --- En-têtes de journée et codage des bandes -------------------------------------------------
+
+const longDateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+/** Date longue (« lundi 16 novembre 2026 »), vide si la date est inconnue ou invalide. */
+export function longDate(date?: string): string {
+  if (!date) return '';
+  const t = new Date(`${date}T12:00`);
+  return Number.isNaN(t.getTime()) ? '' : longDateFmt.format(t);
+}
+
+/** En-tête d'une journée : « Jour 2 sur 5 · lundi 16 novembre 2026 · RDV 07:00 ». */
+export function dayTitle(day: ShootingDay, total: number): string {
+  return [`Jour ${day.n}${total ? ` sur ${total}` : ''}`, longDate(day.date), day.callTime && `RDV ${day.callTime}`].filter(Boolean).join(' · ');
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
+
+/** Totaux d'une journée : séquences, plans, durée d'écran, décors, comédiens (figurants à part). */
+export function dayTotalsText(doc: ProjectDoc, st: DayStats): string {
+  const cast = st.characterIds.filter((id) => doc.characters[id] && doc.characters[id].kind !== 'figurant').length;
+  return [`${st.sequenceIds.length} séq.`, plural(st.shots, 'plan'), `${formatTc(st.screenSec)} d’écran`, plural(st.decorIds.length, 'décor'), plural(cast, 'comédien')].join(' · ');
+}
+
+/**
+ * Codage des bandes (charte noir et blanc) : du plus clair au plus soutenu, INT jour, EXT jour,
+ * INT nuit, EXT nuit ; aube et crépuscule hachurés. Une séquence INT/EXT se range avec les extérieurs.
+ */
+export type StripTone = 'int-day' | 'ext-day' | 'int-night' | 'ext-night' | 'int-twilight' | 'ext-twilight';
+
+export function stripTone(seq: { intExt?: string; effect?: string } | undefined): StripTone {
+  const ext = seq?.intExt === 'EXT' || seq?.intExt === 'INT/EXT' ? 'ext' : 'int';
+  const light = seq?.effect === 'NUIT' ? 'night' : seq?.effect === 'AUBE' || seq?.effect === 'CRÉPUSCULE' ? 'twilight' : 'day';
+  return `${ext}-${light}`;
 }
 
 export interface DayStats {
