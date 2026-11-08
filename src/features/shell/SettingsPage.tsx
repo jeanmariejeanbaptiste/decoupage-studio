@@ -1,43 +1,92 @@
 import { TemplatesMenu } from '../grid/TemplatesMenu';
-import { AssistantButton } from '../assistant/AssistantButton';
-import { createContext, useContext, useId, useState, type ReactNode } from 'react';
-import { Moon, Plus, RotateCcw, Sun, X } from 'lucide-react';
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Check, Plus, RotateCcw, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
-import { applyFormat, isMusicalFormat, newId } from '../../domain/factory';
+import { isMusicalFormat, newId } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
-import type { ProjectDoc, ProjectFormat, ProjectSettings, Sensor, ShotCodeFormat } from '../../domain/types';
+import type { ProjectDoc, ProjectSettings, Sensor, ShotCodeFormat, VocabEntry } from '../../domain/types';
 import { vocabularyFor, type VocabKind } from '../../domain/vocabulary';
 import { mutateDoc } from '../../store/projectStore';
+import { registerFlush } from '../../store/persistence';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
-import { ASSISTANT_MODEL, getApiKey, setApiKey } from '../assistant/aiClient';
+import { AiSettingsForm } from '../assistant/AssistantPanel';
+import { loadAiSettings, saveAiSettings, type AiSettings } from '../assistant/providers';
 import s from './SettingsPage.module.css';
 
-import { conflictOf, comboFromEvent, formatCombo, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId } from '../../domain/shortcuts';
-import { resetShortcuts, setShortcut, useShortcuts } from '../../store/shortcuts';
-import { useUi } from '../../store/uiStore';
-import { switchTheme } from '../../ui/themeSwitch';
+import { conflictOf, comboFromEvent, formatCombo, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId, type ShortcutMap } from '../../domain/shortcuts';
+import { setShortcut, useShortcuts } from '../../store/shortcuts';
 import { navigate, useLocation } from '../../app/router';
 
-const set = <K extends keyof ProjectSettings>(k: K, v: ProjectSettings[K]) =>
-  mutateDoc((d) => {
-    d.project.settings[k] = v;
-  });
-
 const SECTIONS = [
-  ['projet', 'Projet'],
   ['minutage', 'Minutage'],
   ['camera', 'Caméra'],
   ['decoupage', 'Découpage'],
   ['vocabulaire', 'Vocabulaire'],
   ['assistant', 'Assistant IA'],
   ['raccourcis', 'Raccourcis clavier'],
-  ['apparence', 'Apparence'],
 ] as const;
 type SectionId = (typeof SECTIONS)[number][0];
 
-const CurrentSection = createContext<SectionId>('projet');
+// --- Brouillon : rien n'est appliqué avant « Enregistrer » (ou en quittant la page) ------------------
+
+type Vocab = ProjectDoc['customVocabulary'];
+
+interface Pending {
+  settings: Partial<ProjectSettings>;
+  vocab: Partial<Vocab>;
+  ai?: AiSettings;
+  keys: Partial<ShortcutMap>;
+}
+const EMPTY: Pending = { settings: {}, vocab: {}, keys: {} };
+
+/** Égalité de valeurs (objets comparés clé par clé, sans tenir compte de l'ordre des clés). */
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a).filter((k) => (a as Record<string, unknown>)[k] !== undefined);
+  const kb = Object.keys(b).filter((k) => (b as Record<string, unknown>)[k] !== undefined);
+  return ka.length === kb.length && ka.every((k) => same((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/** Ce qui diffère réellement de l'état enregistré (un réglage remis à sa valeur ne compte plus). */
+function effective(p: Pending, doc: ProjectDoc, keys: ShortcutMap): Pending {
+  const settings = Object.fromEntries(Object.entries(p.settings).filter(([k, v]) => !same(v, doc.project.settings[k as keyof ProjectSettings])));
+  const vocab = Object.fromEntries(Object.entries(p.vocab).filter(([k, v]) => !same(v, doc.customVocabulary[k as VocabKind])));
+  const sc = Object.fromEntries(Object.entries(p.keys).filter(([k, v]) => v !== keys[k as ShortcutId]));
+  const ai = p.ai && !same(p.ai, loadAiSettings()) ? p.ai : undefined;
+  return { settings, vocab, keys: sc, ai };
+}
+const isEmpty = (p: Pending) => !Object.keys(p.settings).length && !Object.keys(p.vocab).length && !Object.keys(p.keys).length && !p.ai;
+
+/** Applique le brouillon : un seul pas d'annulation pour le projet ; assistant et raccourcis dans ce navigateur. */
+function apply(p: Pending) {
+  if (Object.keys(p.settings).length || Object.keys(p.vocab).length) {
+    mutateDoc((d) => {
+      for (const [k, v] of Object.entries(p.settings)) (d.project.settings as unknown as Record<string, unknown>)[k] = structuredClone(v);
+      for (const [k, v] of Object.entries(p.vocab)) d.customVocabulary[k as VocabKind] = structuredClone(v);
+    });
+  }
+  if (p.ai) saveAiSettings(p.ai);
+  for (const [id, combo] of Object.entries(p.keys)) setShortcut(id as ShortcutId, combo);
+}
+
+interface DraftApi {
+  st: ProjectSettings;
+  patch: (p: Partial<ProjectSettings>) => void;
+  vocab: Vocab;
+  setVocab: (kind: VocabKind, list: VocabEntry[]) => void;
+  ai: AiSettings;
+  setAi: (v: AiSettings) => void;
+  keys: ShortcutMap;
+  setKey: (id: ShortcutId, combo: string) => void;
+}
+const Draft = createContext<DraftApi | null>(null);
+const useSettings = () => useContext(Draft)!;
+
+const CurrentSection = createContext<SectionId>('minutage');
 
 /** Une rubrique n'est affichée que lorsqu'elle est choisie dans la liste de gauche. */
 function Section({ id, title, children }: { id: SectionId; title: string; children: ReactNode }) {
@@ -78,20 +127,36 @@ function Radio<T extends string>({ name, value, options, onChange }: { name: str
   );
 }
 
+/** Nombre saisi librement (effacer, taper « 2, » ou « 0.5 ») ; seule une valeur valide est retenue. */
 function Num({ label, hint, value, onChange, min = 0.1 }: { label: string; hint?: string; value: number; onChange: (v: number) => void; min?: number }) {
   const id = useId();
+  const [text, setText] = useState(String(value));
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current) setText(String(value));
+  }, [value]);
+  const parse = (t: string) => {
+    const v = Number(t.replace(',', '.').trim());
+    return t.trim() !== '' && Number.isFinite(v) && v >= min ? v : null;
+  };
+  const bad = parse(text) === null;
   return (
     <Row label={label} hint={hint} htmlFor={id}>
       <input
         id={id}
-        className={s.num}
-        type="number"
-        step="any"
-        min={min}
-        value={value}
+        className={[s.num, bad ? s.invalid : ''].join(' ')}
+        inputMode="decimal"
+        value={text}
+        aria-invalid={bad || undefined}
+        onFocus={() => (focused.current = true)}
         onChange={(e) => {
-          const v = Number(e.target.value);
-          if (Number.isFinite(v) && v >= min) onChange(v);
+          setText(e.target.value);
+          const v = parse(e.target.value);
+          if (v !== null) onChange(v);
+        }}
+        onBlur={() => {
+          focused.current = false;
+          setText(String(value));
         }}
       />
     </Row>
@@ -108,19 +173,67 @@ function Text({ label, value, onChange, placeholder }: { label: string; value: s
 }
 
 export function SettingsPage({ doc }: { doc: ProjectDoc }) {
-  const st = doc.project.settings;
-  const p = doc.project;
-  const musical = isMusicalFormat(p.format);
   const { params } = useLocation();
-  const [sample, setSample] = useState('Elle prend l’affiche de la vedette et la regarde longuement, émue.');
-  const action = previewDuration(sample, st);
-  const dialogue = previewDuration(sample, st, true);
+  const shortcuts = useShortcuts((x) => x.map);
+  const [pending, setPending] = useState<Pending>(EMPTY);
+  const [savedAt, setSavedAt] = useState(0);
+  const live = useMemo(() => effective(pending, doc, shortcuts), [pending, doc, shortcuts]);
+  const dirty = !isEmpty(live);
+
+  // Dernier état connu, pour appliquer le brouillon en quittant la page ou avant un enregistrement (⌘S, export).
+  const latest = useRef(live);
+  latest.current = live;
+  const commit = useCallback(() => {
+    const p = latest.current;
+    if (isEmpty(p)) return false;
+    latest.current = EMPTY;
+    apply(p);
+    setPending(EMPTY);
+    return true;
+  }, []);
+  useEffect(() => {
+    const off = registerFlush(commit);
+    return () => {
+      off();
+      // Quitter la page garde le travail : les réglages modifiés sont appliqués.
+      commit();
+    };
+  }, [commit]);
+
+  const api: DraftApi = {
+    st: { ...doc.project.settings, ...pending.settings },
+    patch: (p) => setPending((x) => ({ ...x, settings: { ...x.settings, ...p } })),
+    vocab: { ...doc.customVocabulary, ...pending.vocab },
+    setVocab: (kind, list) => setPending((x) => ({ ...x, vocab: { ...x.vocab, [kind]: list } })),
+    ai: pending.ai ?? loadAiSettings(),
+    setAi: (v) => setPending((x) => ({ ...x, ai: v })),
+    keys: { ...shortcuts, ...pending.keys },
+    setKey: (id, combo) => setPending((x) => ({ ...x, keys: { ...x.keys, [id]: combo } })),
+  };
+
   const asked = params.get('section') as SectionId | null;
-  const current: SectionId = SECTIONS.some(([id]) => id === asked) ? (asked as SectionId) : 'projet';
+  const current: SectionId = SECTIONS.some(([id]) => id === asked) ? (asked as SectionId) : 'minutage';
   const go = (id: SectionId) => navigate('settings', { section: id });
+  const save = () => {
+    if (commit()) setSavedAt(Date.now());
+  };
+  const cancel = () => {
+    latest.current = EMPTY;
+    setPending(EMPTY);
+  };
 
   return (
-    <div className={s.page}>
+    <div
+      className={s.page}
+      onKeyDownCapture={(e) => {
+        // ⌘S / Ctrl+S : enregistre les paramètres affichés.
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 's' || e.key === 'S') && dirty) {
+          e.preventDefault();
+          e.stopPropagation();
+          save();
+        }
+      }}
+    >
       <nav className={s.nav} aria-label="Rubriques des paramètres">
         <p className={s.navTitle}>Paramètres</p>
         <ul>
@@ -134,152 +247,174 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         </ul>
       </nav>
 
-      <CurrentSection.Provider value={current}>
-      <div className={s.body}>
-        <Section id="projet" title="Projet">
-          <Text label="Titre" value={p.title} onChange={(v) => mutateDoc((d) => void (d.project.title = v))} />
-          <Text label="Version" value={p.version} onChange={(v) => mutateDoc((d) => void (d.project.version = v))} />
-          <Text label="Réalisation" value={p.director ?? ''} onChange={(v) => mutateDoc((d) => void (d.project.director = v || undefined))} />
-          <Text label="Image" value={p.dop ?? ''} placeholder="Directeur ou directrice de la photographie" onChange={(v) => mutateDoc((d) => void (d.project.dop = v || undefined))} />
-          <Row label="Format" hint="Règle aussi le mode de minutage.">
-            <Radio<ProjectFormat>
-              name="Format"
-              value={p.format}
-              onChange={(v) => {
-                // Le format pilote le minutage : clip / pub = TC sur la piste, sinon durée de chaque plan.
-                mutateDoc((d) => applyFormat(d, v));
-              }}
-              options={[
-                ['fiction', 'Fiction'],
-                ['clip', 'Clip'],
-                ['institutionnel', 'Institutionnel'],
-              ]}
-            />
-          </Row>
-        </Section>
+      <Draft.Provider value={api}>
+        <CurrentSection.Provider value={current}>
+          <div className={s.body}>
+            <TimingSection doc={doc} />
+            <CameraSection />
+            <CuttingSection doc={doc} />
+            <VocabularySection />
+            <Section id="assistant" title="Assistant IA">
+              <p className={s.note}>Fournisseur, clé et modèle restent dans ce navigateur : jamais enregistrés dans le projet ni exportés.</p>
+              <AiSettingsForm value={api.ai} onChange={api.setAi} />
+            </Section>
+            <ShortcutsSection />
 
-        <Section id="minutage" title="Minutage">
-          {/* Le mode dépend du format : piste musicale pour un clip ou une publicité, sinon durée ou cumul. */}
-          {musical ? (
-            <Row label="Mode" hint="Clip : chaque action se cale sur la musique.">
-              <span className={s.status}>Piste musicale</span>
-            </Row>
-          ) : (
-            <Row label="Mode">
-              <Radio
-                name="Mode de TC"
-                value={st.tcMode}
-                onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { tcMode: v, tcModeChosen: true }))}
-                options={[
-                  ['duree', 'Durée de chaque plan'],
-                  ['cumulatif', 'Cumulatif'],
-                ]}
-              />
-            </Row>
-          )}
-          {st.tcMode === 'piste' && (
-            <>
-              <Text label="Nom de la piste" value={st.audioTrack?.name ?? ''} onChange={(v) => set('audioTrack', { durationSec: st.audioTrack?.durationSec ?? 0, ...st.audioTrack, name: v })} />
-              <Row label="Durée de la piste">
-                <input
-                  className={s.num}
-                  aria-label="Durée de la piste"
-                  defaultValue={st.audioTrack ? formatTc(st.audioTrack.durationSec) : ''}
-                  placeholder="3:01"
-                  onBlur={(e) => {
-                    const t = parseTc(e.target.value);
-                    if (t?.kind === 'sec') set('audioTrack', { name: st.audioTrack?.name ?? 'Piste', ...st.audioTrack, durationSec: t.sec });
-                  }}
-                />
-              </Row>
-            </>
-          )}
-          {st.tcMode === 'cumulatif' && (
-            <Row label="Granularité" hint="Le TC cumulé s'affiche par séquence ou par action.">
-              <Radio name="Granularité" value={st.tcGranularity} onChange={(v) => set('tcGranularity', v)} options={[['sequence', 'Par séquence'], ['action', 'Par action']]} />
-            </Row>
-          )}
-          <Num label="Action (mots / s)" value={st.actionWordsPerSecond} onChange={(v) => set('actionWordsPerSecond', v)} />
-          <Num label="Dialogue (mots / s)" value={st.dialogueWordsPerSecond} onChange={(v) => set('dialogueWordsPerSecond', v)} />
-          <Num label="Minimum par action (s)" value={st.minActionSeconds} min={0} onChange={(v) => set('minActionSeconds', v)} />
-          <Row label="Essai" htmlFor="reglages-essai">
-            <textarea id="reglages-essai" className={s.text} rows={2} value={sample} onChange={(e) => setSample(e.target.value)} />
-            <p className={s.preview} data-testid="timing-preview">
-              <Hand>
-                ce texte de {action.words} mots = {formatTc(action.sec)}
-              </Hand>{' '}
-              <span>en action · {formatTc(dialogue.sec)} en dialogue</span>
-            </p>
-          </Row>
-        </Section>
-
-        <Section id="camera" title="Caméra">
-          <Row label="Capteur">
-            <Radio<Sensor>
-              name="Capteur"
-              value={st.sensor}
-              onChange={(v) =>
-                mutateDoc((d) => {
-                  d.project.settings.sensor = v;
-                  if (v !== 'custom') d.project.settings.cropFactor = SENSOR_CROP[v];
-                })
-              }
-              options={[
-                ['FF', 'Plein format'],
-                ['S35', 'Super 35'],
-                ['APSC', 'APS-C'],
-                ['M43', 'Micro 4/3'],
-                ['custom', 'Autre'],
-              ]}
-            />
-          </Row>
-          <Num label="Facteur de recadrage" hint="Sert aux équivalences de focale." value={st.cropFactor} onChange={(v) => mutateDoc((d) => void Object.assign(d.project.settings, { cropFactor: v, sensor: 'custom' }))} />
-        </Section>
-
-        <Section id="decoupage" title="Découpage">
-          <Row label="Libellé des valeurs">
-            <Radio name="Libellés" value={st.labelStyle} onChange={(v) => set('labelStyle', v)} options={[['court', 'Court (Taille)'], ['long', 'Long (Plan taille)']]} />
-          </Row>
-          <Row label="Code des plans">
-            <Radio<ShotCodeFormat>
-              name="Code des plans"
-              value={st.shotCodeFormat}
-              onChange={(v) => set('shotCodeFormat', v)}
-              options={[
-                ['{seq}.{shot}', '3.4'],
-                ['{seq}-{shot}', '3-4'],
-                ['{seq}{letter}', '3D'],
-              ]}
-            />
-          </Row>
-          <Row label="Passages du scénario" hint="Où va un passage ajouté depuis le scénario.">
-            <Radio
-              name="Passages du scénario"
-              value={st.scenarioLink ?? 'auto'}
-              onChange={(v) => set('scenarioLink', v)}
-              options={[
-                ['auto', 'Séquence de sa scène'],
-                ['free', 'Au choix'],
-              ]}
-            />
-          </Row>
-          <Row label="Modèles" hint="Ajoute des séquences types au découpage.">
-            <TemplatesMenu doc={doc} variant="outline" />
-          </Row>
-        </Section>
-
-        <VocabularySection doc={doc} />
-        <AssistantSection doc={doc} />
-        <ShortcutsSection />
-        <AppearanceSection />
-      </div>
-      </CurrentSection.Provider>
+            <div className={s.saveBar} data-testid="settings-savebar">
+              <span className={s.saveState} aria-live="polite">
+                {dirty ? (
+                  'Modifications non enregistrées'
+                ) : savedAt ? (
+                  <>
+                    <Check size={14} strokeWidth={1.5} aria-hidden="true" /> Enregistré
+                  </>
+                ) : (
+                  ''
+                )}
+              </span>
+              <Button variant="ghost" disabled={!dirty} onClick={cancel} data-testid="settings-cancel">
+                Annuler
+              </Button>
+              <Button variant="primary" disabled={!dirty} onClick={save} data-testid="settings-save">
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </CurrentSection.Provider>
+      </Draft.Provider>
     </div>
   );
 }
 
+function TimingSection({ doc }: { doc: ProjectDoc }) {
+  const { st, patch } = useSettings();
+  const musical = isMusicalFormat(doc.project.format);
+  const [sample, setSample] = useState('Elle prend l’affiche de la vedette et la regarde longuement, émue.');
+  const action = previewDuration(sample, st);
+  const dialogue = previewDuration(sample, st, true);
+  const [trackText, setTrackText] = useState(st.audioTrack ? formatTc(st.audioTrack.durationSec) : '');
+  return (
+    <Section id="minutage" title="Minutage">
+      {/* Le mode dépend du format : piste musicale pour un clip ou une publicité, sinon durée ou cumul. */}
+      {musical ? (
+        <Row label="Mode" hint="Clip : chaque action se cale sur la musique.">
+          <span className={s.status}>Piste musicale</span>
+        </Row>
+      ) : (
+        <Row label="Mode">
+          <Radio
+            name="Mode de TC"
+            value={st.tcMode}
+            onChange={(v) => patch({ tcMode: v, tcModeChosen: true })}
+            options={[
+              ['duree', 'Durée de chaque plan'],
+              ['cumulatif', 'Cumulatif'],
+            ]}
+          />
+        </Row>
+      )}
+      {st.tcMode === 'piste' && (
+        <>
+          <Text label="Nom de la piste" value={st.audioTrack?.name ?? ''} onChange={(v) => patch({ audioTrack: { durationSec: st.audioTrack?.durationSec ?? 0, ...st.audioTrack, name: v } })} />
+          <Row label="Durée de la piste">
+            <input
+              className={s.num}
+              aria-label="Durée de la piste"
+              value={trackText}
+              placeholder="3:01"
+              onChange={(e) => {
+                setTrackText(e.target.value);
+                const t = parseTc(e.target.value);
+                if (t?.kind === 'sec') patch({ audioTrack: { name: st.audioTrack?.name ?? 'Piste', ...st.audioTrack, durationSec: t.sec } });
+              }}
+              onBlur={() => setTrackText(st.audioTrack ? formatTc(st.audioTrack.durationSec) : '')}
+            />
+          </Row>
+        </>
+      )}
+      {st.tcMode === 'cumulatif' && (
+        <Row label="Granularité" hint="Le TC cumulé s'affiche par séquence ou par action.">
+          <Radio name="Granularité" value={st.tcGranularity} onChange={(v) => patch({ tcGranularity: v })} options={[['sequence', 'Par séquence'], ['action', 'Par action']]} />
+        </Row>
+      )}
+      <Num label="Action (mots / s)" value={st.actionWordsPerSecond} onChange={(v) => patch({ actionWordsPerSecond: v })} />
+      <Num label="Dialogue (mots / s)" value={st.dialogueWordsPerSecond} onChange={(v) => patch({ dialogueWordsPerSecond: v })} />
+      <Num label="Minimum par action (s)" value={st.minActionSeconds} min={0} onChange={(v) => patch({ minActionSeconds: v })} />
+      <Row label="Essai" htmlFor="reglages-essai">
+        <textarea id="reglages-essai" className={s.text} rows={2} value={sample} onChange={(e) => setSample(e.target.value)} />
+        <p className={s.preview} data-testid="timing-preview">
+          <Hand>
+            ce texte de {action.words} mots = {formatTc(action.sec)}
+          </Hand>{' '}
+          <span>en action · {formatTc(dialogue.sec)} en dialogue</span>
+        </p>
+      </Row>
+    </Section>
+  );
+}
+
+function CameraSection() {
+  const { st, patch } = useSettings();
+  return (
+    <Section id="camera" title="Caméra">
+      <Row label="Capteur">
+        <Radio<Sensor>
+          name="Capteur"
+          value={st.sensor}
+          onChange={(v) => patch(v === 'custom' ? { sensor: v } : { sensor: v, cropFactor: SENSOR_CROP[v] })}
+          options={[
+            ['FF', 'Plein format'],
+            ['S35', 'Super 35'],
+            ['APSC', 'APS-C'],
+            ['M43', 'Micro 4/3'],
+            ['custom', 'Autre'],
+          ]}
+        />
+      </Row>
+      <Num label="Facteur de recadrage" hint="Sert aux équivalences de focale." value={st.cropFactor} onChange={(v) => patch({ cropFactor: v, sensor: 'custom' })} />
+    </Section>
+  );
+}
+
+function CuttingSection({ doc }: { doc: ProjectDoc }) {
+  const { st, patch } = useSettings();
+  return (
+    <Section id="decoupage" title="Découpage">
+      <Row label="Libellé des valeurs">
+        <Radio name="Libellés" value={st.labelStyle} onChange={(v) => patch({ labelStyle: v })} options={[['court', 'Court (Taille)'], ['long', 'Long (Plan taille)']]} />
+      </Row>
+      <Row label="Code des plans">
+        <Radio<ShotCodeFormat>
+          name="Code des plans"
+          value={st.shotCodeFormat}
+          onChange={(v) => patch({ shotCodeFormat: v })}
+          options={[
+            ['{seq}.{shot}', '3.4'],
+            ['{seq}-{shot}', '3-4'],
+            ['{seq}{letter}', '3D'],
+          ]}
+        />
+      </Row>
+      <Row label="Passages du scénario" hint="Où va un passage ajouté depuis le scénario.">
+        <Radio
+          name="Passages du scénario"
+          value={st.scenarioLink ?? 'auto'}
+          onChange={(v) => patch({ scenarioLink: v })}
+          options={[
+            ['auto', 'Séquence de sa scène'],
+            ['free', 'Au choix'],
+          ]}
+        />
+      </Row>
+      <Row label="Modèles" hint="Ajoute aussitôt des séquences types au découpage.">
+        <TemplatesMenu doc={doc} variant="outline" />
+      </Row>
+    </Section>
+  );
+}
+
 function ShortcutsSection() {
-  const map = useShortcuts((x) => x.map);
+  const { keys: map, setKey } = useSettings();
   const [capturing, setCapturing] = useState<ShortcutId | null>(null);
   const [error, setError] = useState<{ id: ShortcutId; text: string } | null>(null);
   const changed = SHORTCUTS.some((d) => map[d.id] !== d.combo);
@@ -293,7 +428,7 @@ function ShortcutsSection() {
     if (isReserved(combo)) return setError({ id, text: `${formatCombo(combo)} sert déjà à la saisie.` });
     const other = conflictOf(map, id, combo);
     if (other) return setError({ id, text: `${formatCombo(combo)} est déjà pris par « ${other.label} ».` });
-    setShortcut(id, combo);
+    setKey(id, combo);
     setError(null);
     setCapturing(null);
   };
@@ -322,7 +457,7 @@ function ShortcutsSection() {
                   {capturing === d.id ? 'Appuyez sur les touches…' : formatCombo(map[d.id])}
                 </button>
                 {map[d.id] !== DEFAULT_SHORTCUTS[d.id] && (
-                  <button type="button" className={s.reset} onClick={() => resetShortcuts(d.id)} aria-label={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`} title={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`}>
+                  <button type="button" className={s.reset} onClick={() => setKey(d.id, DEFAULT_SHORTCUTS[d.id])} aria-label={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`} title={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`}>
                     <RotateCcw size={13} strokeWidth={1.4} />
                   </button>
                 )}
@@ -335,7 +470,7 @@ function ShortcutsSection() {
       <p className={s.foot}>
         <span>⌘ = Ctrl sous Windows et Linux.</span>
         {changed && (
-          <Button size="sm" variant="ghost" onClick={() => resetShortcuts()}>
+          <Button size="sm" variant="ghost" onClick={() => SHORTCUTS.forEach((d) => setKey(d.id, DEFAULT_SHORTCUTS[d.id]))}>
             Tout rétablir
           </Button>
         )}
@@ -344,42 +479,21 @@ function ShortcutsSection() {
   );
 }
 
-function AppearanceSection() {
-  const theme = useUi((u) => u.theme);
-  return (
-    <Section id="apparence" title="Apparence">
-      <Row label="Thème">
-        <div className={s.seg} role="radiogroup" aria-label="Thème">
-          {(
-            [
-              ['papier', 'Papier', <Sun key="s" size={13} strokeWidth={1.4} />],
-              ['encre', 'Encre', <Moon key="m" size={13} strokeWidth={1.4} />],
-            ] as const
-          ).map(([v, label, icon]) => (
-            <label key={v} className={theme === v ? s.on : ''}>
-              <input type="radio" name="Thème" checked={theme === v} onChange={() => theme !== v && switchTheme()} />
-              {icon} {label}
-            </label>
-          ))}
-        </div>
-      </Row>
-    </Section>
-  );
-}
-
 const KIND_LABEL: Record<VocabKind, string> = { value: 'Valeurs', angle: 'Angles', movement: 'Mouvements' };
 
-function VocabularySection({ doc }: { doc: ProjectDoc }) {
+function VocabularySection() {
+  const { vocab, setVocab } = useSettings();
   const [kind, setKind] = useState<VocabKind>('movement');
   const [short, setShort] = useState('');
   const [long, setLong] = useState('');
   const [aliases, setAliases] = useState('');
-  const custom = doc.customVocabulary[kind];
+  const custom = vocab[kind];
   const add = () => {
     const sh = short.trim();
     if (!sh) return;
-    mutateDoc((d) => {
-      d.customVocabulary[kind].push({
+    setVocab(kind, [
+      ...custom,
+      {
         key: `custom-${newId()}`,
         short: sh,
         long: long.trim() || sh,
@@ -387,8 +501,8 @@ function VocabularySection({ doc }: { doc: ProjectDoc }) {
           .split(',')
           .map((a) => a.trim())
           .filter(Boolean),
-      });
-    });
+      },
+    ]);
     setShort('');
     setLong('');
     setAliases('');
@@ -397,7 +511,7 @@ function VocabularySection({ doc }: { doc: ProjectDoc }) {
     <Section id="vocabulaire" title="Vocabulaire">
       <Radio name="Liste" value={kind} onChange={setKind} options={[['value', 'Valeurs'], ['angle', 'Angles'], ['movement', 'Mouvements']]} />
       <p className={s.note}>
-        {vocabularyFor(kind).length - custom.length} termes intégrés · {custom.length} personnalisé{custom.length > 1 ? 's' : ''}, proposés dans les suggestions de la grille.
+        {vocabularyFor(kind).length} termes intégrés · {custom.length} personnalisé{custom.length > 1 ? 's' : ''}, proposés dans les suggestions de la grille.
       </p>
       <ul className={s.vocab}>
         {custom.map((e) => (
@@ -405,13 +519,7 @@ function VocabularySection({ doc }: { doc: ProjectDoc }) {
             <strong>{e.short}</strong>
             {e.long !== e.short && <em>{e.long}</em>}
             {e.aliases.length > 0 && <span>alias : {e.aliases.join(', ')}</span>}
-            <Button
-              variant="icon"
-              size="sm"
-              aria-label={`Retirer ${e.short}`}
-              icon={<X size={12} />}
-              onClick={() => mutateDoc((d) => void (d.customVocabulary[kind] = d.customVocabulary[kind].filter((x) => x.key !== e.key)))}
-            />
+            <Button variant="icon" size="sm" aria-label={`Retirer ${e.short}`} icon={<X size={12} />} onClick={() => setVocab(kind, custom.filter((x) => x.key !== e.key))} />
           </li>
         ))}
       </ul>
@@ -430,46 +538,6 @@ function VocabularySection({ doc }: { doc: ProjectDoc }) {
           Ajouter
         </Button>
       </form>
-    </Section>
-  );
-}
-
-function AssistantSection({ doc }: { doc: ProjectDoc }) {
-  const [key, setKey] = useState(getApiKey());
-  const [saved, setSaved] = useState(!!getApiKey());
-  return (
-    <Section id="assistant" title="Assistant IA">
-      <p className={s.note}>Propose un découpage de départ pour une séquence. La clé reste dans ce navigateur : jamais enregistrée dans le projet ni exportée.</p>
-      <Row label="Clé API Anthropic" htmlFor="reglages-cle">
-        <form
-          className={s.inline}
-          onSubmit={(e) => {
-            e.preventDefault();
-            setApiKey(key);
-            setSaved(!!key.trim());
-          }}
-        >
-          <input id="reglages-cle" className={s.text} type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-ant-…" aria-label="Clé API Anthropic" />
-          <Button type="submit" variant="outline">
-            {saved ? 'Mettre à jour' : 'Enregistrer'}
-          </Button>
-          {saved && (
-            <Button
-              onClick={() => {
-                setApiKey('');
-                setKey('');
-                setSaved(false);
-              }}
-            >
-              Oublier la clé
-            </Button>
-          )}
-        </form>
-        <p className={s.status}>{saved ? `Assistant actif (modèle ${ASSISTANT_MODEL}).` : 'Assistant désactivé.'}</p>
-      </Row>
-      <Row label="Proposer un découpage" hint="Pour la séquence sélectionnée dans la grille.">
-        <AssistantButton doc={doc} />
-      </Row>
     </Section>
   );
 }

@@ -14,19 +14,7 @@ import { useReadOnly } from '../../store/share';
 import { useUi } from '../../store/uiStore';
 import s from './MobileCut.module.css';
 
-/** Écran de téléphone ? (largeur et pointeur tactile) */
-export function useIsMobile(): boolean {
-  const query = '(max-width: 700px)';
-  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia?.(query);
-    if (!mq) return;
-    const on = () => setMobile(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return mobile;
-}
+export { useIsMobile } from '../../ui/useIsMobile';
 
 const label = (c: ColumnKey) => {
   const l = COLUMN_DEFS[c].label;

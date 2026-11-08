@@ -28,9 +28,11 @@ import { HomePage } from '../features/shell/HomePage';
 import { SettingsPage } from '../features/shell/SettingsPage';
 import { Sidebar } from '../features/shell/Sidebar';
 import { Topbar } from '../features/shell/Topbar';
+import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { useIsMobile } from '../ui/useIsMobile';
 import { lastProjectId, openDoc, openStoredProject, saveToFile, startAutosave } from '../store/persistence';
 import { redo, undo, useDoc, useHistory } from '../store/projectStore';
-import { useUi } from '../store/uiStore';
+import { toggleSidebar, useUi } from '../store/uiStore';
 import { Button } from '../ui/Button';
 import { ContextMenuHost } from '../ui/ContextMenu';
 import { DialogHost } from '../ui/Modal';
@@ -79,20 +81,12 @@ export function App() {
   const theme = useUi((u) => u.theme);
   const saveStatus = useUi((u) => u.saveStatus);
   const sidebarOpen = useUi((u) => u.sidebarOpen);
-  const toggleSidebar = () => {
-    const next = !useUi.getState().sidebarOpen;
-    setUi({ sidebarOpen: next });
-    try {
-      localStorage.setItem('ds-sidebar', next ? '1' : '0');
-    } catch {
-      /* stockage indisponible : le choix vaut pour la session */
-    }
-  };
   const setUi = useUi((u) => u.set);
   const { canUndo, canRedo } = useHistory();
   const [booted, setBooted] = useState(false);
   const readOnly = useReadOnly();
   const canCopy = useCanCopy();
+  const phone = useIsMobile();
 
   useEffect(() => {
     const stop = startAutosave();
@@ -158,8 +152,9 @@ export function App() {
     );
   }
 
-  const title = doc?.project.title ?? '';
   const showSidebar = route !== 'home' && !!doc;
+  // Ordinateur : menu déplié ou réduit en barre d'icônes. Téléphone : tiroir ouvert ou fermé.
+  const sidebarShown = showSidebar && (sidebarOpen || !phone);
 
   return (
     <div className={s.app} data-readonly={readOnly || undefined} data-nocopy={!canCopy || undefined}>
@@ -172,8 +167,8 @@ export function App() {
       {route !== 'home' && (
         <Topbar
           sidebarOpen={sidebarOpen}
-          onToggleSidebar={showSidebar ? toggleSidebar : undefined}
-          projectTitle={title}
+          onToggleSidebar={showSidebar ? () => toggleSidebar() : undefined}
+          doc={doc}
           saveStatus={doc ? SAVE_LABEL[saveStatus] : ''}
           canUndo={canUndo}
           canRedo={canRedo}
@@ -187,17 +182,10 @@ export function App() {
       )}
       <GuestBanner />
       <div className={s.body}>
-        {showSidebar && sidebarOpen && doc && (
-          <div className={s.scrim} onClick={toggleSidebar} aria-hidden="true" />
+        {sidebarShown && phone && <div className={s.scrim} onClick={() => toggleSidebar(false)} aria-hidden="true" />}
+        {sidebarShown && (
+          <Sidebar activeRoute={route} collapsed={!sidebarOpen && !phone} counts={{ checks: checkCount }} onNavigate={phone ? () => toggleSidebar(false) : undefined} />
         )}
-        {showSidebar && sidebarOpen && doc && <Sidebar
-            projectTitle={title}
-            activeRoute={route}
-            extraLinks={[
-              { label: 'Registre', route: 'registry', count: doc.project.sequenceIds.length },
-              { label: 'Vérifications', route: 'checks', count: checkCount },
-            ]}
-          />}
         <main
           className={s.main}
           id="contenu"
@@ -211,6 +199,7 @@ export function App() {
             </ErrorBoundary>
           )}
         </main>
+        {doc && !readOnly && route !== 'home' && <AssistantPanel />}
       </div>
       <Toasts />
       <DialogHost />

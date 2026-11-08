@@ -21,7 +21,8 @@ body::before {
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-::selection { background: rgba(156, 61, 43, 0.18); }
+::selection { background: rgba(17, 19, 24, 0.14); }
+:root[data-theme='encre'] ::selection { background: rgba(242, 243, 245, 0.22); }
 
 .hand { font-family: var(--font-ui); color: var(--ink-soft); font-size: 1em; font-weight: 500; line-height: 1.2; }
 .mono { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; }

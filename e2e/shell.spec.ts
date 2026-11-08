@@ -35,18 +35,61 @@ test('aide des raccourcis « ? » et thème encre', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'encre');
 });
 
-test('interface épurée : ni jauge, ni validation, ni intitulés de page ; menu latéral masquable', async ({ page }) => {
+test('interface épurée : ni jauge, ni validation, ni intitulés de page ; menu latéral réduit en icônes', async ({ page }) => {
   await page.goto('/#/grid?seed=rav3');
-  await expect(page.getByRole('button', { name: /Découpage technique/ })).not.toContainText('%');
+  const step = page.getByRole('button', { name: /Découpage technique/ });
+  const label = page.getByRole('navigation').getByText('Découpage technique', { exact: true });
+  await expect(step).not.toContainText('%');
   await expect(page.getByText(/étape validée/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Valider l’étape' })).toHaveCount(0);
   await expect(page.locator('.page-title')).toHaveCount(0);
+  await expect(label).toBeVisible();
+  // Réduit : les icônes restent, avec leur nom pour l'infobulle et les lecteurs d'écran.
   await page.getByTestId('toggle-sidebar').click();
-  await expect(page.getByRole('button', { name: /Découpage technique/ })).toHaveCount(0);
+  await expect(label).toBeHidden();
+  await expect(step).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('button', { name: /Découpage technique/ })).toHaveCount(0);
+  await expect(label).toBeHidden();
+  await step.click();
+  await expect(page).toHaveURL(/#\/grid/);
   await page.getByTestId('toggle-sidebar').click();
-  await expect(page.getByRole('button', { name: /Découpage technique/ })).toBeVisible();
+  await expect(label).toBeVisible();
+});
+
+test('menu du projet : titre, version et format modifiables en haut de l’écran', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByTestId('project-menu').click();
+  const panel = page.getByTestId('project-panel');
+  await panel.getByLabel('Titre').fill('La Consigne (montage)');
+  await panel.getByLabel('Version').fill('V2');
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId('project-menu')).toContainText('La Consigne (montage)');
+  await expect(page.getByTestId('project-menu')).toContainText('V2');
+  // Un seul pas d'annulation par champ, pas un par lettre.
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('project-menu')).toContainText('V1');
+  await expect(page.getByTestId('project-menu')).toContainText('La Consigne (montage)');
+});
+
+test('paramètres : rien n’est appliqué avant « Enregistrer », « Annuler » revient en arrière', async ({ page }) => {
+  await page.goto('/#/settings?seed=fiction&section=decoupage');
+  const doc = () => page.evaluate(() => (window as unknown as { __ds: { doc: () => { project: { settings: { shotCodeFormat: string } } } } }).__ds.doc().project.settings.shotCodeFormat);
+  await expect(page.getByTestId('settings-save')).toBeDisabled();
+  await page.getByRole('radiogroup', { name: 'Code des plans' }).getByText('3D').click();
+  await expect(page.getByTestId('settings-savebar')).toContainText('Modifications non enregistrées');
+  expect(await doc()).toBe('{seq}.{shot}');
+  await page.getByTestId('settings-cancel').click();
+  await expect(page.getByRole('radiogroup', { name: 'Code des plans' }).getByRole('radio', { name: '3.4' })).toBeChecked();
+  await page.getByRole('radiogroup', { name: 'Code des plans' }).getByText('3-4').click();
+  await page.getByTestId('settings-save').click();
+  await expect(page.getByTestId('settings-savebar')).toContainText('Enregistré');
+  expect(await doc()).toBe('{seq}-{shot}');
+  // Quitter la page sans enregistrer garde le travail.
+  await page.getByRole('radiogroup', { name: 'Code des plans' }).getByText('3D').click();
+  await page.getByRole('button', { name: /Découpage technique/ }).click();
+  await expect(page.locator('[data-cell="0:number"]')).toBeVisible();
+  expect(await doc()).toBe('{seq}{letter}');
 });
 
 test('états vides et lien d’évitement', async ({ page }) => {

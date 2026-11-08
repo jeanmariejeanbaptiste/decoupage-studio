@@ -1,87 +1,91 @@
 import { useCanCopy, useReadOnly } from '../../store/share';
-import { useShortcutLabel } from '../../store/shortcuts';
-import { Settings } from 'lucide-react';
+import { CalendarDays, ClipboardList, Clapperboard, Database, Download, Feather, Images, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
-import { PREP_STEPS } from './steps';
+import { PREP_STEPS, STEP_GROUPS } from './steps';
 import s from './Sidebar.module.css';
 
+const ICON = { size: 16, strokeWidth: 1.25 } as const;
+const STEP_ICONS: Partial<Record<Route, ReactNode>> = {
+  intention: <Feather {...ICON} />,
+  scenario: <ScrollText {...ICON} />,
+  breakdown: <ListChecks {...ICON} />,
+  grid: <Clapperboard {...ICON} />,
+  storyboard: <Images {...ICON} />,
+  floorplan: <Map {...ICON} />,
+  equipment: <Package {...ICON} />,
+  schedule: <CalendarDays {...ICON} />,
+  callsheet: <ClipboardList {...ICON} />,
+};
+
 interface Props {
-  projectTitle: string;
   activeRoute: Route;
-  extraLinks?: ReadonlyArray<{ label: string; route: Route; count?: number }>;
+  /** Menu replié en barre d'icônes (les libellés restent en infobulle et pour les lecteurs d'écran). */
+  collapsed?: boolean;
+  counts?: { registry?: number; checks?: number };
+  /** Après un choix (téléphone : le tiroir se referme). */
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ projectTitle, activeRoute, extraLinks = [] }: Props) {
+/** Menu latéral : les étapes dans l'ordre de la production, regroupées ; projet et paramètres en bas. */
+export function Sidebar({ activeRoute, collapsed = false, counts = {}, onNavigate }: Props) {
   const readOnly = useReadOnly();
   // Invité sans droit de copie : rien à exporter.
   const canCopy = useCanCopy();
-  const keys = { palette: useShortcutLabel('palette'), newShot: useShortcutLabel('newShot'), undo: useShortcutLabel('undo'), help: useShortcutLabel('help') };
+  const item = (route: Route, label: string, mark: ReactNode, count?: number, testId?: string) => {
+    const active = activeRoute === route;
+    return (
+      <li key={route}>
+        <button
+          type="button"
+          className={[s.step, active ? s.active : ''].join(' ')}
+          aria-current={active ? 'page' : undefined}
+          aria-label={collapsed ? label : undefined}
+          title={collapsed ? label : undefined}
+          onClick={() => {
+            navigate(route);
+            onNavigate?.();
+          }}
+          data-testid={testId}
+        >
+          <span className={s.mark} aria-hidden="true">
+            {mark}
+          </span>
+          <span className={s.label}>{label}</span>
+          {count !== undefined && count > 0 && <em className={s.count}>{count}</em>}
+        </button>
+      </li>
+    );
+  };
   return (
-    <aside className={[s.sidebar, 'no-print'].join(' ')} aria-label="Processus de préparation">
-      <div className={s.head}>
-        <h2 className={s.project}>{projectTitle}</h2>
-      </div>
-
+    <aside className={[s.sidebar, collapsed ? s.collapsed : '', 'no-print'].join(' ')} aria-label="Étapes du projet" data-collapsed={collapsed || undefined}>
       <nav className={s.nav}>
-        <p className={s.section}>Processus de préparation</p>
-        <ol className={s.steps}>
-          {PREP_STEPS.filter((step) => canCopy || step.route !== 'export').map((step) => {
-            const active = activeRoute === step.route;
-            return (
-              <li key={step.n}>
-                <button
-                  type="button"
-                  className={[s.step, active ? s.active : '', step.available ? '' : s.soon].join(' ')}
-                  aria-current={active ? 'page' : undefined}
-                  onClick={() => navigate(step.route)}
-                >
-                  <span className={s.num} aria-hidden="true">
-                    {step.n}
-                  </span>
-                  <span className={s.label}>{step.label}</span>
-                  {!step.available && <span className={s.soonTag}>bientôt</span>}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-
-        {extraLinks.length > 0 && (
-          <>
-            <p className={s.section}>Base du projet</p>
-            <ul className={s.steps}>
-              {extraLinks.map((l) => (
-                <li key={l.route}>
-                  <button
-                    type="button"
-                    className={[s.step, activeRoute === l.route ? s.active : ''].join(' ')}
-                    aria-current={activeRoute === l.route ? 'page' : undefined}
-                    onClick={() => navigate(l.route)}
-                  >
-                    <span className={s.dot} aria-hidden="true" />
-                    <span className={s.label}>{l.label}</span>
-                    {l.count !== undefined && <em className={s.pct}>{l.count}</em>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+        {STEP_GROUPS.map((g) => (
+          <div key={g.label} className={s.group}>
+            <p className={s.section}>{g.label}</p>
+            <ol className={s.steps}>
+              {g.steps.map((n) => {
+                const step = PREP_STEPS.find((x) => x.n === n)!;
+                return item(step.route, step.label, STEP_ICONS[step.route]);
+              })}
+            </ol>
+          </div>
+        ))}
+        <div className={s.group}>
+          <p className={s.section}>Projet</p>
+          <ul className={s.steps}>
+            {item('registry', 'Registre', <Database {...ICON} />, counts.registry)}
+            {item('checks', 'Vérifications', <ShieldCheck {...ICON} />, counts.checks)}
+            {canCopy && item('export', 'Exporter', <Download {...ICON} />)}
+          </ul>
+        </div>
       </nav>
 
       <div className={s.foot}>
-        {!readOnly && (
-          <button type="button" className={s.settings} onClick={() => navigate('settings')}>
-            <Settings size={15} strokeWidth={1.25} /> Paramètres
-          </button>
-        )}
-        <dl className={s.keys}>
-          <div><dt>{keys.palette}</dt><dd>commandes</dd></div>
-          {!readOnly && <div><dt>{keys.newShot}</dt><dd>nouveau plan</dd></div>}
-          {!readOnly && <div><dt>{keys.undo}</dt><dd>annuler</dd></div>}
-          <div><dt>{keys.help}</dt><dd>raccourcis</dd></div>
-        </dl>
+        <ul className={s.steps}>
+          {!readOnly && item('settings', 'Paramètres', <Settings {...ICON} />)}
+        </ul>
       </div>
     </aside>
   );

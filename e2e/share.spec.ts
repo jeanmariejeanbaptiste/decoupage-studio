@@ -89,7 +89,9 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await expect(guest.getByTestId('shot-row')).toHaveCount(0);
   await expect(guest.getByRole('button', { name: 'Colonnes' })).toBeHidden();
   await expect(guest.getByRole('button', { name: /^Annuler/ })).toHaveCount(0);
-  await expect(guest.getByRole('button', { name: 'Réglages' })).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Paramètres' })).toHaveCount(0);
+  await expect(guest.getByTestId('project-menu')).toHaveCount(0);
+  await expect(guest.getByTestId('assistant-toggle')).toHaveCount(0);
   // Sans droit de copie : pas d'export.
   await expect(guest.getByRole('navigation').getByText('Exporter', { exact: true })).toHaveCount(0);
   await expect(guest.getByRole('button', { name: 'Exporter' })).toBeHidden();

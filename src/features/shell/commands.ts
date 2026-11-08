@@ -5,7 +5,8 @@ import { saveToFile, openFromFile } from '../../store/persistence';
 import { redo, undo, useProjectStore } from '../../store/projectStore';
 import { redoHome, undoHome } from '../../store/homeHistory';
 import { useShare } from '../../store/share';
-import { useUi } from '../../store/uiStore';
+import { toggleSidebar, useUi } from '../../store/uiStore';
+import { toggleAssistant } from '../assistant/assistant';
 import {
   deleteCurrentShots,
   deleteSequenceOf,
@@ -26,6 +27,8 @@ export interface Command {
   needsProject?: boolean;
   /** Emporte le projet hors de l'application (enregistrement, export) : refusé à l'invité sans copie. */
   copies?: boolean;
+  /** Modifie le projet : refusé à l'invité en lecture seule. */
+  edits?: boolean;
 }
 
 const toGrid = (fn: () => void) => () => {
@@ -65,15 +68,28 @@ export const COMMANDS: readonly Command[] = [
   { id: 'go-home', group: 'Aller à', label: 'Accueil — projets', run: () => navigate('home') },
   { id: 'go-intention', group: 'Aller à', label: 'Note d’intention', run: () => navigate('intention'), needsProject: true },
   { id: 'go-scenario', group: 'Aller à', label: 'Scénario', run: () => navigate('scenario'), needsProject: true },
+  { id: 'go-breakdown', group: 'Aller à', label: 'Dépouillement', run: () => navigate('breakdown'), needsProject: true },
   { id: 'go-grid', group: 'Aller à', label: 'Découpage technique', run: () => navigate('grid'), needsProject: true },
+  { id: 'go-storyboard', group: 'Aller à', label: 'Storyboard', run: () => navigate('storyboard'), needsProject: true },
+  { id: 'go-floorplan', group: 'Aller à', label: 'Plan au sol', run: () => navigate('floorplan'), needsProject: true },
   { id: 'go-registry', group: 'Aller à', label: 'Registre', run: () => navigate('registry'), needsProject: true },
   { id: 'go-checks', group: 'Aller à', label: 'Vérifications', run: () => navigate('checks'), needsProject: true },
   { id: 'go-equipment', group: 'Aller à', label: 'Listes de matériel', run: () => navigate('equipment'), needsProject: true },
+  { id: 'go-schedule', group: 'Aller à', label: 'Plan de travail', run: () => navigate('schedule'), needsProject: true },
+  { id: 'go-callsheet', group: 'Aller à', label: 'Feuille de service', run: () => navigate('callsheet'), needsProject: true },
   { id: 'go-export', group: 'Aller à', label: 'Exporter', run: () => navigate('export'), needsProject: true },
   { id: 'go-settings', group: 'Aller à', label: 'Paramètres', run: () => navigate('settings'), needsProject: true },
   { id: 'pdf', group: 'Fichier', label: 'Exporter en PDF', run: () => navigate('print', { auto: '1' }), needsProject: true, copies: true },
   { id: 'save', group: 'Fichier', label: 'Enregistrer le fichier .decoupage', shortcut: 'save', run: () => void saveToFile(), needsProject: true, copies: true },
   { id: 'open', group: 'Fichier', label: 'Ouvrir un fichier .decoupage…', run: () => void openFromFile().then((ok) => ok && navigate('grid')) },
+  { id: 'assistant', group: 'Affichage', label: 'Assistant IA', run: () => toggleAssistant(), needsProject: true, edits: true },
+  {
+    id: 'sidebar',
+    group: 'Affichage',
+    label: 'Réduire / déplier le menu latéral',
+    run: () => toggleSidebar(),
+    needsProject: true,
+  },
   {
     id: 'theme',
     group: 'Affichage',
@@ -92,5 +108,6 @@ export function availableCommands(): Command[] {
   const has = !!useProjectStore.getState().doc;
   const sh = useShare.getState();
   const canCopy = sh.role !== 'guest' || sh.keep;
-  return COMMANDS.filter((c) => (has || !c.needsProject) && (canCopy || !c.copies));
+  const readOnly = sh.role === 'guest' && sh.mode === 'read';
+  return COMMANDS.filter((c) => (has || !c.needsProject) && (canCopy || !c.copies) && (!readOnly || !c.edits));
 }

@@ -141,6 +141,8 @@ export function startAutosave(): () => void {
     timer = setTimeout(() => void flushSave(), AUTOSAVE_DELAY);
   });
   const onHide = () => {
+    // Saisie en attente (texte, réglages non validés) appliquée avant la fermeture de l'onglet.
+    flushEditors();
     if (pending) void flushSave();
   };
   window.addEventListener('pagehide', onHide);

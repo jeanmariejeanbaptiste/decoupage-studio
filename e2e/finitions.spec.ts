@@ -65,9 +65,9 @@ test('suppression : plan (annulable) et séquence volumineuse protégée', async
 test('changer le type de projet change le minutage', async ({ page }) => {
   await page.goto('/#/grid?seed=rav3');
   await expect(page.getByTestId('track-bar')).toBeVisible();
-  await page.goto('/#/settings');
+  await page.getByTestId('project-menu').click();
   await page.getByRole('radiogroup', { name: 'Format' }).getByText('Fiction').click();
-  await page.goto('/#/grid');
+  await page.keyboard.press('Escape');
   await expect(page.getByTestId('track-bar')).toHaveCount(0);
   await expect(page.getByTestId('grid-footer')).toContainText('durée totale');
   // Chaque plan affiche sa propre durée, et non une plage.

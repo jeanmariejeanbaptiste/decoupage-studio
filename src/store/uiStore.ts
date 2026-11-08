@@ -97,3 +97,14 @@ export const useUi = create<UiState>()((set) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
   set: (p) => set(p),
 }));
+
+/** Déplie ou réduit le menu latéral (mémorisé sur ordinateur ; sur téléphone, le tiroir se referme à chaque page). */
+export function toggleSidebar(open = !useUi.getState().sidebarOpen): void {
+  useUi.getState().set({ sidebarOpen: open });
+  if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 700px)').matches) return;
+  try {
+    localStorage.setItem('ds-sidebar', open ? '1' : '0');
+  } catch {
+    /* stockage indisponible : le choix vaut pour la session */
+  }
+}

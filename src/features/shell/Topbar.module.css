@@ -1,31 +1,33 @@
 .topbar {
   height: var(--topbar-h);
   flex: 0 0 var(--topbar-h);
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
-  padding: 0 12px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
   position: relative;
-  z-index: 5;
+  z-index: 50;
 }
-.left, .right { display: flex; align-items: center; gap: 2px; }
-.right { justify-content: flex-end; gap: 6px; }
-.status { margin-left: 10px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
-.center { display: flex; align-items: baseline; gap: 8px; font-size: 14px; white-space: nowrap; }
-.app { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
-.sep { color: var(--ink-soft); }
-.title { color: var(--ink-soft); font-style: italic; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; }
+.left, .right { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.left { flex: 1 1 auto; }
+.right { flex: none; gap: 6px; }
+.group { display: flex; align-items: center; gap: 0; padding-right: 6px; margin-right: 2px; border-right: 1px solid var(--rule); }
+.status { margin-left: 6px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.assistant { height: 30px; padding: 0 10px; border-color: var(--rule); font-size: 13px; }
+.assistant:hover:not(:disabled) { border-color: var(--ink-soft); }
+.pressed, .pressed:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 
-/* Téléphone : l'essentiel seulement. */
-@media (max-width: 700px) {
-  .topbar { grid-template-columns: auto 1fr auto; gap: 6px; padding: 0 6px; }
-  .status, .app, .sep { display: none; }
-  .center { justify-content: center; min-width: 0; }
-  .title { max-width: 100%; font-style: normal; color: var(--ink); font-weight: 600; }
+@media (max-width: 1100px) {
+  .status { display: none; }
 }
+/* Téléphone : menu, projet, assistant et partage ; le reste au clavier et dans la palette. */
 @media (max-width: 700px) {
-  /* Enregistrer et Rétablir sont aussi au clavier et dans la palette ; thème et réglages dans le menu. */
-  .left > button:nth-of-type(3), .left > button:nth-of-type(5), .right > :not(:first-child) { display: none; }
+  .topbar { gap: 4px; padding: 0 4px; }
+  .home, .secondary { display: none; }
+  .group { border-right: 0; padding-right: 0; }
+  .assistantLabel { display: none; }
+  .assistant { width: 32px; padding: 0; justify-content: center; }
 }
