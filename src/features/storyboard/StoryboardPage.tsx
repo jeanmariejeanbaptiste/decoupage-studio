@@ -45,7 +45,8 @@ export function StoryboardImaging({ doc, imaging, onDone }: { doc: ProjectDoc; i
       .finally(onDone);
   }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={imagesRef}>
+    // Papier blanc quel que soit le thème : l'export ne prend jamais les couleurs de l'écran sombre.
+    <div ref={imagesRef} className="paper-light">
       <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={[s.print, s.imaging].join(' ')} orientation={imaging.orientation} />
     </div>
   );
@@ -77,7 +78,7 @@ export function StoryboardPreview({ doc }: { doc: ProjectDoc }) {
   if (!allShots.length) return <p className={s.previewEmpty}>Aucun plan à mettre en planche.</p>;
   return (
     <div ref={box} className={s.previewBox} data-testid="storyboard-preview">
-      <div style={{ zoom }}>
+      <div style={{ zoom }} className="paper-light">
         <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={[s.print, s.previewSheets].join(' ')} orientation={orientation} visible />
       </div>
     </div>
