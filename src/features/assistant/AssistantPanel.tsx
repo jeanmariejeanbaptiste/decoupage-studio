@@ -3,7 +3,7 @@ import { ArrowUp, ExternalLink, RotateCcw, Square, SquarePen, X } from 'lucide-r
 import { undo, useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { askAssistant, newConversation, stopAssistant, toggleAssistant, useAssistant } from './assistant';
-import { PROVIDERS, isConfigured, loadAiSettings, modelOf, providerInfo, saveAiSettings, type AiSettings, type ProviderId } from './providers';
+import { PROVIDERS, isConfigured, loadAiSettings, modelOf, probeProvider, providerInfo, saveAiSettings, type AiSettings, type ProviderId } from './providers';
 import s from './AssistantPanel.module.css';
 
 const IC = { size: 15, strokeWidth: 1.4 } as const;
@@ -28,6 +28,31 @@ export function AiSettingsForm({ onSaved, compact = false, value, onChange }: Fo
     setSaved(false);
   };
   const setFor = (field: 'keys' | 'models', v: string) => set({ [field]: { ...draft[field], [draft.provider]: v } } as Partial<AiSettings>);
+  // Clé saisie : essai réel, et le modèle le plus rapide qui répond est choisi d'office.
+  const [probe, setProbe] = useState<{ state: 'busy' | 'ok' | 'error'; text: string; models?: string[] } | null>(null);
+  const key = draft.keys[draft.provider]?.trim() ?? '';
+  const latest = useRef(draft);
+  latest.current = draft;
+  useEffect(() => {
+    if (!key && !info.keyOptional) return setProbe(null);
+    if (!info.keyOptional && key.length < 12) return;
+    const ctrl = new AbortController();
+    const t = window.setTimeout(() => {
+      setProbe({ state: 'busy', text: 'Vérification de la clé…' });
+      probeProvider(latest.current, ctrl.signal)
+        .then((r) => {
+          const cur = latest.current;
+          if (cur.models[cur.provider] !== r.model) set({ models: { ...cur.models, [cur.provider]: r.model } });
+          setProbe({ state: 'ok', text: `Clé valide · ${r.model} répond`, models: r.models });
+        })
+        .catch((e: Error) => e.name !== 'AbortError' && setProbe({ state: 'error', text: e.message }));
+    }, 600);
+    return () => {
+      window.clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [draft.provider, key, draft.baseUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  const suggestions = probe?.models?.length ? probe.models : info.models;
   return (
     <form
       className={[s.form, compact ? s.compact : ''].join(' ')}
@@ -67,12 +92,17 @@ export function AiSettingsForm({ onSaved, compact = false, value, onChange }: Fo
           )}
         </span>
         <input type="password" autoComplete="off" value={draft.keys[draft.provider] ?? ''} onChange={(e) => setFor('keys', e.target.value)} placeholder={info.keyPlaceholder} aria-label={info.keyLabel} />
+        {probe && (
+          <span className={[s.probe, probe.state === 'error' ? s.probeError : ''].join(' ')} role="status" data-testid="ai-probe">
+            {probe.text}
+          </span>
+        )}
       </label>
       <label>
         <span>Modèle</span>
         <input list={`ai-models-${draft.provider}`} value={draft.models[draft.provider] ?? ''} placeholder={info.models[0] ?? 'nom du modèle'} onChange={(e) => setFor('models', e.target.value)} aria-label="Modèle" />
         <datalist id={`ai-models-${draft.provider}`}>
-          {info.models.map((m) => (
+          {suggestions.map((m) => (
             <option key={m} value={m} />
           ))}
         </datalist>

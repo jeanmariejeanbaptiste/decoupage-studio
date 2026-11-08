@@ -21,11 +21,11 @@ export interface ProviderInfo {
 }
 
 export const PROVIDERS: readonly ProviderInfo[] = [
-  { id: 'anthropic', label: 'Anthropic (Claude)', models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], keyLabel: 'Clé API Anthropic', keyPlaceholder: 'sk-ant-…', keyUrl: 'https://platform.claude.com/settings/keys' },
-  { id: 'openai', label: 'OpenAI', models: ['gpt-5', 'gpt-5-mini'], keyLabel: 'Clé API OpenAI', keyPlaceholder: 'sk-…', baseUrl: 'https://api.openai.com/v1', keyUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'gemini', label: 'Google Gemini', models: ['gemini-2.5-pro', 'gemini-2.5-flash'], keyLabel: 'Clé API Gemini', keyPlaceholder: 'AIza…', keyUrl: 'https://aistudio.google.com/apikey' },
-  { id: 'mistral', label: 'Mistral', models: ['mistral-large-latest', 'mistral-medium-latest'], keyLabel: 'Clé API Mistral', keyPlaceholder: '', baseUrl: 'https://api.mistral.ai/v1', keyUrl: 'https://console.mistral.ai/home?profile_dialog=api-keys' },
-  { id: 'openrouter', label: 'OpenRouter', models: ['anthropic/claude-opus-5.5', 'openai/gpt-5', 'google/gemini-2.5-pro'], keyLabel: 'Clé API OpenRouter', keyPlaceholder: 'sk-or-…', baseUrl: 'https://openrouter.ai/api/v1', keyUrl: 'https://openrouter.ai/settings/keys' },
+  { id: 'anthropic', label: 'Anthropic (Claude)', models: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'], keyLabel: 'Clé API Anthropic', keyPlaceholder: 'sk-ant-…', keyUrl: 'https://platform.claude.com/settings/keys' },
+  { id: 'openai', label: 'OpenAI', models: ['gpt-5-mini', 'gpt-5'], keyLabel: 'Clé API OpenAI', keyPlaceholder: 'sk-…', baseUrl: 'https://api.openai.com/v1', keyUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'gemini', label: 'Google Gemini', models: ['gemini-2.5-flash', 'gemini-2.5-pro'], keyLabel: 'Clé API Gemini', keyPlaceholder: 'AIza…', keyUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'mistral', label: 'Mistral', models: ['mistral-small-latest', 'mistral-medium-latest', 'mistral-large-latest'], keyLabel: 'Clé API Mistral', keyPlaceholder: '', baseUrl: 'https://api.mistral.ai/v1', keyUrl: 'https://console.mistral.ai/home?profile_dialog=api-keys' },
+  { id: 'openrouter', label: 'OpenRouter', models: ['anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash', 'openai/gpt-5-mini'], keyLabel: 'Clé API OpenRouter', keyPlaceholder: 'sk-or-…', baseUrl: 'https://openrouter.ai/api/v1', keyUrl: 'https://openrouter.ai/settings/keys' },
   { id: 'custom', label: 'Autre (compatible OpenAI)', models: [], keyLabel: 'Clé API (facultative)', keyPlaceholder: '', baseUrl: 'http://localhost:11434/v1', keyOptional: true },
 ];
 
@@ -152,8 +152,8 @@ function anthropicSession(key: string, model: string, system: string, tools: rea
             model,
             max_tokens: 16000,
             system,
-            tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema as { type: 'object' } })),
-            tool_choice: { type: 'auto' },
+            // Sans outils (essai de la clé) : ni liste vide ni choix d'outil, que l'API refuserait.
+            ...(tools.length ? { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema as { type: 'object' } })), tool_choice: { type: 'auto' as const } } : {}),
             messages: messages as never,
             ...(/^claude-(opus|haiku)-5-5/.test(model) ? { output_config: { effort: 'medium' as const } } : {}),
             ...fallback,
@@ -198,8 +198,7 @@ function openAiSession(provider: ProviderId, baseUrl: string, key: string, model
         {
           model,
           messages,
-          tools: tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.schema } })),
-          tool_choice: 'auto',
+          ...(tools.length ? { tools: tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.schema } })), tool_choice: 'auto' } : {}),
         },
         signal,
       )) as { choices?: Array<{ message?: Msg & { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> }; finish_reason?: string }> };
@@ -250,14 +249,18 @@ function geminiSession(key: string, model: string, system: string, tools: readon
         {
           systemInstruction: { parts: [{ text: system }] },
           contents,
-          tools: [
-            {
-              functionDeclarations: tools.map((t) => {
-                const props = (t.schema as { properties?: Record<string, unknown> }).properties ?? {};
-                return Object.keys(props).length ? { name: t.name, description: t.description, parameters: geminiSchema(t.schema) } : { name: t.name, description: t.description };
-              }),
-            },
-          ],
+          ...(tools.length
+            ? {
+                tools: [
+                  {
+                    functionDeclarations: tools.map((t) => {
+                      const props = (t.schema as { properties?: Record<string, unknown> }).properties ?? {};
+                      return Object.keys(props).length ? { name: t.name, description: t.description, parameters: geminiSchema(t.schema) } : { name: t.name, description: t.description };
+                    }),
+                  },
+                ],
+              }
+            : {}),
         },
         signal,
       )) as { candidates?: Array<{ content?: Content; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
@@ -376,3 +379,94 @@ export async function askWithImage(s: AiSettings, prompt: string, image: ImageIn
   if (choice?.finish_reason === 'content_filter') throw new AiError('Le modèle a refusé la demande.');
   return choice?.message?.content ?? '';
 }
+
+// --- Vérification de la clé et choix du modèle ------------------------------------------------------
+
+export interface ProbeResult {
+  /** Modèle qui a répondu à l'essai (le plus rapide disponible, sauf choix déjà fait et valable). */
+  model: string;
+  /** Modèles de conversation donnés par la clé, du plus conseillé au moins conseillé. */
+  models: string[];
+}
+
+const baseOf = (s: AiSettings) => (s.provider === 'custom' ? s.baseUrl || providerInfo('custom').baseUrl! : providerInfo(s.provider).baseUrl ?? '').replace(/\/+$/, '');
+
+async function getJson(url: string, headers: Record<string, string>, signal?: AbortSignal): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers, signal });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e;
+    throw new AiError('Connexion impossible (réseau, adresse ou autorisation du navigateur).');
+  }
+  const text = await res.text();
+  if (!res.ok) throw httpError(res.status, text.slice(0, 200));
+  return JSON.parse(text) as unknown;
+}
+
+/** Modèles que cette clé donne réellement, selon le fournisseur. */
+async function listModels(s: AiSettings, signal?: AbortSignal): Promise<string[]> {
+  const key = keyOf(s);
+  if (s.provider === 'anthropic') {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+    try {
+      const ids: string[] = [];
+      for await (const m of client.models.list({ limit: 100 }, { signal })) ids.push(m.id);
+      return ids;
+    } catch (e) {
+      if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new AiError('Clé API refusée.');
+      if (e instanceof Anthropic.APIConnectionError) throw new AiError('Connexion à l’API impossible.');
+      throw e;
+    }
+  }
+  if (s.provider === 'gemini') {
+    const json = (await getJson('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { 'x-goog-api-key': key }, signal)) as {
+      models?: Array<{ name: string; supportedGenerationMethods?: string[] }>;
+    };
+    return (json.models ?? []).filter((m) => m.supportedGenerationMethods?.includes('generateContent')).map((m) => m.name.replace(/^models\//, ''));
+  }
+  const json = (await getJson(`${baseOf(s)}/models`, key ? { authorization: `Bearer ${key}` } : {}, signal)) as { data?: Array<{ id: string }> };
+  return (json.data ?? []).map((m) => m.id);
+}
+
+/** Essai réel et minimal : le modèle répond-il avec cette clé ? */
+async function tryModel(s: AiSettings, model: string, signal?: AbortSignal): Promise<void> {
+  const session = createSession({ ...s, models: { ...s.models, [s.provider]: model } }, 'Réponds en un mot.', []);
+  session.addUser('Réponds « ok ».');
+  await session.step(signal);
+}
+
+/**
+ * Vérifie la clé et choisit le modèle : liste des modèles accessibles, classés du meilleur des plus
+ * rapides au plus lent, puis un essai réel (le suivant prend le relais si l'un ne répond pas). Le modèle
+ * déjà choisi est gardé s'il est disponible et répond.
+ */
+export async function probeProvider(s: AiSettings, signal?: AbortSignal): Promise<ProbeResult> {
+  if (!keyOf(s) && !providerInfo(s.provider).keyOptional) throw new AiError('Clé manquante.');
+  const { rankModels } = await import('./modelPick');
+  let models: string[] = [];
+  try {
+    models = rankModels(s.provider, await listModels(s, signal));
+  } catch (e) {
+    // Liste indisponible (proxy, serveur local) : les modèles connus sont essayés tels quels.
+    if (e instanceof AiError && /refusée/.test(e.message)) throw e;
+    if ((e as Error).name === 'AbortError') throw e;
+  }
+  const chosen = s.models[s.provider]?.trim();
+  const candidates = [...new Set([...(chosen && (!models.length || models.includes(chosen)) ? [chosen] : []), ...(models.length ? models : providerInfo(s.provider).models)])].slice(0, 4);
+  if (!candidates.length) throw new AiError('Aucun modèle de conversation disponible avec cette clé.');
+  let last: unknown;
+  for (const model of candidates) {
+    try {
+      await tryModel(s, model, signal);
+      return { model, models };
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') throw e;
+      if (e instanceof AiError && /refusée/.test(e.message)) throw e;
+      last = e;
+    }
+  }
+  throw last instanceof Error ? last : new AiError('Aucun modèle ne répond.');
+}
+

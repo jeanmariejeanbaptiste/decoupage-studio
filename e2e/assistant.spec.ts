@@ -14,11 +14,29 @@ const SHOTS = [
 
 test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d’annulation (API simulée)', async ({ page }) => {
   const bodies: Body[] = [];
+  const probes: Body[] = [];
   await page.route('https://api.anthropic.com/**', async (route) => {
     if (route.request().method() === 'OPTIONS') {
-      return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' } });
+      return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST' } });
     }
-    bodies.push(route.request().postDataJSON() as Body);
+    // Vérification de la clé : liste des modèles, puis un essai sans outils.
+    if (route.request().method() === 'GET') {
+      return route.fulfill({
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ data: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'].map((id) => ({ id, type: 'model', display_name: id, created_at: '2026-01-01T00:00:00Z' })), has_more: false, first_id: null, last_id: null }),
+      });
+    }
+    const body = route.request().postDataJSON() as Body;
+    if (!body.tools) {
+      probes.push(body);
+      return route.fulfill({
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ id: 'msg_probe', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', stop_sequence: null, content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 5, output_tokens: 1 } }),
+      });
+    }
+    bodies.push(body);
     const first = bodies.length === 1;
     await route.fulfill({
       status: 200,
@@ -49,6 +67,10 @@ test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d
   const panel = page.getByTestId('assistant-panel');
   // Sans clé : le panneau s'ouvre sur le choix du fournisseur.
   await panel.getByLabel('Clé API Anthropic').fill('sk-ant-test-123');
+  // La clé est essayée, et le plus rapide des modèles qui répondent est choisi.
+  await expect(panel.getByTestId('ai-probe')).toHaveText('Clé valide · claude-haiku-5-5 répond');
+  await expect(panel.getByLabel('Modèle')).toHaveValue('claude-haiku-5-5');
+  expect(probes.map((b) => b.model)).toEqual(['claude-haiku-5-5']);
   await panel.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await panel.getByTestId('assistant-input').fill('Ajoute deux plans de Marc à la séquence 3');
   await panel.getByTestId('assistant-input').press('Enter');
@@ -57,7 +79,7 @@ test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d
   await expect(panel.getByText('2 plans ajoutés à la séquence 3', { exact: false })).toBeVisible();
 
   expect(bodies).toHaveLength(2);
-  expect(bodies[0].model).toBe('claude-opus-5-5');
+  expect(bodies[0].model).toBe('claude-haiku-5-5');
   expect(bodies[0].tools?.map((t) => t.name)).toContain('add_shots');
   // Le résultat de l'outil revient au modèle, sous la réponse complète du tour précédent.
   const last = bodies[1].messages!.at(-1)!;

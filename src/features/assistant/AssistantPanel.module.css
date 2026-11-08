@@ -51,3 +51,5 @@
 @media (max-width: 700px) {
   .panel { width: 100vw; }
 }
+.probe { font-size: 12px; color: var(--ink-soft); }
+.probeError { color: var(--ink); font-weight: 500; }
