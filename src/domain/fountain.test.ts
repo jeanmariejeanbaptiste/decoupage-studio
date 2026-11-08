@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
 import { characterName, diffRange, shiftAnchors, shiftOffset, displayName, matchSequence, normalizeScenario, parseFountain, parseHeading, sceneAt, scenesOf, splitSelection, importScenes } from './fountain';
 import { addSequence, checkInvariants } from './ops';
+import type { ProjectDoc } from './types';
 
 const SCRIPT = `Title: La Consigne
 Author: Réalisation
@@ -200,5 +201,18 @@ describe('Fountain — variantes françaises et robustesse', () => {
     doc.sequences[id].label = 'Hall de la gare';
     const sc = scenesOf(doc.scenario!)[0];
     expect(matchSequence(doc, sc)).toBe(id);
+  });
+});
+
+describe('import d’un scénario entier : passages liés', () => {
+  it('retrouve chaque passage par son texte, détache ceux qui ont disparu', async () => {
+    const { relinkAnchors } = await import('./fountain');
+    const before = 'INT. GARE - JOUR\n\nLéa entre.\n\nElle pose la valise.\n';
+    const after = 'Title: Nouveau\n\nINT. GARE - JOUR\n\nElle pose la valise.\n\nEXT. QUAI - NUIT\n';
+    const doc = { blocks: { a: { scenarioAnchor: { start: 18, end: 28 } }, b: { scenarioAnchor: { start: 30, end: 50 } } }, sequences: { s: { scenarioAnchor: { start: 0, end: 16 } } } } as unknown as ProjectDoc;
+    expect(relinkAnchors(doc, before, after)).toBe(1);
+    expect(doc.blocks.a.scenarioAnchor).toBeUndefined();
+    expect(after.slice(doc.blocks.b.scenarioAnchor!.start, doc.blocks.b.scenarioAnchor!.end)).toBe('Elle pose la valise.');
+    expect(after.slice(doc.sequences.s.scenarioAnchor!.start, doc.sequences.s.scenarioAnchor!.end)).toBe('INT. GARE - JOUR');
   });
 });

@@ -1,0 +1,109 @@
+1	0	108.0	Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+1	1	108.0	Quisque quis nulla eu mi euismod vestibulum. Maecenas ante
+1	2	108.0	sem, vehicula id ultrices vitae, laoreet id ligula. Curabitur
+1	3	108.0	luctus leo sed quam venenatis, quis varius leo ornare.
+1	4	108.0	Suspendisse tellus dui, accumsan eu nibh id, lobortis sodales
+1	5	108.0	orci. Sed rhoncus convallis mollis. Aliquam erat volutpat.
+1	6	108.0	Quisque consectetur felis eu nibh facilisis, quis lacinia
+1	7	108.0	nisi semper. Suspendisse eget eros eu lacus faucibus
+1	8	108.0	hendrerit eu eget felis. Maecenas faucibus orci sed tincidunt
+1	9	108.0	consequat. Suspendisse varius vel tortor nec pharetra. Aenean
+1	10	108.0	convallis sollicitudin libero at rutrum. Fusce ut massa
+1	11	108.0	auctor, tempus tellus in, viverra nisl. Vivamus dignissim
+1	12	108.0	pretium magna ut sodales.
+1	14	108.0	Mauris eget sapien nunc. Quisque ultricies vehicula augue,
+1	15	108.0	sit amet tincidunt mi pretium vitae. Etiam auctor ultricies
+1	16	108.0	elit a interdum. Vestibulum convallis magna a purus auctor
+1	17	108.0	porta. Vestibulum vel consectetur arcu, sit amet porttitor
+1	18	108.0	risus. Aenean tortor lectus, tincidunt eu malesuada quis,
+1	19	108.0	venenatis non odio. Etiam ultricies eget neque a pulvinar.
+1	20	108.0	Vestibulum ultricies vulputate mi. Duis lectus nisl, feugiat
+1	21	108.0	at pretium eu, euismod in neque. Vivamus feugiat felis enim,
+1	22	108.0	non dignissim elit egestas blandit. Maecenas faucibus ornare
+1	23	108.0	mi, sit amet volutpat orci malesuada sed. Aenean id nisi
+1	24	108.0	dolor. Nulla malesuada turpis turpis.
+1	26	108.0	Ut nec rutrum nulla. Quisque interdum, metus vitae luctus
+1	27	108.0	vestibulum, sapien nunc consectetur turpis, ut suscipit magna
+1	28	108.0	dui eget odio. Nullam ac aliquam enim. Morbi luctus commodo
+1	29	108.0	felis. Interdum et malesuada fames ac ante ipsum primis in
+1	30	108.0	faucibus. Praesent sagittis interdum eros. Aenean consequat
+1	31	108.0	rhoncus eros, a suscipit orci.
+1	33	108.0	Nunc non gravida dolor, ut interdum odio. Vivamus eleifend
+1	34	108.0	nec enim in vehicula. Sed condimentum auctor erat sed
+1	35	108.0	elementum. Quisque non arcu sed augue posuere consectetur.
+1	36	108.0	Vestibulum porta massa id massa pulvinar varius. Etiam
+1	37	108.0	lacinia rhoncus quam eget luctus. Proin ac ornare orci.
+1	38	108.0	Curabitur eleifend commodo mi, non suscipit urna laoreet eu.
+1	39	108.0	Aenean a sapien non tortor dictum laoreet aliquet quis ipsum.
+1	40	108.0	Class aptent taciti sociosqu ad litora torquent per conubia
+1	41	108.0	nostra, per inceptos himenaeos. Aliquam dapibus est quis sem
+1	42	108.0	posuere congue. Cras et venenatis augue. Integer a orci
+1	43	108.0	faucibus, porttitor sapien nec, euismod enim. Aliquam
+1	44	108.0	pulvinar augue ut vestibulum porttitor.
+1	46	108.0	Mauris nisl justo, posuere a auctor vel, vulputate id diam.
+1	47	108.0	Praesent nec dignissim ipsum. Proin posuere, libero vitae
+1	48	108.0	dictum dignissim, est tellus semper enim, id pulvinar eros
+1	49	108.0	erat vel nulla. Suspendisse potenti. Nunc enim arcu, dictum
+1	50	108.0	et tellus nec, venenatis vestibulum turpis. Vivamus
+1	51	108.0	scelerisque nulla vitae mauris congue ultricies. Aliquam
+1	52	108.0	dignissim ex sed elit bibendum, sit amet maximus elit
+1	53	108.0	ullamcorper. Cras mattis scelerisque metus a pretium. Ut
+1	54	108.0	aliquet non enim fringilla mattis. Cras tincidunt ex nec
+1	55	108.0	mattis facilisis. Praesent tempor enim at mi auctor, in
+1	56	108.0	rutrum erat bibendum. Aliquam odio lectus, elementum at ipsum
+1	57	108.0	eget, condimentum condimentum purus.
+2	-3	532.7	2.
+2	0	108.0	Praesent vel diam efficitur, placerat tortor vel, volutpat
+2	1	108.0	velit. Nulla fermentum risus ultrices finibus malesuada.
+2	2	108.0	Nulla magna nisl, tincidunt vitae orci id, hendrerit
+2	3	108.0	elementum eros. Phasellus ac maximus massa, in mattis
+2	4	108.0	augue.Lorem ipsum dolor sit amet, consectetur adipiscing
+2	5	108.0	elit. Quisque quis nulla eu mi euismod vestibulum. Maecenas
+2	6	108.0	ante sem, vehicula id ultrices vitae, laoreet id ligula.
+2	7	108.0	Curabitur luctus leo sed quam venenatis, quis varius leo
+2	8	108.0	ornare. Suspendisse tellus dui, accumsan eu nibh id, lobortis
+2	9	108.0	sodales orci. Sed rhoncus convallis mollis. Aliquam erat
+2	10	108.0	volutpat. Quisque consectetur felis eu nibh facilisis, quis
+2	11	108.0	lacinia nisi semper. Suspendisse eget eros eu lacus faucibus
+2	12	108.0	hendrerit eu eget felis. Maecenas faucibus orci sed tincidunt
+2	13	108.0	consequat. Suspendisse varius vel tortor nec pharetra. Aenean
+2	14	108.0	convallis sollicitudin libero at rutrum. Fusce ut massa
+2	15	108.0	auctor, tempus tellus in, viverra nisl. Vivamus dignissim
+2	16	108.0	pretium magna ut sodales.
+2	18	108.0	Mauris eget sapien nunc. Quisque ultricies vehicula augue,
+2	19	108.0	sit amet tincidunt mi pretium vitae. Etiam auctor ultricies
+2	20	108.0	elit a interdum. Vestibulum convallis magna a purus auctor
+2	21	108.0	porta. Vestibulum vel consectetur arcu, sit amet porttitor
+2	22	108.0	risus. Aenean tortor lectus, tincidunt eu malesuada quis,
+2	23	108.0	venenatis non odio. Etiam ultricies eget neque a pulvinar.
+2	24	108.0	Vestibulum ultricies vulputate mi. Duis lectus nisl, feugiat
+2	25	108.0	at pretium eu, euismod in neque. Vivamus feugiat felis enim,
+2	26	108.0	non dignissim elit egestas blandit. Maecenas faucibus ornare
+2	27	108.0	mi, sit amet volutpat orci malesuada sed. Aenean id nisi
+2	28	108.0	dolor. Nulla malesuada turpis turpis.
+2	30	108.0	Ut nec rutrum nulla. Quisque interdum, metus vitae luctus
+2	31	108.0	vestibulum, sapien nunc consectetur turpis, ut suscipit magna
+2	32	108.0	dui eget odio. Nullam ac aliquam enim. Morbi luctus commodo
+2	33	108.0	felis. Interdum et malesuada fames ac ante ipsum primis in
+2	34	108.0	faucibus. Praesent sagittis interdum eros. Aenean consequat
+2	35	108.0	rhoncus eros, a suscipit orci.
+2	37	108.0	Nunc non gravida dolor, ut interdum odio. Vivamus eleifend
+2	38	108.0	nec enim in vehicula. Sed condimentum auctor erat sed
+2	39	108.0	elementum. Quisque non arcu sed augue posuere consectetur.
+2	40	108.0	Vestibulum porta massa id massa pulvinar varius. Etiam
+2	41	108.0	lacinia rhoncus quam eget luctus. Proin ac ornare orci.
+2	42	108.0	Curabitur eleifend commodo mi, non suscipit urna laoreet eu.
+2	43	108.0	Aenean a sapien non tortor dictum laoreet aliquet quis ipsum.
+2	44	108.0	Class aptent taciti sociosqu ad litora torquent per conubia
+2	45	108.0	nostra, per inceptos himenaeos. Aliquam dapibus est quis sem
+2	46	108.0	posuere congue. Cras et venenatis augue. Integer a orci
+2	47	108.0	faucibus, porttitor sapien nec, euismod enim. Aliquam
+2	48	108.0	pulvinar augue ut vestibulum porttitor.
+2	50	108.0	Mauris nisl justo, posuere a auctor vel, vulputate id diam.
+2	51	108.0	Praesent nec dignissim ipsum. Proin posuere, libero vitae
+2	52	108.0	dictum dignissim, est tellus semper enim, id pulvinar eros
+2	53	108.0	erat vel nulla. Suspendisse potenti. Nunc enim arcu, dictum
+2	54	108.0	et tellus nec, venenatis vestibulum turpis. Vivamus
+2	55	108.0	scelerisque nulla vitae mauris congue ultricies. Aliquam
+2	56	108.0	dignissim ex sed elit bibendum, sit amet maximus elit
+2	57	108.0	ullamcorper. Cras mattis scelerisque metus a pretium.

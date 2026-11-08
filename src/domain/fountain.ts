@@ -89,6 +89,8 @@ export function parseFountain(source: string): ScriptElement[] {
     }
   }
   let speaker: string | undefined;
+  // Dans une réplique : après un personnage, ou après « @ » seul (réplique sans personnage, venue de Final Draft).
+  let inDialogue = false;
   for (; i < lines.length; i++) {
     const l = lines[i];
     const t = l.text.trim();
@@ -107,11 +109,13 @@ export function parseFountain(source: string): ScriptElement[] {
         els.push({ type: 'note', text: note[1], start: at, end: at + note[1].length });
       }
       speaker = undefined;
+      inDialogue = false;
       continue;
     }
-    if (speaker) {
-      if (/^\(.*\)$/.test(t)) push('parenthetical', t, 0, { speaker });
-      else push('dialogue', t, 0, { speaker });
+    if (inDialogue) {
+      const who = speaker ? { speaker } : {};
+      if (/^\(.*\)$/.test(t)) push('parenthetical', t, 0, who);
+      else push('dialogue', t, 0, who);
       continue;
     }
     if (/^={3,}$/.test(t)) {
@@ -144,8 +148,10 @@ export function parseFountain(source: string): ScriptElement[] {
     if (t.startsWith('@') || (prevBlank && nextLine !== '' && isUpper(t.replace(/\(.*\)/g, '').replace(/\^$/, '')) && !t.startsWith('!'))) {
       const forced = t.startsWith('@') ? 1 : 0;
       const name = t.slice(forced).trim();
-      speaker = characterName(name);
-      push('character', name, forced);
+      inDialogue = true;
+      // « @ » seul : la réplique qui suit n'a pas de personnage (rien à afficher pour cette ligne).
+      speaker = name ? characterName(name) : undefined;
+      if (name) push('character', name, forced);
       continue;
     }
     const forced = t.startsWith('!') ? 1 : 0;
@@ -314,6 +320,37 @@ export function shiftAnchors(doc: ProjectDoc, before: string, after: string): vo
   };
   for (const b of Object.values(doc.blocks)) if (b.scenarioAnchor) move(b.scenarioAnchor);
   for (const s of Object.values(doc.sequences)) if (s.scenarioAnchor) move(s.scenarioAnchor);
+}
+
+/**
+ * Scénario remplacé en entier (import) : chaque passage lié est cherché par son texte dans le nouveau
+ * scénario, au plus près de sa place relative ; introuvable, le lien est retiré plutôt que de
+ * pointer au hasard. Renvoie le nombre de liens retirés.
+ */
+export function relinkAnchors(doc: ProjectDoc, before: string, after: string): number {
+  let dropped = 0;
+  const relink = (owner: { scenarioAnchor?: { start: number; end: number } }) => {
+    const a = owner.scenarioAnchor;
+    if (!a) return;
+    const text = before.slice(a.start, a.end);
+    if (!text.trim()) {
+      delete owner.scenarioAnchor;
+      dropped++;
+      return;
+    }
+    const target = before.length ? (a.start / before.length) * after.length : 0;
+    let best = -1;
+    for (let i = after.indexOf(text); i >= 0; i = after.indexOf(text, i + 1)) if (best < 0 || Math.abs(i - target) < Math.abs(best - target)) best = i;
+    if (best < 0) {
+      delete owner.scenarioAnchor;
+      dropped++;
+      return;
+    }
+    owner.scenarioAnchor = { start: best, end: best + text.length };
+  };
+  Object.values(doc.blocks).forEach(relink);
+  Object.values(doc.sequences).forEach(relink);
+  return dropped;
 }
 
 /** Fins de ligne Windows / anciens Mac et marque d'ordre d'octets retirées, ancres recalées au caractère près. */

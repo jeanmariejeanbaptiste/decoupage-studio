@@ -1,0 +1,66 @@
+1	0	181.6	Lorem ipsum dolor sit
+1	1	181.6	amet,consectetur adipiscing elit.
+1	2	181.6	Quisque quis nulla eu mi euismod
+1	3	181.6	vestibulum. Maecenas ante sem,
+1	4	181.6	vehicula id ultrices vitae, laoreet
+1	5	181.6	id ligula. Curabitur luctus leo sed
+1	6	181.6	quam venenatis, quis varius leo
+1	7	181.6	ornare. Suspendisse tellus dui,
+1	8	181.6	accumsan eu nibh id, lobortis
+1	9	181.6	sodales orci. Sed rhoncus convallis
+1	10	181.6	mollis. Aliquam erat volutpat.
+1	11	181.6	Quisque consectetur felis eu nibh
+1	12	181.6	facilisis, quis lacinia nisi
+1	13	181.6	semper. Suspendisse eget eros eu
+1	14	181.6	lacus faucibus hendrerit eu eget
+1	15	181.6	felis. Maecenas faucibus orci sed
+1	16	181.6	tincidunt consequat. Suspendisse
+1	17	181.6	varius vel tortor nec pharetra.
+1	18	181.6	Aenean convallis sollicitudin
+1	19	181.6	libero at rutrum. Fusce ut massa
+1	20	181.6	auctor, tempus tellus in, viverra
+1	21	181.6	nisl. Vivamus dignissim pretium
+1	22	181.6	magna ut sodales. Mauris eget
+1	23	181.6	sapien nunc. Quisque ultricies
+1	24	181.6	vehicula augue, sit amet tincidunt
+1	25	181.6	mi pretium vitae. Etiam auctor
+1	26	181.6	ultricies elit a interdum.
+1	27	181.6	Vestibulum convallis magna a purus
+1	28	181.6	auctor porta. Vestibulum vel
+1	29	181.6	consectetur arcu, sit amet
+1	30	181.6	porttitor risus. Aenean tortor
+1	31	181.6	lectus, tincidunt eu malesuada
+1	32	181.6	quis, venenatis non odio. Etiam
+1	33	181.6	ultricies eget neque a pulvinar.
+1	34	181.6	Vestibulum ultricies vulputate mi.
+1	35	181.6	Duis lectus nisl, feugiat at
+1	36	181.6	pretium eu, euismod in neque.
+1	37	181.6	Vivamus feugiat felis enim, non
+1	38	181.6	dignissim elit egestas blandit.
+1	39	181.6	Maecenas faucibus ornare mi, sit
+1	40	181.6	amet volutpat orci malesuada sed.
+1	41	181.6	Aenean id nisi dolor. Nulla
+1	42	181.6	malesuada turpis turpis. Ut nec
+1	43	181.6	rutrum nulla. Quisque interdum,
+1	44	181.6	metus vitae luctus vestibulum,
+1	45	181.6	sapien nunc consectetur turpis, ut
+1	46	181.6	suscipit magna dui eget odio.
+1	47	181.6	Nullam ac aliquam enim. Morbi
+1	48	181.6	luctus commodo felis. Interdum et
+1	49	181.6	malesuada fames ac ante ipsum
+1	50	181.6	primis in faucibus. Praesent
+1	51	181.6	sagittis interdum eros. Aenean
+1	52	181.6	consequat rhoncus eros, a suscipit
+1	53	181.6	orci. Nunc non gravida dolor, ut
+1	54	181.6	interdum odio. Vivamus eleifend nec
+1	55	181.6	enim in vehicula.
+1	56	210.0	(A SUIVRE)
+1	57	181.6	Sed condimentum auctor erlis magna
+2	-3	532.7	2.
+2	0	181.6	a purus auctor porta. Vestibulum
+2	1	181.6	vel consectetur arcu, sit amet
+2	2	181.6	porttitor risus. Aenean tortor
+2	3	181.6	lectus, tincidunt eu malesuada
+2	4	181.6	quis, venenatis non odio. Etiam
+2	5	181.6	ultricies eget neque a pulvinar.
+2	6	181.6	Vestibulum ultricies.

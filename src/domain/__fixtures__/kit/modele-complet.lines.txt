@@ -1,0 +1,700 @@
+1	0	83.7	1. LOR. LOREM IPSUM DOLOR - ELIT
+1	2	108.0	LOREM ipsum dolor sit amet, consectetur adipiscing elit.
+1	3	108.0	Quisque quis nulla eu mi euismod vestibulum. IPSUM ante sem,
+1	4	108.0	vehicula id ultrices vitae, laoreet id ligula.
+1	6	108.0	Curabitur luctus leo sed quam venenatis. DOLOR tellus dui,
+1	7	108.0	accumsan eu nibh id, lobortis sodales orci.
+1	9	252.4	LOREM
+1	10	181.6	Sed rhoncus convallis mollis.
+1	12	252.4	IPSUM
+1	13	210.0	(aliquam erat)
+1	14	181.6	Quisque consectetur felis eu nibh
+1	15	181.6	facilisis, quis lacinia nisi
+1	16	181.6	semper.
+1	18	252.4	LOREM
+1	19	181.6	Suspendisse eget eros eu lacus
+1	20	181.6	faucibus hendrerit eu eget felis.
+1	21	181.6	Maecenas faucibus orci sed
+1	22	181.6	tincidunt consequat.
+1	24	108.0	DOLOR aenean convallis sollicitudin libero at rutrum. Fusce
+1	25	108.0	ut massa auctor, tempus tellus in, viverra nisl.
+1	27	252.4	DOLOR
+1	28	210.0	(vivamus dignissim)
+1	29	181.6	Mauris.
+1	31	252.4	IPSUM
+1	32	181.6	Eget sapien nunc ?
+1	34	252.4	DOLOR
+1	35	181.6	Quisque ultricies vehicula augue,
+1	36	181.6	sit amet tincidunt mi pretium
+1	37	181.6	vitae. Etiam auctor ultricies elit
+1	38	181.6	a interdum.
+1	39	210.0	(vestibulum convallis)
+1	40	181.6	Magna a purus auctor porta.
+1	42	108.0	LOREM vel consectetur arcu. IPSUM porttitor risus.
+1	45	83.7	2. IPS. SIT AMET CONSECTETUR - AMET
+1	47	108.0	Aenean tortor lectus, tincidunt eu malesuada quis, venenatis
+1	48	108.0	non odio. SIT AMET ultricies eget neque a pulvinar.
+1	49	108.0	Vestibulum ultricies vulputate mi. Duis lectus nisl, feugiat
+1	50	108.0	at pretium eu, euismod in neque. Vivamus feugiat felis enim,
+1	51	108.0	non dignissim elit egestas blandit.
+1	53	108.0	Maecenas faucibus ornare mi. CONSECTETUR id nisi dolor. Nulla
+1	54	108.0	malesuada turpis turpis.
+1	56	108.0	Ut nec rutrum nulla.
+2	-3	532.7	2.
+2	0	108.0	Quisque interdum, metus vitae luctus vestibulum, SIT AMET
+2	1	108.0	nunc consectetur turpis, ut suscipit magna dui eget odio.
+2	2	108.0	Nullam ac aliquam enim. CONSECTETUR luctus commodo felis.
+2	5	83.7	3. LOR. ADIPISCING - ELIT
+2	7	108.0	Interdum et malesuada fames ac ante ipsum primis in faucibus.
+2	8	108.0	ELIT sagittis interdum, LOREM eros.
+2	10	252.4	ELIT
+2	11	181.6	Praesent sagittis interdum eros.
+2	13	252.4	LOREM
+2	14	181.6	Aenean consequat rhoncus eros, a
+2	15	181.6	suscipit orci.
+2	17	252.4	ELIT
+2	18	181.6	Nunc non gravida dolor ?
+2	20	252.4	LOREM
+2	21	181.6	Ut interdum.
+2	23	252.4	ELIT
+2	24	181.6	Odio.
+2	26	252.4	LOREM
+2	27	210.0	(vivamus eleifend)
+2	28	181.6	Nec enim in vehicula.
+2	30	108.0	SIT AMET sed condimentum auctor erat. Sed elementum.
+2	32	252.4	SIT AMET
+2	33	181.6	Quisque non arcu sed augue posuere
+2	34	181.6	consectetur. Vestibulum porta massa
+2	35	181.6	id massa pulvinar varius. Etiam
+2	36	181.6	lacinia rhoncus quam eget luctus.
+2	37	181.6	Proin ac ornare orci. Curabitur
+2	38	181.6	eleifend commodo mi, non suscipit
+2	39	181.6	urna laoreet eu. Aenean a sapien
+2	40	181.6	non tortor dictum laoreet aliquet
+2	41	181.6	quis ipsum. Class aptent taciti
+2	42	181.6	sociosqu ad litora torquent per
+2	43	181.6	conubia nostra, per inceptos
+2	44	181.6	himenaeos.
+2	46	252.4	ELIT
+2	47	210.0	(aliquam dapibus)
+2	48	181.6	Est quis sem posuere congue.
+2	50	108.0	LOREM et ELIT cras et venenatis augue.
+2	53	83.7	4. LOR./IPS. INTEGER A ORCI FAUCIBUS PORTTITOR SAPIEN NEC
+2	54	108.0	EUISMOD - DOLOR VESTIBULUM PORTTITOR - VELIT
+2	56	108.0	Mauris nisl justo, posuere a auctor vel, vulputate id diam.
+2	57	108.0	DOLOR nec dignissim ipsum.
+3	-3	532.7	3.
+3	0	108.0	Proin posuere, libero vitae dictum dignissim, est tellus
+3	1	108.0	semper enim, id pulvinar eros erat vel nulla. Suspendisse
+3	2	108.0	potenti.
+3	4	108.0	Nunc enim arcu, dictum et tellus nec, venenatis vestibulum
+3	5	108.0	turpis.
+3	7	108.0	Vivamus scelerisque nulla vitae mauris congue ultricies.
+3	8	108.0	DOLOR dignissim ex sed elit bibendum, sit amet maximus elit
+3	9	108.0	ullamcorper. Cras mattis scelerisque metus a pretium. Ut
+3	10	108.0	aliquet non enim fringilla mattis. Cras tincidunt ex nec
+3	11	108.0	mattis facilisis.
+3	13	252.4	DOLOR
+3	14	210.0	(praesent tempor)
+3	15	181.6	Enim at mi auctor ?
+3	17	108.0	DOLOR in rutrum erat bibendum.
+3	20	83.7	5. IPS. ALIQUAM ODIO - ELIT
+3	22	108.0	Elementum at IPSUM eget, condimentum condimentum purus.
+3	23	108.0	CONSECTETUR vel diam efficitur, placerat tortor vel.
+3	24	108.0	ADIPISCING et VULPUTATE volutpat velit.
+3	26	252.4	CONSECTETUR
+3	27	181.6	Nulla fermentum risus ultrices
+3	28	181.6	finibus malesuada.
+3	30	252.4	ADIPISCING
+3	31	181.6	Nulla magna nisl, tincidunt vitae
+3	32	181.6	orci id, hendrerit elementum eros.
+3	34	252.4	VULPUTATE
+3	35	210.0	(phasellus ac maximus)
+3	36	181.6	Massa, in mattis augue.
+3	38	252.4	IPSUM
+3	39	181.6	Fames ac ante ipsum primis in
+3	40	181.6	faucibus. Donec pellentesque,
+3	41	181.6	lectus sit amet dictum ullamcorper,
+3	42	181.6	sapien lacus dapibus sapien, nec
+3	43	181.6	pellentesque nunc nisi id augue.
+3	45	108.0	CONSECTETUR nunc vel risus commodo. ADIPISCING viverra.
+3	47	252.4	CONSECTETUR
+3	48	181.6	Mauris ac nisi at lectus.
+3	50	252.4	ADIPISCING
+3	51	181.6	Ultrices ?
+3	53	252.4	CONSECTETUR
+3	54	210.0	(tempor)
+3	55	181.6	Ultrices.
+4	-3	532.7	4.
+4	0	252.4	VULPUTATE
+4	1	181.6	Pellentesque habitant morbi
+4	2	181.6	tristique senectus et netus et
+4	3	181.6	malesuada fames ac turpis egestas.
+4	4	181.6	Morbi a lacus id justo faucibus
+4	5	181.6	semper.
+4	6	210.0	(nam sed)
+4	7	181.6	Erat vitae nunc ornare tincidunt.
+4	8	210.0	(sed et)
+4	9	181.6	Eros.
+4	11	108.0	IPSUM, CONSECTETUR et ADIPISCING donec eget nisl.
+4	14	83.7	6. LOR. NAM SED ERAT - AMET
+4	16	108.0	LOREM in hac habitasse platea dictumst. Duis aliquet egestas
+4	17	108.0	purus in blandit.
+4	19	108.0	IPSUM curabitur vulputate, ligula lacinia scelerisque tempor,
+4	20	108.0	lacus lacus ornare ante, ac egestas est urna sit amet arcu.
+4	21	108.0	Class aptent taciti sociosqu ad litora torquent per conubia
+4	22	108.0	nostra.
+4	24	252.4	LOREM
+4	25	181.6	Sed molestie augue sit amet leo
+4	26	181.6	consequat posuere.
+4	28	252.4	IPSUM
+4	29	181.6	Vestibulum ante ipsum primis in
+4	30	181.6	faucibus orci luctus et ultrices
+4	31	181.6	posuere cubilia curae ; proin vel
+4	32	181.6	ante a orci tempus eleifend ut et
+4	33	181.6	magna.
+4	35	252.4	LOREM
+4	36	181.6	Lorem ipsum dolor sit amet,
+4	37	181.6	consectetur adipiscing elit.
+4	38	181.6	Vivamus luctus urna sed urna
+4	39	181.6	ultricies ac tempor dui sagittis.
+4	40	181.6	In condimentum facilisis porta. Sed
+4	41	181.6	nec diam eu diam mattis viverra.
+4	42	181.6	Nulla fringilla, orci ac euismod
+4	43	181.6	semper, magna diam porttitor
+4	44	181.6	mauris, quis sollicitudin sapien
+4	45	181.6	justo in libero. Vestibulum mollis
+4	46	181.6	mauris enim. Morbi euismod magna ac
+4	47	181.6	lorem rutrum elementum. Donec
+4	48	181.6	viverra auctor lobortis.
+4	49	181.6	Pellentesque eu est a nulla
+4	50	181.6	placerat dignissim.
+4	52	108.0	IPSUM morbi luctus.
+4	54	252.4	LOREM
+4	55	210.0	(mauris)
+4	56	181.6	Et odio ut ligula.
+5	-3	532.7	5.
+5	0	83.7	7. IPS. CURABITUR - ELIT
+5	2	108.0	DOLOR pharetra dignissim. Nunc tincidunt.
+5	4	108.0	SIT AMET integer volutpat, libero quis tempus.
+5	6	108.0	DOLOR proin.
+5	9	83.7	8. LOR. VESTIBULUM ELEMENTUM SEMPER - FELIS VITAE - AMET
+5	11	108.0	Duis quis ante a nisi ultrices faucibus. ELIT erat volutpat.
+5	12	108.0	Mauris consequat nisi a turpis. ADIPISCING nec urna.
+5	13	108.0	Phasellus ac felis ut erat dignissim aliquam. Nulla facilisi.
+5	14	108.0	DOLOR egestas, nisl eu ultrices pharetra, risus nisl sagittis
+5	15	108.0	lorem, ut condimentum eros purus in mauris.
+5	17	108.0	Proin tempus, CONSECTETUR vitae hendrerit placerat, risus
+5	18	108.0	enim suscipit nibh. SIT AMET accumsan nisl erat in lectus.
+5	19	108.0	Duis vel VULPUTATE.
+5	21	252.4	ELIT
+5	22	181.6	Quisque nec tortor at nibh viverra
+5	23	181.6	tristique.
+5	25	252.4	DOLOR
+5	26	181.6	Fusce dignissim.
+5	28	252.4	SIT AMET
+5	29	210.0	(nunc lacinia)
+5	30	181.6	Placerat enim.
+5	32	252.4	VULPUTATE
+5	33	181.6	Sed blandit sem a nisl. Aenean
+5	34	181.6	ultrices, est vitae lobortis
+5	35	181.6	feugiat.
+5	37	252.4	ELIT
+5	38	181.6	Urna.
+5	40	108.0	ADIPISCING integer cursus sagittis nibh. CONSECTETUR varius
+5	41	108.0	rhoncus, magna lacus fermentum lacus.
+5	43	252.4	ADIPISCING
+5	44	181.6	Suspendisse nisl elit, rhoncus
+5	45	181.6	eget, elementum ac, condimentum
+5	46	181.6	eget, diam. Nam at tortor in tellus
+5	47	181.6	interdum sagittis. Aliquam
+5	48	181.6	lobortis. Donec orci lectus,
+5	49	181.6	aliquam ut, faucibus non, euismod
+5	50	181.6	id, nulla. Curabitur blandit mollis
+5	51	181.6	lacus. Nam adipiscing. Vestibulum
+5	52	181.6	eu odio.
+5	54	252.4	CONSECTETUR
+5	55	210.0	(vivamus laoreet)
+5	56	181.6	Nullam tincidunt adipiscing enim.
+6	-3	532.7	6.
+6	0	252.4	DOLOR
+6	1	181.6	Phasellus tempus.
+6	3	252.4	CONSECTETUR
+6	4	181.6	Proin viverra, ligula sit amet
+6	5	181.6	ultrices semper, ligula arcu
+6	6	181.6	tristique sapien, a accumsan nisi
+6	7	181.6	mauris ac eros.
+6	9	108.0	ELIT, DOLOR et SIT AMET fusce neque. VULPUTATE etiam posuere.
+6	11	252.4	ELIT
+6	12	210.0	(quisque libero)
+6	13	181.6	Metus, condimentum nec, tempor a,
+6	14	181.6	commodo mollis, magna.
+6	17	83.7	9. LOR. VARIUS TINCIDUNT - VELIT
+6	19	108.0	Phasellus dolor. IPSUM vestibulum mollis diam. Pellentesque
+6	20	108.0	ut neque. Pellentesque habitant morbi tristique senectus et
+6	21	108.0	netus et malesuada fames ac turpis egestas.
+6	23	108.0	In dui magna, posuere eget, vestibulum et, tempor auctor,
+6	24	108.0	justo. In ac felis quis tortor malesuada pretium.
+6	25	108.0	Pellentesque auctor neque nec urna. IPSUM sapien, porta a,
+6	26	108.0	auctor quis, euismod ut, mi.
+6	28	108.0	Aenean viverra rhoncus pede.
+6	30	108.0	Pellentesque habitant morbi tristique senectus et netus et
+6	31	108.0	malesuada fames ac turpis egestas. Ut non enim eleifend felis
+6	32	108.0	pretium feugiat. Vivamus quis mi. Phasellus a est. Phasellus
+6	33	108.0	magna. In hac habitasse platea dictumst. Curabitur at lacus
+6	34	108.0	ac velit ornare lobortis.
+6	36	108.0	Curabitur a felis in nunc fringilla tristique. IPSUM mattis
+6	37	108.0	ullamcorper velit.
+6	39	252.4	IPSUM
+6	40	210.0	(phasellus gravida)
+6	41	181.6	Semper nisi.
+6	44	76.5	10. IPS. NULLAM VEL SEM PELLENTESQUE LIBERO TORTOR TINCIDUNT ET
+6	45	108.0	SEMPER NEC QUAM - SED HENDRERIT MORBI AC FELIS - ELIT
+6	47	108.0	At malesuada velit leo quis pede. LOREM interdum, metus et
+6	48	108.0	hendrerit aliquet, dolor diam sagittis ligula. VULPUTATE
+6	49	108.0	egestas libero turpis vel mi.
+6	51	252.4	VULPUTATE
+6	52	181.6	Nunc nulla.
+6	54	252.4	LOREM
+6	55	181.6	Fusce risus nisl, viverra et,
+6	56	181.6	tempor et, pretium in, sapien.
+7	-3	532.7	7.
+7	0	252.4	VULPUTATE
+7	1	181.6	Donec venenatis vulputate lorem.
+7	3	252.4	LOREM
+7	4	181.6	Morbi nec metus.
+7	6	252.4	VULPUTATE
+7	7	181.6	Phasellus blandit leo ut odio.
+7	9	252.4	LOREM
+7	10	210.0	(maecenas ullamcorper)
+7	11	181.6	Dui et placerat feugiat, eros pede
+7	12	181.6	varius nisi, condimentum viverra
+7	13	181.6	felis nunc et lorem.
+7	15	108.0	VULPUTATE sed magna purus, fermentum eu, tincidunt eu, varius
+7	16	108.0	ut, felis.
+7	18	252.4	VULPUTATE
+7	19	181.6	In auctor lobortis lacus. Quisque
+7	20	181.6	libero metus, condimentum nec,
+7	21	181.6	tempor a, commodo mollis, magna.
+7	22	181.6	Vestibulum ullamcorper mauris at
+7	23	181.6	ligula. Fusce fermentum. Nullam
+7	24	181.6	cursus lacinia erat. Praesent
+7	25	181.6	blandit laoreet nibh. Fusce
+7	26	181.6	convallis metus id felis luctus
+7	27	181.6	adipiscing. Pellentesque egestas,
+7	28	181.6	neque sit amet convallis pulvinar,
+7	29	181.6	justo nulla eleifend augue, ac
+7	30	181.6	auctor orci leo non est. Quisque id
+7	31	181.6	mi. Ut tincidunt tincidunt erat.
+7	32	210.0	(etiam feugiat)
+7	33	181.6	Lorem non metus.
+7	34	210.0	(vestibulum dapibus nunc
+7	35	210.0	ac augue)
+7	36	181.6	Curabitur vestibulum aliquam leo.
+7	38	252.4	LOREM
+7	39	181.6	Praesent egestas neque eu enim.
+7	42	76.5	11. LOR. HABITASSE - AMET
+7	44	108.0	Nam commodo suscipit quam. ADIPISCING id odio, ELIT
+7	45	108.0	venenatis.
+7	47	252.4	ADIPISCING
+7	48	181.6	Praesent venenatis metus at tortor
+7	49	181.6	pulvinar varius.
+7	51	108.0	ELIT lorem ipsum dolor sit amet, consectetuer adipiscing
+7	52	108.0	elit.
+7	54	252.4	ELIT
+7	55	181.6	Donec quam felis, ultricies nec,
+7	56	181.6	pellentesque eu, pretium quis, sem.
+8	-3	532.7	8.
+8	0	252.4	ADIPISCING
+8	1	181.6	Nulla consequat massa quis enim.
+8	3	108.0	ADIPISCING donec pede justo, fringilla vel, aliquet nec,
+8	4	108.0	vulputate eget, arcu.
+8	6	108.0	ELIT in enim justo, rhoncus ut, imperdiet a, venenatis vitae,
+8	7	108.0	justo.
+8	9	252.4	ELIT
+8	10	210.0	(nullam dictum)
+8	11	181.6	Felis eu pede mollis pretium.
+8	13	252.4	ADIPISCING
+8	14	181.6	Integer tincidunt.
+8	17	76.5	12. LOR./IPS. CRAS DAPIBUS - ELIT
+8	19	108.0	Aenean vulputate eleifend tellus. SIT AMET leo ligula,
+8	20	108.0	porttitor eu, consequat vitae, eleifend ac, enim. CONSECTETUR
+8	21	108.0	lorem ante, dapibus in, viverra quis, feugiat a, tellus.
+8	23	108.0	Phasellus viverra nulla ut metus varius laoreet. IPSUM
+8	24	108.0	rutrum.
+8	26	252.4	SIT AMET
+8	27	181.6	Aenean imperdiet.
+8	29	252.4	CONSECTETUR
+8	30	181.6	Etiam ultricies nisi vel augue.
+8	32	252.4	IPSUM
+8	33	210.0	(curabitur ullamcorper
+8	34	210.0	ultricies nisi)
+8	35	181.6	Nam eget dui.
+8	37	252.4	SIT AMET
+8	38	181.6	Etiam rhoncus. Maecenas tempus,
+8	39	181.6	tellus eget condimentum rhoncus,
+8	40	181.6	sem quam semper libero, sit amet
+8	41	181.6	adipiscing sem neque sed ipsum.
+8	43	108.0	CONSECTETUR nam quam nunc, blandit vel, luctus pulvinar,
+8	44	108.0	hendrerit id, lorem.
+8	46	252.4	CONSECTETUR
+8	47	181.6	Maecenas nec odio et ante tincidunt
+8	48	181.6	tempus. Donec vitae sapien ut
+8	49	181.6	libero venenatis faucibus. Nullam
+8	50	181.6	quis ante. Etiam sit amet orci eget
+8	51	181.6	eros faucibus tincidunt. Duis leo.
+8	52	181.6	Sed fringilla mauris sit amet nibh.
+8	53	181.6	Donec sodales sagittis magna. Sed
+8	54	181.6	consequat, leo eget bibendum
+8	55	181.6	sodales, augue velit cursus nunc,
+8	56	181.6	quis gravida magna mi a libero.
+9	-3	532.7	9.
+9	0	252.4	IPSUM
+9	1	181.6	Fusce vulputate eleifend sapien.
+9	3	252.4	SIT AMET
+9	4	181.6	Vestibulum purus quam ?
+9	6	252.4	IPSUM
+9	7	210.0	(scelerisque ut)
+9	8	181.6	Mollis sed.
+9	10	252.4	CONSECTETUR
+9	11	181.6	Nonummy id, metus.
+9	13	108.0	IPSUM nullam accumsan lorem in dui. SIT AMET cras ultricies
+9	14	108.0	mi eu turpis hendrerit fringilla.
+9	17	76.5	13. IPS. VESTIBULUM ANTE - VELIT
+9	19	108.0	In ac dui quis mi consectetuer lacinia. DOLOR pretium turpis
+9	20	108.0	et arcu.
+9	22	108.0	Duis arcu tortor, suscipit eget, imperdiet nec, imperdiet
+9	23	108.0	iaculis, ipsum.
+9	25	252.4	DOLOR
+9	26	210.0	(sed aliquam ultrices
+9	27	210.0	mauris)
+9	28	181.6	Integer ante arcu, accumsan a,
+9	29	181.6	consectetuer eget, posuere ut,
+9	30	181.6	mauris.
+9	32	108.0	DOLOR praesent adipiscing. Phasellus ullamcorper ipsum rutrum
+9	33	108.0	nunc.
+9	35	252.4	DOLOR
+9	36	181.6	Nunc nonummy metus.
+9	39	76.5	14. LOR. VOLUTPAT PRETIUM LIBERO - CRAS ID DUI - ELIT
+9	41	108.0	Aenean ut eros et nisl sagittis vestibulum. LOREM nulla eros,
+9	42	108.0	ultricies sit amet, nonummy id, imperdiet feugiat, pede. Sed
+9	43	108.0	lectus. IPSUM mollis hendrerit risus. Phasellus nec sem in
+9	44	108.0	justo pellentesque facilisis.
+9	46	108.0	Etiam imperdiet imperdiet orci. Nunc nec neque. DOLOR leo,
+9	47	108.0	tempus non, auctor et, hendrerit quis, nisi.
+9	49	108.0	Curabitur ligula sapien, tincidunt non, euismod vitae,
+9	50	108.0	posuere imperdiet, leo. ELIT malesuada.
+9	52	252.4	ELIT
+9	53	181.6	Praesent congue erat at massa.
+9	55	252.4	LOREM
+9	56	181.6	Sed cursus turpis vitae tortor.
+10	-3	525.5	10.
+10	0	252.4	ELIT
+10	1	181.6	Donec posuere vulputate arcu.
+10	3	252.4	DOLOR
+10	4	210.0	(phasellus accumsan cursus
+10	5	210.0	velit)
+10	6	181.6	Vestibulum ante ipsum primis in
+10	7	181.6	faucibus orci luctus et ultrices
+10	8	181.6	posuere cubilia curae.
+10	10	252.4	IPSUM
+10	11	181.6	Sed aliquam, nisi quis porttitor
+10	12	181.6	congue, elit erat euismod orci, ac
+10	13	181.6	placerat dolor lectus quis orci.
+10	15	108.0	LOREM phasellus consectetuer vestibulum elit. Aenean tellus
+10	16	108.0	metus, bibendum sed, posuere ac, mattis non, nunc.
+10	18	252.4	LOREM
+10	19	181.6	Vestibulum fringilla pede sit amet
+10	20	181.6	augue. In turpis. Pellentesque
+10	21	181.6	posuere. Praesent turpis. Aenean
+10	22	181.6	posuere, tortor sed cursus feugiat,
+10	23	181.6	nunc augue blandit nunc, eu
+10	24	181.6	sollicitudin urna dolor sagittis
+10	25	181.6	lacus. Donec elit libero, sodales
+10	26	181.6	nec, volutpat a, suscipit non,
+10	27	181.6	turpis. Nullam sagittis.
+10	28	181.6	Suspendisse pulvinar, augue ac
+10	29	181.6	venenatis condimentum, sem libero
+10	30	181.6	volutpat nibh, nec pellentesque
+10	31	181.6	velit pede quis nunc. Vestibulum
+10	32	181.6	ante ipsum primis in faucibus orci
+10	33	181.6	luctus et ultrices posuere cubilia
+10	34	181.6	curae ; fusce id purus.
+10	36	252.4	ELIT
+10	37	181.6	Ut varius.
+10	39	252.4	LOREM
+10	40	210.0	(tincidunt libero)
+10	41	181.6	Phasellus dolor.
+10	43	252.4	DOLOR
+10	44	181.6	Maecenas vestibulum mollis diam.
+10	46	252.4	IPSUM
+10	47	181.6	Pellentesque ut neque.
+10	49	108.0	ELIT pellentesque habitant morbi. DOLOR tristique senectus.
+10	51	252.4	ELIT
+10	52	181.6	In dui magna ?
+11	-3	525.5	11.
+11	0	76.5	15. IPS. POSUERE - AMET
+11	2	108.0	Vestibulum et, tempor auctor, justo. CONSECTETUR ac felis
+11	3	108.0	quis tortor malesuada pretium.
+11	5	108.0	Pellentesque auctor neque nec urna. ADIPISCING sapien ipsum,
+11	6	108.0	porta a, auctor quis, euismod ut, mi. Aenean viverra rhoncus
+11	7	108.0	pede. Pellentesque habitant morbi tristique senectus et netus
+11	8	108.0	et malesuada fames ac turpis egestas.
+11	10	108.0	Ut non enim eleifend felis pretium feugiat.
+11	12	108.0	Vivamus quis mi. CONSECTETUR a est.
+11	14	252.4	ADIPISCING
+11	15	210.0	(phasellus magna)
+11	16	181.6	In hac habitasse platea dictumst.
+11	19	76.5	16. LOR. CURABITUR AT LACUS - ELIT
+11	21	108.0	Curabitur a felis in nunc fringilla tristique. SIT AMET
+11	22	108.0	mattis ullamcorper velit. VULPUTATE gravida semper nisi.
+11	24	252.4	VULPUTATE
+11	25	181.6	Nullam vel sem.
+11	27	252.4	SIT AMET
+11	28	181.6	Pellentesque libero tortor,
+11	29	181.6	tincidunt et, tincidunt eget,
+11	30	181.6	semper nec, quam.
+11	32	252.4	VULPUTATE
+11	33	181.6	Sed hendrerit.
+11	35	252.4	SIT AMET
+11	36	181.6	Morbi ac felis.
+11	38	108.0	LOREM nunc egestas, augue at pellentesque laoreet, felis eros
+11	39	108.0	vehicula leo, at malesuada velit leo quis pede.
+11	41	252.4	LOREM
+11	42	181.6	Donec interdum, metus et hendrerit
+11	43	181.6	aliquet, dolor diam sagittis
+11	44	181.6	ligula, eget egestas libero turpis
+11	45	181.6	vel mi. Nunc nulla. Fusce risus
+11	46	181.6	nisl, viverra et, tempor et,
+11	47	181.6	pretium in, sapien. Donec venenatis
+11	48	181.6	vulputate lorem.
+11	50	252.4	VULPUTATE
+11	51	210.0	(morbi nec metus)
+11	52	181.6	Phasellus blandit leo ut odio.
+12	-3	525.5	12.
+12	0	252.4	LOREM
+12	1	181.6	Maecenas ullamcorper, dui et
+12	2	181.6	placerat feugiat, eros pede varius
+12	3	181.6	nisi, condimentum viverra felis
+12	4	181.6	nunc et lorem.
+12	5	210.0	(sed magna purus)
+12	6	181.6	Fermentum eu, tincidunt eu, varius
+12	7	181.6	ut, felis.
+12	9	252.4	SIT AMET
+12	10	181.6	In auctor lobortis lacus.
+12	12	108.0	VULPUTATE quisque libero metus, condimentum nec. SIT AMET
+12	13	108.0	tempor a, commodo mollis, magna.
+12	15	108.0	Vestibulum ullamcorper mauris at ligula. Fusce fermentum.
+12	16	108.0	Nullam cursus lacinia erat.
+12	18	252.4	LOREM
+12	19	181.6	Praesent blandit laoreet nibh.
+12	22	76.5	17. IPS. FUSCE CONVALLIS - AMET
+12	24	108.0	IPSUM metus id felis luctus adipiscing. ELIT egestas.
+12	26	252.4	ELIT
+12	27	181.6	Pellentesque egestas ?
+12	29	252.4	IPSUM
+12	30	181.6	Neque sit amet convallis pulvinar.
+12	32	252.4	ELIT
+12	33	181.6	Justo nulla eleifend augue.
+12	35	252.4	IPSUM
+12	36	210.0	(ac auctor orci)
+12	37	181.6	Leo non est.
+12	40	76.5	18. LOR. QUISQUE ID MI TINCIDUNT ERAT - ETIAM FEUGIAT - ELIT
+12	42	108.0	Vestibulum dapibus nunc ac augue. DOLOR vestibulum aliquam
+12	43	108.0	leo. CONSECTETUR egestas neque eu enim. In hac habitasse
+12	44	108.0	platea dictumst. Fusce a quam. Etiam ut purus mattis mauris
+12	45	108.0	sodales aliquam.
+12	47	108.0	Curabitur nisi. ADIPISCING malesuada placerat nisl. Nam ipsum
+12	48	108.0	risus, rutrum vitae, SIT AMET eu, molestie vel, lacus.
+12	50	108.0	Sed augue ipsum, egestas nec, vestibulum et, LOREM
+12	51	108.0	adipiscing, dui.
+12	53	252.4	DOLOR
+12	54	181.6	Vestibulum facilisis, purus nec
+12	55	181.6	pulvinar iaculis, ligula mi congue
+12	56	181.6	nunc, vitae euismod ligula urna in
+12	57	181.6	dolor.
+13	-3	525.5	13.
+13	0	252.4	CONSECTETUR
+13	1	181.6	Mauris sollicitudin fermentum
+13	2	181.6	libero.
+13	4	252.4	ADIPISCING
+13	5	210.0	(praesent nonummy mi)
+13	6	181.6	In odio.
+13	8	252.4	SIT AMET
+13	9	181.6	Nunc interdum lacus sit amet orci.
+13	11	252.4	LOREM
+13	12	181.6	Vestibulum rutrum, mi nec elementum
+13	13	181.6	vehicula, eros quam gravida nisl,
+13	14	181.6	id fringilla neque ante vel mi.
+13	16	108.0	DOLOR morbi mollis tellus ac sapien. Phasellus volutpat,
+13	17	108.0	metus eget egestas mollis, lacus lacus blandit dui, id
+13	18	108.0	egestas quam mauris ut lacus.
+13	20	108.0	CONSECTETUR fusce vel dui.
+13	22	252.4	DOLOR
+13	23	181.6	Sed in libero ut nibh placerat
+13	24	181.6	accumsan. Proin faucibus arcu quis
+13	25	181.6	ante. In consectetuer turpis ut
+13	26	181.6	velit. Nulla sit amet est. Praesent
+13	27	181.6	metus tellus, elementum eu, semper
+13	28	181.6	a, adipiscing nec, purus. Cras
+13	29	181.6	risus ipsum, faucibus ut,
+13	30	181.6	ullamcorper id, varius ac, leo.
+13	31	181.6	Suspendisse feugiat. Suspendisse
+13	32	181.6	enim turpis, dictum sed, iaculis a,
+13	33	181.6	condimentum nec, nisi.
+13	34	210.0	(praesent nec nisl a purus
+13	35	210.0	blandit viverra)
+13	36	181.6	Praesent ac massa at ligula laoreet
+13	37	181.6	iaculis.
+13	39	252.4	ADIPISCING
+13	40	181.6	Nulla neque dolor.
+13	42	252.4	SIT AMET
+13	43	181.6	Sagittis eget, iaculis quis,
+13	44	181.6	molestie non, velit.
+13	46	252.4	LOREM
+13	47	210.0	(mauris turpis nunc)
+13	48	181.6	Blandit et, volutpat molestie,
+13	49	181.6	porta ut, ligula.
+13	51	252.4	CONSECTETUR
+13	52	181.6	Fusce pharetra convallis urna.
+13	54	108.0	SIT AMET quisque ut nisi. Donec mi odio, faucibus at,
+13	55	108.0	scelerisque quis, convallis in, nisi.
+14	-3	525.5	14.
+14	0	252.4	ADIPISCING
+14	1	181.6	Suspendisse non nisl sit amet velit
+14	2	181.6	hendrerit rutrum.
+14	4	252.4	DOLOR
+14	5	181.6	Ut leo.
+14	8	76.5	19. IPS. NISL - VELIT
+14	10	108.0	ELIT ante tempus hendrerit. Proin pretium, leo ac
+14	11	108.0	pellentesque mollis, felis nunc ultrices eros, sed gravida
+14	12	108.0	augue augue mollis justo.
+14	14	108.0	Suspendisse eu ligula. Nulla facilisi. Donec id justo.
+14	16	108.0	Praesent porttitor, nulla vitae posuere iaculis, arcu nisl
+14	17	108.0	dignissim dolor, a pretium mi sem ut ipsum. Curabitur
+14	18	108.0	suscipit suscipit tellus. ELIT vestibulum dapibus nibh. Etiam
+14	19	108.0	iaculis nunc ac metus. Ut id nisl quis enim dignissim
+14	20	108.0	sagittis. Etiam sollicitudin, ipsum eu pulvinar rutrum,
+14	21	108.0	tellus ipsum laoreet sapien, quis venenatis ante odio sit
+14	22	108.0	amet eros.
+14	24	108.0	Proin magna.
+14	27	76.5	20. LOR./IPS. DUIS VEL NIBH AT VELIT SCELERISQUE - AMET
+14	29	108.0	Curabitur turpis. IPSUM suscipit nulla quis orci. VULPUTATE
+14	30	108.0	ac felis sit amet ligula pharetra condimentum. DOLOR.
+14	32	252.4	VULPUTATE
+14	33	181.6	Maecenas egestas arcu quis ligula
+14	34	181.6	mattis placerat.
+14	36	252.4	IPSUM
+14	37	181.6	Duis lobortis massa imperdiet quam.
+14	39	252.4	DOLOR
+14	40	210.0	(suspendisse potenti)
+14	41	181.6	Pellentesque commodo eros a enim.
+14	43	252.4	VULPUTATE
+14	44	181.6	Vestibulum turpis sem, aliquet
+14	45	181.6	eget, lobortis pellentesque, rutrum
+14	46	181.6	eu, nisl. Sed libero. Aliquam erat
+14	47	181.6	volutpat. Etiam vitae tortor. Morbi
+14	48	181.6	vestibulum volutpat enim.
+14	50	108.0	IPSUM aliquam eu nunc. DOLOR nunc sed turpis.
+14	52	252.4	IPSUM
+14	53	181.6	Curabitur a felis in nunc fringilla
+14	54	181.6	tristique.
+14	56	252.4	DOLOR
+14	57	181.6	Morbi mattis ullamcorper velit.
+15	-3	525.5	15.
+15	0	252.4	IPSUM
+15	1	210.0	(phasellus gravida semper
+15	2	210.0	nisi)
+15	3	181.6	Nullam vel sem. Pellentesque libero
+15	4	181.6	tortor, tincidunt et, tincidunt
+15	5	181.6	eget, semper nec, quam.
+15	7	108.0	VULPUTATE sed hendrerit. Morbi ac felis.
+15	9	252.4	VULPUTATE
+15	10	181.6	Nunc egestas ?
+15	12	252.4	DOLOR
+15	13	181.6	Augue.
+15	15	252.4	VULPUTATE
+15	16	181.6	At pellentesque laoreet.
+15	19	76.5	21. LOR. FELIS EROS - ELIT
+15	21	108.0	Vehicula leo, at malesuada velit leo quis pede. LOREM
+15	22	108.0	interdum, IPSUM et hendrerit aliquet, DOLOR diam sagittis
+15	23	108.0	ligula, eget egestas libero turpis vel mi.
+15	25	108.0	Nunc nulla. SIT AMET risus nisl, viverra et, tempor et,
+15	26	108.0	pretium in, sapien. CONSECTETUR venenatis vulputate lorem.
+15	27	108.0	ADIPISCING nec metus. Phasellus blandit leo ut odio. ELIT
+15	28	108.0	ullamcorper, dui et placerat feugiat, eros pede varius nisi.
+15	29	108.0	VULPUTATE viverra felis nunc et lorem.
+15	31	252.4	LOREM
+15	32	181.6	Sed magna purus, fermentum eu,
+15	33	181.6	tincidunt eu, varius ut, felis.
+15	35	252.4	ELIT
+15	36	181.6	In auctor lobortis lacus.
+15	38	252.4	SIT AMET
+15	39	210.0	(quisque libero metus)
+15	40	181.6	Condimentum nec, tempor a, commodo
+15	41	181.6	mollis, magna.
+15	43	252.4	CONSECTETUR
+15	44	181.6	Vestibulum ullamcorper mauris at
+15	45	181.6	ligula.
+15	47	252.4	ADIPISCING
+15	48	181.6	Fusce fermentum.
+15	50	252.4	VULPUTATE
+15	51	181.6	Nullam cursus lacinia erat.
+15	53	108.0	DOLOR praesent blandit laoreet nibh. IPSUM fusce convallis
+15	54	108.0	metus id felis luctus adipiscing.
+16	-3	525.5	16.
+16	0	252.4	DOLOR
+16	1	181.6	Pellentesque egestas, neque sit
+16	2	181.6	amet convallis pulvinar, justo
+16	3	181.6	nulla eleifend augue, ac auctor
+16	4	181.6	orci leo non est. Quisque id mi. Ut
+16	5	181.6	tincidunt tincidunt erat. Etiam
+16	6	181.6	feugiat lorem non metus. Vestibulum
+16	7	181.6	dapibus nunc ac augue. Curabitur
+16	8	181.6	vestibulum aliquam leo. Praesent
+16	9	181.6	egestas neque eu enim. In hac
+16	10	181.6	habitasse platea dictumst.
+16	12	252.4	IPSUM
+16	13	210.0	(fusce a quam)
+16	14	181.6	Etiam ut purus mattis mauris
+16	15	181.6	sodales aliquam.
+16	17	252.4	LOREM
+16	18	181.6	Curabitur nisi.
+16	20	252.4	IPSUM
+16	21	181.6	Quisque malesuada placerat nisl.
+16	23	252.4	LOREM
+16	24	181.6	Nam ipsum risus, rutrum vitae,
+16	25	181.6	vestibulum eu, molestie vel, lacus.
+16	27	108.0	ELIT sed augue ipsum. VULPUTATE egestas nec, vestibulum et.
+16	29	252.4	ELIT
+16	30	210.0	(malesuada adipiscing)
+16	31	181.6	Dui.
+16	33	252.4	SIT AMET
+16	34	181.6	Vestibulum facilisis, purus nec
+16	35	181.6	pulvinar iaculis, ligula mi congue
+16	36	181.6	nunc, vitae euismod ligula urna in
+16	37	181.6	dolor.
+16	38	210.0	(mauris sollicitudin)
+16	39	181.6	Fermentum libero.
+16	40	210.0	(praesent nonummy mi in
+16	41	210.0	odio)
+16	42	181.6	Nunc interdum lacus sit amet orci.
+16	44	252.4	CONSECTETUR
+16	45	181.6	Vestibulum rutrum, mi nec elementum
+16	46	181.6	vehicula ?
+16	48	252.4	ADIPISCING
+16	49	181.6	Eros quam gravida nisl.
+16	51	108.0	LOREM, IPSUM, DOLOR et SIT AMET id fringilla neque ante vel
+16	52	108.0	mi. CONSECTETUR, ADIPISCING, ELIT et VULPUTATE morbi mollis
+16	53	108.0	tellus ac sapien.
+17	-3	525.5	17.
+17	0	76.5	22. IPS. PHASELLUS VOLUTPAT - AMET
+17	2	108.0	LOREM eget egestas mollis, lacus lacus blandit dui, id
+17	3	108.0	egestas quam mauris ut lacus.
+17	5	108.0	Fusce vel dui. Sed in libero ut nibh placerat accumsan.
+17	7	108.0	Proin faucibus arcu quis ante. In consectetuer turpis ut
+17	8	108.0	velit. Nulla sit amet est.
+17	10	252.4	LOREM
+17	11	210.0	(praesent metus tellus)
+17	12	181.6	Elementum eu.
+17	14	108.0	LOREM semper a, adipiscing nec, purus.

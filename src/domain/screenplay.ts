@@ -114,7 +114,9 @@ export function blocksFromSource(source: string): ScriptDoc {
   const blocks: SBlock[] = [];
   let prevEnd = 0;
   groups.forEach((g, i) => {
-    const rawStart = lines[g.first].start;
+    // Réplique sans personnage : la ligne « @ » qui la précède fait partie du bloc.
+    const cue = (g.type === 'dialogue' || g.type === 'parenthetical') && g.first > 0 && lines[g.first - 1].text.trim() === '@' && (i === 0 || groups[i - 1].last < g.first - 1);
+    const rawStart = lines[cue ? g.first - 1 : g.first].start;
     const lastLine = lines[g.last];
     const rawEnd = lastLine.start + lastLine.text.replace(/\r$/, '').length;
     blocks.push({
@@ -148,8 +150,20 @@ function actionNeedsForce(line: string, first: boolean, nextLine: string): boole
   return nextLine.trim() === '' && isUpper(t) && TRANSITION_RE.test(t);
 }
 
+/** Ligne « @ » seule qui ouvre une réplique sans personnage. */
+const CUE_RE = /^@[^\S\n]*\n/;
+
+/** Une réplique ou une didascalie sans personnage au-dessus : Fountain n'a que « @ » seul pour l'écrire. */
+const needsCue = (b: SBlock, prev: SBlock | undefined) => (b.type === 'dialogue' || b.type === 'parenthetical') && !(prev && DIALOGUE_GROUP.has(prev.type));
+
 /** Texte source d'un bloc modifié, et position de chacune de ses lignes affichées. */
-function rawOf(b: SBlock, next: SBlock | undefined): { raw: string; lineOffsets: number[] } {
+function rawOf(b: SBlock, next: SBlock | undefined, prev?: SBlock): { raw: string; lineOffsets: number[] } {
+  const own = rawOwn(b, next);
+  if (!needsCue(b, prev)) return own;
+  return { raw: `@\n${own.raw}`, lineOffsets: own.lineOffsets.map((o) => o + 2) };
+}
+
+function rawOwn(b: SBlock, next: SBlock | undefined): { raw: string; lineOffsets: number[] } {
   const single = (prefix: string, text: string, suffix = '') => ({ raw: prefix + text + suffix, lineOffsets: [prefix.length] });
   switch (b.type) {
     case 'heading': {
@@ -223,7 +237,9 @@ export function serialize(doc: ScriptDoc): { source: string; spans: Span[] } {
     }
     out += sep;
     const start = out.length;
-    const { raw, lineOffsets } = b.raw !== undefined && b.lineOffsets ? { raw: b.raw, lineOffsets: b.lineOffsets } : rawOf(b, emitted[i + 1]);
+    // Un bloc intact garde son texte, sauf si sa place a changé ce qu'il doit écrire (« @ » d'une réplique sans personnage).
+    const intact = b.raw !== undefined && b.lineOffsets && !((b.type === 'dialogue' || b.type === 'parenthetical') && CUE_RE.test(b.raw) !== needsCue(b, prev));
+    const { raw, lineOffsets } = intact ? { raw: b.raw!, lineOffsets: b.lineOffsets! } : rawOf(b, emitted[i + 1], prev);
     out += raw;
     spans.push({ id: b.id, start, end: out.length, lines: lineOffsets.map((o) => start + o) });
     prev = b;
