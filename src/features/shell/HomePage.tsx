@@ -49,7 +49,7 @@ export function HomePage() {
       .toast({
         message: `Projet « ${p.title} » supprimé.`,
         actionLabel: 'Annuler',
-        action: () => void undoHome(),
+        action: () => void undoHome(p.id),
       });
   };
 

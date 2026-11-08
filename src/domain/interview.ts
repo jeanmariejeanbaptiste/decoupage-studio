@@ -78,7 +78,8 @@ export function addSetup(doc: ProjectDoc, subjectId: ID, from?: ID): ID | undefi
   if (!s) return undefined;
   const base = s.setups.find((x) => x.id === from) ?? s.setups.at(-1);
   const setup: InterviewSetup = base
-    ? { ...structuredClone(base), id: newId(), name: `Cadre ${s.setups.length + 1}`, cameras: base.cameras.map((c) => ({ ...c, id: newId() })) }
+    ? // Copie par JSON : `base` peut être un brouillon immer (que structuredClone refuse).
+      { ...(JSON.parse(JSON.stringify(base)) as InterviewSetup), id: newId(), name: `Cadre ${s.setups.length + 1}`, cameras: base.cameras.map((c) => ({ ...c, id: newId() })) }
     : makeSetup(s.setups.length);
   s.setups.push(setup);
   return setup.id;

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
 import { useStore } from 'zustand';
+import { produce } from 'immer';
 import { apply, type Op } from '../domain/patch';
 import type { ProjectDoc } from '../domain/types';
 
@@ -30,12 +31,20 @@ export const useProjectStore = create<ProjectState>()(
         });
         useProjectStore.temporal.getState().clear();
       },
-      mutate: (recipe) =>
-        set((s) => {
-          if (!s.doc || (mutationGuard && !mutationGuard())) return;
-          recipe(s.doc);
-          s.doc.project.updatedAt = new Date().toISOString();
-        }),
+      mutate: (recipe) => {
+        const cur = useProjectStore.getState().doc;
+        if (!cur || (mutationGuard && !mutationGuard())) return;
+        const next = produce(cur, (d) => {
+          recipe(d);
+        });
+        // Rien n'a changé (saisie refusée, valeur identique) : pas d'étape d'annulation vide.
+        if (next === cur) return;
+        set({
+          doc: produce(next, (d) => {
+            d.project.updatedAt = new Date().toISOString();
+          }),
+        });
+      },
     })),
     {
       limit: HISTORY_LIMIT,
@@ -54,8 +63,13 @@ export function mutateDoc<T>(recipe: (doc: ProjectDoc) => T): T | undefined {
   return out;
 }
 
-export const undo = () => useProjectStore.temporal.getState().undo();
-export const redo = () => useProjectStore.temporal.getState().redo();
+/** Annuler / rétablir : sans effet pour un invité en lecture seule. */
+export const undo = () => {
+  if (canMutate()) useProjectStore.temporal.getState().undo();
+};
+export const redo = () => {
+  if (canMutate()) useProjectStore.temporal.getState().redo();
+};
 
 export function useHistory() {
   const canUndo = useStore(useProjectStore.temporal, (s) => s.pastStates.length > 0);
@@ -76,6 +90,11 @@ export function applyRemote(ops: readonly Op[]) {
     useProjectStore.setState((s) => {
       if (s.doc) apply(s.doc as unknown as Record<string, unknown>, ops);
     });
+    // Les états mémorisés pour annuler / rétablir reçoivent aussi la modification : annuler ne défait
+    // que ses propres changements, jamais ceux des autres participants.
+    const patchSnap = <S extends { doc?: ProjectDoc | null }>(list: S[]): S[] =>
+      list.map((snap) => (snap.doc ? { ...snap, doc: produce(snap.doc, (d) => void apply(d as unknown as Record<string, unknown>, ops)) } : snap));
+    useProjectStore.temporal.setState((st) => ({ pastStates: patchSnap(st.pastStates), futureStates: patchSnap(st.futureStates) }));
   } finally {
     remoteDepth--;
     t.resume();

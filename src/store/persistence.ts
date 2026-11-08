@@ -1,9 +1,8 @@
-import { upgradeInterview } from '../domain/interview';
-import { parseProjectFile, serializeDoc, fileNameFor, FILE_EXTENSION } from '../domain/serialize';
-import { activeColumns } from '../domain/columns';
-import { normalizeTiming } from '../domain/factory';
+import { migrate, parseProjectFile, serializeDoc, fileNameFor, FILE_EXTENSION } from '../domain/serialize';
+import { newId } from '../domain/factory';
 import type { ProjectDoc } from '../domain/types';
-import { loadProject, saveProject } from './db';
+import { ask } from '../ui/dialogStore';
+import { db, loadProject, saveProject } from './db';
 import { useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
 
@@ -27,18 +26,39 @@ export function lastProjectId(): string | null {
   }
 }
 
-/** Ouvre un projet stocké dans le navigateur. */
+// --- Éditeurs en cours de frappe : vidés avant d'enregistrer, d'exporter ou de changer de projet ---
+
+const flushers = new Set<() => void>();
+/** Un éditeur (scénario, note d'intention…) déclare de quoi appliquer sa saisie en attente. */
+export function registerFlush(fn: () => void): () => void {
+  flushers.add(fn);
+  return () => void flushers.delete(fn);
+}
+/** Applique au projet toute saisie encore en attente dans un éditeur. */
+export function flushEditors(): void {
+  for (const fn of [...flushers]) {
+    try {
+      fn();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+
+/** Ouvre un projet stocké dans le navigateur (même remise en ordre qu'un fichier ouvert). */
 export async function openStoredProject(id: string): Promise<boolean> {
-  const doc = await loadProject(id);
-  if (!doc) return false;
-  // Les projets créés avant le mode « durée de chaque plan » y passent, sauf choix explicite.
-  if (doc.project.settings.tcMode === 'cumulatif' && !doc.project.settings.tcModeChosen) doc.project.settings.tcMode = 'duree';
-  // Minutage toujours cohérent avec le format (piste pour un clip, jamais pour une fiction…).
-  normalizeTiming(doc);
-  upgradeInterview(doc);
-  // Colonnes retirées (Personnages, Lumière, Machinerie, Durée) : plus affichées ni exportées.
-  doc.project.settings.gridColumns = activeColumns(doc.project.settings.gridColumns);
-  doc.project.settings.exportColumns = activeColumns(doc.project.settings.exportColumns);
+  flushEditors();
+  await flushSave();
+  const stored = await loadProject(id);
+  if (!stored) return false;
+  let doc: ProjectDoc;
+  try {
+    doc = migrate(stored);
+  } catch (e) {
+    console.error(e);
+    useUi.getState().toast({ message: 'Ce projet est endommagé et n’a pas pu être ouvert.', tone: 'warn' });
+    return false;
+  }
   useProjectStore.getState().loadDoc(doc);
   rememberLastProject(id);
   useUi.getState().set({ saveStatus: 'saved', selection: null, editing: null });
@@ -47,10 +67,20 @@ export async function openStoredProject(id: string): Promise<boolean> {
 
 /** Ouvre un projet en mémoire et l'enregistre immédiatement. */
 export async function openDoc(doc: ProjectDoc): Promise<void> {
+  flushEditors();
+  await flushSave();
   useProjectStore.getState().loadDoc(doc);
   rememberLastProject(doc.project.id);
   useUi.getState().set({ selection: null, editing: null });
   await flushSave();
+}
+
+/** Projet supprimé : son enregistrement en attente ne doit pas le faire revenir. */
+export function dropPendingSave(projectId: string): void {
+  if (pending?.project.id === projectId) {
+    clearTimeout(timer);
+    pending = null;
+  }
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -60,16 +90,42 @@ export async function flushSave(): Promise<void> {
   clearTimeout(timer);
   const doc = pending ?? useProjectStore.getState().doc;
   pending = null;
-  if (!doc) return;
+  if (!doc || (persistGuard && !persistGuard())) return;
   useUi.getState().set({ saveStatus: 'saving' });
   try {
     await saveProject(doc);
     useUi.getState().set({ saveStatus: 'saved' });
+    announce(doc);
   } catch (e) {
     console.error(e);
     useUi.getState().set({ saveStatus: 'error' });
   }
 }
+
+// --- Plusieurs onglets sur le même projet : le plus récent l'emporte sans écraser l'autre ---
+
+const TAB = newId();
+const channel: BroadcastChannel | null = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ds-projects') : null;
+function announce(doc: ProjectDoc) {
+  channel?.postMessage({ id: doc.project.id, updatedAt: doc.project.updatedAt, tab: TAB });
+}
+channel?.addEventListener('message', (e: MessageEvent<{ id: string; updatedAt: string; tab: string }>) => {
+  const m = e.data;
+  const cur = useProjectStore.getState().doc;
+  if (!m || m.tab === TAB || !cur || cur.project.id !== m.id || m.updatedAt <= cur.project.updatedAt) return;
+  // Modifié dans un autre onglet : sans saisie en attente ici, on reprend la version enregistrée.
+  if (!pending) void openStoredProject(m.id);
+  else
+    useUi.getState().toast({
+      message: 'Ce projet a été modifié dans un autre onglet.',
+      actionLabel: 'Recharger',
+      action: () => {
+        pending = null;
+        void openStoredProject(m.id);
+      },
+      duration: 20000,
+    });
+});
 
 /** Sauvegarde automatique (débounce 600 ms) de chaque modification du projet. */
 /** Garde de l'enregistrement (invité d'un partage sans copie autorisée) : `false` = ne rien enregistrer. */
@@ -120,6 +176,7 @@ export function downloadBlob(blob: Blob, name: string) {
 
 /** ⌘S : enregistre le projet dans un fichier `.decoupage`. */
 export async function saveToFile(): Promise<void> {
+  flushEditors();
   const doc = useProjectStore.getState().doc;
   if (!doc) return;
   await flushSave();
@@ -169,7 +226,20 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
   const f = file ?? (await pickFile(`${FILE_EXTENSION},.json,application/json`));
   if (!f) return false;
   try {
-    const doc = parseProjectFile(await f.text());
+    let doc = parseProjectFile(await f.text());
+    // Même projet déjà présent ici, et plus récent : on demande avant de le remplacer.
+    const local = await db.projects.get(doc.project.id);
+    if (local && local.updatedAt > doc.project.updatedAt) {
+      const r = await ask({
+        title: `Une version plus récente de « ${local.title} » est dans ce navigateur`,
+        body: 'Le fichier ouvert est plus ancien. Le remplacer effacerait les modifications plus récentes.',
+        confirmLabel: 'Remplacer',
+        altLabel: 'Ouvrir comme copie',
+        danger: true,
+      });
+      if (r.alt) doc = { ...doc, project: { ...doc.project, id: newId(), title: `${doc.project.title} (copie)` } };
+      else if (!r.ok) return false;
+    }
     await openDoc(doc);
     return true;
   } catch (e) {

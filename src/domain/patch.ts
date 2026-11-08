@@ -34,12 +34,19 @@ export function apply(target: Record<string, unknown>, ops: readonly Op[]): void
   for (const op of ops) {
     if (!op.p.length) continue;
     let node: unknown = target;
+    let missing = false;
     for (let i = 0; i < op.p.length - 1; i++) {
       const k = op.p[i];
       const o = node as Record<string | number, unknown>;
-      if (o[k] === undefined || o[k] === null || typeof o[k] !== 'object') o[k] = typeof op.p[i + 1] === 'number' ? [] : {};
+      // Élément disparu de ce côté (plan supprimé pendant qu'un autre le modifiait) : on ne le
+      // recrée pas à moitié, la modification est ignorée.
+      if (o[k] === undefined || o[k] === null || typeof o[k] !== 'object') {
+        missing = true;
+        break;
+      }
       node = o[k];
     }
+    if (missing) continue;
     const last = op.p[op.p.length - 1];
     const o = node as Record<string | number, unknown>;
     if ('del' in op) delete o[last];

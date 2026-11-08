@@ -9,13 +9,15 @@ export function DialogHost() {
   const close = useDialog((d) => d.close);
   const [checked, setChecked] = useState(false);
   const okRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const previous = useRef<Element | null>(null);
 
   useEffect(() => {
     if (!current) return;
     previous.current = document.activeElement;
     setChecked(false);
-    okRef.current?.focus();
+    // Action dangereuse : Entrée ne doit pas supprimer par mégarde, le focus va sur « Annuler ».
+    (current.danger ? cancelRef : okRef).current?.focus();
     return () => {
       (previous.current as HTMLElement | null)?.focus?.();
     };
@@ -43,7 +45,12 @@ export function DialogHost() {
           </label>
         )}
         <div className={s.actions}>
-          <Button variant="ghost" onClick={() => close(false, checked)}>{current.cancelLabel ?? 'Annuler'}</Button>
+          <Button ref={cancelRef} variant="ghost" onClick={() => close(false, checked)}>{current.cancelLabel ?? 'Annuler'}</Button>
+          {current.altLabel && (
+            <Button variant="outline" onClick={() => close(false, checked, true)}>
+              {current.altLabel}
+            </Button>
+          )}
           <Button ref={okRef} variant={current.danger ? 'danger' : 'primary'} onClick={() => close(true, checked)}>
             {current.confirmLabel}
           </Button>

@@ -120,3 +120,7 @@ button { cursor: pointer; }
 /* Aucune couleur hors noirs, gris et blanc : décors colorés (accueil, partage) passés en niveaux de gris. */
 [data-testid="home"] > :not(main):not(section):not(header), [data-testid="share-panel"], [data-testid="share-button"] { filter: grayscale(1); }
 [data-testid="track-bar"] { filter: grayscale(1); }
+
+/* Bouton simple hors composants (écran d'erreur). */
+.btn-outline { height: 32px; padding: 0 14px; border: 1px solid var(--ink); border-radius: var(--radius); background: transparent; color: var(--ink); font-size: 13.5px; }
+.btn-outline:hover { background: var(--hover); }

@@ -1,9 +1,10 @@
 import { redoHome, undoHome } from '../store/homeHistory';
 import { isShortcut } from '../store/shortcuts';
-import { useCanCopy, useReadOnly } from '../store/share';
+import { useCanCopy, useReadOnly, useShare } from '../store/share';
 import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { runChecks } from '../domain/lint';
 import { computeTiming } from '../domain/timing';
 import { buildFiction } from '../../seed/fiction';
@@ -37,9 +38,13 @@ import { Toasts } from '../ui/Toasts';
 import { navigate, useLocation, type Route } from './router';
 import s from './App.module.css';
 
+/** Champ de saisie de texte (où ⌘Z annule la frappe) : pas les cases à cocher, curseurs ou listes. */
 function isTextTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
-  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+  if (!el) return false;
+  if (el.tagName === 'TEXTAREA' || el.isContentEditable) return true;
+  if (el.tagName !== 'INPUT') return false;
+  return /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week)$/.test((el as HTMLInputElement).type || 'text');
 }
 
 const SAVE_LABEL: Record<string, string> = {
@@ -61,6 +66,16 @@ async function boot(): Promise<void> {
 export function App() {
   const { route } = useLocation();
   const doc = useDoc();
+  // Contrôles de la scripte : comptés une fois par version du projet (et jamais au point de tout bloquer).
+  const checkCount = useMemo(() => {
+    if (!doc) return 0;
+    try {
+      return runChecks(doc, computeTiming(doc)).length;
+    } catch (e) {
+      console.error(e);
+      return 0;
+    }
+  }, [doc]);
   const theme = useUi((u) => u.theme);
   const saveStatus = useUi((u) => u.saveStatus);
   const sidebarOpen = useUi((u) => u.sidebarOpen);
@@ -99,6 +114,8 @@ export function App() {
       const mod = e.metaKey || e.ctrlKey;
       if (isShortcut(e, 'save')) {
         e.preventDefault();
+        // Invité sans droit de copie : rien n'est enregistré sur cet ordinateur.
+        if (useShare.getState().role === 'guest' && !useShare.getState().keep) return;
         void saveToFile();
         return;
       }
@@ -130,17 +147,18 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [setUi]);
 
-  if (route === 'print' && doc && booted) {
+  if (route === 'print' && doc && booted && canCopy) {
     return (
       <>
-        <PrintPage doc={doc} />
+        <ErrorBoundary onHome={() => navigate('home')}>
+          <PrintPage doc={doc} />
+        </ErrorBoundary>
         <Toasts />
       </>
     );
   }
 
   const title = doc?.project.title ?? '';
-  const checkCount = doc ? runChecks(doc, computeTiming(doc)).length : 0;
   const showSidebar = route !== 'home' && !!doc;
 
   return (
@@ -186,7 +204,13 @@ export function App() {
           tabIndex={-1}
           // Lecture seule : pas de menus contextuels d'édition.
           onContextMenuCapture={readOnly ? (e) => e.stopPropagation() : undefined}
-        >{booted && <Page route={route} />}</main>
+        >
+          {booted && (
+            <ErrorBoundary key={route} onHome={() => navigate('home')}>
+              <Page route={route} />
+            </ErrorBoundary>
+          )}
+        </main>
       </div>
       <Toasts />
       <DialogHost />

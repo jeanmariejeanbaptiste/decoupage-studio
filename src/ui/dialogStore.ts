@@ -7,12 +7,20 @@ export interface DialogRequest {
   cancelLabel?: string;
   danger?: boolean;
   checkbox?: string;
+  /** Troisième choix (ex. « Ouvrir comme copie ») : renvoie `alt: true`. */
+  altLabel?: string;
+}
+
+export interface DialogResult {
+  ok: boolean;
+  checked: boolean;
+  alt?: boolean;
 }
 
 interface DialogState {
-  current: (DialogRequest & { resolve: (r: { ok: boolean; checked: boolean }) => void }) | null;
-  ask: (req: DialogRequest) => Promise<{ ok: boolean; checked: boolean }>;
-  close: (ok: boolean, checked: boolean) => void;
+  current: (DialogRequest & { resolve: (r: DialogResult) => void }) | null;
+  ask: (req: DialogRequest) => Promise<DialogResult>;
+  close: (ok: boolean, checked: boolean, alt?: boolean) => void;
 }
 
 export const useDialog = create<DialogState>()((set, get) => ({
@@ -22,8 +30,8 @@ export const useDialog = create<DialogState>()((set, get) => ({
       get().current?.resolve({ ok: false, checked: false });
       set({ current: { ...req, resolve } });
     }),
-  close: (ok, checked) => {
-    get().current?.resolve({ ok, checked });
+  close: (ok, checked, alt) => {
+    get().current?.resolve({ ok, checked, alt });
     set({ current: null });
   },
 }));

@@ -3,7 +3,7 @@ import type { DataConnection, Peer } from 'peerjs';
 import { diff, type Op } from '../domain/patch';
 import type { ProjectDoc } from '../domain/types';
 import { navigate } from '../app/router';
-import { getBlob, putBlobRaw, saveProject, setRemoteBlobSource } from './db';
+import { deleteProject, getBlob, putBlobRaw, saveProject, setRemoteBlobSource } from './db';
 import { rememberLastProject, setPersistGuard } from './persistence';
 import { applyRemote, isApplyingRemote, setMutationGuard, useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
@@ -99,6 +99,11 @@ function watchLocalChanges() {
     if (useShare.getState().role === 'host' && s.doc?.project.id !== prev.doc?.project.id) {
       // L'hôte ouvre un autre projet : le partage du précédent se ferme.
       stopHosting();
+      return;
+    }
+    if (useShare.getState().role === 'guest' && useShare.getState().status === 'joined' && prev.doc && s.doc?.project.id !== prev.doc.project.id) {
+      // L'invité ouvre un de ses projets : il quitte le partage, rien de son projet ne part chez l'hôte.
+      leaveSession(false);
       return;
     }
     if (isApplyingRemote() || !s.doc || !prev.doc || s.doc === prev.doc || s.doc.project.id !== prev.doc.project.id) return;
@@ -258,10 +263,18 @@ export async function joinSession(room: string, password: string, name: string):
     const conn = peer.connect(room, { reliable: true });
     hostConn = conn;
     return await new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
-        useShare.setState({ status: 'error', error: 'L’hôte ne répond pas : son partage est peut-être fermé.' });
+      const fail = (error: string) => {
+        clearTimeout(timer);
+        // Connexion manquée : on n'est plus invité (boutons d'enregistrement, export… rétablis).
+        hostConn?.close();
+        hostConn = null;
+        peer?.destroy();
+        peer = null;
+        resetGuards();
+        useShare.setState({ role: 'none', status: 'error', error, room: undefined });
         resolve(false);
-      }, 20000);
+      };
+      const timer = setTimeout(() => fail('L’hôte ne répond pas : son partage est peut-être fermé.'), 20000);
       conn.on('open', () => send(conn, { t: 'hello', password, name }));
       conn.on('data', (raw) => {
         const m = raw as Msg;
@@ -271,12 +284,16 @@ export async function joinSession(room: string, password: string, name: string):
           installGuards();
           useProjectStore.getState().loadDoc(m.doc);
           resolve(true);
-        } else if (m.t === 'denied') {
-          clearTimeout(timer);
-          useShare.setState({ status: 'error', error: m.reason });
-          resolve(false);
-        } else if (m.t === 'ops') applyRemote(m.ops);
-        else if (m.t === 'settings') useShare.setState({ mode: m.mode, keep: m.keep });
+        } else if (m.t === 'denied') fail(m.reason);
+        else if (m.t === 'ops') applyRemote(m.ops);
+        else if (m.t === 'settings') {
+          const wasKept = useShare.getState().keep;
+          useShare.setState({ mode: m.mode, keep: m.keep });
+          const doc = useProjectStore.getState().doc;
+          // Copie retirée par l'hôte : celle déjà enregistrée ici disparaît ; copie accordée : enregistrée tout de suite.
+          if (wasKept && !m.keep && doc) void deleteProject(doc.project.id);
+          if (!wasKept && m.keep && doc) void saveProject(doc);
+        }
         else if (m.t === 'guests') useShare.setState({ guests: m.guests });
         else if (m.t === 'blob?') void answerBlob(conn, m.key);
         else if (m.t === 'blob') receiveBlob(m);
@@ -284,14 +301,12 @@ export async function joinSession(room: string, password: string, name: string):
       conn.on('close', () => {
         if (useShare.getState().status === 'joined') void expelled();
       });
-      peer?.on('error', (e) => {
-        clearTimeout(timer);
-        useShare.setState({ status: 'error', error: e.type === 'peer-unavailable' ? 'Ce partage n’existe plus ou l’hôte est hors ligne.' : e.message });
-        resolve(false);
-      });
+      peer?.on('error', (e) => fail(e.type === 'peer-unavailable' ? 'Ce partage n’existe plus ou l’hôte est hors ligne.' : e.message));
     });
   } catch (e) {
-    useShare.setState({ status: 'error', error: (e as Error).message });
+    peer?.destroy();
+    peer = null;
+    useShare.setState({ role: 'none', status: 'error', error: (e as Error).message });
     return false;
   }
 }
@@ -320,8 +335,11 @@ async function expelled() {
   useUi.getState().toast({ message: saved ? 'Partage fermé par l’hôte. Votre copie est à l’accueil.' : 'Partage fermé par l’hôte.' });
 }
 
-/** Quitte le partage ; sans copie autorisée, le projet reçu est retiré de ce navigateur. */
-export function leaveSession() {
+/**
+ * Quitte le partage ; sans copie autorisée, le projet reçu est retiré de ce navigateur (et de
+ * l'affichage, sauf si l'invité vient d'ouvrir un de ses propres projets).
+ */
+export function leaveSession(unload = true) {
   const st = useShare.getState();
   if (st.role !== 'guest') return;
   hostConn?.close();
@@ -329,7 +347,11 @@ export function leaveSession() {
   peer?.destroy();
   peer = null;
   resetGuards();
-  if (!st.keep) useProjectStore.getState().loadDoc(null);
+  const shared = st.room ? useProjectStore.getState().doc : null;
+  if (!st.keep) {
+    if (unload) useProjectStore.getState().loadDoc(null);
+    if (shared && unload) void deleteProject(shared.project.id);
+  }
   useShare.setState({ role: 'none', status: 'idle', room: undefined, guests: [], hostName: undefined, error: undefined });
 }
 

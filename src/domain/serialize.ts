@@ -1,5 +1,6 @@
-import { upgradeInterview } from './interview';
-import { defaultSettings } from './factory';
+import { ensureInterview, upgradeInterview } from './interview';
+import { defaultSettings, makeBlock } from './factory';
+import { normalizeScenario } from './fountain';
 import { activeColumns } from './columns';
 import { normalizeTiming } from './factory';
 import { EMPTY_CUSTOM_VOCABULARY } from './vocabulary';
@@ -55,8 +56,11 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   p.settings = { ...defaultSettings(p.format ?? 'fiction'), ...(p.settings ?? {}) };
   p.settings.gridColumns = activeColumns(p.settings.gridColumns);
   p.settings.exportColumns = activeColumns(p.settings.exportColumns);
+  // Projets d'avant le mode « durée de chaque plan » : ils y passent, sauf choix explicite.
+  if (p.settings.tcMode === 'cumulatif' && !p.settings.tcModeChosen) p.settings.tcMode = 'duree';
   normalizeTiming(doc);
   upgradeInterview(doc);
+  if (p.format === 'institutionnel') ensureInterview(doc);
   p.schemaVersion = SCHEMA_VERSION;
   p.title = p.title ?? 'Projet sans titre';
   p.version = p.version ?? 'V1';
@@ -64,18 +68,57 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   doc.validatedSteps ??= [];
   doc.customVocabulary = { ...structuredClone(EMPTY_CUSTOM_VOCABULARY), ...(doc.customVocabulary ?? {}) };
   doc.manualEquipment ??= [];
+  // Références cassées (fichier abîmé, ancienne version, synchronisation interrompue) : réparées
+  // plutôt que de faire planter l'affichage.
+  p.sequenceIds = p.sequenceIds.filter((id, i, all) => isObject(doc.sequences[id]) && all.indexOf(id) === i);
   for (const seq of Object.values(doc.sequences)) {
+    seq.label ??= '';
     seq.characterIds ??= [];
-    seq.shotIds ??= [];
+    seq.shotIds = (seq.shotIds ?? []).filter((id) => isObject(doc.shots[id]));
     seq.actionBlockIds ??= [];
   }
-  for (const shot of Object.values(doc.shots)) {
+  for (const [id, shot] of Object.entries(doc.shots)) {
+    const seq = doc.sequences[shot.sequenceId];
+    if (!seq || !seq.shotIds.includes(id)) {
+      delete doc.shots[id];
+      continue;
+    }
+    shot.id = id;
+    shot.subject ??= '';
+    shot.value ??= '';
     shot.characterIds ??= [];
     shot.angle ??= [];
     shot.movement ??= [];
     shot.focal ??= {};
     shot.status ??= 'à tourner';
+    if (!doc.blocks[shot.actionBlockId]) {
+      const block = makeBlock(seq.id, { text: '' });
+      doc.blocks[block.id] = block;
+      shot.actionBlockId = block.id;
+    }
   }
+  for (const [id, b] of Object.entries(doc.blocks)) {
+    if (!doc.sequences[b.sequenceId]) delete doc.blocks[id];
+    else b.text ??= '';
+  }
+  for (const seq of Object.values(doc.sequences)) {
+    const used = new Set(seq.shotIds.map((id) => doc.shots[id].actionBlockId));
+    seq.actionBlockIds = [...new Set([...seq.actionBlockIds.filter((id) => used.has(id)), ...used])];
+  }
+  // Mode « durée de chaque plan » : l'ancienne durée d'action (× nombre de plans) devient la durée de chaque plan.
+  if (p.settings.tcMode === 'duree') {
+    for (const seq of Object.values(doc.sequences)) {
+      for (const bId of seq.actionBlockIds) {
+        const b = doc.blocks[bId];
+        const own = seq.shotIds.map((id) => doc.shots[id]).filter((sh) => sh.actionBlockId === bId);
+        if (b?.overrideSec === undefined || !own.length || own.some((sh) => sh.durationSec !== undefined)) continue;
+        for (const sh of own) sh.durationSec = Math.round(b.overrideSec / own.length);
+        b.overrideSec = undefined;
+      }
+      seq.overrideSec = undefined;
+    }
+  }
+  normalizeScenario(doc);
   return doc;
 }
 

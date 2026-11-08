@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Check, Plus, Trash2, X } from 'lucide-react';
 import { newId } from '../../domain/factory';
 import { addInterviewee, addSetup, ensureInterview, moveQuestion, questionsFor, removeInterviewee, removeSetup, type Interviewee, type InterviewSetup } from '../../domain/interview';
 import type { ID, ProjectDoc } from '../../domain/types';
-import { mutateDoc } from '../../store/projectStore';
+import { useProjectStore, mutateDoc } from '../../store/projectStore';
 import { useReadOnly } from '../../store/share';
 import s from './InterviewPanel.module.css';
 
@@ -22,9 +22,17 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const [pickedSetup, setPickedSetup] = useState<ID | undefined>();
   const setup = subject?.setups?.find((x) => x.id === pickedSetup) ?? subject?.setups?.[0];
 
-  // L'interview existe dès qu'on ouvre l'onglet : un intervenant par défaut.
+  // L'interview existe dès qu'on ouvre l'onglet (un intervenant par défaut). Création hors historique :
+  // annuler / rétablir ne doivent ni la défaire ni la recréer.
   useEffect(() => {
-    if (!readOnly && (!doc.interview?.subjects?.length || doc.interview.subjects.some((x) => !Array.isArray(x.setups)))) mutateDoc((d) => void ensureInterview(d));
+    if (readOnly || (doc.interview?.subjects?.length && !doc.interview.subjects.some((x) => !Array.isArray(x.setups)))) return;
+    const t = useProjectStore.temporal.getState();
+    t.pause();
+    try {
+      mutateDoc((d) => void ensureInterview(d));
+    } finally {
+      t.resume();
+    }
   }, [doc.interview, readOnly]);
   if (!itw || !subject || !setup) return null;
 
