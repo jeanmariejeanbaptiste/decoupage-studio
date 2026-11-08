@@ -14,7 +14,11 @@ export interface PageSlice {
  * là où aucune fusion ne la traverse (`cuttable[i]` : on peut couper avant la ligne i).
  * `gap` = hauteur du filet entre séquences ; `firstOffset` = place prise par le titre en page 1.
  */
-export function paginate(rowHeights: number[][], pageH: number, opts: { gap?: number; firstOffset?: number; cuttable?: boolean[][] } = {}): PageSlice[][] {
+export function paginate(
+  rowHeights: number[][],
+  pageH: number,
+  opts: { gap?: number; firstOffset?: number; cuttable?: boolean[][]; startExtra?: number[][] } = {},
+): PageSlice[][] {
   const gap = opts.gap ?? 0;
   const pages: PageSlice[][] = [[]];
   let used = opts.firstOffset ?? 0;
@@ -33,10 +37,13 @@ export function paginate(rowHeights: number[][], pageH: number, opts: { gap?: nu
         used += gap;
         break;
       }
-      // Combien de lignes tiennent dans la place restante ?
+      // Combien de lignes tiennent dans la place restante ? Une page qui commence au milieu d'une
+      // cellule fusionnée y répète son texte : la première ligne est alors plus haute (`startExtra`).
+      const start = from;
+      const rowH = (i: number) => rows[i] + (i === start && start > 0 ? (opts.startExtra?.[seq]?.[i] ?? 0) : 0);
       let h = 0;
       let to = from;
-      while (to < rows.length && used + h + rows[to] + (to === rows.length - 1 ? gap : 0) <= pageH) h += rows[to++];
+      while (to < rows.length && used + h + rowH(to) + (to === rows.length - 1 ? gap : 0) <= pageH) h += rowH(to++);
       if (to === from) {
         if (used > 0) {
           newPage();
@@ -51,7 +58,9 @@ export function paginate(rowHeights: number[][], pageH: number, opts: { gap?: nu
         if (cut && cut[k]) to = k;
       }
       pages[pages.length - 1].push({ seq, from, to });
-      used += rows.slice(from, to).reduce((a, b) => a + b, 0) + (to === rows.length ? gap : 0);
+      let sliceH = 0;
+      for (let i = from; i < to; i++) sliceH += rowH(i);
+      used += sliceH + (to === rows.length ? gap : 0);
       from = to;
       if (from < rows.length) newPage();
     }
@@ -74,9 +83,19 @@ export function sliceMerges(merges: MergeMap, columns: readonly ColumnKey[], fro
   return out;
 }
 
-/** Lignes avant lesquelles on peut couper sans traverser de fusion. */
-export function cleanCuts(merges: MergeMap, columns: readonly ColumnKey[], rows: number): boolean[] {
+/**
+ * Lignes avant lesquelles on peut couper sans traverser de fusion d'un texte long (une action liée,
+ * une réplique…). Les fusions courtes (« Fixe », « 50mm ») et la colonne SÉQUENCE, toujours fusionnée,
+ * n'empêchent pas une coupure : leur valeur, répétée en haut de page, ne change pas la hauteur.
+ */
+export function cleanCuts(merges: MergeMap, columns: readonly ColumnKey[], rows: number, longText = 30): boolean[] {
   const ok = Array.from({ length: rows + 1 }, () => true);
-  for (const c of columns) for (const m of merges.get(c) ?? []) for (let i = m.startRow + 1; i < m.startRow + m.span; i++) ok[i] = false;
+  for (const c of columns) {
+    if (c === 'sequence' || c === 'number') continue;
+    for (const m of merges.get(c) ?? []) {
+      if (m.value.trim().length <= longText) continue;
+      for (let i = m.startRow + 1; i < m.startRow + m.span; i++) ok[i] = false;
+    }
+  }
   return ok;
 }

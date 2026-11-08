@@ -3,12 +3,17 @@ import { COLUMN_DEFS } from './columns';
 import { addSequence, addShot, linkAction } from './ops';
 import { exportCellText } from './rows';
 import { fold } from './text';
+import { shotCode } from './numbering';
 import { computeTiming } from './timing';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from './types';
 
 export const CSV_COLUMNS: readonly ColumnKey[] = [...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS];
 
-function esc(v: string, sep: string): string {
+/** Cellule protégée : une valeur qui commence par = + - @ ne devient pas une formule dans un tableur. */
+export const safeCell = (v: string) => (/^[=+\-@\t\r]/.test(v) && !/^-?\d+([.,]\d+)?$/.test(v) ? `'${v}` : v);
+
+function esc(raw: string, sep: string): string {
+  const v = safeCell(raw);
   return v.includes(sep) || /["\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
@@ -17,12 +22,12 @@ export function toCsv(doc: ProjectDoc, columns: readonly ColumnKey[] = doc.proje
   const timing = computeTiming(doc);
   const header = ['Code', ...columns.map((c) => COLUMN_DEFS[c].label)];
   const lines = [header.map((h) => esc(h, sep)).join(sep)];
-  doc.project.sequenceIds.forEach((seqId, si) => {
+  doc.project.sequenceIds.forEach((seqId) => {
     const seq = doc.sequences[seqId];
     seq?.shotIds.forEach((shotId, i) => {
       const shot = doc.shots[shotId];
       if (!shot) return;
-      const cells = [`${si + 1}.${i + 1}`, ...columns.map((c) => exportCellText(doc, timing, shot, c, i))];
+      const cells = [shotCode(doc, shotId), ...columns.map((c) => exportCellText(doc, timing, shot, c, i))];
       lines.push(cells.map((v) => esc(v, sep)).join(sep));
     });
   });

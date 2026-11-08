@@ -60,7 +60,7 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <TabExport
+        <TabExport id="registry" orientation="landscape"
           doc={() => registryDocument(doc)}
           fileBase={`${doc.project.title || 'projet'}-registre`}
           file={{

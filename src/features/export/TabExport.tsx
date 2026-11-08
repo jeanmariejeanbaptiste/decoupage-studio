@@ -11,12 +11,14 @@ interface Props {
   fileBase?: string;
   /** Données brutes (CSV, texte…), secondaires. */
   file?: { label: string; name: string; content: () => string | Promise<Blob>; type?: string };
-  /** Clé des réglages mémorisés et préfixe des testid. */
+  /** Clé des réglages mémorisés (propre à chaque page) et préfixe des testid. */
   id?: string;
+  /** Orientation par défaut du document (paysage pour les tableaux larges). */
+  orientation?: 'landscape' | 'portrait';
 }
 
 /** Menu d'export d'un onglet : PDF, images A4, Word et données brutes, sans l'impression du navigateur. */
-export function TabExport({ doc, fileBase = 'document', file, id = 'tab' }: Props) {
+export function TabExport({ doc, fileBase = 'document', file, id = 'tab', orientation = 'portrait' }: Props) {
   const project = useDoc();
   if (!project) return null;
   const extra = [{ key: 'word', label: 'Word', hint: 'Document Word (.doc) modifiable.' }];
@@ -26,8 +28,9 @@ export function TabExport({ doc, fileBase = 'document', file, id = 'tab' }: Prop
       <ExportPanel
         doc={project}
         id={id}
+        testId="tab"
         title="Exporter cette page"
-        defaultOrientation="portrait"
+        defaultOrientation={orientation}
         extra={extra}
         onExport={async ({ format, orientation, numbers }) => {
           if (format === 'word') return downloadWord(doc(), fileBase);

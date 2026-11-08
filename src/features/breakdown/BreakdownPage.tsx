@@ -44,7 +44,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <TabExport doc={() => breakdownDocument(doc)} fileBase={`${doc.project.title || 'projet'}-depouillement`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-depouillement.csv`, content: () => breakdownCsv(doc) }} />
+        <TabExport id="breakdown" orientation="portrait" doc={() => breakdownDocument(doc)} fileBase={`${doc.project.title || 'projet'}-depouillement`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-depouillement.csv`, content: () => breakdownCsv(doc) }} />
       </header>
       <div className={s.layout}>
         <nav className={['card', s.seqs].join(' ')} aria-label="Séquences">

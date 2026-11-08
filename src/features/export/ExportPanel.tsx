@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Download } from 'lucide-react';
 import type { ProjectDoc } from '../../domain/types';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { flushEditors } from '../../store/persistence';
+import { useUi } from '../../store/uiStore';
+import { recoverStaleChunk } from '../../ui/staleChunk';
 import { Button } from '../../ui/Button';
 import type { Orientation } from './imageExport';
 import s from './ExportPanel.module.css';
@@ -15,8 +18,10 @@ export interface ExportChoice {
 
 interface Props {
   doc: ProjectDoc;
-  /** Clé des réglages mémorisés et préfixe des testid. */
+  /** Clé des réglages mémorisés. */
   id: string;
+  /** Préfixe des testid (par défaut, la clé). */
+  testId?: string;
   title: string;
   defaultOrientation?: Orientation;
   /** Formats en plus de PDF et Images A4 (Excel, CSV, Word…). */
@@ -37,6 +42,7 @@ interface Props {
 export function ExportPanel({
   doc,
   id,
+  testId = id,
   title,
   defaultOrientation = 'landscape',
   extra = [],
@@ -56,11 +62,20 @@ export function ExportPanel({
   const orientation = prefs.orientation ?? defaultOrientation;
   const numbers = !noNumbers && (prefs.numbers ?? true);
   const per = prefs.perPage ?? perPage?.[1] ?? perPage?.[0];
-  const setPrefs = (patch: typeof prefs) =>
-    mutateDoc((d) => {
-      const all = (d.project.settings.exportPrefs ??= {});
-      all[id] = { ...all[id], ...patch };
-    });
+  // Réglages d'export mémorisés avec le projet, mais hors de l'historique (⌘Z annule le travail, pas un réglage d'export).
+  const setPrefs = (patch: typeof prefs) => {
+    const t = useProjectStore.temporal.getState();
+    t.pause();
+    try {
+      mutateDoc((d) => {
+        const all = (d.project.settings.exportPrefs ??= {});
+        all[id] = { ...all[id], ...patch };
+      });
+    } finally {
+      t.resume();
+    }
+  };
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -105,7 +120,7 @@ export function ExportPanel({
       <Button
         variant="primary"
         icon={<Download size={15} strokeWidth={1.25} />}
-        disabled={disabled}
+        disabled={disabled || busy}
         aria-expanded={open}
         onClick={() => {
           // Le panneau s'ouvre du côté où il a la place.
@@ -116,9 +131,9 @@ export function ExportPanel({
           setOpen(!open);
         }}
         title={title}
-        data-testid={`${id}-export`}
+        data-testid={`${testId}-export`}
       >
-        Exporter
+        {busy ? 'Export…' : 'Exporter'}
       </Button>
       {open && (
         <div
@@ -126,7 +141,7 @@ export function ExportPanel({
           role="dialog"
           aria-label={title}
           onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-          data-testid={`${id}-export-panel`}
+          data-testid={`${testId}-export-panel`}
         >
           <p className={s.title}>{title}</p>
           {seg(
@@ -162,7 +177,7 @@ export function ExportPanel({
                     type="checkbox"
                     checked={numbers}
                     onChange={(e) => setPrefs({ numbers: e.target.checked })}
-                    data-testid={`${id}-export-numbers`}
+                    data-testid={`${testId}-export-numbers`}
                   />
                   Numéroter les pages (en bas à droite)
                 </label>
@@ -173,11 +188,20 @@ export function ExportPanel({
           {options}
           <Button
             variant="primary"
-            onClick={() => {
+            onClick={async () => {
               setOpen(false);
-              void onExport({ format, orientation, numbers, perPage: per });
+              // Saisie en attente appliquée d'abord ; une erreur s'affiche au lieu de disparaître.
+              flushEditors();
+              setBusy(true);
+              try {
+                await onExport({ format, orientation, numbers, perPage: per });
+              } catch (err) {
+                if (!recoverStaleChunk(err)) useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
+              } finally {
+                setBusy(false);
+              }
             }}
-            data-testid={`${id}-export-go`}
+            data-testid={`${testId}-export-go`}
           >
             Exporter
           </Button>

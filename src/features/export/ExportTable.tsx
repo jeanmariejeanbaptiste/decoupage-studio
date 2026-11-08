@@ -38,7 +38,10 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     [doc, timing, cols],
   );
   const measure = useRef<HTMLDivElement>(null);
+  const paged = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<PageSlice[][] | null>(null);
+  // Resserrement (px) appliqué si une page déborde malgré tout : aucune ligne ne doit être cachée.
+  const [tighten, setTighten] = useState(0);
   // Marge de sécurité de 12 mm : Safari ajoute ses en-têtes et pieds de page dans la page.
   const [paperW, paperH] = paper ? (orientation === 'portrait' ? [PAPER[paper][1], PAPER[paper][0]] : PAPER[paper]) : [0, 0];
   const pageH = paper ? paperH - (footer ? 10 : 0) - safety : 0;
@@ -85,15 +88,41 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
       const head = root.querySelector('thead')?.getBoundingClientRect().height ?? 0;
       const title = root.querySelector('h1');
       const titleH = title ? title.getBoundingClientRect().height + parseFloat(getComputedStyle(title).marginBottom || '0') : 0;
-      const avail = (pageH - 2 * PAD_Y) * PX_PER_MM - head - 4;
+      const avail = (pageH - 2 * PAD_Y) * PX_PER_MM - head - 4 - tighten;
       const cuts = sequences.map((q) => cleanCuts(q.merges, cols, q.rows.length));
-      setPages(paginate(rowHeights, avail, { gap, firstOffset: titleH, cuttable: cuts }));
+      // Hauteur du texte d'une cellule fusionnée, s'il fallait le répéter seul sur une ligne en haut de page.
+      const startExtra = bodies.map((b, k) => {
+        const extra = new Array<number>(rowHeights[k]?.length ?? 0).fill(0);
+        const trs = [...b.querySelectorAll<HTMLElement>('tr:not([aria-hidden]):not([data-sub])')];
+        trs.forEach((tr, r) => {
+          for (const td of tr.querySelectorAll<HTMLTableCellElement>('td[rowspan]')) {
+            const span = td.rowSpan;
+            if (span < 2) continue;
+            const range = document.createRange();
+            range.selectNodeContents(td);
+            const cs = getComputedStyle(td);
+            const need = range.getBoundingClientRect().height + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + 2;
+            for (let i = r + 1; i < r + span && i < extra.length; i++) extra[i] = Math.max(extra[i], need - (rowHeights[k][i] ?? 0));
+          }
+        });
+        return extra;
+      });
+      setPages(paginate(rowHeights, avail, { gap, firstOffset: titleH, cuttable: cuts, startExtra }));
     };
     void document.fonts.ready.then(() => requestAnimationFrame(run));
     return () => {
       cancelled = true;
     };
-  }, [paper, pageH, sequences, cols, showTitle, widths]);
+  }, [paper, pageH, sequences, cols, showTitle, widths, tighten]);
+
+  // Filet de sécurité : une page qui déborde quand même (polices, arrondis) relance la pagination, resserrée.
+  useLayoutEffect(() => {
+    if (!paper || !pages || !paged.current) return;
+    let over = 0;
+    for (const page of paged.current.querySelectorAll<HTMLElement>('[data-testid="print-page"]')) over = Math.max(over, page.scrollHeight - page.clientHeight);
+    if (over > 1 && tighten < 600) setTighten((t) => t + over + 4);
+  }, [pages, paper, tighten]);
+  useLayoutEffect(() => setTighten(0), [paper, pageH, sequences, cols, widths]);
 
   const head = (cs: ColumnKey[], w: Record<string, number> = pickWidths(widths, cs)) => (
     <>
@@ -194,7 +223,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
 
   if (paper && pages)
     return (
-      <div className={sheetClass} data-theme-export={th}>
+      <div ref={paged} className={sheetClass} data-theme-export={th}>
         {pages.map((page, p) => {
           const cs = smart ? pageColumns(page) : cols;
           return (

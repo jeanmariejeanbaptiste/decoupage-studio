@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Braces, Download, Eye, FolderArchive, FileSpreadsheet, FileUp, Printer, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { ALL_COLUMNS, COLUMN_DEFS, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, COLUMN_DEFS, moveColumn, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
 import { fileNameFor, serializeDoc } from '../../domain/serialize';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -30,14 +30,8 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
       d.project.settings.exportColumns = tcLast(cols);
     });
   const cols = settings.exportColumns;
-  const move = (c: ColumnKey, delta: -1 | 1) => {
-    const i = cols.indexOf(c);
-    const j = i + delta;
-    if (j < 0 || j >= cols.length) return;
-    const next = [...cols];
-    [next[i], next[j]] = [next[j], next[i]];
-    setCols(next);
-  };
+  // Même règle que dans la grille : SÉQUENCE et N° restent en tête, TC en fin.
+  const move = (c: ColumnKey, delta: -1 | 1) => setCols(moveColumn(tcLast(cols), c, delta));
 
   const shown = ALL.filter((c) => cols.includes(c)).sort((a, b) => cols.indexOf(a) - cols.indexOf(b));
   const hidden = ALL.filter((c) => !cols.includes(c));
@@ -204,7 +198,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
             CSV / TSV…
           </Button>
         </div>
-        {csvText !== null && <CsvImport text={csvText} onDone={() => setCsvText(null)} />}
+        {csvText !== null && <CsvImport key={csvText} text={csvText} onDone={() => setCsvText(null)} />}
       </section>
     </div>
   );

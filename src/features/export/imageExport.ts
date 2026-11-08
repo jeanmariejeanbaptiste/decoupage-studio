@@ -25,7 +25,8 @@ export async function exportNodePages(pages: HTMLElement[], base: string, opts: 
   const canvases: HTMLCanvasElement[] = [];
   for (const node of pages) {
     const o = { pixelRatio: 3, backgroundColor: background, filter: clean, width: node.offsetWidth, height: node.offsetHeight };
-    if (node.querySelector('img')) await toCanvas(node, { ...o, pixelRatio: 0.2 });
+    // Passe à blanc : Safari omet les images et les polices au premier rendu.
+    await toCanvas(node, { ...o, pixelRatio: 0.2 });
     const canvas = await toCanvas(node, o);
     drawImagesOver(canvas, node, o.pixelRatio);
     canvases.push(canvas);
@@ -146,15 +147,24 @@ export async function exportDocumentPages(html: string, base: string, opts: Page
     const end = pads.length > 1 ? rel(pads[pads.length - 1]).top - top : body.scrollHeight;
     const margin = 13 * px;
     const pageH = h * px - 2 * margin;
-    const bottoms = [...d.querySelectorAll('tr, h1, h2, h3, p, li, header, .block, .day, .plan, .grid > *, svg, img')]
-      .map((e) => rel(e).bottom - top)
-      .sort((a, b) => a - b);
+    // Points de coupe : bas des lignes de tableau et des blocs ; dans un long paragraphe, bas de chaque
+    // ligne de texte (jamais une ligne coupée en deux). Pas sous un titre ni sous un en-tête de tableau :
+    // un titre reste avec ce qui le suit.
+    const bottoms: number[] = [];
+    for (const e of d.querySelectorAll('tbody tr, p, li, .block, .day, .plan, .grid > *, svg, img')) bottoms.push(rel(e).bottom - top);
+    for (const e of d.querySelectorAll('p, li')) {
+      const range = document.createRange();
+      range.selectNodeContents(e);
+      for (const r of range.getClientRects()) if (r.height > 0) bottoms.push(r.bottom - top);
+    }
+    const headings = [...d.querySelectorAll('h1, h2, h3, thead, header')].map((e) => [rel(e).top - top, rel(e).bottom - top] as const);
+    const usable = bottoms.filter((b) => !headings.some(([t0, b0]) => b > t0 - 1 && b <= b0 + 1)).sort((a, b) => a - b);
     const forced = [...d.querySelectorAll('.plan')].slice(1).map((e) => rel(e).top - top);
     const slices: Array<[number, number]> = [];
     let start = start0;
     while (start < end - 1) {
       const limit = start + pageH;
-      let cut = limit >= end ? end : Math.max(0, ...bottoms.filter((b) => b > start + 1 && b <= limit));
+      let cut = limit >= end ? end : Math.max(0, ...usable.filter((b) => b > start + 1 && b <= limit));
       if (!cut || cut - start < pageH * 0.25) cut = Math.min(limit, end);
       const brk = forced.find((f) => f > start + 1 && f < cut);
       if (brk) cut = brk;
@@ -163,21 +173,37 @@ export async function exportDocumentPages(html: string, base: string, opts: Page
     }
     const { toCanvas } = await import('html-to-image');
     const ratio = 2.5;
-    const full = await toCanvas(body, { pixelRatio: ratio, backgroundColor: '#ffffff', width: body.scrollWidth, height: body.scrollHeight });
     const W = Math.round(w * px * ratio);
     const H = Math.round(h * px * ratio);
-    const k = full.width / body.scrollWidth;
-    const pages = slices.map(([a, b]) => {
-      const c = document.createElement('canvas');
-      c.width = W;
-      c.height = H;
-      const ctx = c.getContext('2d')!;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, W, H);
-      const sc = W / full.width;
-      ctx.drawImage(full, 0, a * k, full.width, (b - a) * k, 0, margin * ratio, W, (b - a) * k * sc);
-      return c;
-    });
+    // Capture par paquets de pages : un seul canevas géant serait réduit (flou) au-delà de 16 384 px.
+    const pages: HTMLCanvasElement[] = [];
+    const maxH = Math.floor(14000 / ratio);
+    // Passe à blanc (très basse définition) : Safari n'applique les polices intégrées qu'au second rendu.
+    await toCanvas(host, { pixelRatio: 0.1, backgroundColor: '#ffffff', width: body.scrollWidth, height: Math.min(body.scrollHeight, 3000) }).catch(() => undefined);
+    for (let i = 0; i < slices.length; ) {
+      let j = i;
+      while (j + 1 < slices.length && slices[j + 1][1] - slices[i][0] <= maxH) j++;
+      const top0 = slices[i][0];
+      const height = Math.ceil(slices[j][1] - top0);
+      wrap.style.height = `${height}px`;
+      wrap.style.overflow = 'hidden';
+      host.style.marginTop = `${-top0}px`;
+      const chunk = await toCanvas(wrap, { pixelRatio: ratio, backgroundColor: '#ffffff', width: body.scrollWidth, height });
+      const k = chunk.width / body.scrollWidth;
+      for (let n = i; n <= j; n++) {
+        const [a, b] = slices[n];
+        const c = document.createElement('canvas');
+        c.width = W;
+        c.height = H;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+        const sc = W / chunk.width;
+        ctx.drawImage(chunk, 0, (a - top0) * k, chunk.width, (b - a) * k, 0, margin * ratio, W, (b - a) * k * sc);
+        pages.push(c);
+      }
+      i = j + 1;
+    }
     await finish(pages, base, opts);
   } finally {
     wrap.remove();
@@ -273,7 +299,17 @@ function drawImagesOver(canvas: HTMLCanvasElement, node: HTMLElement, ratio: num
     ctx.strokeStyle = cs.borderTopColor || '#ccc';
     ctx.lineWidth = ratio;
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 3 * ratio);
+    // roundRect n'existe qu'à partir de Safari 16 : arcs tracés à la main sinon.
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, w, h, 3 * ratio);
+    else {
+      const r = 3 * ratio;
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = cs.color;

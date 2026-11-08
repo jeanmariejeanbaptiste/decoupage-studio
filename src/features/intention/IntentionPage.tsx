@@ -20,7 +20,7 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
           <Hand>
             {words} mot{words > 1 ? 's' : ''}
           </Hand>
-          <TabExport doc={() => intentionDocument({ ...doc, intention: text })} fileBase={`${doc.project.title || 'projet'}-note-d-intention`} file={{ label: 'Texte', type: 'text/plain;charset=utf-8', name: `${doc.project.title || 'projet'}-note-d-intention.txt`, content: () => text }} />
+          <TabExport id="intention" orientation="portrait" doc={() => intentionDocument({ ...doc, intention: text })} fileBase={`${doc.project.title || 'projet'}-note-d-intention`} file={{ label: 'Texte', type: 'text/plain;charset=utf-8', name: `${doc.project.title || 'projet'}-note-d-intention.txt`, content: () => text }} />
         </span>
       </header>
       <div className={['a4-sheet', s.sheet].join(' ')}>

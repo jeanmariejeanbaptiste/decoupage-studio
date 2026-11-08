@@ -72,7 +72,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
           >
             Poste
           </Button>
-          <TabExport doc={() => equipmentDocument(doc, showShots)} fileBase={`${doc.project.title || 'projet'}-materiel`} />
+          <TabExport id="equipment" orientation="portrait" doc={() => equipmentDocument(doc, showShots)} fileBase={`${doc.project.title || 'projet'}-materiel`} />
           <Button variant="ghost" icon={<Download size={15} strokeWidth={1.25} />} onClick={csv}>
             CSV
           </Button>

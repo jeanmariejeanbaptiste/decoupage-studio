@@ -40,8 +40,8 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
   const wb = new ExcelJS.Workbook();
   wb.title = `${doc.project.title} — découpage technique`;
   const base = PALETTES[theme];
-  // Économie d'encre : pas d'aplats, seulement le texte coloré et les filets.
-  const p = doc.project.settings.exportInkSaver ? { ...base, bg: 'FFFFFF', head: 'FFFFFF' } : base;
+  // Le classeur garde toujours ses fonds d'en-tête (l'économie d'encre du storyboard ne le concerne pas).
+  const p = base;
   const timing = computeTiming(doc);
   const ws = wb.addWorksheet('Découpage', {
     pageSetup: {
@@ -55,7 +55,11 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
     views: [{ state: 'frozen', ySplit: 2, showGridLines: false }],
     properties: { tabColor: { argb: `FF${p.head}` } },
   });
-  ws.headerFooter.oddFooter = `&L${doc.project.title} · ${doc.project.version}&Rpage &P / &N`;
+  // Pied de page selon le réglage d'export ; « & » est un code de mise en forme pour Excel : doublé.
+  const amp = (t: string) => t.replace(/&/g, '&&');
+  if (doc.project.settings.exportFooter !== false) ws.headerFooter.oddFooter = `&L${amp(doc.project.title)} · ${amp(doc.project.version)}&Rpage &P / &N`;
+  // En-tête de colonnes répété sur chaque page imprimée.
+  ws.pageSetup.printTitlesRow = '2:2';
   const widths = columnWidths(columns);
   ws.columns = columns.map((c) => ({ key: c, width: Math.max(4, (widths[c] / 100) * TOTAL_WIDTH) }));
 
@@ -76,9 +80,27 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
     cell.font = { name: FONT, size: 10, bold: true, italic: c === 'tc', color: { argb: `FF${c === 'number' ? p.red : p.ink}` } };
   });
 
+  // Hauteur estimée d'un texte dans une colonne (Excel n'ajuste jamais les lignes fusionnées).
+  const charsPerLine = (c: ColumnKey) => Math.max(4, ((widths[c] / 100) * TOTAL_WIDTH) * 1.1);
+  const needed = (c: ColumnKey, text: string) => {
+    const lines = String(text)
+      .split('\n')
+      .reduce((n, l) => n + Math.max(1, Math.ceil(l.length / charsPerLine(c))), 0);
+    return lines * 12.5 + 8;
+  };
   for (const seqId of doc.project.sequenceIds) {
     const noMerge = !!doc.project.settings.exportNoMerge;
     const { rows, merges } = sequenceMerges(doc, timing, seqId, columns, noMerge, true);
+    if (!rows.length) {
+      // Séquence sans plan : elle figure quand même, avec son libellé.
+      const row = ws.addRow(columns.map((c) => (c === 'sequence' ? `${doc.project.sequenceIds.indexOf(seqId) + 1}, ${(doc.sequences[seqId]?.label ?? '').toUpperCase()}` : '')));
+      row.height = 24;
+      columns.forEach((_, i) => {
+        row.getCell(i + 1).border = border;
+        row.getCell(i + 1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        row.getCell(i + 1).font = { name: FONT, size: 9, bold: true };
+      });
+    }
     const firstBeat = BEAT_COLUMNS.find((c) => columns.includes(c));
     // Ligne Excel de départ de chaque plan : un plan-séquence occupe une ligne par temps et par liaison.
     const starts: number[] = [];
@@ -100,6 +122,18 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
       });
     });
     const endOf = (i: number) => starts[i] + Math.max(1, rows[i].lines?.length ?? 1) - 1;
+    // Hauteur de chaque ligne : assez pour le texte le plus long, réparti sur les lignes qu'il couvre.
+    rows.forEach((r, i) => {
+      if (r.lines && r.lines.length > 1) return;
+      let need = 30;
+      for (const c of columns) {
+        const span = noMerge ? undefined : merges.get(c)?.find((m) => m.startRow <= i && i < m.startRow + m.span);
+        const text = span ? span.value : (r.cells[c] ?? '');
+        const n = span ? span.span : 1;
+        need = Math.max(need, needed(c, text) / n);
+      }
+      ws.getRow(starts[i]).height = Math.min(400, Math.round(need));
+    });
     columns.forEach((c, i) => {
       for (const span of merges.get(c) ?? []) {
         const top = starts[span.startRow];

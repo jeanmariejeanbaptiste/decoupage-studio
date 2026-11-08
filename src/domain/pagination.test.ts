@@ -18,6 +18,18 @@ describe('pagination de l’impression', () => {
   it('restreint les fusions à une page', () => {
     const m: MergeMap = new Map([['value', [{ startRow: 0, span: 4, value: 'Taille' }]]]);
     expect(sliceMerges(m, ['value'], 2, 5).get('value')).toEqual([{ startRow: 0, span: 2, value: 'Taille' }]);
-    expect(cleanCuts(m, ['value'], 4)).toEqual([true, false, false, false, true]);
+    // Valeur courte (« Taille ») : répétée en haut de page sans changer la hauteur, la coupure reste permise.
+    expect(cleanCuts(m, ['value'], 4)).toEqual([true, true, true, true, true]);
+    const long: MergeMap = new Map([['action', [{ startRow: 0, span: 4, value: 'Léa traverse le hall en tirant une valise cabossée.' }]]]);
+    expect(cleanCuts(long, ['action'], 4)).toEqual([true, false, false, false, true]);
+  });
+  it('une page qui commence au milieu d’un texte fusionné compte sa répétition', () => {
+    // 6 lignes de 20 px ; à partir de la ligne 3, la répétition du texte fusionné ajoute 50 px.
+    const pages = paginate([Array(6).fill(20)], 90, { startExtra: [[0, 50, 50, 50, 50, 50]] });
+    for (const p of pages) {
+      const h = p.reduce((n, sl) => n + (sl.to - sl.from) * 20 + (sl.from > 0 ? 50 : 0), 0);
+      expect(h).toBeLessThanOrEqual(90);
+    }
+    expect(pages.flat().reduce((n, sl) => n + sl.to - sl.from, 0)).toBe(6);
   });
 });
