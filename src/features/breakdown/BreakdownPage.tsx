@@ -131,7 +131,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
     <div className={['page page--wide', s.page].join(' ')}>
       <header className={s.toolbar}>
         <p className={s.count}>
-          {entries.length} scène{entries.length > 1 ? 's' : ''}
+          {entries.length} séquence{entries.length > 1 ? 's' : ''}
         </p>
         <div className={s.tools}>
           {!readOnly && (entry.seqId || entry.scene) && (
@@ -139,7 +139,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
               variant="outline"
               icon={<Sparkles size={15} strokeWidth={1.25} />}
               onClick={() => suggestBreakdown(doc, { seqId: entry.seqId, heading: entry.scene?.heading })}
-              title="L’assistant relève les éléments de cette scène et les ajoute au dépouillement (annulable en une fois)"
+              title="L’assistant relève les éléments de cette séquence et les ajoute au dépouillement (annulable en une fois)"
               data-testid="breakdown-ai"
             >
               Dépouiller avec l’assistant
@@ -149,7 +149,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         </div>
       </header>
       <div className={s.layout}>
-        <nav className={s.scenes} aria-label="Scènes">
+        <nav className={s.scenes} aria-label="Séquences">
           <ol>
             {entries.map((e) => {
               const n = e.seqId ? Object.values(breakdownOf(doc, e.seqId)).reduce((k, l) => k + (l?.length ?? 0), 0) : 0;
@@ -167,7 +167,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           </ol>
         </nav>
 
-        <section className={s.center} aria-label="Texte de la scène">
+        <section className={s.center} aria-label="Texte de la séquence">
           <div className={s.sheet}>
             {/* Le texte du scénario porte déjà son en-tête ; une séquence sans texte écrit affiche le sien. */}
             {(!entry.scene || !entry.seqId) && (

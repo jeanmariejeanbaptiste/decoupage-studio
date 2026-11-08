@@ -213,7 +213,7 @@ export function beatTransitions(
         notes.push(`Déplacement caméra ≈ ${Math.round(d / 20)} carreaux ${dir}`);
       }
     }
-    if (!notes.length) notes.push('Continuité : même cadrage, la scène évolue devant la caméra');
+    if (!notes.length) notes.push('Continuité : même cadrage, l’action évolue devant la caméra');
     out.push({ from: i + 1, to: i + 2, notes });
   }
   return out;
