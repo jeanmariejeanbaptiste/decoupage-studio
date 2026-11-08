@@ -17,11 +17,15 @@ import { useIsMobile } from '../../ui/useIsMobile';
 import { ScriptExportButton } from './ScriptExportButton';
 import { goToShot } from '../registry/RegistryPage';
 import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
+import { CharactersPanel, DecorsPanel, ResearchPanel } from './ResearchPanels';
 import s from './ScenarioPage.module.css';
 
-type Tab = 'scenes' | 'shots' | 'stats';
+type Tab = 'scenes' | 'characters' | 'decors' | 'research' | 'shots' | 'stats';
 const TABS: ReadonlyArray<[Tab, string]> = [
   ['scenes', 'Séquences'],
+  ['characters', 'Personnages'],
+  ['decors', 'Décors'],
+  ['research', 'Recherche'],
   ['shots', 'Plans'],
   ['stats', 'Statistiques'],
 ];
@@ -29,7 +33,7 @@ const TABS: ReadonlyArray<[Tab, string]> = [
 const savedTab = (): Tab => {
   try {
     const t = localStorage.getItem('ds-scenario-tab');
-    return t === 'shots' || t === 'stats' ? t : 'scenes';
+    return TABS.some(([k]) => k === t) ? (t as Tab) : 'scenes';
   } catch {
     return 'scenes';
   }
@@ -120,6 +124,14 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const title = doc.project.title || 'scenario';
   const current = () => useProjectStore.getState().doc ?? doc;
 
+  const sideBlocks = useScriptUi((u) => u.blocks);
+  // Aller à une séquence depuis un panneau (sommaire, personnages, décors).
+  const goTo = (id: string) => {
+    if (view !== 'script') {
+      setView('script');
+      setTimeout(() => api.current?.scrollTo(id), 60);
+    } else api.current?.scrollTo(id);
+  };
   return (
     <div className={['page page--wide', s.page].join(' ')}>
       <header className={s.toolbar}>
@@ -221,16 +233,10 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               </button>
             ))}
           </div>
-          {tab === 'scenes' && (
-            <Outline
-              onPick={(id) => {
-                if (view !== 'script') {
-                  setView('script');
-                  setTimeout(() => api.current?.scrollTo(id), 60);
-                } else api.current?.scrollTo(id);
-              }}
-            />
-          )}
+          {tab === 'scenes' && <Outline onPick={goTo} />}
+          {tab === 'characters' && <CharactersPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />}
+          {tab === 'decors' && <DecorsPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />}
+          {tab === 'research' && <ResearchPanel doc={doc} readOnly={readOnly} />}
           {tab === 'shots' && <ShotsPanel doc={doc} readOnly={readOnly} hot={hover ?? caretAnchor} onHover={setHover} onFlush={() => api.current?.flush()} />}
           {tab === 'stats' && <Stats />}
         </aside>

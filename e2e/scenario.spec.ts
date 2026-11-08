@@ -196,3 +196,21 @@ test('scénario dans le découpage : un seul panneau à droite, + par phrase et 
   await page.mouse.click(box2.x + box2.width / 2, box2.y + 160);
   await expect(panel.getByTestId('script-selection-plus')).toHaveCount(0);
 });
+
+test('scénario : personnages (présence, fiche, répliques), décors et recherche', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  await page.getByTestId('scenario-tab-characters').click();
+  const lea = page.getByTestId('character-row').filter({ hasText: 'LÉA' });
+  await expect(lea).toContainText('2 répl. · 3 séq. (1 muette) · dès la séq. 1');
+  await lea.click();
+  await page.getByLabel('Comédien·ne').fill('Alice Martin');
+  await page.getByLabel('Costume').click();
+  await expect(page.getByTestId('scenario-characters')).toContainText('Je ne sais pas encore');
+  await page.getByTestId('scenario-tab-decors').click();
+  await expect(page.getByTestId('decor-row').first()).toContainText('GARE — HALL');
+  await page.getByTestId('scenario-tab-research').click();
+  await page.getByLabel('Logline').fill('Une valise, une décision.');
+  await page.getByTestId('research-add-doc').click();
+  await page.goto('/#/registry?tab=characters');
+  await expect(page.getByText('Alice Martin')).toBeVisible();
+});

@@ -198,6 +198,18 @@ export interface Character {
   actor?: string;
   notes?: string;
   aliases?: string[];
+  /** Fiche du personnage (module Personnages du scénario). */
+  age?: string;
+  costume?: string;
+}
+
+/** Recherche du projet : genre, logline, synopsis et documents libres. */
+export interface Research {
+  genre?: string;
+  year?: string;
+  logline?: string;
+  synopsis?: string;
+  docs?: Array<{ id: ID; title: string; text: string }>;
 }
 
 export interface Decor {
@@ -259,6 +271,8 @@ export interface ProjectDoc {
   breakdownExtra?: string[];
   /** Postes de matériel ajoutés par l'utilisateur. */
   equipmentExtra?: string[];
+  /** Recherche (scénario) : genre, logline, synopsis, documents. */
+  research?: Research;
   /** Institutionnel : l'interview (A-roll). */
   interview?: import('./interview').Interview;
 }
