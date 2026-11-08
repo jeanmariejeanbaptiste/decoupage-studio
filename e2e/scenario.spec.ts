@@ -206,8 +206,17 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await page.getByLabel('Comédien·ne').fill('Alice Martin');
   await page.getByLabel('Costume').click();
   await expect(page.getByTestId('scenario-characters')).toContainText('Je ne sais pas encore');
+  // Renommer : partout dans le scénario et le projet.
+  await page.getByLabel('Nom', { exact: true }).fill('Flora');
+  await page.getByLabel('Costume').click();
+  await expect(page.getByTestId('script-editor')).toContainText('FLORA');
+  await expect(page.getByTestId('script-editor')).not.toContainText('LÉA');
   await page.getByTestId('scenario-tab-decors').click();
   await expect(page.getByTestId('decor-row').first()).toContainText('GARE — HALL');
+  await page.getByTestId('decor-row').first().click();
+  await page.getByLabel('Nom du décor').fill('Gare du Nord — Hall');
+  await page.getByLabel('Adresse de tournage').click();
+  await expect(page.getByTestId('script-editor')).toContainText('INT. GARE DU NORD — HALL');
   await page.getByTestId('scenario-tab-research').click();
   await page.getByLabel('Logline').fill('Une valise, une décision.');
   await page.getByTestId('research-add-doc').click();
@@ -220,7 +229,9 @@ test('scénario : aucune ligne ne sort de sa feuille (sauts de page, blocs vari�
   await page.getByTestId('new-project').click();
   await page.getByLabel('Titre du projet').fill('Pages');
   await page.getByTestId('wizard-next').click();
-  await page.evaluate(() => (location.hash = '#/scenario'));
+  await expect(page.getByTestId('create-first')).toBeVisible();
+  await page.getByRole('button', { name: 'Écrire ou importer un scénario' }).click();
+  await expect(page.getByTestId('script-editor')).toBeVisible();
   page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-pages.fountain'));
   await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
   await expect(page.getByText(/Scénario importé/)).toBeVisible();

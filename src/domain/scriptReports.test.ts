@@ -51,3 +51,29 @@ describe('rapports du scénario', () => {
     expect(sidesOf(blocks, 'MARC')).toEqual([{ n: 1, heading: 'INT. GARE – HALL - JOUR', lines: [{ paren: '(bas)', text: 'Depuis une heure.' }] }]);
   });
 });
+
+describe('renommer', () => {
+  it('garde la casse de chaque occurrence et recale les positions', async () => {
+    const { replaceName, isHeadingLine } = await import('./scriptReports');
+    const src = 'INT. GARE - JOUR\n\nLÉA entre. Léa sourit. Léandre passe.\n\nLÉA (OFF)\nBonjour.\n';
+    const r = replaceName(src, 'Léa', 'Flora');
+    expect(r.text).toBe('INT. GARE - JOUR\n\nFLORA entre. Flora sourit. Léandre passe.\n\nFLORA (OFF)\nBonjour.\n');
+    expect(r.text.slice(r.shift(src.indexOf('Bonjour')), r.shift(src.indexOf('Bonjour')) + 7)).toBe('Bonjour');
+    const d = replaceName(src, 'gare', 'Station', isHeadingLine);
+    expect(d.text.startsWith('INT. STATION - JOUR')).toBe(true);
+  });
+});
+
+describe('renommer dans le projet', () => {
+  it('personnage : scénario, fiche, plans ; décor : en-têtes et séquences', async () => {
+    const { renameCharacter, renameDecor } = await import('./scriptReports');
+    const { buildFiction } = await import('../../seed/fiction');
+    const doc = buildFiction();
+    renameCharacter(doc, 'LÉA', 'Flora');
+    expect(doc.scenario).not.toMatch(/Léa|LÉA/);
+    expect(Object.values(doc.characters).map((c) => c.name)).toContain('Flora');
+    expect(Object.values(doc.shots).some((s) => s.subject.includes('Flora'))).toBe(true);
+    renameDecor(doc, 'GARE — HALL', 'Gare du Nord — Hall');
+    expect(doc.scenario).toContain('GARE DU NORD — HALL');
+  });
+});

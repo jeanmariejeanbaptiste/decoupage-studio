@@ -6,6 +6,7 @@
 import { isEmptyBlock, type SBlock } from './screenplay';
 import { blankLinesBefore, blockLines, NOT_PRINTED, SCRIPT_PAGE } from './scriptLayout';
 import { fold } from './text';
+import type { ProjectDoc } from './types';
 
 const upper = (s: string) => s.toLocaleUpperCase('fr');
 /** Nom d'un personnage tel qu'au-dessus de sa réplique, sans extension « (OFF) » ni « ^ ». */
@@ -166,4 +167,89 @@ export function sidesOf(blocks: readonly SBlock[], name: string): Array<{ n: num
     mine = false;
   }
   return out;
+}
+
+// --- Renommer un personnage ou un décor dans tout le projet ---------------------------------------
+
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Même casse que le mot remplacé : CAPITALES, Capitale initiale, ou tel quel. */
+function sameCase(found: string, next: string): string {
+  if (found === found.toLocaleUpperCase('fr') && /\p{L}/u.test(found)) return next.toLocaleUpperCase('fr');
+  if (found[0] === found[0].toLocaleUpperCase('fr')) return next.charAt(0).toLocaleUpperCase('fr') + next.slice(1);
+  return next;
+}
+
+/**
+ * Remplace un nom, mot entier et sans tenir compte de la casse (la casse de chaque occurrence est gardée),
+ * dans les lignes retenues par `inLine`. Renvoie le texte et de quoi recaler une position.
+ */
+export function replaceName(source: string, from: string, to: string, inLine: (line: string) => boolean = () => true): { text: string; shift: (pos: number) => number } {
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${escRe(from)}(?![\\p{L}\\p{N}])`, 'giu');
+  const edits: Array<{ at: number; len: number; by: string }> = [];
+  let pos = 0;
+  for (const line of source.split('\n')) {
+    if (inLine(line)) for (const m of line.matchAll(re)) edits.push({ at: pos + m.index!, len: m[0].length, by: sameCase(m[0], to) });
+    pos += line.length + 1;
+  }
+  let text = '';
+  let last = 0;
+  for (const e of edits) {
+    text += source.slice(last, e.at) + e.by;
+    last = e.at + e.len;
+  }
+  text += source.slice(last);
+  const shift = (p: number) => {
+    let d = 0;
+    for (const e of edits) {
+      if (e.at >= p) break;
+      d += e.by.length - e.len;
+    }
+    return p + d;
+  };
+  return { text, shift };
+}
+
+/** Lignes d'en-tête de séquence (où vit le nom d'un décor). */
+export const isHeadingLine = (line: string) => /^\s*(?:\.(?!\.)|(?:INT|EXT|EST|I\/E|INT\.?\/EXT)[.\s])/i.test(line);
+
+/** Recale les passages du découpage liés au scénario après une modification du texte. */
+function shiftAnchors(doc: ProjectDoc, shift: (p: number) => number): void {
+  for (const o of [...Object.values(doc.blocks), ...Object.values(doc.sequences)]) {
+    const a = o.scenarioAnchor;
+    if (a) o.scenarioAnchor = { start: shift(a.start), end: shift(a.end) };
+  }
+}
+
+/** Renomme un personnage partout : scénario (répliques et mentions), fiche, plans et actions du découpage. */
+export function renameCharacter(doc: ProjectDoc, from: string, to: string): void {
+  const next = to.trim();
+  if (!next || fold(next) === fold(from)) return;
+  if (doc.scenario) {
+    const r = replaceName(doc.scenario, from, next, (l) => !isHeadingLine(l));
+    doc.scenario = r.text;
+    shiftAnchors(doc, r.shift);
+  }
+  for (const c of Object.values(doc.characters)) {
+    if (fold(c.name) === fold(from)) c.name = sameCase(c.name, next);
+    if (c.aliases) c.aliases = c.aliases.map((a) => (fold(a) === fold(from) ? next : a));
+  }
+  for (const sh of Object.values(doc.shots)) if (sh.subject) sh.subject = replaceName(sh.subject, from, next).text;
+  for (const b of Object.values(doc.blocks)) {
+    if (b.text) b.text = replaceName(b.text, from, next).text;
+    if (b.dialogue) b.dialogue = replaceName(b.dialogue, from, next).text;
+  }
+}
+
+/** Renomme un décor partout : en-têtes du scénario, fiche du décor, libellés des séquences. */
+export function renameDecor(doc: ProjectDoc, from: string, to: string): void {
+  const next = to.trim();
+  if (!next || fold(next) === fold(from)) return;
+  if (doc.scenario) {
+    const r = replaceName(doc.scenario, from, next, isHeadingLine);
+    doc.scenario = r.text;
+    shiftAnchors(doc, r.shift);
+  }
+  for (const d of Object.values(doc.decors)) if (fold(d.name) === fold(from)) d.name = sameCase(d.name, next);
+  for (const q of Object.values(doc.sequences)) if (q.label) q.label = replaceName(q.label, from, next).text;
 }

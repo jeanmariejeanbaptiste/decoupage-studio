@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { SBlock } from '../../domain/screenplay';
-import { characterReports, locationReports, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
+import { characterReports, locationReports, renameCharacter, renameDecor, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
 import { addCharacter } from '../../domain/ops';
 import { addDecor } from '../../domain/registry';
 import { newId } from '../../domain/factory';
@@ -94,6 +94,16 @@ export function CharactersPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectD
               </button>
               {on && (
                 <div className={s.fiche}>
+                  <Field
+                    label="Nom"
+                    value={c.name}
+                    readOnly={readOnly}
+                    onCommit={(v) => {
+                      if (!v.trim()) return;
+                      mutateDoc((d) => renameCharacter(d, c.name, v));
+                      setOpen(v.trim().toLocaleUpperCase('fr'));
+                    }}
+                  />
                   <Field label="Comédien·ne" value={fiche?.actor ?? ''} readOnly={readOnly} onCommit={(v) => edit(c.name, { actor: v.trim() || undefined })} />
                   <div className={s.two}>
                     <Field label="Âge" value={fiche?.age ?? ''} readOnly={readOnly} onCommit={(v) => edit(c.name, { age: v.trim() || undefined })} />
@@ -164,6 +174,16 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
               </button>
               {on && (
                 <div className={s.fiche}>
+                  <Field
+                    label="Nom du décor"
+                    value={l.location}
+                    readOnly={readOnly}
+                    onCommit={(v) => {
+                      if (!v.trim()) return;
+                      mutateDoc((d) => renameDecor(d, l.location, v));
+                      setOpen(v.trim().toLocaleUpperCase('fr'));
+                    }}
+                  />
                   <p className={s.scenes}>
                     {l.scenes.map((n) => (
                       <button key={n} type="button" className={s.sceneLink} onClick={() => scenes[n - 1] && onGo(scenes[n - 1].id)}>
