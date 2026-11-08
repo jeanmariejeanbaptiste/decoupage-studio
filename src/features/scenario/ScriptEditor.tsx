@@ -34,7 +34,7 @@ import {
   type Span,
   TITLE_FIELDS,
 } from '../../domain/screenplay';
-import { SCRIPT_COLUMNS, SCRIPT_PAGE, paginateItems, plainText, titlePageLines } from '../../domain/scriptLayout';
+import { SCRIPT_COLUMNS, SCRIPT_PAGE, emphasisRuns, paginateItems, plainText, titlePageLines } from '../../domain/scriptLayout';
 import { blockTypeDigit } from '../../domain/shortcuts';
 import { fold } from '../../domain/text';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -154,6 +154,8 @@ export interface ScriptEditorApi {
   selectionRect: () => DOMRect | null;
   /** Ouvre la page de titre (créée si besoin). */
   editTitle: () => void;
+  /** Gras (« ** »), italique (« * ») ou souligné (« _ ») sur la sélection, ou le mot sous le curseur. */
+  emphasis: (mark: '**' | '*' | '_') => void;
 }
 
 // --- Lecture et écriture du DOM ----------------------------------------------------------------
@@ -177,7 +179,25 @@ function readText(el: HTMLElement): string {
 }
 
 function writeText(el: HTMLElement, text: string) {
-  el.textContent = text;
+  // Emphase Fountain affichée en place : marques gardées dans le texte (invisibles), le reste stylé.
+  if (/[*_\\]/.test(text)) {
+    el.textContent = '';
+    for (const r of emphasisRuns(text)) {
+      if (!r.mark && !r.bold && !r.italic && !r.underline) {
+        el.appendChild(document.createTextNode(r.text));
+        continue;
+      }
+      const span = document.createElement('span');
+      span.textContent = r.text;
+      if (r.mark) span.className = s.mk;
+      else {
+        if (r.bold) span.style.fontWeight = '700';
+        if (r.italic) span.style.fontStyle = 'italic';
+        if (r.underline) span.style.textDecoration = 'underline';
+      }
+      el.appendChild(span);
+    }
+  } else el.textContent = text;
   // Un bloc vide (ou qui finit par un retour) garde une ligne où poser le curseur.
   if (text === '' || text.endsWith('\n')) el.appendChild(document.createElement('br'));
 }
@@ -305,7 +325,19 @@ const Block = memo(function Block({ b, mt, n }: { b: SBlock; mt?: number; n?: nu
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
-    if (el && readText(el) !== b.text) writeText(el, b.text);
+    if (!el) return;
+    // Texte changé ailleurs, ou emphase tout juste fermée à la frappe : on redessine le bloc.
+    const styled = el.querySelector('span') !== null;
+    const wants = /[*_]/.test(b.text) && emphasisRuns(b.text).some((r) => r.mark);
+    if (readText(el) !== b.text || styled !== wants) {
+      const sel = window.getSelection();
+      const caret = sel && sel.rangeCount && el.contains(sel.anchorNode) ? offsetIn(el, sel.anchorNode!, sel.anchorOffset) : null;
+      writeText(el, b.text);
+      if (caret !== null && sel) {
+        const [node, off] = pointAt(el, caret);
+        sel.collapse(node, off);
+      }
+    }
   }, [b.text]);
   return <div ref={ref} data-bid={b.id} data-type={b.type} data-n={n} data-empty={isEmptyBlock(b) || undefined} className={[s.b, s[`t_${b.type}`]].join(' ')} style={mt === undefined ? undefined : { marginTop: mt }} />;
 });
@@ -526,6 +558,39 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     sdocRef.current = next;
     setSdoc(next);
     pendingCaret.current = next.blocks.some((b) => b.id === e.caret.id) ? e.caret : { id: next.blocks[0].id, offset: 0 };
+  };
+
+  /** Ajoute ou retire une marque d'emphase autour de la sélection (bloc par bloc), ou du mot courant. */
+  const toggleEmphasis = (mark: '**' | '*' | '_') => {
+    const el = root.current;
+    if (readOnly || !el) return;
+    const sel = readSelection(el);
+    if (!sel) return;
+    const blocks = sdocRef.current.blocks;
+    const ia = blocks.findIndex((b) => b.id === sel.start.id);
+    const ib = blocks.findIndex((b) => b.id === sel.end.id);
+    if (ia < 0 || ib < 0) return;
+    const [from, to] = ia <= ib ? [sel.start, sel.end] : [sel.end, sel.start];
+    let next = sdocRef.current;
+    let caret: Caret = to;
+    for (let i = Math.min(ia, ib); i <= Math.max(ia, ib); i++) {
+      const b = blocks[i];
+      if (b.type === 'title' || b.type === 'pagebreak') continue;
+      let a = b.id === from.id ? from.offset : 0;
+      let z = b.id === to.id ? to.offset : b.text.length;
+      if (a === z) {
+        // Rien de sélectionné : le mot sous le curseur.
+        while (a > 0 && /[\p{L}\p{N}'’-]/u.test(b.text[a - 1])) a--;
+        while (z < b.text.length && /[\p{L}\p{N}'’-]/u.test(b.text[z])) z++;
+        if (a === z) continue;
+      }
+      const t = b.text;
+      const wrapped = t.slice(a - mark.length, a) === mark && t.slice(z, z + mark.length) === mark && (mark !== '*' || (t[a - 2] !== '*' && t[z + 1] !== '*'));
+      const text = wrapped ? t.slice(0, a - mark.length) + t.slice(a, z) + t.slice(z + mark.length) : t.slice(0, a) + mark + t.slice(a, z) + mark + t.slice(z);
+      next = setBlockText(next, b.id, text);
+      if (b.id === to.id) caret = { id: b.id, offset: wrapped ? z - mark.length : z + 2 * mark.length };
+    }
+    apply({ doc: next, caret });
   };
 
   const doUndo = () => {
@@ -801,6 +866,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         return sl && sl.rangeCount ? sl.getRangeAt(0).getBoundingClientRect() : null;
       },
       editTitle: () => !readOnly && setTitleOpen(true),
+      emphasis: (mark) => toggleEmphasis(mark),
     };
   });
 
@@ -823,6 +889,12 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   const onKeyDown = (e: RKeyboardEvent<HTMLDivElement>) => {
     if (readOnly) return;
     const mod = e.metaKey || e.ctrlKey;
+    // ⌘B, ⌘I, ⌘U : gras, italique, souligné (marques Fountain, le navigateur ne met rien en forme).
+    if (mod && !e.altKey && !e.shiftKey && /^[biu]$/i.test(e.key)) {
+      e.preventDefault();
+      toggleEmphasis(({ b: '**', i: '*', u: '_' } as const)[e.key.toLowerCase() as 'b' | 'i' | 'u']);
+      return;
+    }
     if (acOpen) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();

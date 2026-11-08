@@ -133,3 +133,6 @@
 @media print {
   .sheets, .typeTag, .ac { display: none; }
 }
+
+/* Marques d'emphase (** * _) : gardées dans le texte, sans place à l'écran comme à l'impression. */
+.mk { font-size: 0; }

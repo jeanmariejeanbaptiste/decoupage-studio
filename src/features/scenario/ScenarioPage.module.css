@@ -114,3 +114,8 @@
 /* Chronomètre : position du curseur (gris) / total (encre), chiffres alignés. */
 .chrono { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; margin-right: 6px; white-space: nowrap; }
 .chrono b { font-weight: 500; color: var(--ink); }
+
+.marks { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.marks button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; border: 0; background: var(--paper-card); color: var(--ink); cursor: pointer; }
+.marks button + button { border-left: 1px solid var(--rule); }
+.marks button:hover { background: var(--hover); }

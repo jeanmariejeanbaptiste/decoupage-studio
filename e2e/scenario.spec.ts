@@ -268,3 +268,24 @@ test('scénario : aucune ligne ne sort de sa feuille (sauts de page, blocs vari�
   });
   expect(bad).toBe(0);
 });
+
+test('scénario : gras, italique, souligné (boutons et raccourcis), affichés en place, gardés en Fountain', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  const ed = page.getByTestId('script-editor');
+  const word = ed.getByText('valise', { exact: false }).first();
+  await word.dblclick();
+  await page.getByTestId('emphasis-b').click();
+  await expect(ed.locator('span[style*="font-weight: 700"]').first()).toBeVisible();
+  // Les marques ne prennent pas de place à l'écran.
+  const mk = ed.locator('span').filter({ hasText: /^\*\*$/ }).first();
+  expect((await mk.boundingBox())?.width ?? 0).toBeLessThan(1);
+  await ed.getByText('hall', { exact: false }).first().dblclick();
+  await page.keyboard.press('ControlOrMeta+i');
+  await expect(ed.locator('span[style*="italic"]').first()).toBeVisible();
+  // Enregistré dans le Fountain : toujours là après rechargement.
+  await page.waitForTimeout(1500);
+  await page.goto('/#/scenario');
+  await page.reload();
+  await expect(page.getByTestId('script-editor').locator('span[style*="font-weight: 700"]').first()).toBeVisible();
+  await expect(page.getByTestId('script-editor').locator('span[style*="italic"]').first()).toBeVisible();
+});

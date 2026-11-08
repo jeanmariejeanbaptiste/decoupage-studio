@@ -140,6 +140,66 @@ export function parseEmphasis(line: string): Run[] {
   return runs;
 }
 
+export interface MarkedRun extends Run {
+  /** Marque d'emphase (« ** », « * », « _ », « \\ ») : gardée dans le texte, invisible à l'écran. */
+  mark?: boolean;
+}
+
+/**
+ * Comme `parseEmphasis`, mais sans rien perdre : les marques restent, en morceaux à part. Sert à
+ * l'éditeur, qui affiche l'emphase sans modifier le texte (chaque caractère garde sa place).
+ */
+export function emphasisRuns(text: string): MarkedRun[] {
+  const out: MarkedRun[] = [];
+  text.split('\n').forEach((line, li) => {
+    if (li > 0) out.push({ text: '\n' });
+    const state = { bold: false, italic: false, underline: false };
+    let buf = '';
+    const flush = () => {
+      if (buf) out.push({ text: buf, ...(state.bold ? { bold: true } : {}), ...(state.italic ? { italic: true } : {}), ...(state.underline ? { underline: true } : {}) });
+      buf = '';
+    };
+    const mark = (m: string) => {
+      flush();
+      out.push({ text: m, mark: true });
+    };
+    const closes = (m: string, from: number) => line.indexOf(m, from) > from;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '\\' && i + 1 < line.length) {
+        mark('\\');
+        buf += line[++i];
+        continue;
+      }
+      if (line.startsWith('***', i) && (state.bold && state.italic ? true : closes('***', i + 3))) {
+        mark('***');
+        state.bold = state.italic = !(state.bold && state.italic);
+        i += 2;
+        continue;
+      }
+      if (line.startsWith('**', i) && (state.bold || closes('**', i + 2))) {
+        mark('**');
+        state.bold = !state.bold;
+        i += 1;
+        continue;
+      }
+      if (c === '*' && (state.italic || closes('*', i + 1))) {
+        mark('*');
+        state.italic = !state.italic;
+        continue;
+      }
+      if (c === '_' && (state.underline || closes('_', i + 1))) {
+        mark('_');
+        state.underline = !state.underline;
+        continue;
+      }
+      buf += c;
+    }
+    flush();
+  });
+  return out;
+}
+
 /** Texte imprimé d'une ligne (sans les marques d'emphase), pour mesurer et couper. */
 export const plainText = (line: string) => parseEmphasis(line).map((r) => r.text).join('');
 

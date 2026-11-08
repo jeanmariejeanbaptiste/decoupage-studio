@@ -1,7 +1,7 @@
 import { useReadOnly } from '../../store/share';
 import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, FilePlus2, FileText, FileUp } from 'lucide-react';
+import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Italic, Underline } from 'lucide-react';
 import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { BLOCK_LABELS, blockLabel, type BlockType } from '../../domain/screenplay';
@@ -152,6 +152,19 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           {!readOnly && view === 'script' && (
             <>
               <TypePicker type={activeType} onPick={(t) => api.current?.setType(t)} />
+              <span className={s.marks} role="group" aria-label="Mise en forme">
+                {(
+                  [
+                    ['**', <Bold key="b" size={15} strokeWidth={1.5} />, 'Gras (⌘B)'],
+                    ['*', <Italic key="i" size={15} strokeWidth={1.5} />, 'Italique (⌘I)'],
+                    ['_', <Underline key="u" size={15} strokeWidth={1.5} />, 'Souligné (⌘U)'],
+                  ] as const
+                ).map(([m, icon, label]) => (
+                  <button key={m} type="button" aria-label={label} title={label} onMouseDown={(e) => e.preventDefault()} onClick={() => api.current?.emphasis(m)} data-testid={`emphasis-${m === '**' ? 'b' : m === '*' ? 'i' : 'u'}`}>
+                    {icon}
+                  </button>
+                ))}
+              </span>
               <Button icon={<FileText size={15} strokeWidth={1.25} />} onMouseDown={(e) => e.preventDefault()} onClick={() => api.current?.editTitle()} data-testid="edit-title-page">
                 Page de garde
               </Button>

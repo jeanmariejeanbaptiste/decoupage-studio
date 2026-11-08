@@ -131,3 +131,16 @@ describe('règles de mise en page', () => {
     expect(lines.find((l) => l.text === '8 novembre 2026')).toMatchObject({ row: SCRIPT_PAGE.lines - 1, x: 108 });
   });
 });
+
+describe('emphase dans l’éditeur', () => {
+  it('garde chaque caractère, marques à part', async () => {
+    const { emphasisRuns } = await import('./scriptLayout');
+    const t = 'Il **court** vers *elle*, _vite_.\n2*3 = 6';
+    const runs = emphasisRuns(t);
+    expect(runs.map((r) => r.text).join('')).toBe(t);
+    expect(runs.find((r) => r.text === 'court')).toMatchObject({ bold: true });
+    expect(runs.find((r) => r.text === 'elle')).toMatchObject({ italic: true });
+    expect(runs.find((r) => r.text === 'vite')).toMatchObject({ underline: true });
+    expect(runs.filter((r) => r.mark).length).toBe(6);
+  });
+});
