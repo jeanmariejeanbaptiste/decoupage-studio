@@ -64,3 +64,6 @@
 | 2026-11-08 | L'assistant lit les images (plan des locaux) par le fournisseur réglé ; la réponse passe par le même analyseur strict que l'import manuel et reste un aperçu à valider. | Un seul chemin de vérification ; rien n'est posé sans accord. |
 | 2026-11-08 | Partage : QR code du lien seulement, le mot de passe s'affiche en grand à côté. | Le mot de passe protège toujours l'accès. |
 
+| 2026-11-08 | Interview dans le découpage : un plan réel par caméra (lien `Shot.interview`), numéros groupés (3A, 3B), la fiche est la source et le magasin resynchronise après chaque modification. Lignes ordinaires, seule la mise en forme les distingue (demande de l'utilisateur, la bande pleine largeur a été refusée). | Exports, plan de travail, matériel et numérotation restent cohérents. |
+| 2026-11-08 | Aperçus d'export sur papier blanc (`.paper-light`), feuilles d'édition au thème (`--sheet`). | Le thème sombre s'applique partout à l'écran, jamais au papier. |
+| 2026-11-08 | Modèles de découpage retirés. | Jugés inutiles par l'utilisateur : le format du projet suffit. |

@@ -244,3 +244,14 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Corrigé : pages blanches à l'export des onglets (régression de la 2.4.0).
 - Tests : 323 tests unitaires, 89 parcours de bout en bout (Chromium).
 
+
+## Version 2.6.0 — 2026-11-08 (interview dans le découpage, captures, thème sombre)
+- Institutionnel : un cadre d'interview reste en annexe ou se place dans une séquence, au numéro de plan choisi ; une ligne par caméra (1A, 1B) dans les colonnes habituelles, l'action dit qui, où, le regard et le nombre de questions ; la fiche reste la source (synchronisation dans le magasin, domain/interview.ts). Vues Interview, Tableau, Storyboard ; aperçu propre à chaque vue ; fiche en trois colonnes, exportée en paysage ou portrait, image du cadre par caméra.
+- Aperçus : découpage en pages A4 paysage, planches et fiche sur papier blanc quel que soit le thème (`.paper-light`) ; feuilles A4 de l'écran au thème (`--sheet`).
+- Feuille de service au format professionnel : en-tête en trois blocs (RDV, jour n sur N, météo, soleil, horaires clés, hôpital), comédiens numérotés et convocation détaillée, besoins des postes, prévisions du lendemain.
+- Plan au sol : dimensions de la pièce (murs, superficie, gabarits) ; projecteurs avec modèle, watts et kelvins, repris dans la liste Lumière.
+- Scénario : panneaux Personnages (répliques, présence, fiche, répliques à remettre), Décors, Recherche (genre, logline, synopsis, documents) ; page de garde éditée à part et reconnue à l'import.
+- Assistant : clé essayée à la saisie, le plus rapide des modèles disponibles qui répondent est choisi.
+- Retirés : modèles de découpage. « Séquence » partout au lieu de « scène ».
+- Tests : 340 tests unitaires, 90 parcours de bout en bout (Chromium).
+- À faire : gras, italique et couleurs dans l'éditeur du scénario (rendu en place des marques) ; chantier production (inventaire : scratchpad/inventaire-production.md, résumé dans CLAUDE.md).
