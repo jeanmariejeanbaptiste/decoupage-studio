@@ -1,8 +1,8 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
-import { characterName, diffRange, shiftAnchors, shiftOffset, displayName, parseFountain, parseHeading, sceneAt, scenesOf, splitSelection, importScenes } from './fountain';
-import { checkInvariants } from './ops';
+import { characterName, diffRange, shiftAnchors, shiftOffset, displayName, matchSequence, normalizeScenario, parseFountain, parseHeading, sceneAt, scenesOf, splitSelection, importScenes } from './fountain';
+import { addSequence, checkInvariants } from './ops';
 
 const SCRIPT = `Title: La Consigne
 Author: Réalisation
@@ -92,10 +92,11 @@ describe('Fountain', () => {
     const again = produce(doc, (d) => {
       res = importScenes(d, SCRIPT.replace('PARVIS', 'QUAI'));
     });
-    // Le lieu renommé n'écrase pas la séquence existante : une nouvelle est ajoutée à la fin.
-    expect(res).toEqual({ sequences: 1, characters: 0 });
+    // Le lieu renommé dans l'en-tête : la séquence ancrée à cette scène reste la même (pas de doublon),
+    // et le scénario, indicatif, ne renomme pas la séquence.
+    expect(res).toEqual({ sequences: 0, characters: 0 });
+    expect(again.project.sequenceIds).toHaveLength(3);
     expect(again.sequences[again.project.sequenceIds[1]].label).toBe('PARVIS DE LA GARE');
-    expect(again.sequences[again.project.sequenceIds[3]].label).toBe('QUAI DE LA GARE');
     expect(checkInvariants(again)).toEqual([]);
   });
   it('sépare action et répliques d’une sélection', () => {
@@ -160,5 +161,44 @@ describe('répliques de la colonne dialogue', async () => {
       { speaker: 'GUICHETIER', line: 'Suivant !' },
     ]);
     expect(parseDialogue('Bonjour')).toEqual([{ line: 'Bonjour' }]);
+  });
+});
+
+describe('Fountain — variantes françaises et robustesse', () => {
+  it('en-têtes numérotés, EXT./INT., séparateurs et effets composés', () => {
+    const els = parseFountain('1. INT. CUISINE - JOUR\n\nTexte.\n\n12A EXT./INT. VOITURE - NUIT\n\nRoule.');
+    expect(els.filter((e) => e.type === 'heading')).toHaveLength(2);
+    expect(parseHeading('12. INT. CUISINE - JOUR')).toEqual({ intExt: 'INT', location: 'CUISINE', effect: 'JOUR' });
+    expect(parseHeading('EXT./INT. VOITURE - NUIT')).toEqual({ intExt: 'INT/EXT', location: 'VOITURE', effect: 'NUIT' });
+    expect(parseHeading('INT - CUISINE - JOUR')).toEqual({ intExt: 'INT', location: 'CUISINE', effect: 'JOUR' });
+    expect(parseHeading('INT. CUISINE. NUIT')).toEqual({ intExt: 'INT', location: 'CUISINE', effect: 'NUIT' });
+    expect(parseHeading('EXT. PLAGE - FIN DE JOURNÉE')).toMatchObject({ location: 'PLAGE', effect: 'CRÉPUSCULE' });
+  });
+
+  it('transitions avec espace avant les deux-points, notes sur leur ligne', () => {
+    const els = parseFountain('Action.\n\nCOUPE FRANCHE :\n\n[[Revoir ce passage]]\n\nINT. BAR - NUIT');
+    expect(els.map((e) => e.type)).toEqual(['action', 'transition', 'note', 'heading']);
+    expect(els[2].text).toBe('Revoir ce passage');
+  });
+
+  it('fins de ligne Windows normalisées, ancres recalées au caractère près', () => {
+    const doc = createProjectDoc({ title: 'x', format: 'fiction' });
+    doc.scenario = '﻿INT. A - JOUR\r\n\r\nLéa entre.\r\n';
+    const seqId = addSequence(doc, undefined, {}, true);
+    const block = doc.blocks[doc.sequences[seqId].actionBlockIds[0]];
+    const a = doc.scenario.indexOf('Léa');
+    block.scenarioAnchor = { start: a, end: a + 'Léa entre.'.length };
+    normalizeScenario(doc);
+    expect(doc.scenario).toBe('INT. A - JOUR\n\nLéa entre.\n');
+    expect(doc.scenario.slice(block.scenarioAnchor.start, block.scenarioAnchor.end)).toBe('Léa entre.');
+  });
+
+  it('une séquence renommée reste celle de sa scène (ancre d’abord)', () => {
+    const doc = createProjectDoc({ title: 'x', format: 'fiction' });
+    importScenes(doc, 'INT. GARE - JOUR\n\nTexte.');
+    const id = doc.project.sequenceIds[0];
+    doc.sequences[id].label = 'Hall de la gare';
+    const sc = scenesOf(doc.scenario!)[0];
+    expect(matchSequence(doc, sc)).toBe(id);
   });
 });

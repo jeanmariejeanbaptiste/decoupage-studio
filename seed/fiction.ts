@@ -8,7 +8,7 @@ export const FICTION: SeedProject = {
   version: 'V1',
   director: 'Réalisation',
   dop: 'Image',
-  settings: { tcMode: 'cumulatif', tcGranularity: 'sequence' },
+  settings: { tcMode: 'cumulatif', tcModeChosen: true, tcGranularity: 'sequence' },
   characters: [
     { name: 'Léa', kind: 'principal', color: '#9C3D2B', actor: '' },
     { name: 'Marc', kind: 'principal', color: '#2E4263', actor: '' },

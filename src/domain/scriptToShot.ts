@@ -3,7 +3,7 @@
  * devient un plan, rangé dans la séquence de sa scène et à sa place chronologique.
  */
 import { characterName, displayName, matchSequence, parseFountain, sceneAt, scenesOf, type Scene, type ScriptElement } from './fountain';
-import { addSequence, addShot } from './ops';
+import { addCharacter, addSequence, addShot, refreshRecognition } from './ops';
 import { setSequenceDecorByName } from './registry';
 import { fold } from './text';
 import type { ID, ProjectDoc } from './types';
@@ -31,18 +31,38 @@ export function sentencesOf(source: string, elements: readonly ScriptElement[] =
     }
     reply = null;
     if (el.type !== 'action' && el.type !== 'centered') continue;
-    const re = /[^.!?…]+(?:[.!?…]+["»”)\]]*|$)/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(el.text))) {
-      if (!m[0].trim()) {
-        if (m[0] === '') re.lastIndex++;
-        continue;
-      }
-      const lead = m[0].length - m[0].trimStart().length;
-      const a = el.start + m.index + lead;
-      out.push({ start: a, end: a + m[0].trim().length, kind: 'action' });
-    }
+    for (const [a0, a1] of sentenceSpans(el.text)) out.push({ start: el.start + a0, end: el.start + a1, kind: 'action' });
   }
+  return out;
+}
+
+/** Abréviations usuelles après lesquelles une phrase ne s'arrête pas. */
+const ABBREV = /(?:^|[\s(«“"'])(?:M|Mme|Mlle|MM|Dr|Pr|Me|Mgr|St|Ste|cf|etc|p|vol|chap|n°|No|av|bd|env|apr|J\.-C|ex)\.$/i;
+
+/** Phrases d'un paragraphe : coupe après . ! ? …, sauf abréviations ; guillemets fermants rattachés. */
+export function sentenceSpans(text: string): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  let start = 0;
+  const push = (end: number) => {
+    const part = text.slice(start, end);
+    const lead = part.length - part.trimStart().length;
+    const trimmed = part.trim();
+    if (trimmed && /[\p{L}\p{N}]/u.test(trimmed)) out.push([start + lead, start + lead + trimmed.length]);
+    start = end;
+  };
+  for (let i = 0; i < text.length; i++) {
+    if (!/[.!?…]/.test(text[i])) continue;
+    let j = i + 1;
+    while (j < text.length && /[.!?…]/.test(text[j])) j++;
+    // Guillemets ou parenthèses fermants, avec l'espace insécable française éventuelle avant « » ».
+    while (j < text.length && /[\s\u00a0\u202f]/.test(text[j]) && /[»”)\]]/.test(text[j + 1] ?? '')) j++;
+    while (j < text.length && /["»”)\]]/.test(text[j])) j++;
+    if (text[i] === '.' && ABBREV.test(text.slice(Math.max(0, i - 6), i + 1))) continue;
+    if (j < text.length && !/\s/.test(text[j])) continue;
+    push(j);
+    i = j - 1;
+  }
+  push(text.length);
   return out;
 }
 
@@ -54,11 +74,12 @@ export interface Passage {
   scene?: Scene;
 }
 
-const STOP_UPPER = new Set(['INT', 'EXT', 'JOUR', 'NUIT', 'OFF', 'VO', 'V', 'O', 'CONT', 'SUITE', 'FIN', 'TV', 'OK']);
+const STOP_UPPER = new Set(['INT', 'EXT', 'JOUR', 'NUIT', 'OFF', 'VO', 'V', 'O', 'CONT', 'SUITE', 'FIN', 'TV', 'OK', 'TGV', 'SMS', 'USA', 'PDG', 'SNCF', 'RER', 'GPS', 'DJ', 'OVNI']);
 
 /** Prénom écrit en majuscules dans une action (« LÉA entre. ») : seulement s'il y en a un. */
 export function upperName(text: string, doc?: ProjectDoc): string | undefined {
-  const words = text.match(/\b[\p{Lu}][\p{Lu}'’-]+\b/gu) ?? [];
+  // Frontières de mot Unicode (\b ne connaît que l'ASCII : « ÉLODIE » donnerait « LODIE »).
+  const words = text.match(/(?<![\p{L}\p{N}])\p{Lu}[\p{Lu}'’-]+(?![\p{L}\p{N}])/gu) ?? [];
   const names = doc ? Object.values(doc.characters).flatMap((c) => [c.name, ...(c.aliases ?? [])]) : [];
   for (const w of words) {
     if (STOP_UPPER.has(fold(w).toUpperCase())) continue;
@@ -142,7 +163,16 @@ export function chronologicalIndex(doc: ProjectDoc, seqId: ID, start: number): n
 /** Séquence du découpage correspondant à la scène ; créée à sa place si besoin (mode lié). */
 export function sequenceForScene(doc: ProjectDoc, source: string, scene: Scene): ID {
   const found = matchSequence(doc, scene);
-  if (found) return found;
+  if (found) {
+    // Séquence du même lieu encore libre : elle devient celle de cette scène (et pas des suivantes).
+    doc.sequences[found].scenarioAnchor ??= { start: scene.start, end: scene.end };
+    return found;
+  }
+  return createSequenceForScene(doc, source, scene);
+}
+
+/** Nouvelle séquence pour une scène, à sa place dans l'ordre du scénario. */
+export function createSequenceForScene(doc: ProjectDoc, source: string, scene: Scene): ID {
   // Rang : après la dernière séquence existante dont la scène précède celle-ci dans le scénario.
   const scenes = scenesOf(source);
   let index = 0;
@@ -173,14 +203,30 @@ export function createShotFromPassage(
   opts: { seqId?: ID; dialogueShown: boolean },
 ): ID | undefined {
   const p = passageOf(doc, source, start, end, opts);
-  const seqId = opts.seqId ?? (p.scene ? sequenceForScene(doc, source, p.scene) : doc.project.sequenceIds.at(-1));
+  // Passage hors de toute scène (avant le premier en-tête) : rien n'est rangé au hasard.
+  const seqId = opts.seqId === NEW_SEQUENCE ? (p.scene ? createSequenceForScene(doc, source, p.scene) : addSequence(doc, undefined, {}, false)) : (opts.seqId ?? (p.scene ? sequenceForScene(doc, source, p.scene) : undefined));
   if (!seqId) return undefined;
+  // Personnages qui parlent dans le passage : leur fiche existe (registre, dépouillement, convocations).
+  for (const m of (p.dialogue.match(/(?:^|\s)([^:]{1,40}?) : /g) ?? []).map((x) => x.replace(/ : $/, '').trim())) ensureCharacter(doc, displayName(m));
+  if (p.subject && !/\s/.test(p.subject) && upperName(p.subject.toLocaleUpperCase('fr'), doc) && p.dialogue) ensureCharacter(doc, p.subject);
   const fallback = source.slice(start, end).trim();
   return addShot(doc, seqId, {
     index: chronologicalIndex(doc, seqId, start),
     init: { subject: p.subject, ...(p.sound ? { sound: p.sound } : {}) },
     action: { text: p.action || (p.dialogue ? '' : fallback), dialogue: p.dialogue || undefined, scenarioAnchor: { start, end } },
   });
+}
+
+/** Séquence imposée « nouvelle » (mode libre) : créée à la place de la scène. */
+export const NEW_SEQUENCE = '__new__';
+
+/** Fiche du personnage (nom ou alias, sans accents ni casse), créée au besoin. */
+function ensureCharacter(doc: ProjectDoc, name: string): void {
+  const n = name.trim();
+  if (!n) return;
+  const exists = Object.values(doc.characters).some((c) => [c.name, ...(c.aliases ?? [])].some((x) => fold(x) === fold(n)));
+  if (!exists) addCharacter(doc, { name: n, kind: 'secondaire' });
+  refreshRecognition(doc);
 }
 
 /** Personnage d'une ligne de nom (utile à l'affichage). */

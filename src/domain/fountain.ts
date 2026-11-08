@@ -5,7 +5,10 @@
 import { addCharacter, addSequence } from './ops';
 import { setSequenceDecorByName } from './registry';
 import { fold } from './text';
+import { diffRange, offsetMapper, shiftOffset } from './textDiff';
 import type { Effect, ID, IntExt, ProjectDoc } from './types';
+
+export { diffRange, shiftOffset };
 
 export type ElementType =
   | 'heading'
@@ -18,6 +21,7 @@ export type ElementType =
   | 'section'
   | 'synopsis'
   | 'pagebreak'
+  | 'note'
   | 'title';
 
 export interface ScriptElement {
@@ -43,8 +47,12 @@ export interface Scene {
   elements: ScriptElement[];
 }
 
-const HEADING_RE = /^(int\.?\/ext|i\/e|int|ext|est)[.\s]/i;
+/** En-tête de séquence : INT. / EXT. / INT./EXT. / EXT./INT. / I/E, éventuellement précédé de son numéro (« 12. INT. … »). */
+export const HEADING_RE = /^(?:\d+[A-Z]?[.)-]?\s+)?(int\.?\s*\/\s*ext|ext\.?\s*\/\s*int|i\/e|int|ext|est)(?:[.\s\-–—]|$)/i;
+/** Transitions usuelles, en français comme en anglais (« COUPE FRANCHE : », « FONDU AU NOIR. », « CUT TO: »). */
+export const TRANSITION_RE = /(TO\s?:|FONDU (AU NOIR|ENCHAÎNÉ|AU BLANC)|CUT TO|COUPE FRANCHE|ENCHAÎNÉ)\s?:?\.?$/;
 const isUpper = (s: string) => /\p{L}/u.test(s) && s === s.toLocaleUpperCase('fr');
+const NOTE_LINE = /^\s*\[\[([^\]]*)\]\]\s*$/;
 
 interface Line {
   text: string;
@@ -69,6 +77,7 @@ function blankBoneyard(src: string): string {
 export function parseFountain(source: string): ScriptElement[] {
   const src = blankBoneyard(source);
   const lines = splitLines(src);
+  const original = splitLines(source);
   const els: ScriptElement[] = [];
   let i = 0;
   // Page de titre : « Clé: valeur » en tête de fichier.
@@ -91,6 +100,12 @@ export function parseFountain(source: string): ScriptElement[] {
       els.push({ type, text, start: s0 + offset, end: s0 + offset + text.length, ...extra });
 
     if (t === '') {
+      // Note seule sur sa ligne (« [[…]] ») : gardée comme élément, hors du minutage et des séquences.
+      const note = NOTE_LINE.exec(original[i]?.text ?? '');
+      if (note) {
+        const at = original[i].start + original[i].text.indexOf('[[') + 2;
+        els.push({ type: 'note', text: note[1], start: at, end: at + note[1].length });
+      }
       speaker = undefined;
       continue;
     }
@@ -121,7 +136,7 @@ export function parseFountain(source: string): ScriptElement[] {
       push('heading', t.slice(forced).replace(/\s*#[^#]+#\s*$/, ''), forced);
       continue;
     }
-    if (t.startsWith('>') || (prevBlank && isUpper(t) && /(TO:|FONDU (AU NOIR|ENCHAÎNÉ)|CUT TO|COUPE FRANCHE)\.?$/.test(t) && lines[i + 1]?.text.trim() === '')) {
+    if (t.startsWith('>') || (prevBlank && isUpper(t) && TRANSITION_RE.test(t) && (lines[i + 1]?.text.trim() ?? '') === '')) {
       const forced = t.startsWith('>') ? 1 : 0;
       push('transition', t.slice(forced).trim(), forced);
       continue;
@@ -152,33 +167,36 @@ export function displayName(name: string): string {
 }
 
 const EFFECTS: Array<[Effect, string[]]> = [
+  ['AUBE', ['aube', 'dawn', 'petit matin', 'lever du jour']],
+  ['CRÉPUSCULE', ['crepuscule', 'dusk', 'soir', 'soiree', 'sunset', 'fin de journee', 'tombee de la nuit']],
   ['JOUR', ['jour', 'day', 'matin', 'apres-midi', 'midi']],
   ['NUIT', ['nuit', 'night']],
-  ['AUBE', ['aube', 'dawn', 'petit matin']],
-  ['CRÉPUSCULE', ['crepuscule', 'dusk', 'soir', 'soiree', 'sunset']],
 ];
 
 export function parseHeading(heading: string): { intExt?: IntExt; location: string; effect?: Effect } {
-  let h = heading.trim();
+  // Numéro de séquence en tête (« 12. », « 12A ») et numéro Fountain en fin (« #12# ») : ignorés.
+  let h = heading.trim().replace(/^\d+[A-Z]?[.)-]?\s+/, '').replace(/\s*#[^#]+#\s*$/, '');
   let intExt: IntExt | undefined;
-  const m = /^(int\.?\/ext\.?|i\/e\.?|int\.?|ext\.?|est\.?)\s*/i.exec(h);
+  const m = /^(int\.?\s*\/\s*ext\.?|ext\.?\s*\/\s*int\.?|i\/e\.?|int\.?|ext\.?|est\.?)\s*/i.exec(h);
   if (m) {
-    const k = m[1].toLowerCase();
-    intExt = k.startsWith('int') && k.includes('ext') ? 'INT/EXT' : k.startsWith('i/e') ? 'INT/EXT' : k.startsWith('int') ? 'INT' : 'EXT';
-    h = h.slice(m[0].length);
+    const k = m[1].toLowerCase().replace(/\s+/g, '');
+    intExt = k.includes('/') ? 'INT/EXT' : k.startsWith('int') ? 'INT' : 'EXT';
+    // Séparateur après le préfixe : « INT - CUISINE », « INT. — CUISINE ».
+    h = h.slice(m[0].length).replace(/^[-–—.:]\s*/, '');
   }
   let effect: Effect | undefined;
-  const seps = [...h.matchAll(/\s+[-–—]\s+/g)];
+  // Effet en fin d'en-tête, après un tiret ou un point : « CUISINE - JOUR », « CUISINE. NUIT ».
+  const seps = [...h.matchAll(/\s*[-–—]\s+|\s+[-–—]\s*|\.\s+/g)];
   const last = seps.at(-1);
   if (last && last.index !== undefined) {
-    const tail = fold(h.slice(last.index + last[0].length));
-    const found = EFFECTS.find(([, words]) => words.some((w) => tail === w || tail.startsWith(`${w} `)));
+    const tail = fold(h.slice(last.index + last[0].length)).replace(/[.\s]+$/, '');
+    const found = EFFECTS.find(([, words]) => words.some((w) => tail === w || tail.startsWith(`${w} `) || tail.startsWith(`${w}/`)));
     if (found) {
       effect = found[0];
       h = h.slice(0, last.index);
     }
   }
-  return { intExt, location: h.trim(), effect };
+  return { intExt, location: h.trim().replace(/[.\s]+$/, ''), effect };
 }
 
 /** Découpe le scénario en séquences (une par en-tête). */
@@ -223,7 +241,8 @@ export function matchSequence(doc: ProjectDoc, scene: Pick<Scene, 'location'> & 
   const { start, end } = scene;
   const inScene = (a?: { start: number; end: number }) => !!a && a.start >= start && a.start < end;
   const same = (id: ID) => fold(doc.sequences[id]?.label ?? '') === key;
-  return ids.find((id) => same(id) && inScene(doc.sequences[id]?.scenarioAnchor)) ?? ids.find((id) => same(id) && !doc.sequences[id]?.scenarioAnchor);
+  // La séquence ancrée dans cette scène, même renommée ; sinon une séquence du même lieu encore libre.
+  return ids.find((id) => inScene(doc.sequences[id]?.scenarioAnchor)) ?? ids.find((id) => same(id) && !doc.sequences[id]?.scenarioAnchor);
 }
 
 /**
@@ -234,10 +253,14 @@ export function importScenes(doc: ProjectDoc, source: string): { sequences: numb
   doc.scenario = source;
   let createdSeq = 0;
   let createdChars = 0;
+  let rank = 0;
   for (const sc of scenesOf(source)) {
     let seqId = matchSequence(doc, sc);
+    if (seqId) rank = Math.max(rank, doc.project.sequenceIds.indexOf(seqId) + 1);
     if (!seqId) {
-      seqId = addSequence(doc, undefined, {}, false);
+      // À sa place : après la séquence de la scène précédente.
+      seqId = addSequence(doc, rank, {}, false);
+      rank = doc.project.sequenceIds.indexOf(seqId) + 1;
       const seq = doc.sequences[seqId];
       seq.label = sc.location.toUpperCase();
       seq.intExt = sc.intExt ?? seq.intExt;
@@ -280,33 +303,46 @@ export function splitSelection(elements: readonly ScriptElement[], start: number
   return { action: action.join(' '), dialogue: dialogue.join(' '), speakers };
 }
 
-/** Décale une position après une modification [at, at + removed) → inserted caractères. */
-export function shiftOffset(pos: number, at: number, removed: number, inserted: number): number {
-  if (pos <= at) return pos;
-  if (pos >= at + removed) return pos + inserted - removed;
-  return at + inserted;
-}
-
-/** Repère la zone modifiée entre deux versions d'un texte (préfixe et suffixe communs). */
-export function diffRange(a: string, b: string): { at: number; removed: number; inserted: number } {
-  let p = 0;
-  const max = Math.min(a.length, b.length);
-  while (p < max && a[p] === b[p]) p++;
-  let s = 0;
-  while (s < max - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
-  return { at: p, removed: a.length - p - s, inserted: b.length - p - s };
-}
-
 /** Recale les ancres des actions et des séquences après une modification du scénario. */
 export function shiftAnchors(doc: ProjectDoc, before: string, after: string): void {
   if (before === after) return;
-  const { at, removed, inserted } = diffRange(before, after);
+  const map = offsetMapper(before, after);
   const move = (r: { start: number; end: number }) => {
-    r.start = shiftOffset(r.start, at, removed, inserted);
-    r.end = Math.max(r.start, shiftOffset(r.end, at, removed, inserted));
+    const empty = r.end <= r.start;
+    r.start = map(r.start, 'start');
+    r.end = empty ? r.start : Math.max(r.start, map(r.end, 'end'));
   };
   for (const b of Object.values(doc.blocks)) if (b.scenarioAnchor) move(b.scenarioAnchor);
   for (const s of Object.values(doc.sequences)) if (s.scenarioAnchor) move(s.scenarioAnchor);
+}
+
+/** Fins de ligne Windows / anciens Mac et marque d'ordre d'octets retirées, ancres recalées au caractère près. */
+export function normalizeScenario(doc: ProjectDoc): void {
+  const src = doc.scenario;
+  if (!src || !/\r|\uFEFF/.test(src)) return;
+  const removed: number[] = [];
+  let out = '';
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === '\uFEFF' || (c === '\r' && src[i + 1] === '\n')) {
+      removed.push(i);
+      continue;
+    }
+    out += c === '\r' ? '\n' : c;
+  }
+  const map = (p: number) => {
+    let lo = 0;
+    let hi = removed.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (removed[mid] < p) lo = mid + 1;
+      else hi = mid;
+    }
+    return p - lo;
+  };
+  for (const b of Object.values(doc.blocks)) if (b.scenarioAnchor) b.scenarioAnchor = { start: map(b.scenarioAnchor.start), end: map(b.scenarioAnchor.end) };
+  for (const q of Object.values(doc.sequences)) if (q.scenarioAnchor) q.scenarioAnchor = { start: map(q.scenarioAnchor.start), end: map(q.scenarioAnchor.end) };
+  doc.scenario = out;
 }
 
 /**
