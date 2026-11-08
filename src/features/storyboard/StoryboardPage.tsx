@@ -20,6 +20,7 @@ import { isZoom, valueLabel } from '../../domain/vocabulary';
 import { putBlob } from '../../store/db';
 import { mutateDoc } from '../../store/projectStore';
 import { useBlobUrl } from '../../ui/useBlobUrl';
+import { usePrintMedia } from '../../ui/usePrintMedia';
 import { deleteShotById, dropShot } from '../grid/actions';
 import { goToShot } from '../registry/RegistryPage';
 import s from './StoryboardPage.module.css';
@@ -82,6 +83,7 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
   };
 
 
+  const printing = usePrintMedia();
   // Le plan choisi dans le tableau est montré à l'arrivée sur le storyboard.
   useEffect(() => {
     if (selectedShot) document.querySelector(`[data-shot-card="${selectedShot}"]`)?.scrollIntoView({ block: 'center' });
@@ -128,7 +130,7 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
 
       {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
       <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
-      <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} />
+      {printing && <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} />}
     </div>
   );
 }

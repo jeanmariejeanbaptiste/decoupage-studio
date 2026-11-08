@@ -95,11 +95,15 @@ export function isPersonSubject(subject: string, characterNames: readonly string
   const s = subject.trim();
   if (!s) return true;
   const f = fold(s);
-  const first = f.split(/[^a-z0-9]+/)[0];
-  if (OBJECT_WORDS.some(([, l]) => l.includes(first))) return false;
+  const words = f.split(/[^a-z0-9]+/).filter(Boolean);
+  if (OBJECT_WORDS.some(([, l]) => l.includes(words[0]))) return false;
   if (characterNames.some((n) => n && f.includes(fold(n)))) return true;
+  // « La Valise », « Une Lettre » : un article annonce un nom commun, même écrit avec une majuscule.
+  if (DETERMINERS.has(words[0]) || /^l['’]/.test(f)) return false;
   return /^\p{Lu}/u.test(s);
 }
+
+const DETERMINERS = new Set(['le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'ce', 'cet', 'cette', 'ces', 'son', 'sa', 'ses', 'mon', 'ma', 'mes', 'ton', 'ta', 'tes', 'leur', 'leurs', 'notre', 'votre', 'nos', 'vos']);
 
 const STREET = ['rue', 'ville', 'avenue', 'boulevard', 'place', 'parking', 'gare', 'quai', 'trottoir', 'centre', 'marche', 'pont', 'route', 'carrefour', 'terrasse', 'cour'];
 

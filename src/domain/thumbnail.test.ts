@@ -24,6 +24,10 @@ describe('icônes provisoires du storyboard', () => {
     expect(isPersonSubject('Affiche', [])).toBe(false);
     expect(isPersonSubject('Main candice', ['Candice'])).toBe(false);
     expect(isPersonSubject('la vedette', [])).toBe(false);
+    // Article + majuscule : un objet, pas une personne ; un personnage connu reste une personne.
+    expect(isPersonSubject('La Valise', [])).toBe(false);
+    expect(isPersonSubject("L'Affiche du film", [])).toBe(false);
+    expect(isPersonSubject('Le Guichetier', ['Guichetier'])).toBe(true);
     expect(isPersonSubject('la vedette', ['vedette'])).toBe(true);
     expect(objectFor('une tasse de café', 'x')).toBe('mug');
     expect(backdropFor('INT', 'rue')).toBe('interior');
