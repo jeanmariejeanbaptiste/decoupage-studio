@@ -27,6 +27,14 @@ describe('matériel déduit (§10)', () => {
   ])('%s → %s', (m, want) => {
     expect(labels(m)).toContain(want);
   });
+  it('panoramique vertical et travelling optique : ni grue ni rails ; zoom sans plage = une focale', () => {
+    expect(labels(['Panoramique vertical'])).not.toContain('Machinerie:Grue, jib');
+    expect(labels(['pano vertical lent'])).not.toContain('Machinerie:Grue, jib');
+    expect(labels(['travelling optique avant'])).not.toContain('Machinerie:Rails + dolly ou slider');
+    const z = labels(['Zoom avant'], { focal: { from: 35, to: 35 } });
+    expect(z.join(' ')).not.toContain('35–35');
+    expect(z).toContain('Image:Optique zoom (35 mm, plage à préciser)');
+  });
   it('angles, optiques, son et lumière', () => {
     expect(labels(['Fixe'], { angle: ['Top shot'] })).toContain('Machinerie:Potence ou grue (top shot)');
     expect(labels(['Fixe'], { angle: ['Low angle'] })).toContain('Machinerie:Base basse (high-hat)');

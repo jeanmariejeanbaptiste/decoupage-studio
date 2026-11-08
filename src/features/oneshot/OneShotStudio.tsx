@@ -11,9 +11,11 @@ import { COMMON_FOCALS, vocabularyFor } from '../../domain/vocabulary';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
+import { useDraft } from '../../ui/useDraft';
 import s from './OneShotStudio.module.css';
 
-const HUES = ['#a4472c', '#2c5d8a', '#6b8e3a', '#8a4f9e', '#b8862e', '#2f7f7a', '#9b3b5a', '#556070'];
+/** Temps alternés en gris (aucune couleur) : on les distingue par leur ton et leur numéro. */
+const HUES = ['#111318', '#5f636b', '#3a3e46', '#8b9099'];
 
 /** Éditeur plein écran d'un plan-séquence : frise des temps, puis une fiche par temps. */
 export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
@@ -128,22 +130,22 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
                 <label className={s.field}>
                   <span>Focale</span>
                   <span className={s.unit}>
-                    <input type="number" min={4} max={1200} step={1} inputMode="numeric" list="os-focal" value={b.focal ?? ''} onChange={(e) => set(b, { focal: e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : undefined })} aria-label={`Focale du temps ${i + 1}`} />
+                    <DraftNumber list="os-focal" value={b.focal} onCommit={(v) => set(b, { focal: v === undefined || !Number.isFinite(v) ? undefined : Math.max(1, v) })} aria-label={`Focale du temps ${i + 1}`} />
                     mm
                   </span>
                 </label>
                 <label className={s.field}>
                   <span>Durée</span>
                   <span className={s.unit}>
-                    <input type="number" min={0} step={1} inputMode="numeric" value={b.minSec ?? ''} placeholder="min" onChange={(e) => set(b, { minSec: e.target.value === '' ? undefined : Math.max(0, Math.round(Number(e.target.value))) })} aria-label={`Durée minimale du temps ${i + 1} (secondes)`} />
+                    <DraftNumber value={b.minSec} placeholder="min" onCommit={(v) => set(b, { minSec: v === undefined || !Number.isFinite(v) ? undefined : Math.max(0, v) })} aria-label={`Durée minimale du temps ${i + 1} (secondes)`} />
                     à
-                    <input type="number" min={0} step={1} inputMode="numeric" value={b.maxSec ?? ''} placeholder="max" onChange={(e) => set(b, { maxSec: e.target.value === '' ? undefined : Math.max(0, Math.round(Number(e.target.value))) })} aria-label={`Durée maximale du temps ${i + 1} (secondes)`} />
+                    <DraftNumber value={b.maxSec} placeholder="max" onCommit={(v) => set(b, { maxSec: v === undefined || !Number.isFinite(v) ? undefined : Math.max(0, v) })} aria-label={`Durée maximale du temps ${i + 1} (secondes)`} />
                     s
                   </span>
                 </label>
                 <label className={s.field}>
                   <span>Repères</span>
-                  <textarea rows={3} value={b.cue ?? ''} onChange={(e) => set(b, { cue: e.target.value || undefined })} placeholder="Caméra, comédiens, déclencheur du temps suivant…" aria-label={`Repères du temps ${i + 1}`} />
+                  <DraftArea rows={3} value={b.cue ?? ''} onCommit={(v) => set(b, { cue: v || undefined })} placeholder="Caméra, comédiens, déclencheur du temps suivant…" aria-label={`Repères du temps ${i + 1}`} />
                 </label>
                 </>
                 )}
@@ -154,10 +156,10 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
                     T{i + 1} <ArrowRight size={12} /> T{i + 2}
                   </span>
                   <span className={s.bridgeLabel}>Liaison</span>
-                  <textarea
+                  <DraftArea
                     rows={3}
                     value={b.bridge ?? ''}
-                    onChange={(e) => set(b, { bridge: e.target.value || undefined })}
+                    onCommit={(v) => set(b, { bridge: v || undefined })}
                     placeholder={needsBridge(b, next) ? `Comment passer de ${b.subject} à ${next.subject} ?` : 'Mouvement de passage…'}
                     aria-label={`Liaison du temps ${i + 1} au temps ${i + 2}`}
                   />
@@ -202,13 +204,26 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
   );
 }
 
+/** Champ texte appliqué après une pause ou en le quittant : une étape d'annulation par saisie, pas par lettre. */
 function Field({ label, list, value, onChange }: { label: string; list: string; value: string; onChange: (v: string) => void }) {
+  const [draft, setDraft, flush] = useDraft(value, onChange);
   return (
     <label className={s.field}>
       <span>{label}</span>
-      <input list={list} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} />
+      <input list={list} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={flush} aria-label={label} />
     </label>
   );
+}
+
+function DraftArea({ value, onCommit, ...rest }: { value: string; onCommit: (v: string) => void } & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange'>) {
+  const [draft, setDraft, flush] = useDraft(value, onCommit);
+  return <textarea {...rest} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={flush} />;
+}
+
+/** Nombre entier appliqué après une pause, à la validation ou en quittant le champ. */
+function DraftNumber({ value, onCommit, ...rest }: { value?: number; onCommit: (v: number | undefined) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
+  const [draft, setDraft, flush] = useDraft(value === undefined ? '' : String(value), (v) => onCommit(v.trim() === '' ? undefined : Math.round(Number(v.replace(',', '.')))));
+  return <input {...rest} inputMode="numeric" value={draft} onChange={(e) => setDraft(e.target.value.replace(/[^\d,.]/g, ''))} onBlur={flush} onKeyDown={(e) => e.key === 'Enter' && flush()} />;
 }
 
 /** Fiche d'un temps, déplaçable par son en-tête : les autres fiches glissent pour lui faire place. */

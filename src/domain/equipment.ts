@@ -42,6 +42,8 @@ function fallbackMovementKey(token: string): string | undefined {
   if (/drone/.test(t)) return 'drone';
   if (/steadi|gimbal|ronin/.test(t)) return 'steadicam';
   if (/epaule/.test(t)) return 'epaule';
+  // Panoramique (même vertical) et travelling optique (zoom) : la caméra reste sur son pied.
+  if (/pano|tilt|optique|zoom/.test(t)) return undefined;
   if (/grue|jib|boom|vertical/.test(t)) return 'grue';
   if (/circul|courbe/.test(t)) return 'trav_circulaire';
   if (/trav/.test(t)) return 'trav_avant';
@@ -62,9 +64,11 @@ export function deduceEquipment(shot: Shot): EquipmentItem[] {
     const lo = Math.min(from ?? to ?? 0, to ?? from ?? 0);
     const hi = Math.max(from ?? 0, to ?? 0);
     items.push(
-      lo && hi
+      lo && hi && lo !== hi
         ? { key: `zoom-${lo}-${hi}`, category: 'Image', label: `Optique zoom couvrant ${lo}–${hi} mm` }
-        : { key: 'zoom', category: 'Image', label: 'Optique zoom (plage à préciser)' },
+        : lo || hi
+          ? { key: `zoom-${lo || hi}`, category: 'Image', label: `Optique zoom (${lo || hi} mm, plage à préciser)` }
+          : { key: 'zoom', category: 'Image', label: 'Optique zoom (plage à préciser)' },
     );
   } else if (shot.focal.from !== undefined) {
     items.push({ key: `prime-${shot.focal.from}`, category: 'Image', label: `Optique fixe ${shot.focal.from} mm` });

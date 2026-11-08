@@ -14,7 +14,6 @@ import { Hand } from '../../ui/Hand';
 import { goToShot } from '../registry/RegistryPage';
 import s from './EquipmentPage.module.css';
 
-const TONE: Record<string, string> = { Image: 'var(--rust)', Machinerie: 'var(--ochre)', Lumière: '#c9a227', Son: 'var(--navy)' };
 
 const LEAD: Record<string, string> = {
   Image: 'chef opérateur',
@@ -28,9 +27,11 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const lists = useMemo(() => aggregateEquipment(doc), [doc]);
   const [showShots, setShowShots] = useState(true);
   const [query, setQuery] = useState('');
-  const [only, setOnly] = useState<string | null>(null);
+  const [picked, setOnly] = useState<string | null>(null);
   const q = fold(query.trim());
   const cats = equipmentCategories(doc);
+  // Poste retiré entre-temps (ici ou par un autre participant) : retour à tous les postes.
+  const only = picked && cats.includes(picked) ? picked : null;
   const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => shotCode(doc, id).includes(q)));
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
 
@@ -49,7 +50,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
             Tous <em>{cats.reduce((n, c) => n + lists[c].length, 0)}</em>
           </button>
           {cats.map((c) => (
-            <button key={c} type="button" className={only === c ? s.chipOn : s.chip} style={{ '--tone': TONE[c] ?? 'var(--ink-soft)' } as React.CSSProperties} onClick={() => setOnly(only === c ? null : c)}>
+            <button key={c} type="button" className={only === c ? s.chipOn : s.chip} onClick={() => setOnly(only === c ? null : c)}>
               <i aria-hidden="true" />
               {c} <em>{lists[c].length}</em>
             </button>
@@ -80,7 +81,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
       </header>
       <div className={s.grid}>
         {cats.filter((c) => !only || c === only).map((c) => (
-          <section key={c} className={['card', s.list].join(' ')} style={{ '--tone': TONE[c] ?? 'var(--ink-soft)' } as React.CSSProperties} data-testid={`equipment-${c}`}>
+          <section key={c} className={['card', s.list].join(' ')} data-testid={`equipment-${c}`}>
             <h2 className={s.h2}>
               {c}
               <span className={s.count}>{lists[c].length}</span>

@@ -1,3 +1,5 @@
+/* Postes sans couleur : un seul ton, l'encre. */
+:global(:root) { --tone: var(--ink); }
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .search { font: inherit; font-size: 13px; padding: 5px 10px; width: 240px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); color: var(--ink); }
 .summary { display: flex; flex-wrap: wrap; gap: 6px; }

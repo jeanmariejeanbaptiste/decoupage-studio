@@ -26,26 +26,26 @@ const CSS = `
 @page { size: A4 PORTRAIT; margin: 0; }
 table.sheet { width: 100%; border: 0; margin: 0; } table.sheet > * > tr > td { border: 0; padding: 0 13mm; } .pad { height: 13mm; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { font-family: 'Inter Variable', 'Helvetica Neue', Arial, sans-serif; font-size: 10pt; color: #2a2824; margin: 0; background: #fff; }
-header.doc { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #2a2824; padding-bottom: 6pt; margin-bottom: 12pt; }
+body { font-family: 'Inter Variable', 'Helvetica Neue', Arial, sans-serif; font-size: 10pt; color: #111318; margin: 0; background: #fff; }
+header.doc { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111318; padding-bottom: 6pt; margin-bottom: 12pt; }
 header.doc .kicker { font-family: 'Inter Variable', sans-serif; color: #111111; font-size: 15pt; margin: 0; }
 header.doc h1 { font-family: 'Inter Variable', sans-serif; font-weight: 600; font-size: 24pt; margin: 0; line-height: 1; }
-header.doc .meta { text-align: right; color: #6e675b; font-size: 9pt; }
+header.doc .meta { text-align: right; color: #6b7079; font-size: 9pt; }
 h2 { font-family: 'Inter Variable', sans-serif; font-size: 15pt; margin: 14pt 0 5pt; break-after: avoid; }
-h3 { font-size: 8pt; letter-spacing: .14em; text-transform: uppercase; color: #6e675b; margin: 10pt 0 4pt; break-after: avoid; }
+h3 { font-size: 8pt; letter-spacing: .14em; text-transform: uppercase; color: #6b7079; margin: 10pt 0 4pt; break-after: avoid; }
 table { width: 100%; border-collapse: collapse; margin-bottom: 6pt; }
-th { text-align: left; font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; color: #6e675b; border-bottom: 1.2pt solid #2a2824; padding: 3pt 4pt; }
-td { border-bottom: .6pt solid #d3c8b4; padding: 3pt 4pt; vertical-align: top; }
+th { text-align: left; font-size: 7.5pt; letter-spacing: .08em; text-transform: uppercase; color: #6b7079; border-bottom: 1.2pt solid #111318; padding: 3pt 4pt; }
+td { border-bottom: .6pt solid #d6d8dd; padding: 3pt 4pt; vertical-align: top; }
 tr { break-inside: avoid; }
 .code { color: #111111; font-weight: 600; white-space: nowrap; }
-.muted { color: #6e675b; font-style: italic; }
+.muted { color: #6b7079; font-style: italic; }
 .block { break-inside: avoid; margin-bottom: 8pt; }
-.chips span { display: inline-block; border: .6pt solid #d3c8b4; border-radius: 8pt; padding: 0 5pt; margin: 0 3pt 3pt 0; font-size: 8.5pt; }
+.chips span { display: inline-block; border: .6pt solid #d6d8dd; border-radius: 8pt; padding: 0 5pt; margin: 0 3pt 3pt 0; font-size: 8.5pt; }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4pt 14pt; }
 .day { break-inside: avoid; margin-bottom: 10pt; }
 .tone-ext { background: #f4f4f4; } .tone-night { background: #e6e6e6; } .tone-extnight { background: #ececec; } .tone-twilight { background: #f0f0f0; }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
-.plan svg { width: 100%; height: auto; border: .6pt solid #d3c8b4; }
+.plan svg { width: 100%; height: auto; border: .6pt solid #d6d8dd; }
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
 p.text { white-space: pre-wrap; line-height: 1.6; font-size: 11pt; }
 `;
@@ -187,7 +187,8 @@ export function intentionDocument(doc: ProjectDoc): DocPage {
   return shell(doc, 'Étape 1', 'Note d’intention', `<p class="text">${esc(doc.intention || '')}</p>`);
 }
 
-const BEAT_HUES = ['#a4472c', '#2c5d8a', '#6b8e3a', '#8a4f9e', '#b8862e', '#2f7f7a', '#9b3b5a', '#556070'];
+/** Temps du plan-séquence en gris alternés (aucune couleur, comme à l'écran). */
+const BEAT_HUES = ['#111318', '#5f636b', '#3a3e46', '#8b9099'];
 
 /**
  * Annexe technique des plans-séquences : une page par plan-séquence, avec la frise des temps,

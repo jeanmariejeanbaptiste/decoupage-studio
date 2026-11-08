@@ -144,49 +144,54 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
   const k = planOf(doc, key).stroke ?? 1;
   const out: string[] = [];
   const { beams, shadows } = computeLighting(items);
-  for (const sh of shadows) out.push(`<polygon points="${pts(sh)}" fill="#1d1b18" fill-opacity="0.22"/>`);
-  for (const b of beams) out.push(`<polygon points="${pts(b.points)}" fill="#e8c46a" fill-opacity="${(0.28 * b.intensity).toFixed(2)}"/>`);
+  for (const sh of shadows) out.push(`<polygon points="${pts(sh)}" fill="#111318" fill-opacity="0.14"/>`);
+  for (const b of beams) out.push(`<polygon points="${pts(b.points)}" fill="#6b7079" fill-opacity="${Math.min(0.4, 0.22 * b.intensity).toFixed(2)}"/>`);
   for (const p of choreography(items))
-    if (p.points.length > 1) out.push(`<polyline points="${pts(p.points)}" fill="none" stroke="${p.kind === 'camera' ? '#a4472c' : '#2c3e5c'}" stroke-width="${p.kind === 'camera' ? 2.5 : 2}" stroke-dasharray="${p.kind === 'camera' ? '10 6' : '3 5'}"/>`);
+    if (p.points.length > 1) out.push(`<polyline points="${pts(p.points)}" fill="none" stroke="${p.kind === 'camera' ? '#111318' : '#6b7079'}" stroke-width="${p.kind === 'camera' ? 2.5 : 2}" stroke-dasharray="${p.kind === 'camera' ? '10 6' : '3 5'}"/>`);
   for (const i of items as FloorItem[]) {
-    if ((i.kind === 'camera' || i.kind === 'actor') && i.beat) out.push(`<text x="${i.x + 16}" y="${i.y - 16}" font-size="14" font-weight="700" fill="#a4472c">T${i.beat}</text>`);
+    if ((i.kind === 'camera' || i.kind === 'actor') && i.beat) out.push(`<text x="${i.x + 16}" y="${i.y - 16}" font-size="14" font-weight="700" fill="#111318">T${i.beat}</text>`);
     switch (i.kind) {
       case 'camera': {
         const c = cameraCone(doc, i);
-        out.push(`<polygon points="${pts(c.points)}" fill="#9c3d2b" fill-opacity="0.1" stroke="#9c3d2b" stroke-dasharray="4 3"/>`);
-        out.push(`<rect x="${i.x - 14}" y="${i.y - 10}" width="28" height="20" rx="3" fill="#34465f" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
-        out.push(`<text x="${i.x}" y="${i.y + 30}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(`${i.label ?? ''}${c.focal ? ` · ${c.focal}mm` : ''}`)}</text>`);
+        out.push(`<polygon points="${pts(c.points)}" fill="#111318" fill-opacity="0.06" stroke="#111318" stroke-dasharray="4 3"/>`);
+        out.push(`<rect x="${i.x - 14}" y="${i.y - 10}" width="28" height="20" rx="3" fill="#111318" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
+        out.push(`<text x="${i.x}" y="${i.y + 30}" font-size="12" text-anchor="middle" fill="#6b7079">${xml(`${i.label ?? ''}${c.focal ? ` · ${c.focal}mm` : ''}`)}</text>`);
         break;
       }
       case 'actor':
-        if (i.to) out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.to.x}" y2="${i.to.y}" stroke="#2e4263" stroke-width="1.2" stroke-dasharray="5 4"/>`);
+        if (i.to) out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.to.x}" y2="${i.to.y}" stroke="#6b7079" stroke-width="1.2" stroke-dasharray="5 4"/>`);
         out.push(
-          `<g transform="rotate(${(i.rot ?? 90) - 90} ${i.x} ${i.y})"><ellipse cx="${i.x}" cy="${i.y}" rx="17" ry="7" fill="#8e98ad" stroke="#2e4263"/><circle cx="${i.x}" cy="${i.y}" r="8.5" fill="#2e4263" stroke="#fff"/><circle cx="${i.x - 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/><circle cx="${i.x + 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/></g><text x="${i.x}" y="${i.y - 13}" font-size="11" font-weight="600" text-anchor="middle" fill="#2e4263">${xml(i.label)}</text>`,
+          `<g transform="rotate(${(i.rot ?? 90) - 90} ${i.x} ${i.y})"><ellipse cx="${i.x}" cy="${i.y}" rx="17" ry="7" fill="#c9ccd2" stroke="#111318"/><circle cx="${i.x}" cy="${i.y}" r="8.5" fill="#111318" stroke="#fff"/><circle cx="${i.x - 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/><circle cx="${i.x + 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/></g><text x="${i.x}" y="${i.y - 13}" font-size="11" font-weight="600" text-anchor="middle" fill="#111318">${xml(i.label)}</text>`,
         );
-        if (i.characterId && doc.characters[i.characterId]) out.push(`<text x="${i.x}" y="${i.y + 32}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(doc.characters[i.characterId].name)}</text>`);
+        if (i.characterId && doc.characters[i.characterId]) out.push(`<text x="${i.x}" y="${i.y + 32}" font-size="12" text-anchor="middle" fill="#6b7079">${xml(doc.characters[i.characterId].name)}</text>`);
         break;
       case 'wall':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#6b6458" stroke-width="${3.5 * k}"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="${i.kind === 'wall' && i.white ? '#d6d8dd' : '#5f636b'}" stroke-width="${3.5 * k}"/>`);
         break;
       case 'rail':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b88a2e" stroke-width="${5 * k}" stroke-dasharray="1.5 5"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#6b7079" stroke-width="${5 * k}" stroke-dasharray="1.5 5"/>`);
         break;
       case 'reflector':
         out.push(`<line x1="${i.x + 3}" y1="${i.y + 4}" x2="${i.x2 + 3}" y2="${i.y2 + 4}" stroke="#000" stroke-opacity="0.35" stroke-width="${8 * k}" stroke-linecap="round"/>`);
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#1f1d1a" stroke-width="${7 * k}" stroke-linecap="round"/><line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#ffffff" stroke-width="${3.5 * k}" stroke-linecap="round"/>`);
         break;
       case 'diffuser':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#b5aedc" stroke-width="${5 * k}" stroke-dasharray="1 1.5"/>`);
+        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#9aa1ab" stroke-width="${5 * k}" stroke-dasharray="1 1.5"/>`);
         break;
       case 'flag':
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#0d0d0d" stroke-width="${4.5 * k}"/>`);
         break;
       case 'door':
+        // Ouverture dans le mur et battant au quart de cercle, comme à l'écran.
+        out.push(
+          `<g transform="rotate(${i.rot} ${i.x} ${i.y})"><line x1="${i.x}" y1="${i.y}" x2="${i.x + i.width}" y2="${i.y}" stroke="#fff" stroke-width="${9 * k}"/><path d="M ${i.x} ${i.y} L ${i.x} ${i.y + i.width} A ${i.width} ${i.width} 0 0 0 ${i.x + i.width} ${i.y}" fill="none" stroke="#5f636b" stroke-width="${1.5 * k}"/></g>`,
+        );
+        break;
       case 'window':
-        out.push(`<rect x="${i.x}" y="${i.y - 4}" width="${i.width}" height="8" fill="#fff" stroke="#2a2824" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
+        out.push(`<rect x="${i.x}" y="${i.y - 4}" width="${i.width}" height="8" fill="#fff" stroke="#5f636b" stroke-width="${1.5 * k}" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
         break;
       case 'light':
-        out.push(`<circle cx="${i.x}" cy="${i.y}" r="${i.practical ? 9 : 12}" fill="#b88a2e"/><text x="${i.x}" y="${i.y + 28}" font-size="12" text-anchor="middle" fill="#6e675b">${xml(i.label ?? '')}</text>`);
+        out.push(`<circle cx="${i.x}" cy="${i.y}" r="${i.practical ? 9 : 12}" fill="#fff" stroke="#111318" stroke-width="1.5"/><text x="${i.x}" y="${i.y + 28}" font-size="12" text-anchor="middle" fill="#6b7079">${xml(i.label ?? '')}</text>`);
         break;
     }
   }
@@ -198,7 +203,7 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
   const w = Math.max(...xs) + 30 - x0;
   const h = Math.max(...ys) + 30 - y0;
   // Largeur et hauteur explicites : Safari ne sait pas dessiner un SVG qui n'a qu'une viewBox.
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w)}" height="${Math.round(h)}" viewBox="${x0} ${y0} ${w} ${h}" font-family="Georgia, serif"><rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="#fff"/><text x="${x0 + 40}" y="${y0 + 26}" font-size="18" fill="#2a2824">${xml(title)}</text>${out.join('')}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w)}" height="${Math.round(h)}" viewBox="${x0} ${y0} ${w} ${h}" font-family="Inter, 'Helvetica Neue', Arial, sans-serif"><rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="#fff"/><text x="${x0 + 40}" y="${y0 + 26}" font-size="18" fill="#111318">${xml(title)}</text>${out.join('')}</svg>`;
 }
 
 /** Tous les plans au sol du projet : nom de fichier → SVG. */
