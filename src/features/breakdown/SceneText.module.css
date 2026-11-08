@@ -1,0 +1,32 @@
+/* Texte d'une séquence, mis en forme comme un scénario, pour le dépouillement. */
+.text { position: relative; font-family: var(--font-script); font-size: 13.5px; line-height: 1.6; color: var(--ink); }
+.text p { margin: 0 0 12px; white-space: pre-wrap; }
+.t_heading { font-weight: 600; text-transform: uppercase; }
+.t_character { margin: 14px 0 0 36% !important; text-transform: uppercase; }
+.t_parenthetical { margin: 0 20% 0 27% !important; color: var(--ink-soft); }
+.t_dialogue { margin: 0 14% 12px 18% !important; }
+.t_character + .t_dialogue, .t_parenthetical + .t_dialogue { margin-top: 0 !important; }
+.t_transition { text-align: right; text-transform: uppercase; }
+.t_centered { text-align: center; }
+.t_note, .t_section, .t_synopsis { color: var(--ink-soft); font-style: italic; }
+.empty { color: var(--ink-soft); font-style: italic; }
+
+/* Éléments dépouillés : fond gris ; suggestions : soulignées en pointillé. Aucune couleur. */
+.tag, .sugg { color: inherit; background: none; border-radius: 2px; cursor: pointer; }
+.tag { background: var(--selected); box-shadow: inset 0 -1.5px 0 var(--ink-soft); }
+.tag:hover, .hot { background: color-mix(in srgb, var(--ink) 16%, transparent) !important; }
+.sugg { text-decoration: underline dotted var(--ink-soft); text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+.sugg:hover { background: var(--hover); text-decoration-style: solid; }
+
+.pop {
+  position: absolute; z-index: 30; width: 220px; padding: 8px;
+  background: var(--paper-card); border: 1px solid var(--rule); border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(17, 19, 24, 0.14);
+  font-family: var(--font-ui);
+}
+.popTitle { margin: 0 0 6px !important; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.popTitle em { font-weight: 400; color: var(--ink-soft); font-style: normal; }
+.popGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.popGrid button, .popRemove { border: 0; background: none; text-align: left; padding: 5px 7px; border-radius: 4px; font-size: 12.5px; color: var(--ink); }
+.popGrid button:hover, .popRemove:hover { background: var(--selected); }
+.popRemove { width: 100%; }

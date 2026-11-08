@@ -1,20 +1,83 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-test('dépouillement : suggestions en un clic et ajout manuel', async ({ page }) => {
+/** Sélectionne un mot du texte de la scène, comme à la souris. */
+async function selectWord(page: Page, word: string) {
+  const text = page.getByTestId('scene-text');
+  await text.evaluate((root, w) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const i = node.nodeValue?.indexOf(w) ?? -1;
+      if (i < 0) continue;
+      const r = document.createRange();
+      r.setStart(node, i);
+      r.setEnd(node, i + w.length);
+      const sel = window.getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(r);
+      const box = r.getBoundingClientRect();
+      root.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: box.right, clientY: box.bottom }));
+      return;
+    }
+    throw new Error(`introuvable : ${w}`);
+  }, word);
+}
+
+test('dépouillement : texte de la scène, suggestions, étiquetage par sélection et ajout manuel', async ({ page }) => {
   await page.goto('/#/breakdown?seed=fiction');
-  await page.getByRole('button', { name: /3, PARVIS DE LA GARE/ }).click();
-  const sug = page.getByTestId('breakdown-suggestions');
-  await expect(sug).toContainText('Cigarette');
-  await expect(sug).toContainText('Pluie');
-  await sug.getByRole('button', { name: /Cigarette/ }).click();
+  await page.getByTestId('breakdown-scene').filter({ hasText: 'PARVIS DE LA GARE' }).click();
+  const text = page.getByTestId('scene-text');
+  await expect(text).toContainText('Marc attend sous la pluie');
+  // Suggestions soulignées dans le texte : un clic les ajoute.
+  await text.getByTestId('tag-suggestion').filter({ hasText: 'cigarette' }).click();
   await expect(page.getByTestId('breakdown-accessoires')).toContainText('Cigarette');
-  await sug.getByRole('button', { name: 'Tout ajouter' }).click();
+  await expect(text.getByTestId('tag-mark').filter({ hasText: 'cigarette' })).toHaveCount(1);
+  await page.getByTestId('breakdown-add-all').click();
   await expect(page.getByTestId('breakdown-effets')).toContainText('Pluie');
-  await expect(sug).toHaveCount(0);
+  await expect(page.getByTestId('breakdown-add-all')).toHaveCount(0);
   await expect(page.getByTestId('breakdown-personnages')).toContainText('Marc');
+  // Sélection d'un mot du texte : choix de la catégorie.
+  await selectWord(page, 'lèvres');
+  await page.getByTestId('tag-as-maquillage').click();
+  await expect(page.getByTestId('breakdown-maquillage')).toContainText('Lèvres');
+  // Ajout de ce qui n'est pas écrit dans le scénario.
   await page.getByLabel('Ajouter (Costumes)').fill('Imperméable beige');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('breakdown-costumes')).toContainText('Imperméable beige');
   await page.getByRole('button', { name: 'Retirer Imperméable beige' }).click();
   await expect(page.getByTestId('breakdown-costumes')).not.toContainText('Imperméable');
+  // Une marque du texte se retire aussi depuis le texte.
+  await text.getByTestId('tag-mark').filter({ hasText: 'lèvres' }).click();
+  await page.getByRole('menuitem', { name: 'Retirer du dépouillement' }).click();
+  await expect(page.getByTestId('breakdown-maquillage')).not.toContainText('Lèvres');
+});
+
+test('dépouillement : une scène écrite mais absente du découpage y entre au premier élément', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  await page.getByTestId('script-editor').locator('[data-bid]').last().click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('\nEXT. QUAI - NUIT\nUn train passe sans s’arrêter.');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toContain('EXT. QUAI - NUIT');
+  await page.getByRole('button', { name: /Dépouillement/ }).click();
+  const scene = page.getByTestId('breakdown-scene').filter({ hasText: 'QUAI' });
+  await expect(scene).toContainText('–');
+  await scene.click();
+  await expect(page.getByText('pas encore au découpage')).toBeVisible();
+  await selectWord(page, 'train');
+  await page.getByTestId('tag-as-vehicules').click();
+  await expect(page.getByTestId('breakdown-vehicules')).toContainText('Train');
+  await expect(page.getByText('pas encore au découpage')).toHaveCount(0);
+  await expect(scene).toContainText('4');
+  await page.getByRole('button', { name: /Découpage technique/ }).click();
+  await expect(page.locator('tbody[data-seq]')).toHaveCount(4);
+});
+
+test('dépouillement : catégorie personnalisée, ajoutée puis supprimée sans boîte du navigateur', async ({ page }) => {
+  await page.goto('/#/breakdown?seed=fiction');
+  await page.getByTestId('add-breakdown-category').fill('Animaux');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('breakdown-perso:Animaux')).toBeVisible();
+  await page.getByRole('button', { name: 'Supprimer la catégorie Animaux' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Supprimer' }).click();
+  await expect(page.getByTestId('breakdown-perso:Animaux')).toHaveCount(0);
 });
