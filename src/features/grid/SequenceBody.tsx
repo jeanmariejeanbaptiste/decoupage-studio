@@ -325,6 +325,8 @@ export function SequenceBody({
                               if (row >= 0) useUi.getState().setSelection({ row, col: 'subject' }, { row, col: model.columns[model.columns.length - 1] });
                             }}
                           />
+                          {/* Entre deux caméras d'un même plan d'interview : rien à insérer. */}
+                          {!(shot?.interview && doc.shots[seq.rows[i + 1]?.shotId]?.interview?.setupId === shot.interview.setupId) && (
                           <button
                             type="button"
                             className={s.rowAdd}
@@ -335,6 +337,7 @@ export function SequenceBody({
                             tabIndex={-1}
                             data-testid="insert-shot"
                           />
+                          )}
                         </>
                       ) : (
                         <>

@@ -23,14 +23,14 @@
 .ghost { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
 .ghost:hover { color: var(--ink); }
 .cams { display: flex; flex-direction: column; gap: 8px; }
-.cam { display: grid; grid-template-columns: 30px 1fr 1.4fr 0.8fr 28px; gap: 6px; align-items: end; }
+.cam { display: grid; grid-template-columns: auto 1fr 1.4fr 0.8fr 28px; gap: 6px; align-items: end; }
 .cam > .frame, .cam > .films { grid-column: 2 / 5; }
 @media (max-width: 600px) {
   .cam { grid-template-columns: 30px 1fr 76px 28px; grid-template-areas: 'n v f x' '. a a a'; }
   .cam > :nth-child(1) { grid-area: n; } .cam > :nth-child(2) { grid-area: v; } .cam > :nth-child(3) { grid-area: a; }
   .cam > :nth-child(4) { grid-area: f; } .cam > :nth-child(5) { grid-area: x; } .cam > .frame, .cam > .films { grid-area: auto; grid-column: 2 / -1; }
 }
-.camName { align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--paper-card); font-weight: 700; font-size: 13px; }
+.camName { align-self: center; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 999px; font-variant-numeric: tabular-nums; background: var(--ink); color: var(--paper-card); font-weight: 700; font-size: 13px; }
 .iconBtn { display: inline-flex; padding: 6px; border: 0; border-radius: 8px; background: none; color: var(--ink-soft); cursor: pointer; }
 .questions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .questions li { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: start; }

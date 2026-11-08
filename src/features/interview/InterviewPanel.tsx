@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ANGLES, SHOT_VALUES } from '../../domain/vocabulary';
 import { interviewDocument } from '../../domain/documents';
 import { ArrowDown, ArrowUp, Check, ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
@@ -60,6 +61,13 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const placedSeq = placedIds.length ? doc.shots[placedIds[0]].sequenceId : undefined;
   const placedNumber = placedIds.length ? setupNumber(doc, setup.id) : undefined;
   const maxNumber = placedSeq ? maxSetupNumber(doc, setup.id, placedSeq) : 1;
+  // Un plan d'interview se nomme par son numéro dans le découpage (« Plan 1.1 ») et par son nom.
+  const planLabel = (setupId: ID) => {
+    const y = subject.setups.find((x) => x.id === setupId);
+    const ids = setupShotIds(doc, setupId);
+    const n = ids.length ? `Plan ${doc.project.sequenceIds.indexOf(doc.shots[ids[0]].sequenceId) + 1}.${setupNumber(doc, setupId)}` : 'Annexe';
+    return y?.name && !/^Cadre \d+$/.test(y.name) ? `${n} · ${y.name}` : n;
+  };
   const placedCodes = placedIds.length ? `Plan${placedIds.length > 1 ? 's' : ''} ${placedIds.map((id) => shotCode(doc, id)).join(', ')}` : '';
   const shared = subjects.length > 1;
   const multi = subject.setups.length > 1;
@@ -69,7 +77,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
     if (!q.setupId && multi) return { subjectId: subject.id, setupId: setup.id };
     return shared ? {} : { subjectId: subject.id };
   };
-  const scopeLabel = (q: { subjectId?: ID; setupId?: ID }) => (q.setupId ? 'Ce cadre' : q.subjectId ? (shared ? 'Cet intervenant' : 'Tous ses cadres') : 'Commune à tous');
+  const scopeLabel = (q: { subjectId?: ID; setupId?: ID }) => (q.setupId ? 'Ce plan' : q.subjectId ? (shared ? 'Cet intervenant' : 'Tous ses plans') : 'Commune à tous');
   const canScope = shared || multi;
 
   return (
@@ -81,7 +89,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
           </button>
         ))}
         {!readOnly && (
-          <button type="button" className={s.add} onClick={() => (setPicked(mutateDoc((d) => addInterviewee(d))), setPickedSetup(undefined))} data-testid="add-interviewee">
+          <button type="button" className={s.add} onClick={() => (setPicked(mutateDoc((d) => addInterviewee(d))), setPickedSetup(undefined))} title="Une autre interview, avec une autre personne" data-testid="add-interviewee">
             <Plus size={14} /> Intervenant
           </button>
         )}
@@ -102,19 +110,19 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
           </section>
 
           <section className={s.card}>
-            <nav className={s.setups} aria-label="Cadres">
+            <nav className={s.setups} aria-label="Plans de cet intervenant">
               {subject.setups.map((y) => (
                 <button key={y.id} type="button" className={y.id === setup.id ? s.on : ''} onClick={() => setPickedSetup(y.id)}>
-                  {y.name}
+                  {planLabel(y.id)}
                 </button>
               ))}
               {!readOnly && (
-                <button type="button" className={s.add} onClick={() => setPickedSetup(mutateDoc((d) => addSetup(d, subject.id, setup.id)))} data-testid="add-setup">
-                  <Plus size={14} /> Cadre
+                <button type="button" className={s.add} onClick={() => setPickedSetup(mutateDoc((d) => addSetup(d, subject.id, setup.id)))} title="Une autre prise pour cette personne (autre lieu, autre cadrage)" data-testid="add-setup">
+                  <Plus size={14} /> Plan
                 </button>
               )}
             </nav>
-            <Field label="Nom du cadre" value={setup.name} onCommit={(v) => editSetup((x) => void (x.name = v.trim() || x.name))} readOnly={readOnly} placeholder="Au bureau, debout dans l’atelier…" />
+            <Field label="Nom du plan" value={setup.name} onCommit={(v) => editSetup((x) => void (x.name = v.trim() || x.name))} readOnly={readOnly} placeholder="Au bureau, debout dans l’atelier…" />
             <div className={s.line}>
               <span>Regard</span>
               <div className={s.seg} role="radiogroup" aria-label="Regard">
@@ -156,7 +164,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                 </button>
               ))}
               {!readOnly && (
-                <button type="button" className={s.placeNew} onClick={() => mutateDoc((d) => placeSetup(d, setup.id, 'new'))} title="Une séquence à part pour ce cadre">
+                <button type="button" className={s.placeNew} onClick={() => mutateDoc((d) => placeSetup(d, setup.id, 'new'))} title="Une séquence à part pour ce plan">
                   <Plus size={13} /> Séquence
                 </button>
               )}
@@ -191,7 +199,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             {placedCodes && <p className={s.placed}>{placedCodes}</p>}
             {multi && !readOnly && (
               <button type="button" className={s.ghost} onClick={() => (mutateDoc((d) => removeSetup(d, subject.id, setup.id)), setPickedSetup(undefined))}>
-                <Trash2 size={13} /> Retirer ce cadre
+                <Trash2 size={13} /> Retirer ce plan
               </button>
             )}
           </section>
@@ -199,14 +207,14 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
 
         <div className={s.col}>
           <section className={s.card}>
-            <h3>Dispositif caméra</h3>
+            <h3>Caméras · {planLabel(setup.id)}</h3>
             <div className={s.cams}>
               {setup.cameras.map((c, k) => (
                 <div key={c.id} className={s.cam}>
-                  <span className={s.camName}>{c.name}</span>
-                  <Field label="Valeur" value={c.value} onCommit={(v) => editSetup((x) => void (x.cameras[k].value = v))} readOnly={readOnly} />
-                  <Field label="Axe" value={c.angle} onCommit={(v) => editSetup((x) => void (x.cameras[k].angle = v))} readOnly={readOnly} />
-                  <Field label="Focale (mm)" value={c.focal} onCommit={(v) => editSetup((x) => void (x.cameras[k].focal = v))} readOnly={readOnly} numeric />
+                  <span className={s.camName} title={`Caméra ${c.name}`}>{placedNumber !== undefined && placedSeq ? `${doc.project.sequenceIds.indexOf(placedSeq) + 1}.${placedNumber}${c.name}` : c.name}</span>
+                  <Field label="Valeur" value={c.value} onCommit={(v) => editSetup((x) => void (x.cameras[k].value = v))} readOnly={readOnly} suggest={VALUE_WORDS} />
+                  <Field label="Axe" value={c.angle} onCommit={(v) => editSetup((x) => void (x.cameras[k].angle = v))} readOnly={readOnly} suggest={ANGLE_WORDS} tokens />
+                  <Field label="Focale (mm)" value={c.focal} onCommit={(v) => editSetup((x) => void (x.cameras[k].focal = v))} readOnly={readOnly} numeric suggest={FOCAL_WORDS} />
                   {!readOnly && setup.cameras.length > 1 && (
                     <button type="button" className={s.iconBtn} aria-label={`Retirer la caméra ${c.name}`} onClick={() => editSetup((x) => void x.cameras.splice(k, 1))}>
                       <X size={13} />
@@ -225,7 +233,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                       })}
                     </div>
                   )}
-                  <CameraFrame projectId={doc.project.id} blobKey={c.frame} readOnly={readOnly} label={`Image du cadre ${c.name}`} onChange={(key) => editSetup((x) => void (x.cameras[k].frame = key))} />
+                  <CameraFrame projectId={doc.project.id} blobKey={c.frame} readOnly={readOnly} label={`Image de la caméra ${c.name}`} onChange={(key) => editSetup((x) => void (x.cameras[k].frame = key))} />
                 </div>
               ))}
             </div>
@@ -342,6 +350,8 @@ function Field({
   multiline,
   placeholder,
   numeric,
+  suggest,
+  tokens,
 }: {
   label: string;
   value: string;
@@ -350,7 +360,11 @@ function Field({
   multiline?: boolean;
   placeholder?: string;
   numeric?: boolean;
+  /** Suggestions du vocabulaire, comme dans le tableau ; `tokens` : complète le dernier terme d'une liste. */
+  suggest?: readonly string[];
+  tokens?: boolean;
 }) {
+  const listId = useId();
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -371,7 +385,18 @@ function Field({
   return (
     <label className={s.field}>
       {label && <span>{label}</span>}
-      {multiline ? <textarea rows={Math.max(1, Math.ceil(draft.length / 60))} {...common} /> : <input {...common} inputMode={numeric ? 'decimal' : undefined} />}
+      {multiline ? <textarea rows={Math.max(1, Math.ceil(draft.length / 60))} {...common} /> : <input {...common} inputMode={numeric ? 'decimal' : undefined} list={suggest && !readOnly ? listId : undefined} />}
+      {suggest && !readOnly && (
+        <datalist id={listId}>
+          {(() => {
+            // Liste de termes : on propose la suite de ce qui est déjà saisi (« 3/4 Face, Hau… »).
+            const cut = tokens ? draft.lastIndexOf(',') : -1;
+            const head = cut >= 0 ? `${draft.slice(0, cut + 1).trim()} ` : '';
+            const taken = new Set(draft.split(',').map((t) => t.trim().toLowerCase()));
+            return suggest.filter((w) => !tokens || !taken.has(w.toLowerCase())).map((w) => <option key={w} value={`${head}${w}`} />);
+          })()}
+        </datalist>
+      )}
     </label>
   );
 }
@@ -446,7 +471,7 @@ function CameraFrame({ projectId, blobKey, readOnly, label, onChange }: { projec
       >
         {url ? <img src={url} alt="" /> : (
           <>
-            <ImagePlus size={14} strokeWidth={1.3} /> Image du cadre
+            <ImagePlus size={14} strokeWidth={1.3} /> Image (storyboard)
           </>
         )}
       </button>
@@ -475,3 +500,7 @@ async function withFrames(html: string): Promise<string> {
   }
   return out;
 }
+
+const VALUE_WORDS = SHOT_VALUES.map((v) => v.short);
+const ANGLE_WORDS = ANGLES.map((v) => v.short);
+const FOCAL_WORDS = ['18', '24', '35', '50', '85', '100', '135', '24-70', '70-200'];

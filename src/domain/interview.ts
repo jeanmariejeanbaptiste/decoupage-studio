@@ -73,8 +73,8 @@ export function defaultCameras(): InterviewCamera[] {
   ];
 }
 
-export function makeSetup(index: number, eyeline: InterviewSetup['eyeline'] = 'gauche'): InterviewSetup {
-  return { id: newId(), name: `Cadre ${index + 1}`, eyeline, cameras: defaultCameras(), place: '', background: '', light: '', sound: 'Micro-cravate + perche' };
+export function makeSetup(_index: number, eyeline: InterviewSetup['eyeline'] = 'gauche'): InterviewSetup {
+  return { id: newId(), name: '', eyeline, cameras: defaultCameras(), place: '', background: '', light: '', sound: 'Micro-cravate + perche' };
 }
 
 export function makeInterviewee(index: number, eyeline: InterviewSetup['eyeline'] = index % 2 ? 'droite' : 'gauche'): Interviewee {
@@ -88,7 +88,7 @@ export function addSetup(doc: ProjectDoc, subjectId: ID, from?: ID): ID | undefi
   const base = s.setups.find((x) => x.id === from) ?? s.setups.at(-1);
   const setup: InterviewSetup = base
     ? // Copie par JSON : `base` peut être un brouillon immer (que structuredClone refuse).
-      { ...(JSON.parse(JSON.stringify(base)) as InterviewSetup), id: newId(), name: `Cadre ${s.setups.length + 1}`, cameras: base.cameras.map((c) => ({ ...c, id: newId() })) }
+      { ...(JSON.parse(JSON.stringify(base)) as InterviewSetup), id: newId(), name: '', cameras: base.cameras.map((c) => ({ ...c, id: newId() })) }
     : makeSetup(s.setups.length);
   s.setups.push(setup);
   return setup.id;
@@ -109,7 +109,7 @@ function upgrade(s: Interviewee): void {
     s.setups = [
       {
         id: newId(),
-        name: 'Cadre 1',
+        name: '',
         eyeline: old.eyeline ?? 'gauche',
         cameras: old.cameras ?? defaultCameras(),
         place: old.place ?? '',

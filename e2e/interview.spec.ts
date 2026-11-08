@@ -8,13 +8,13 @@ test('institutionnel : fiche d’interview, placée dans le découpage (lignes 1
   await page.getByTestId('wizard-next').click();
   await page.getByTestId('tab-interview').click();
   const itw = page.getByTestId('interview');
-  await expect(itw).toContainText('Dispositif caméra');
+  await expect(itw).toContainText('Caméras');
   await itw.getByLabel('Nom', { exact: true }).fill('Claire Martin');
   await itw.getByLabel('Fonction (synthé)').fill('Directrice');
   await itw.getByLabel('Nom', { exact: true }).press('Tab');
   await itw.getByTestId('add-question').click();
   await itw.getByLabel('Question', { exact: true }).last().fill('Racontez-nous votre métier.');
-  await itw.getByText('Dispositif caméra').click();
+  await itw.getByText('Lieu, lumière, son').click();
   await expect(itw.getByRole('button', { name: 'Claire Martin' })).toBeVisible();
 
   // Le cadre rejoint le découpage : une nouvelle séquence, un plan par caméra.
