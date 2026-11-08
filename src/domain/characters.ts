@@ -1,5 +1,5 @@
 import { escapeRegExp, fold } from './text';
-import type { Character, ID, ProjectDoc } from './types';
+import type { Character, ID, ProjectDoc, Shot } from './types';
 
 /** Personnages reconnus dans un sujet (nom ou alias, mot entier, sans casse ni accents). */
 export function recognizeCharacters(subject: string, characters: readonly Character[]): ID[] {
@@ -13,6 +13,12 @@ export function recognizeCharacters(subject: string, characters: readonly Charac
       }),
     )
     .map((c) => c.id);
+}
+
+/** Sujet d'un plan, y compris ceux des temps d'un plan-séquence (chaque temps cadre son propre sujet). */
+export function shotSubjectText(shot: Pick<Shot, 'subject' | 'oneShot'>): string {
+  const beats = shot.oneShot?.beats.map((b) => b.subject).filter(Boolean) ?? [];
+  return [shot.subject, ...beats].filter(Boolean).join(' · ');
 }
 
 /** Personnages d'une séquence = union des sujets reconnus + ajouts manuels (§7). */

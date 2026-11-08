@@ -2,7 +2,7 @@
  * Opérations d'édition du document. Elles mutent le document reçu (prévu pour un brouillon immer)
  * et maintiennent les invariants du §3.
  */
-import { recognizeCharacters } from './characters';
+import { recognizeCharacters, shotSubjectText } from './characters';
 import { blockDuration } from './timing';
 import { makeBlock, makeSequence, makeShot, newId } from './factory';
 import { planKeysOfSequence, unlinkShotFromPlans } from './floorplan';
@@ -323,13 +323,13 @@ export function setShotSubject(doc: ProjectDoc, shotId: ID, subject: string): vo
   const shot = doc.shots[shotId];
   if (!shot) return;
   shot.subject = subject;
-  shot.characterIds = recognizeCharacters(subject, Object.values(doc.characters));
+  shot.characterIds = recognizeCharacters(shotSubjectText(shot), Object.values(doc.characters));
 }
 
 /** Recalcule les personnages reconnus de tous les plans (après création ou fusion de fiches). */
 export function refreshRecognition(doc: ProjectDoc): void {
   const chars = Object.values(doc.characters);
-  for (const shot of Object.values(doc.shots)) shot.characterIds = recognizeCharacters(shot.subject, chars);
+  for (const shot of Object.values(doc.shots)) shot.characterIds = recognizeCharacters(shotSubjectText(shot), chars);
 }
 
 export function addCharacter(doc: ProjectDoc, init: Partial<Character> & { name: string }): ID {

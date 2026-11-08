@@ -97,3 +97,31 @@ describe('réordonner les temps', async () => {
   });
 });
 
+
+describe('plan-séquence : les temps comptent pour les personnages et le matériel', () => {
+  it('sujets des temps reconnus, mouvements, liaisons et focales pris en compte', async () => {
+    const { buildFiction } = await import('../../seed/fiction');
+    const { produce } = await import('immer');
+    const { deduceEquipment } = await import('./equipment');
+    const { sequenceCharacterIds } = await import('./characters');
+    const { toggleOneShot, updateBeat } = await import('./oneshot');
+    const doc = buildFiction();
+    const seqId = doc.project.sequenceIds[2];
+    const shotId = doc.sequences[seqId].shotIds[0];
+    const marc = Object.values(doc.characters).find((c) => c.name === 'Marc')!;
+    const lea = Object.values(doc.characters).find((c) => c.name === 'Léa')!;
+    const next = produce(doc, (d) => {
+      d.shots[shotId].subject = 'Marc';
+      toggleOneShot(d, shotId);
+      const [b1, b2] = d.shots[shotId].oneShot!.beats;
+      updateBeat(d, shotId, b1.id, { focal: 24, bridge: 'Travelling avant' });
+      updateBeat(d, shotId, b2.id, { subject: 'Léa', focal: 85, movement: 'Fixe' });
+    });
+    const shot = next.shots[shotId];
+    expect(shot.characterIds).toEqual(expect.arrayContaining([marc.id, lea.id]));
+    expect(sequenceCharacterIds(next, seqId)).toContain(lea.id);
+    const labels = deduceEquipment(shot).map((i) => i.label);
+    expect(labels).toContain('Rails + dolly ou slider');
+    expect(labels).toContain('Optique zoom couvrant 24–85 mm');
+  });
+});

@@ -50,8 +50,20 @@ function fallbackMovementKey(token: string): string | undefined {
   return undefined;
 }
 
-/** Matériel déduit d'un plan (§10). */
+const splitTokens = (s?: string) => (s ?? '').split(/\s*(?:,|\+|·)\s*/).map((x) => x.trim()).filter(Boolean);
+
+/** Matériel déduit d'un plan (§10) ; pour un plan-séquence, de tous ses temps et de leurs liaisons. */
 export function deduceEquipment(shot: Shot): EquipmentItem[] {
+  const beats = shot.oneShot?.beats ?? [];
+  if (beats.length) {
+    const movement = [...shot.movement, ...beats.flatMap((b) => [...splitTokens(b.movement), ...splitTokens(b.bridge)])];
+    const angle = [...shot.angle, ...beats.flatMap((b) => splitTokens(b.angle))];
+    const focals = [...new Set([shot.focal.from, ...beats.map((b) => b.focal)].filter((f): f is number => !!f))].sort((a, b) => a - b);
+    // Focale qui change d'un temps à l'autre : un zoom couvre la plage ; sinon la focale unique.
+    const focal = focals.length > 1 ? { from: focals[0], to: focals[focals.length - 1] } : { from: focals[0] };
+    const merged: Shot = { ...shot, movement: focals.length > 1 && !isZoom(movement) ? [...movement, 'Zoom'] : movement, angle, focal, oneShot: undefined };
+    return deduceEquipment(merged);
+  }
   const items: EquipmentItem[] = [];
   const keys = movementKeys(shot);
   for (const rule of MOVEMENT_RULES) if (rule.keys.some((k) => keys.includes(k))) items.push(rule.item);

@@ -1,5 +1,6 @@
 import { detachAction } from './ops';
 import { newId } from './factory';
+import { recognizeCharacters, shotSubjectText } from './characters';
 import { formatTc } from './timecode';
 import { renderTokens } from './tokens';
 import type { SubLine } from './merge';
@@ -20,6 +21,7 @@ export function toggleOneShot(doc: ProjectDoc, shotId: ID): void {
     const first = shot.oneShot.beats[0];
     if (first) Object.assign(shot, { value: first.value, subject: first.subject });
     delete shot.oneShot;
+    recognize(doc, shotId);
     return;
   }
   // Un plan-séquence porte sa propre action : il ne partage rien avec ses voisins.
@@ -39,14 +41,23 @@ export function addBeat(doc: ProjectDoc, shotId: ID, after?: number): void {
   beats.splice(at, 0, { id: newId(), value: '', subject: '', angle: '', movement: '' });
 }
 
+/** Personnages du plan recalculés d'après tous ses sujets (plan et temps). */
+function recognize(doc: ProjectDoc, shotId: ID): void {
+  const shot = doc.shots[shotId];
+  if (shot) shot.characterIds = recognizeCharacters(shotSubjectText(shot), Object.values(doc.characters));
+}
+
 export function updateBeat(doc: ProjectDoc, shotId: ID, beatId: ID, patch: Partial<OneShotBeat>): void {
   const beat = doc.shots[shotId]?.oneShot?.beats.find((b) => b.id === beatId);
-  if (beat) Object.assign(beat, patch);
+  if (!beat) return;
+  Object.assign(beat, patch);
+  if ('subject' in patch) recognize(doc, shotId);
 }
 
 export function removeBeat(doc: ProjectDoc, shotId: ID, beatId: ID): void {
   const os = doc.shots[shotId]?.oneShot;
   if (os && os.beats.length > 1) os.beats = os.beats.filter((b) => b.id !== beatId);
+  recognize(doc, shotId);
 }
 
 export function moveBeat(doc: ProjectDoc, shotId: ID, beatId: ID, delta: -1 | 1): void {
