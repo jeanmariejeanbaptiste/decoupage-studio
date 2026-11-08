@@ -292,3 +292,36 @@ test('réordonner les colonnes facultatives depuis le menu Colonnes', async ({ p
   const exported = await page.getByRole('list', { name: 'Colonnes exportées' }).locator('label').allTextContents();
   expect(exported.indexOf('Image')).toBeLessThan(exported.indexOf('Action'));
 });
+
+test('exports des onglets : les pages contiennent bien le texte (jamais de page blanche)', async ({ page }) => {
+  const { default: JSZip } = await import('jszip');
+  for (const route of ['/#/scenario?seed=fiction', '/#/intention?seed=fiction', '/#/schedule?seed=rav3']) {
+    await page.goto(route);
+    const dl = page.waitForEvent('download', { timeout: 30_000 });
+    await page.getByTestId('tab-export').click();
+    await page.getByTestId('tab-export-panel').getByText('Images A4', { exact: true }).click();
+    await page.getByTestId('tab-export-go').click();
+    const d = await dl;
+    const buf = readFileSync(await d.path());
+    // Une seule page : une image ; plusieurs : un dossier compressé.
+    const png = d.suggestedFilename().endsWith('.zip')
+      ? await (await JSZip.loadAsync(buf)).file(Object.keys((await JSZip.loadAsync(buf)).files).filter((f) => f.endsWith('.png')).sort()[0])!.async('base64')
+      : buf.toString('base64');
+    const dark = await page.evaluate(async (data) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${data}`;
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width / 4;
+      c.height = img.height / 4;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const px = ctx.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i] < 120 && px[i + 1] < 120 && px[i + 2] < 120) n++;
+      return n;
+    }, png);
+    expect(dark, route).toBeGreaterThan(300);
+  }
+});
+

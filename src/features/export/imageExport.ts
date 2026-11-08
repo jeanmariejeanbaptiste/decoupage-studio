@@ -188,7 +188,8 @@ export async function exportDocumentPages(html: string, base: string, opts: Page
       wrap.style.height = `${height}px`;
       wrap.style.overflow = 'hidden';
       host.style.marginTop = `${-top0}px`;
-      const chunk = await toCanvas(wrap, { pixelRatio: ratio, backgroundColor: '#ffffff', width: body.scrollWidth, height });
+      // Le conteneur est placé hors écran : sa copie rendue doit, elle, être à l'origine (sinon page blanche).
+      const chunk = await toCanvas(wrap, { pixelRatio: ratio, backgroundColor: '#ffffff', width: body.scrollWidth, height, style: { position: 'static', left: '0', top: '0' } });
       const k = chunk.width / body.scrollWidth;
       for (let n = i; n <= j; n++) {
         const [a, b] = slices[n];
