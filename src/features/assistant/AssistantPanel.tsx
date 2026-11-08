@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, RotateCcw, Square, SquarePen, X } from 'lucide-react';
+import { ArrowUp, ExternalLink, RotateCcw, Square, SquarePen, X } from 'lucide-react';
 import { undo, useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { askAssistant, newConversation, stopAssistant, toggleAssistant, useAssistant } from './assistant';
@@ -57,7 +57,15 @@ export function AiSettingsForm({ onSaved, compact = false, value, onChange }: Fo
         </label>
       )}
       <label>
-        <span>{info.keyLabel}</span>
+        <span className={s.keyHead}>
+          {info.keyLabel}
+          {info.keyUrl && (
+            <a href={info.keyUrl} target="_blank" rel="noopener noreferrer" className={s.keyLink} data-testid="ai-key-link">
+              Obtenir une clé
+              <ExternalLink size={12} strokeWidth={1.4} aria-hidden="true" />
+            </a>
+          )}
+        </span>
         <input type="password" autoComplete="off" value={draft.keys[draft.provider] ?? ''} onChange={(e) => setFor('keys', e.target.value)} placeholder={info.keyPlaceholder} aria-label={info.keyLabel} />
       </label>
       <label>

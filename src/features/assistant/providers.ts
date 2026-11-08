@@ -16,14 +16,16 @@ export interface ProviderInfo {
   /** Adresse de l'API (compatible OpenAI). */
   baseUrl?: string;
   keyOptional?: boolean;
+  /** Page du fournisseur où l'on crée sa clé. */
+  keyUrl?: string;
 }
 
 export const PROVIDERS: readonly ProviderInfo[] = [
-  { id: 'anthropic', label: 'Anthropic (Claude)', models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], keyLabel: 'Clé API Anthropic', keyPlaceholder: 'sk-ant-…' },
-  { id: 'openai', label: 'OpenAI', models: ['gpt-5', 'gpt-5-mini'], keyLabel: 'Clé API OpenAI', keyPlaceholder: 'sk-…', baseUrl: 'https://api.openai.com/v1' },
-  { id: 'gemini', label: 'Google Gemini', models: ['gemini-2.5-pro', 'gemini-2.5-flash'], keyLabel: 'Clé API Gemini', keyPlaceholder: 'AIza…' },
-  { id: 'mistral', label: 'Mistral', models: ['mistral-large-latest', 'mistral-medium-latest'], keyLabel: 'Clé API Mistral', keyPlaceholder: '', baseUrl: 'https://api.mistral.ai/v1' },
-  { id: 'openrouter', label: 'OpenRouter', models: ['anthropic/claude-opus-5.5', 'openai/gpt-5', 'google/gemini-2.5-pro'], keyLabel: 'Clé API OpenRouter', keyPlaceholder: 'sk-or-…', baseUrl: 'https://openrouter.ai/api/v1' },
+  { id: 'anthropic', label: 'Anthropic (Claude)', models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], keyLabel: 'Clé API Anthropic', keyPlaceholder: 'sk-ant-…', keyUrl: 'https://platform.claude.com/settings/keys' },
+  { id: 'openai', label: 'OpenAI', models: ['gpt-5', 'gpt-5-mini'], keyLabel: 'Clé API OpenAI', keyPlaceholder: 'sk-…', baseUrl: 'https://api.openai.com/v1', keyUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'gemini', label: 'Google Gemini', models: ['gemini-2.5-pro', 'gemini-2.5-flash'], keyLabel: 'Clé API Gemini', keyPlaceholder: 'AIza…', keyUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'mistral', label: 'Mistral', models: ['mistral-large-latest', 'mistral-medium-latest'], keyLabel: 'Clé API Mistral', keyPlaceholder: '', baseUrl: 'https://api.mistral.ai/v1', keyUrl: 'https://console.mistral.ai/home?profile_dialog=api-keys' },
+  { id: 'openrouter', label: 'OpenRouter', models: ['anthropic/claude-opus-5.5', 'openai/gpt-5', 'google/gemini-2.5-pro'], keyLabel: 'Clé API OpenRouter', keyPlaceholder: 'sk-or-…', baseUrl: 'https://openrouter.ai/api/v1', keyUrl: 'https://openrouter.ai/settings/keys' },
   { id: 'custom', label: 'Autre (compatible OpenAI)', models: [], keyLabel: 'Clé API (facultative)', keyPlaceholder: '', baseUrl: 'http://localhost:11434/v1', keyOptional: true },
 ];
 
