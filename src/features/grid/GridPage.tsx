@@ -140,7 +140,8 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     </button>
   );
 
-  if (board && printView) {
+  // Storyboard : les planches seulement sur demande ; en lecture seule, les cartes restent la vue.
+  if (board && printView && !readOnly) {
     return (
       <div className="page page--wide">
         <header className="page-head">
