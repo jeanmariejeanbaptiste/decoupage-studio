@@ -1,4 +1,4 @@
-import { InterviewPanel, InterviewPreview } from '../interview/InterviewPanel';
+import { InterviewExport, InterviewPanel, InterviewPreview } from '../interview/InterviewPanel';
 import { MobileCut, useIsMobile } from './MobileCut';
 import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
@@ -20,7 +20,6 @@ import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
 import { useGridDnd } from './useGridDnd';
-import { TemplatesMenu } from './TemplatesMenu';
 import { navigate } from '../../app/router';
 import { TrackBar } from './TrackBar';
 import s from './GridPage.module.css';
@@ -38,8 +37,10 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   // Institutionnel : deux volets, l'interview (A-roll) et les illustrations (B-roll, la grille).
   const institutional = storeDoc.project.format === 'institutionnel';
   const itwTab = useUi((u) => u.itwTab) === 'itw';
-  const interviewView = institutional && itwTab && !printViewRaw;
+  // Trois vues (Interview, Tableau, Storyboard) ; l'Aperçu montre celle qui est choisie, rien d'autre.
+  const itwSelected = institutional && itwTab && !board;
   const printView = printViewRaw;
+  const interviewView = itwSelected && !printView;
   const pickItw = (on: boolean) => {
     setUi({ itwTab: on ? 'itw' : 'broll' });
     try {
@@ -102,9 +103,9 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
               pickItw(false);
               toGrid();
             }}
-            data-testid="tab-broll"
+            data-testid="view-table"
           >
-            Illustrations
+            Tableau
           </button>
         </>
       ) : (
@@ -132,7 +133,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
       className={[s.preview, printView ? s.previewOn : ''].join(' ')}
       aria-pressed={printView}
       onClick={() => setUi({ printView: !printView, editing: null })}
-      title={board ? 'Planches du storyboard telles qu’à l’export' : 'Découpage tel qu’à l’export'}
+      title={board ? 'Planches du storyboard telles qu’à l’export' : itwSelected ? 'Fiche d’interview telle qu’à l’export' : 'Découpage tel qu’à l’export'}
       data-testid="toggle-print"
     >
       <Eye {...IC} />
@@ -239,7 +240,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
                 />
               </div>
             )}
-          <CutExport doc={storeDoc} defaultContent="grid" />
+            {itwSelected ? <InterviewExport doc={storeDoc} /> : <CutExport doc={storeDoc} defaultContent="grid" />}
           </div>
         </div>
       </header>
@@ -247,7 +248,11 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
       <OneShotStudio doc={storeDoc} />
       {interviewView ? (
         <InterviewPanel doc={storeDoc} />
-      ) : nSeq === 0 && !(printView && institutional) ? (
+      ) : itwSelected ? (
+        <div className={[s.printPreview, 'paper-light'].join(' ')}>
+          <InterviewPreview doc={storeDoc} />
+        </div>
+      ) : nSeq === 0 ? (
         <div className="card empty">
           <span className="hand">Aucune séquence pour l’instant</span>
           <p>Créez la première, ou importez un scénario.</p>
@@ -255,17 +260,15 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
             <Button ref={createFirst} variant="primary" autoFocus onClick={newSequenceAfter} data-testid="create-first">
               Créer la première séquence
             </Button>
-            <TemplatesMenu doc={doc} variant="outline" />
             <Button variant="outline" onClick={() => navigate('scenario')}>
               Écrire ou importer un scénario
             </Button>
           </div>
         </div>
       ) : printView ? (
-        <div className={s.printPreview}>
-          {/* Aperçu à l'écran : toujours le style sobre du papier, le thème coloré reste réservé aux exports. */}
-          {institutional && <InterviewPreview doc={storeDoc} />}
-          {nSeq > 0 && <ExportTable doc={doc} theme="papier" />}
+        <div className={[s.printPreview, 'paper-light'].join(' ')}>
+          {/* Aperçu à l'écran : le papier, quel que soit le thème. */}
+          <ExportTable doc={doc} theme="papier" />
         </div>
       ) : isMobile ? (
         // Téléphone : mêmes outils (colonnes, aperçu, export, lier), mais un plan à la fois.

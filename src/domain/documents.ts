@@ -17,7 +17,7 @@ import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
 import type { ProjectDoc } from './types';
 import { isZoom, valueRank } from './vocabulary';
-import { questionsFor, type InterviewQuestion } from './interview';
+import { questionsFor, setupShotIds, type InterviewQuestion } from './interview';
 
 export const esc = (s: string | number | undefined | null) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -236,30 +236,38 @@ export function oneShotAnnexDocument(doc: ProjectDoc): DocPage {
 
 const EYELINE: Record<string, string> = { gauche: 'Regard à gauche de la caméra (vers l’intervieweur)', droite: 'Regard à droite de la caméra (vers l’intervieweur)', camera: 'Face caméra' };
 
-/** Fiche d'interview (institutionnel, A-roll) : une page par intervenant. */
-export function interviewDocument(doc: ProjectDoc): DocPage {
+/**
+ * Fiche d'interview (institutionnel, A-roll) : une page par intervenant. En paysage (par défaut, comme
+ * le découpage), chaque cadre tient sur deux colonnes : le dispositif à gauche, les questions à droite.
+ */
+export function interviewDocument(doc: ProjectDoc, orientation: 'portrait' | 'landscape' = 'landscape'): DocPage {
   const itw = doc.interview;
   const subjects = itw?.subjects ?? [];
+  const landscape = orientation === 'landscape';
   const body = subjects
     .map((s, i) => {
       const qRows = (qs: InterviewQuestion[]) =>
         qs.length
-          ? `<table><thead><tr><th>N°</th><th>Question</th><th>Réponse attendue</th></tr></thead><tbody>${qs.map((q, k) => `<tr><td class="code">${k + 1}</td><td>${esc(q.text)}${q.note ? `<br><span class="muted">${esc(q.note)}</span>` : ''}</td><td>${esc(q.expected ?? '')}</td></tr>`).join('')}</tbody></table>`
+          ? `<table><thead><tr><th style="width:8%">N°</th><th>Question</th><th style="width:36%">Réponse attendue</th></tr></thead><tbody>${qs.map((q, k) => `<tr><td class="code">${k + 1}</td><td>${esc(q.text)}${q.note ? `<br><span class="muted">${esc(q.note)}</span>` : ''}</td><td>${esc(q.expected ?? '')}</td></tr>`).join('')}</tbody></table>`
           : '<p class="muted">Aucune question.</p>';
       const setups = (s.setups ?? [])
         .map((st) => {
+          const placed = setupShotIds(doc, st.id);
+          const where = placed.length ? `${sequenceHeading(doc, doc.shots[placed[0]].sequenceId)} · plan${placed.length > 1 ? 's' : ''} ${placed.map((id) => shotCode(doc, id)).join(', ')}` : '';
           const cams = st.cameras.map((c) => `<tr><td class="code">Caméra ${esc(c.name)}</td><td>${esc(c.value)}</td><td>${esc(c.angle)}</td><td>${esc(c.focal ? `${c.focal} mm` : '')}</td><td>${esc(c.note ?? '')}</td></tr>`).join('');
-          return `<h3>${esc(st.name)}</h3>
-<table><thead><tr><th>Caméra</th><th>Valeur</th><th>Axe</th><th>Focale</th><th>Note</th></tr></thead><tbody>${cams}</tbody></table>
+          const setupHtml = `<table><thead><tr><th>Caméra</th><th>Valeur</th><th>Axe</th><th>Focale</th><th>Note</th></tr></thead><tbody>${cams}</tbody></table>
 <p>${esc(EYELINE[st.eyeline] ?? '')}</p>
 <div class="grid">
 <div><h3>Lieu</h3><p>${esc(st.place) || '—'}</p></div>
 <div><h3>Arrière-plan</h3><p>${esc(st.background) || '—'}</p></div>
 <div><h3>Lumière</h3><p>${esc(st.light) || '—'}</p></div>
 <div><h3>Son</h3><p>${esc(st.sound) || '—'}</p></div>
-</div>
-<h3>Questions · ${esc(st.name)}</h3>
-${qRows(itw ? questionsFor(itw, s.id, st.id) : [])}`;
+</div>`;
+          const qs = qRows(itw ? questionsFor(itw, s.id, st.id) : []);
+          const title = `<h3>${esc(st.name)}${where ? ` <span class="muted" style="font-weight:400">— ${esc(where)}</span>` : ''}</h3>`;
+          return landscape
+            ? `${title}<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:0 9mm;align-items:start"><div>${setupHtml}</div><div>${qs}</div></div>`
+            : `${title}${setupHtml}<h3>Questions · ${esc(st.name)}</h3>${qs}`;
         })
         .join('');
       return `<section class="plan">
@@ -269,5 +277,5 @@ ${s.notes ? `<h3>Notes</h3><p class="text">${esc(s.notes)}</p>` : ''}
 </section>`;
     })
     .join('');
-  return shell(doc, '', 'Interview', body || '<p class="muted">Aucun intervenant.</p>');
+  return shell(doc, '', 'Interview', body || '<p class="muted">Aucun intervenant.</p>', landscape);
 }

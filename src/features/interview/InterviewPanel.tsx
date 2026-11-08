@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { interviewDocument } from '../../domain/documents';
 import { ArrowDown, ArrowUp, Check, Plus, Trash2, X } from 'lucide-react';
 import { newId } from '../../domain/factory';
-import { addInterviewee, addSetup, ensureInterview, moveQuestion, questionsFor, removeInterviewee, removeSetup, type Interviewee, type InterviewSetup } from '../../domain/interview';
+import { addInterviewee, addSetup, ensureInterview, moveQuestion, placeSetup, questionsFor, removeInterviewee, removeSetup, setupShotIds, type Interviewee, type InterviewSetup } from '../../domain/interview';
+import { shotCode } from '../../domain/numbering';
+import { useUi } from '../../store/uiStore';
+import { fileNameFor } from '../../domain/serialize';
+import { ExportPanel } from '../export/ExportPanel';
+import { exportDocumentPages } from '../export/imageExport';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { useProjectStore, mutateDoc } from '../../store/projectStore';
 import { useReadOnly } from '../../store/share';
@@ -21,6 +26,14 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const subject = subjects.find((x) => x.id === picked) ?? subjects[0];
   const [pickedSetup, setPickedSetup] = useState<ID | undefined>();
   const setup = subject?.setups?.find((x) => x.id === pickedSetup) ?? subject?.setups?.[0];
+  // Ouverture depuis la bande du découpage : cet intervenant, ce cadre.
+  const focus = useUi((u) => u.itwFocus);
+  useEffect(() => {
+    if (!focus) return;
+    setPicked(focus.subjectId);
+    setPickedSetup(focus.setupId);
+    useUi.getState().set({ itwFocus: null });
+  }, [focus]);
 
   // L'interview existe dès qu'on ouvre l'onglet (un intervenant par défaut). Création hors historique :
   // annuler / rétablir ne doivent ni la défaire ni la recréer.
@@ -40,6 +53,9 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const editSetup = (fn: (x: InterviewSetup) => void) =>
     edit((x) => void fn(x.setups.find((y) => y.id === setup.id)!));
   const questions = questionsFor(itw, subject.id, setup.id);
+  // Cadre placé dans le découpage : ses plans (un par caméra), tels que numérotés.
+  const placedIds = setupShotIds(doc, setup.id);
+  const placedCodes = placedIds.length ? `Plan${placedIds.length > 1 ? 's' : ''} ${placedIds.map((id) => shotCode(doc, id)).join(', ')}` : '';
   const shared = subjects.length > 1;
   const multi = subject.setups.length > 1;
   // Portée d'une question : commune → cet intervenant → ce cadre (si plusieurs cadres) → commune.
@@ -72,6 +88,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             <h3>Intervenant</h3>
             <Field label="Nom" value={subject.name} onCommit={(v) => edit((x) => void (x.name = v))} readOnly={readOnly} placeholder="Prénom Nom" />
             <Field label="Fonction (synthé)" value={subject.role} onCommit={(v) => edit((x) => void (x.role = v))} readOnly={readOnly} placeholder="Directrice de la communication" />
+            <Field label="Notes" value={subject.notes ?? ''} multiline onCommit={(v) => edit((x) => void (x.notes = v || undefined))} readOnly={readOnly} />
             {subjects.length > 1 && !readOnly && (
               <button type="button" className={s.ghost} onClick={() => mutateDoc((d) => removeInterviewee(d, subject.id))}>
                 <Trash2 size={13} /> Retirer cet intervenant
@@ -112,6 +129,34 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             {shared && setup.eyeline !== 'camera' && subjects.some((o) => o.id !== subject.id && o.setups.some((y) => y.eyeline === setup.eyeline)) && (
               <p className={s.warn}>Même regard qu’un autre intervenant : ils ne pourront pas se répondre au montage.</p>
             )}
+            <label className={s.field}>
+              <span>Découpage</span>
+              <select
+                value={setup.sequenceId && doc.sequences[setup.sequenceId] ? setup.sequenceId : ''}
+                disabled={readOnly}
+                onChange={(e) => mutateDoc((d) => placeSetup(d, setup.id, e.target.value || undefined))}
+                data-testid="setup-placement"
+              >
+                <option value="">Annexe seule</option>
+                {doc.project.sequenceIds.map((id, k) => (
+                  <option key={id} value={id}>
+                    {`Séquence ${k + 1}${doc.sequences[id]?.label ? ` — ${doc.sequences[id].label.toUpperCase()}` : ''}`}
+                  </option>
+                ))}
+                <option value="new">Nouvelle séquence</option>
+              </select>
+            </label>
+            {placedCodes && <p className={s.placed}>{placedCodes}</p>}
+            {multi && !readOnly && (
+              <button type="button" className={s.ghost} onClick={() => (mutateDoc((d) => removeSetup(d, subject.id, setup.id)), setPickedSetup(undefined))}>
+                <Trash2 size={13} /> Retirer ce cadre
+              </button>
+            )}
+          </section>
+        </div>
+
+        <div className={s.col}>
+          <section className={s.card}>
             <h3>Dispositif caméra</h3>
             <div className={s.cams}>
               {setup.cameras.map((c, k) => (
@@ -145,12 +190,6 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             <Field label="Arrière-plan" value={setup.background} onCommit={(v) => editSetup((x) => void (x.background = v))} readOnly={readOnly} placeholder="Profondeur, bibliothèque floue, logo discret" />
             <Field label="Lumière" value={setup.light} onCommit={(v) => editSetup((x) => void (x.light = v))} readOnly={readOnly} placeholder="Face douce côté fenêtre, contre-jour léger" />
             <Field label="Son" value={setup.sound} onCommit={(v) => editSetup((x) => void (x.sound = v))} readOnly={readOnly} />
-            {multi && !readOnly && (
-              <button type="button" className={s.ghost} onClick={() => (mutateDoc((d) => removeSetup(d, subject.id, setup.id)), setPickedSetup(undefined))}>
-                <Trash2 size={13} /> Retirer ce cadre
-              </button>
-            )}
-            <Field label="Notes" value={subject.notes ?? ''} multiline onCommit={(v) => edit((x) => void (x.notes = v || undefined))} readOnly={readOnly} />
           </section>
         </div>
 
@@ -225,7 +264,6 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                 <Plus size={14} /> Question
               </button>
             )}
-            <p className={s.tip}>Des questions ouvertes (« Racontez… », « Comment… ») ; l’intervenant reprend la question dans sa réponse.</p>
           </section>
 
         </div>
@@ -282,9 +320,32 @@ function Field({
   );
 }
 
+const orientationOf = (doc: ProjectDoc) => doc.project.settings.exportPrefs?.interview?.orientation ?? 'landscape';
+
+/** Export de la fiche d'interview (annexe du découpage) : PDF ou images, en paysage ou en portrait. */
+export function InterviewExport({ doc }: { doc: ProjectDoc }) {
+  const base = fileNameFor(doc).replace(/\.decoupage$/, '');
+  return (
+    <ExportPanel
+      doc={doc}
+      id="interview"
+      title="Exporter la fiche d’interview"
+      onExport={async ({ format, orientation, numbers }) => {
+        try {
+          const cur = useProjectStore.getState().doc ?? doc;
+          await exportDocumentPages(interviewDocument(cur, orientation).html, `${base}-interview-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format: format as 'pdf' | 'images', orientation, numbers });
+        } catch (err) {
+          useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
+        }
+      }}
+    />
+  );
+}
+
 /** Aperçu de la fiche d'interview, telle qu'elle sera exportée (document isolé, hauteur ajustée). */
 export function InterviewPreview({ doc }: { doc: ProjectDoc }) {
-  const html = useMemo(() => interviewDocument(doc).html, [doc]);
+  const orientation = orientationOf(doc);
+  const html = useMemo(() => interviewDocument(doc, orientation).html, [doc, orientation]);
   const ref = useRef<HTMLIFrameElement>(null);
   const fit = () => {
     const f = ref.current;
@@ -292,5 +353,5 @@ export function InterviewPreview({ doc }: { doc: ProjectDoc }) {
     if (f && h) f.style.height = `${h}px`;
   };
   useEffect(fit, [html]);
-  return <iframe ref={ref} className={s.preview} srcDoc={html} title="Fiche d’interview" onLoad={fit} data-testid="interview-preview" />;
+  return <iframe ref={ref} className={[s.preview, orientation === 'portrait' ? s.previewPortrait : ''].join(' ')} srcDoc={html} title="Fiche d’interview" onLoad={fit} data-testid="interview-preview" />;
 }
