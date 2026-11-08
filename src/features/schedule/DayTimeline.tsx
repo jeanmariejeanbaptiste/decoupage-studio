@@ -21,6 +21,8 @@ import {
   DEFAULT_DAY_END,
   DEFAULT_DAY_START,
   fromMin,
+  dayEndMin,
+  showTime,
   placeSequence,
   placeShot,
   resizeShot,
@@ -47,7 +49,8 @@ const ROW = 18; // hauteur d'un créneau de 15 min, en px
 export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
   const meta = scheduleDays(doc).find((d) => d.n === day);
   const start = toMin(meta?.dayStart ?? DEFAULT_DAY_START);
-  const end = Math.max(start + 60, toMin(meta?.dayEnd ?? DEFAULT_DAY_END));
+  // Fin avant le début : tournage de nuit, la journée se termine le lendemain.
+  const end = Math.max(start + 60, dayEndMin(fromMin(start), meta?.dayEnd ?? DEFAULT_DAY_END));
   const entries = timelineOf(doc, day);
   const placed = new Set(entries.map((e) => e.shotId));
   const [query, setQuery] = useState('');
@@ -141,7 +144,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
               à{' '}
               <input
                 type="time"
-                value={fromMin(end)}
+                value={fromMin(end % (24 * 60))}
                 onChange={(e) =>
                   e.target.value && mutateDoc((d) => updateDay(d, day, { dayEnd: e.target.value }))
                 }
@@ -196,7 +199,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
                   <b>{shotCode(doc, e.shotId)}</b>
                   {e.part > 0 && <em className={s.partTag}>reprise {e.part}</em>}
                   <span className={s.blockTime}>
-                    {fromMin(e.start)}–{fromMin(e.end)}
+                    {showTime(fromMin(e.start))}–{showTime(fromMin(e.end))}
                   </span>
                   {sh.subject && <strong className={s.blockSubject}>{sh.subject}</strong>}
                 </span>
@@ -348,7 +351,7 @@ function Slot({ minute }: { minute: number }) {
       style={{ height: ROW }}
       data-testid={`slot-${fromMin(minute)}`}
     >
-      {hour && <span className={s.label}>{fromMin(minute)}</span>}
+      {hour && <span className={s.label}>{fromMin(minute % (24 * 60))}</span>}
     </div>
   );
 }

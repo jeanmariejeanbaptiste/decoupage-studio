@@ -86,7 +86,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               ))}
             </select>
           </label>
-          <TabExport
+          <TabExport id="callsheet" orientation="portrait"
             doc={() => callSheetDocument(doc, day.n)}
             fileBase={`${doc.project.title || 'projet'}-feuille-de-service-J${day.n}`}
             file={{
@@ -163,9 +163,12 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                           placeholder="Adresse du lieu ce jour-là"
                           aria-label={`Adresse pour ${sequenceHeading(doc, stop.seqIds[0])}`}
                           data-testid="stop-address"
-                          onChange={(e) =>
-                            set({ seqAddresses: { ...day.seqAddresses, [stop.seqIds[0]]: e.target.value } })
-                          }
+                          onChange={(e) => {
+                            // Champ vidé : l'adresse du décor (Registre) reprend sa place.
+                            const next = { ...day.seqAddresses, [stop.seqIds[0]]: e.target.value };
+                            if (!e.target.value) delete next[stop.seqIds[0]];
+                            set({ seqAddresses: next });
+                          }}
                         />
                       </td>
                       <td>{stop.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')}</td>

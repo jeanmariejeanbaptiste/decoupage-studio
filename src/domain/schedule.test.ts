@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay } from './schedule';
+import { addDay, assignShots, dayStats, placeShot, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay } from './schedule';
 import { computeTiming } from './timing';
 
 describe('plan de travail', () => {
@@ -124,5 +124,50 @@ describe('emploi du temps horaire', async () => {
     expect(shotSlotsText(night, 2, id)).toBe('07:00 – 09:00');
     expect(byDay(night).get(2)?.flatMap((s) => s.shotIds)).toContain(id);
     expect(byDay(night).get(1)?.flatMap((s) => s.shotIds)).toContain(id);
+  });
+});
+
+describe('plan de travail : cohérence des jours', () => {
+  it('une séquence déposée sur un jour entamé s’y enchaîne (rien ne disparaît)', async () => {
+    const { assignShots: assign, stripsByDay: byDay, callSheetStrips } = await import('./schedule');
+    const doc = buildRav3();
+    const s1 = doc.sequences[doc.project.sequenceIds[0]].shotIds;
+    const s2 = doc.sequences[doc.project.sequenceIds[1]].shotIds;
+    let d = produce(doc, (x) => placeShot(x, 1, s1[0], '09:00'));
+    d = produce(d, (x) => assign(x, s2, 1));
+    expect(byDay(d).get(1)?.flatMap((s) => s.shotIds)).toEqual(expect.arrayContaining([s1[0], ...s2]));
+    expect(callSheetStrips(d, 1).flatMap((s) => s.shotIds)).toEqual(expect.arrayContaining(s2));
+  });
+
+  it('la suggestion garde les plans tournés et retire les créneaux périmés', async () => {
+    const { suggestSchedule } = await import('./schedule');
+    const doc = buildRav3();
+    const id = doc.sequences[doc.project.sequenceIds[6]].shotIds[0];
+    const d = produce(doc, (x) => {
+      placeShot(x, 5, id, '10:00');
+      x.shots[id].status = 'tourné';
+      suggestSchedule(x, 10);
+    });
+    expect(d.shots[id].shootingDay).toBe(5);
+    for (const day of d.schedule!.days) for (const sid of Object.keys(day.timeline ?? {})) expect(d.shots[sid].shootingDay).toBe(day.n);
+  });
+
+  it('supprimer ou dupliquer un plan ne laisse pas de créneau orphelin', async () => {
+    const { deleteShot, duplicateShot } = await import('./ops');
+    const doc = buildRav3();
+    const id = doc.sequences[doc.project.sequenceIds[0]].shotIds[0];
+    const d = produce(doc, (x) => {
+      placeShot(x, 1, id, '09:00');
+      const copy = duplicateShot(x, id);
+      expect(x.shots[copy].shootingDay).toBeUndefined();
+      deleteShot(x, id);
+    });
+    expect(d.schedule!.days.find((x) => x.n === 1)!.timeline?.[id]).toBeUndefined();
+  });
+
+  it('tournage de nuit : la fin avant le début se lit le lendemain', async () => {
+    const { dayEndMin, showTime } = await import('./schedule');
+    expect(dayEndMin('18:00', '04:00')).toBe(28 * 60);
+    expect(showTime('25:30')).toBe('01:30 (+1)');
   });
 });

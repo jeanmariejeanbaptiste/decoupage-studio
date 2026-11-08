@@ -8,15 +8,16 @@ import { cameraCone, choreography, computeLighting, oneShotPlansOf, planOf, plan
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { callSheetStrips, dayStats, scheduleDays, stripsByDay } from './schedule';
+import { callSheetStrips, dayStats, scheduleDays, stripsByDay, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
+import { safeCell } from './csv';
 import type { ID, ProjectDoc } from './types';
 import { isZoom } from './vocabulary';
 
 const esc = (v: string | number | undefined) => {
-  const s = v === undefined ? '' : String(v);
+  const s = v === undefined ? '' : typeof v === 'number' ? String(v) : safeCell(v);
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
@@ -100,7 +101,7 @@ export function scheduleCsv(doc: ProjectDoc): string {
     const st = dayStats(doc, t, d.n);
     for (const s of strips.get(d.n) ?? []) {
       const seq = doc.sequences[s.seqId];
-      rows.push([`J${d.n}`, d.date, sequenceHeading(doc, s.seqId), s.shotIds.map((id) => shotCode(doc, id)).join(' '), seq.decorId ? doc.decors[seq.decorId]?.name : '', sequenceCharacterIds(doc, s.seqId).map((c) => doc.characters[c]?.name).join(', '), formatTc(st.screenSec)]);
+      rows.push([`J${d.n}`, d.date, sequenceHeading(doc, s.seqId), s.shotIds.map((id) => shotCode(doc, id)).join(' '), seq.decorId ? doc.decors[seq.decorId]?.name : '', stripCharacterIds(doc, s).map((c) => doc.characters[c]?.name).join(', '), formatTc(st.screenSec)]);
     }
   }
   return csv(rows);
@@ -113,17 +114,20 @@ export function callSheetCsv(doc: ProjectDoc, day: number): string {
   const rows: Array<Array<string | number | undefined>> = [
     ['Feuille de service', doc.project.title, `Jour ${day}`, d?.date ?? '', d?.callTime ? `RDV ${d.callTime}` : ''],
     [],
-    ['Décors'],
-    ...st.decorIds.map((id) => [doc.decors[id]?.name, doc.decors[id]?.address]),
+    ['Lieux et horaires', 'Adresse', 'Début', 'Fin', 'Séquence'],
+    ...dayItinerary(doc, day).map((p) => [p.decorId ? doc.decors[p.decorId]?.name : '', p.address, p.start, p.end, p.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')]),
     [],
     ['Convocations', 'Comédien·ne', 'Heure'],
     ...st.characterIds.map((id) => [doc.characters[id]?.name, doc.characters[id]?.actor, d?.calls?.[id]]),
     [],
-    ['Plan', 'Séquence', 'Sujet', 'Valeur', 'Focale', 'Action'],
+    ['Matériel requis'],
+    ...dayEquipment(doc, strips.flatMap((s) => s.shotIds), aggregateEquipment(doc), equipmentCategories(doc)).flatMap((g) => g.labels.map((l) => [g.category, l])),
+    [],
+    ['Horaire', 'Plan', 'Séquence', 'Sujet', 'Valeur', 'Focale', 'Action'],
     ...strips.flatMap((s) =>
       s.shotIds.map((id) => {
         const sh = doc.shots[id];
-        return [shotCode(doc, id), sequenceHeading(doc, s.seqId), sh.subject, sh.value, formatFocal(sh.focal, isZoom(sh.movement)), doc.blocks[sh.actionBlockId]?.text];
+        return [shotSlotsText(doc, day, id), shotCode(doc, id), sequenceHeading(doc, s.seqId), sh.subject, sh.value, formatFocal(sh.focal, isZoom(sh.movement)), doc.blocks[sh.actionBlockId]?.text];
       }),
     ),
   ];

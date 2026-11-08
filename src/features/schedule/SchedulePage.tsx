@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Clock, Plus, Sparkles, Trash2 } from 'lucide
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { stripRange, stripsByTime, addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay, type Strip } from '../../domain/schedule';
+import { stripRange, stripsByTime, addDay, assignShots, dayStats, removeDay, scheduleDays, stripsByDay, suggestSchedule, updateDay, type Strip, stripCharacterIds } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -67,7 +67,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
     <div className="page page--wide">
       <header className="page-head">
         <div className={s.toolbar}>
-          <TabExport doc={() => scheduleDocument(doc)} fileBase={`${doc.project.title || 'projet'}-plan-de-travail`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
+          <TabExport id="schedule" orientation="landscape" doc={() => scheduleDocument(doc)} fileBase={`${doc.project.title || 'projet'}-plan-de-travail`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
           <label className={s.cap} data-edit>
             <span>plans / jour</span>
             <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value) || 1))} aria-label="Plans par jour au maximum" />
@@ -162,7 +162,8 @@ function StripRow({ doc, day, strip, days }: { doc: ProjectDoc; day: number; str
   const [open, setOpen] = useState(false);
   const seq = doc.sequences[strip.seqId];
   const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
-  const cast = sequenceCharacterIds(doc, strip.seqId).map((id) => doc.characters[id]?.name).filter(Boolean);
+  // Distribution du jour : les personnages des plans de cette bande (pas toute la séquence).
+  const cast = (day > 0 ? stripCharacterIds(doc, strip) : sequenceCharacterIds(doc, strip.seqId)).map((id) => doc.characters[id]?.name).filter(Boolean);
   const totalInSeq = seq?.shotIds.length ?? 0;
   const range = day > 0 ? stripRange(doc, day, strip) : undefined;
   return (

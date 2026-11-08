@@ -54,8 +54,6 @@ export function stripsByDay(doc: ProjectDoc): Map<number, Strip[]> {
     return i >= 0 ? i : order.length + doc.project.sequenceIds.indexOf(id);
   };
   const seqs = [...doc.project.sequenceIds].sort((a, b) => seqRank(a) - seqRank(b));
-  // Un jour dont l'emploi du temps est entamé ne retient que les plans qui y sont placés.
-  const timelines = new Map((doc.schedule?.days ?? []).filter((d) => d.timeline && Object.keys(d.timeline).length).map((d) => [d.n, d.timeline!]));
   const partsByShot = new Map<ID, number[]>();
   for (const d of doc.schedule?.days ?? []) for (const id of Object.keys(d.parts ?? {})) if (d.parts![id].length) partsByShot.set(id, [...(partsByShot.get(id) ?? []), d.n]);
   for (const seqId of seqs) {
@@ -63,8 +61,8 @@ export function stripsByDay(doc: ProjectDoc): Map<number, Strip[]> {
     for (const shotId of doc.sequences[seqId]?.shotIds ?? []) {
       const shot = doc.shots[shotId];
       if (!shot || shot.status === 'abandonné') continue;
-      let day = shot.shootingDay ?? 0;
-      if (timelines.has(day) && !timelines.get(day)![shotId]) day = 0;
+      // Le jour du plan fait foi ; dans un emploi du temps entamé, un plan non placé reste du jour (« à placer »).
+      const day = shot.shootingDay ?? 0;
       byDay.set(day, [...(byDay.get(day) ?? []), shotId]);
       // Plan fractionné : il figure aussi les jours où il a une reprise.
       for (const pd of partsByShot.get(shotId) ?? []) if (pd !== day) byDay.set(pd, [...(byDay.get(pd) ?? []), shotId]);
@@ -101,8 +99,30 @@ export function removeDay(doc: ProjectDoc, n: number): void {
 }
 
 export function assignShots(doc: ProjectDoc, shotIds: readonly ID[], day: number | undefined): void {
-  for (const id of shotIds) if (doc.shots[id]) doc.shots[id].shootingDay = day || undefined;
-  if (day) updateDay(doc, day, {});
+  const target = day && day > 0 ? day : undefined;
+  for (const id of shotIds) {
+    if (!doc.shots[id]) continue;
+    doc.shots[id].shootingDay = target;
+    clearShotSlots(doc, id, target);
+  }
+  if (!target) return;
+  updateDay(doc, target, {});
+  // Jour dont l'emploi du temps est entamé : les plans arrivés s'y enchaînent après le dernier créneau.
+  const d = ensureSchedule(doc).days.find((x) => x.n === target)!;
+  const tl = d.timeline ?? {};
+  const placed = Object.keys(tl).filter((id) => doc.shots[id]?.shootingDay === target);
+  if (!placed.length) return;
+  const last = Math.max(...placed.map((id) => toMin(tl[id].end)));
+  placeSequence(doc, target, shotIds.filter((id) => doc.shots[id] && !tl[id]), fromMin(last));
+}
+
+/** Retire les créneaux (et reprises) d'un plan sur les jours autres que `keep`. */
+export function clearShotSlots(doc: ProjectDoc, shotId: ID, keep?: number): void {
+  for (const d of doc.schedule?.days ?? []) {
+    if (d.n === keep) continue;
+    if (d.timeline?.[shotId]) delete d.timeline[shotId];
+    if (d.parts?.[shotId]) delete d.parts[shotId];
+  }
 }
 
 /** Rang d'axe (premier jeton d'angle) pour regrouper les plans d'un même axe. */
@@ -116,9 +136,9 @@ function axisKey(doc: ProjectDoc, shotId: ID): string {
  */
 export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
   const cap = Math.max(1, Math.floor(capacity));
-  const seqs = doc.project.sequenceIds.filter((id) =>
-    doc.sequences[id]?.shotIds.some((s) => doc.shots[s]?.status !== 'abandonné'),
-  );
+  // Plans déjà tournés (ou abandonnés) : ils gardent leur jour, la suggestion ne porte que sur le reste.
+  const movable = (id: ID) => doc.shots[id] && doc.shots[id].status === 'à tourner';
+  const seqs = doc.project.sequenceIds.filter((id) => doc.sequences[id]?.shotIds.some(movable));
   const decorOf = (id: ID) => doc.sequences[id]?.decorId ?? `seq:${id}`;
   // 1. Décors dans l'ordre de première apparition.
   const decors: string[] = [];
@@ -144,7 +164,7 @@ export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
   let used = 0;
   let lastDecor: string | undefined;
   for (const seqId of ordered) {
-    const shots = (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id]?.status !== 'abandonné');
+    const shots = (doc.sequences[seqId]?.shotIds ?? []).filter(movable);
     const byAxis = [...shots].sort(
       (a, b) => axisKey(doc, a).localeCompare(axisKey(doc, b)) || shots.indexOf(a) - shots.indexOf(b),
     );
@@ -168,6 +188,11 @@ export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
   sch.order = ordered;
   for (let n = 1; n <= day; n++) if (!sch.days.some((d) => d.n === n)) sch.days.push({ n });
   sch.days.sort((a, b) => a.n - b.n);
+  // Créneaux qui ne correspondent plus au jour du plan : retirés (l'emploi du temps est à refaire).
+  for (const d of sch.days) {
+    for (const id of Object.keys(d.timeline ?? {})) if (doc.shots[id]?.shootingDay !== d.n) delete d.timeline![id];
+    for (const id of Object.keys(d.parts ?? {})) if (!doc.shots[id]) delete d.parts![id];
+  }
   return day;
 }
 
@@ -185,7 +210,7 @@ export function dayStats(
   day: number,
   strips: Strip[] = stripsByDay(doc).get(day) ?? [],
 ): DayStats {
-  const shotIds = strips.flatMap((s) => s.shotIds);
+  const shotIds = [...new Set(strips.flatMap((s) => s.shotIds))];
   const decorIds = [
     ...new Set(strips.map((s) => doc.sequences[s.seqId]?.decorId).filter((x): x is ID => !!x)),
   ];
@@ -203,6 +228,19 @@ export function dayStats(
     characterIds,
     sequenceIds: strips.map((s) => s.seqId),
   };
+}
+
+/** Distribution d'une bande : personnages des plans de ce jour (et ceux ajoutés à la main à la séquence). */
+export function stripCharacterIds(doc: ProjectDoc, strip: Strip): ID[] {
+  const ids = new Set<ID>(strip.shotIds.flatMap((id) => doc.shots[id]?.characterIds ?? []));
+  for (const id of doc.sequences[strip.seqId]?.characterIds ?? []) ids.add(id);
+  return [...ids].filter((id) => doc.characters[id]);
+}
+
+/** Matériel requis un jour : lignes ajoutées à la main, et celles déduites des plans du jour. */
+export function dayEquipment(_doc: ProjectDoc, shotIds: readonly ID[], aggregate: Record<string, Array<{ key: string; label: string; manual?: boolean; shotIds: ID[] }>>, categories: readonly string[]): Array<{ category: string; labels: string[] }> {
+  const set = new Set(shotIds);
+  return categories.map((c) => ({ category: c, labels: (aggregate[c] ?? []).filter((l) => l.manual || l.shotIds.some((id) => set.has(id))).map((l) => l.label) }));
 }
 
 export function setSlot(
@@ -234,9 +272,24 @@ export const toMin = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
 };
+/** Heure « HH:MM » ; au-delà de minuit (tournage de nuit), les heures continuent : « 25:30 » = 1 h 30 le lendemain. */
 export const fromMin = (min: number) => {
-  const m = Math.max(0, Math.min(24 * 60 - 1, Math.round(min)));
+  const m = Math.max(0, Math.min(48 * 60 - 1, Math.round(min)));
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
+/** Heure affichée : « 01:30 (+1) » pour une heure après minuit. */
+export const showTime = (hhmm: string | undefined) => {
+  if (!hhmm) return '';
+  const m = toMin(hhmm);
+  return m >= 24 * 60 ? `${fromMin(m - 24 * 60)} (+1)` : hhmm;
+};
+
+/** Fin de journée : une fin avant le début (nuit) se lit le lendemain. */
+export const dayEndMin = (start: string, end: string) => {
+  const s0 = toMin(start);
+  const e0 = toMin(end);
+  return e0 <= s0 ? e0 + 24 * 60 : e0;
 };
 
 function dayOf(doc: ProjectDoc, day: number): ShootingDay {
@@ -365,9 +418,17 @@ export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
   });
 }
 
-/** Plans retenus pour la feuille de service (ceux du jour, dans l’ordre horaire). */
+/**
+ * Plans retenus pour la feuille de service (ceux du jour, dans l’ordre horaire). Une fois l'emploi
+ * du temps du jour entamé, seuls les plans qui y ont un créneau (ou une reprise) comptent.
+ */
 export function callSheetStrips(doc: ProjectDoc, day: number): Strip[] {
-  return stripsByTime(doc, day);
+  const strips = stripsByTime(doc, day);
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  const slotted = (id: ID) => (!!d?.timeline?.[id] && doc.shots[id]?.shootingDay === day) || !!d?.parts?.[id]?.length;
+  const started = strips.some((st) => st.shotIds.some(slotted));
+  if (!started) return strips;
+  return strips.map((st) => ({ ...st, shotIds: st.shotIds.filter(slotted) })).filter((st) => st.shotIds.length);
 }
 
 // --- Plans fractionnés -------------------------------------------------------------------------

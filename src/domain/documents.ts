@@ -11,7 +11,7 @@ import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { callSheetStrips, dayItinerary, dayStats, firstSlot, scheduleDays, shotSlotsText, stripRange, stripsByTime } from './schedule';
+import { callSheetStrips, dayEquipment, dayItinerary, dayStats, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripRange, stripsByTime } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -87,7 +87,7 @@ export function equipmentDocument(doc: ProjectDoc, showShots: boolean): DocPage 
   const eq = aggregateEquipment(doc);
   const body = equipmentCategories(doc).map(
     (c) =>
-      `<section class="block"><h2>${c}</h2>${
+      `<section class="block"><h2>${esc(c)}</h2>${
         eq[c].length
           ? `<table><thead><tr><th>Matériel</th>${showShots ? '<th>Plans concernés</th>' : ''}</tr></thead><tbody>${eq[c]
               .map((l) => `<tr><td>${esc(l.label)}${l.manual ? ' <span class="muted">(ajout)</span>' : ''}</td>${showShots ? `<td>${l.shotIds.map((id) => esc(shotCode(doc, id))).join(', ') || '—'}</td>` : ''}</tr>`)
@@ -120,9 +120,9 @@ export function scheduleDocument(doc: ProjectDoc): DocPage {
           }</h2><table><thead><tr><th>Horaire</th><th>Séq.</th><th>INT/EXT</th><th>Décor</th><th>Personnages</th><th>Plans</th></tr></thead><tbody>${strips
             .map((s) => {
               const seq = doc.sequences[s.seqId];
-              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(stripRange(doc, d.n, s)))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(sequenceCharacterIds(doc, s.seqId).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td></tr>`;
+              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(stripRange(doc, d.n, s)))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(stripCharacterIds(doc, s).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td></tr>`;
             })
-            .join('')}</tbody></table><p class="muted">${st.shots} plans · ${formatTc(st.screenSec)} d’écran · ${st.decorIds.length} décor(s)</p></section>`;
+            .join('')}</tbody></table><p class="muted">${st.shots} plan${st.shots > 1 ? 's' : ''} · ${formatTc(st.screenSec)} d’écran · ${st.decorIds.length} décor${st.decorIds.length > 1 ? 's' : ''}</p></section>`;
         })
         .join('')
     : '<p class="muted">Aucun jour de tournage.</p>';
@@ -148,6 +148,9 @@ export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
         return `<tr><td class="time">${esc(shotSlotsText(doc, day, id) || '—')}</td><td class="code">${esc(shotCode(doc, id))}</td><td>${esc(sh.subject)}</td><td>${esc(sh.value)}</td><td>${esc(renderTokens(sh.angle))}</td><td>${esc(renderTokens(sh.movement, sh.movementSep))}</td><td>${esc(formatFocal(sh.focal, isZoom(sh.movement)))}</td><td>${esc(doc.blocks[sh.actionBlockId]?.text)}</td></tr>`;
       })
     .join('')}</tbody></table>
+<h3>Matériel requis</h3><div class="grid">${dayEquipment(doc, strips.flatMap((s) => s.shotIds), aggregateEquipment(doc), equipmentCategories(doc))
+    .map((g) => `<div><b>${esc(g.category)}</b><p>${g.labels.length ? g.labels.map(esc).join('<br>') : '<span class="muted">—</span>'}</p></div>`)
+    .join('')}</div>
 ${d?.notes ? `<h3>Notes</h3><p class="text">${esc(d.notes)}</p>` : ''}`;
   return shell(doc, 'Étape 9', `Feuille de service — Jour ${day}`, body);
 }

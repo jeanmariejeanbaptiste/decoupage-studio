@@ -180,11 +180,21 @@ export function setCellText(doc: ProjectDoc, shotId: ID, col: ColumnKey, text: s
     case 'shootingDay': {
       if (!t.trim()) {
         shot.shootingDay = undefined;
+        for (const d of doc.schedule?.days ?? []) {
+          if (d.timeline?.[shot.id]) delete d.timeline[shot.id];
+          if (d.parts?.[shot.id]) delete d.parts[shot.id];
+        }
         return true;
       }
       const m = /(\d+)/.exec(t);
       if (!m) return false;
-      shot.shootingDay = Number(m[1]);
+      // « 0 » : non planifié ; changer de jour retire les créneaux de l'emploi du temps des autres jours.
+      shot.shootingDay = Number(m[1]) > 0 ? Number(m[1]) : undefined;
+      for (const d of doc.schedule?.days ?? []) {
+        if (d.n === shot.shootingDay) continue;
+        if (d.timeline?.[shot.id]) delete d.timeline[shot.id];
+        if (d.parts?.[shot.id]) delete d.parts[shot.id];
+      }
       return true;
     }
     default:

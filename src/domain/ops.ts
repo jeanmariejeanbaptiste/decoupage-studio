@@ -70,9 +70,11 @@ export function duplicateShot(doc: ProjectDoc, shotId: ID): ID {
   const seq = seqOf(doc, src.sequenceId);
   const copy: Shot = JSON.parse(JSON.stringify(src)) as Shot;
   copy.id = newId();
-  // Images propres à chaque plan : la copie repart sans storyboard (ni keyframes partagées).
+  // Images propres à chaque plan : la copie repart sans storyboard (ni keyframes partagées), et sans
+  // jour de tournage (elle n'a pas de créneau dans l'emploi du temps).
   copy.storyboard = undefined;
   copy.keyframes = undefined;
+  copy.shootingDay = undefined;
   copy.mergeBreak = undefined;
   doc.shots[copy.id] = copy;
   seq.shotIds.splice(seq.shotIds.indexOf(shotId) + 1, 0, copy.id);
@@ -87,6 +89,11 @@ export function deleteShot(doc: ProjectDoc, shotId: ID): void {
   if (!shot) return;
   const seq = seqOf(doc, shot.sequenceId);
   unlinkShotFromPlans(doc, shotId, true);
+  // Emploi du temps : ses créneaux et reprises disparaissent avec lui.
+  for (const d of doc.schedule?.days ?? []) {
+    if (d.timeline?.[shotId]) delete d.timeline[shotId];
+    if (d.parts?.[shotId]) delete d.parts[shotId];
+  }
   seq.shotIds = seq.shotIds.filter((id) => id !== shotId);
   delete doc.shots[shotId];
   normalizeBlocks(doc, seq.id);
