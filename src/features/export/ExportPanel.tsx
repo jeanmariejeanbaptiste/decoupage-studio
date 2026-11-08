@@ -36,6 +36,8 @@ interface Props {
   children?: ReactNode;
   /** Options discrètes valables pour tous les formats. */
   options?: ReactNode;
+  /** Choix de ce qu'on exporte (découpage, storyboard…), en tête du panneau. */
+  contents?: { value: string; options: ReadonlyArray<readonly [string, string]>; onChange: (v: string) => void };
 }
 
 /** Menu d'export d'une page : PDF généré par l'outil ou images A4, orientation, numérotation, style. */
@@ -52,6 +54,7 @@ export function ExportPanel({
   onExport,
   children,
   options,
+  contents,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [alignLeft, setAlignLeft] = useState(false);
@@ -82,6 +85,11 @@ export function ExportPanel({
     window.addEventListener('mousedown', close);
     return () => window.removeEventListener('mousedown', close);
   }, [open]);
+  // Contenu changé : un format qu'il ne propose pas revient au PDF.
+  const formatKeys = ['pdf', 'images', ...extra.map((f) => f.key)].join('|');
+  useEffect(() => {
+    if (!formatKeys.split('|').includes(format)) setFormat('pdf');
+  }, [formatKeys, format]);
   const paged = format === 'pdf' || format === 'images';
   const formats = [
     {
@@ -144,6 +152,7 @@ export function ExportPanel({
           data-testid={`${testId}-export-panel`}
         >
           <p className={s.title}>{title}</p>
+          {contents && seg('content', 'Contenu', contents.options, contents.value, contents.onChange)}
           {seg(
             'fmt',
             'Format',

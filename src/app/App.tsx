@@ -14,7 +14,6 @@ import { EquipmentPage } from '../features/equipment/EquipmentPage';
 import { ExportPage } from '../features/export/ExportPage';
 import { IntentionPage } from '../features/intention/IntentionPage';
 import { ScenarioPage } from '../features/scenario/ScenarioPage';
-import { StoryboardPage } from '../features/storyboard/StoryboardPage';
 import { FloorPlanPage } from '../features/floorplan/FloorPlanPage';
 import { SchedulePage } from '../features/schedule/SchedulePage';
 import { CallSheetPage } from '../features/callsheet/CallSheetPage';
@@ -238,7 +237,8 @@ function Page({ route }: { route: Route }) {
   if (route === 'checks') return <ChecksPage doc={doc} />;
   if (route === 'intention') return <IntentionPage doc={doc} />;
   if (route === 'scenario') return <ScenarioPage doc={doc} />;
-  if (route === 'storyboard') return <StoryboardPage doc={doc} />;
+  // Le storyboard est une vue du découpage technique.
+  if (route === 'storyboard') return <GridPage doc={doc} board />;
   if (route === 'floorplan') return <FloorPlanPage doc={doc} />;
   if (route === 'schedule') return <SchedulePage doc={doc} />;
   if (route === 'callsheet') return <CallSheetPage doc={doc} />;

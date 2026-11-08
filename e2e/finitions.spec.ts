@@ -60,7 +60,7 @@ test('suppression : plan (annulable) et séquence volumineuse protégée', async
   await dlg.getByRole('button', { name: 'Supprimer la séquence' }).click();
   await expect(page.locator(ROWS)).toHaveCount(38);
   // Le storyboard suit, et l'inverse.
-  await page.getByRole('button', { name: /Storyboard/ }).click();
+  await page.getByTestId('view-storyboard').click();
   await expect(page.getByTestId('storyboard-card')).toHaveCount(38);
   await page.getByTestId('storyboard-delete').first().click();
   await expect(page.getByTestId('storyboard-card')).toHaveCount(37);

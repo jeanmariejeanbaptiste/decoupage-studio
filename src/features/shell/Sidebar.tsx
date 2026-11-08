@@ -1,5 +1,5 @@
 import { useCanCopy, useReadOnly } from '../../store/share';
-import { CalendarDays, ClipboardList, Clapperboard, Database, Download, Feather, Images, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
+import { CalendarDays, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
@@ -12,7 +12,6 @@ const STEP_ICONS: Partial<Record<Route, ReactNode>> = {
   scenario: <ScrollText {...ICON} />,
   breakdown: <ListChecks {...ICON} />,
   grid: <Clapperboard {...ICON} />,
-  storyboard: <Images {...ICON} />,
   floorplan: <Map {...ICON} />,
   equipment: <Package {...ICON} />,
   schedule: <CalendarDays {...ICON} />,
@@ -33,8 +32,10 @@ export function Sidebar({ activeRoute, collapsed = false, counts = {}, onNavigat
   const readOnly = useReadOnly();
   // Invité sans droit de copie : rien à exporter.
   const canCopy = useCanCopy();
+  // Le storyboard est une vue du découpage technique.
+  const current = activeRoute === 'storyboard' ? 'grid' : activeRoute;
   const item = (route: Route, label: string, mark: ReactNode, count?: number, testId?: string) => {
-    const active = activeRoute === route;
+    const active = current === route;
     return (
       <li key={route}>
         <button

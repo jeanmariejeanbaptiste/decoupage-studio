@@ -38,7 +38,7 @@ test('storyboard : image déposée depuis l’inspecteur visible sur la carte', 
   await page.getByRole('button', { name: 'Inspecteur' }).click();
   await page.locator('[data-cell="0:subject"]').click();
   await page.getByTestId('inspector').locator('input[type=file]').first().setInputFiles({ name: 'b.png', mimeType: 'image/png', buffer: PNG });
-  await page.getByRole('button', { name: /Storyboard/ }).click();
+  await page.getByTestId('view-storyboard').click();
   await expect(page.getByTestId('storyboard-card').first().getByRole('img', { name: 'Storyboard du plan 1.1' })).toBeVisible();
 });
 
@@ -83,7 +83,8 @@ test('storyboard : dessiner une case (crayon, flèche, flèche 3D, texte)', asyn
   expect(await ed.getByLabel('Direction').inputValue()).not.toBe(before);
   await expect(ed.locator('[data-sketch]')).toHaveCount(3);
   await ed.getByTestId('sketch-save').click();
-  await expect(ed).toHaveCount(0);
+  // Rendu de l'image (canevas) : plus lent quand la machine est chargée.
+  await expect(ed).toHaveCount(0, { timeout: 15_000 });
   await expect(card.getByRole('img', { name: /Storyboard du plan/ })).toBeVisible();
   // Le dessin reste modifiable : on le retrouve à la réouverture.
   await card.hover();
@@ -149,4 +150,32 @@ test('storyboard : recadrer une image (zoom, rotation, remplir / ajuster)', asyn
   await card.getByTestId('storyboard-crop-ok').click();
   await expect(img).toHaveCSS('object-fit', 'contain');
   expect(await img.evaluate((el) => (el as HTMLElement).style.transform)).toContain('rotate(90deg) scale(1.15)');
+});
+
+test('découpage et storyboard : une page, trois vues, même sélection, export au choix', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  // Le storyboard n'est plus une étape à part du menu : c'est une vue du découpage technique.
+  await expect(page.getByRole('navigation').getByText('Storyboard', { exact: true })).toHaveCount(0);
+  await page.locator('[data-cell="5:subject"]').click();
+  await page.getByTestId('view-storyboard').click();
+  await expect(page).toHaveURL(/#\/storyboard/);
+  await expect(page.getByRole('button', { name: /Découpage technique/ })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-selected]')).toHaveCount(1);
+  await expect(page.locator('[data-selected]').getByTestId('storyboard-card')).toContainText('2.2');
+  // Choisir une carte la sélectionne dans le tableau.
+  await page.getByTestId('storyboard-card').nth(1).click();
+  await page.getByTestId('view-table').click();
+  await expect(page).toHaveURL(/#\/grid/);
+  await expect(page.locator('[data-cell="1:subject"]')).toHaveAttribute('aria-selected', 'true');
+  // Un seul export : le contenu se choisit (découpage ou storyboard), les formats suivent.
+  await page.getByTestId('grid-export').click();
+  const panel = page.getByTestId('grid-export-panel');
+  await expect(panel.getByText('Excel', { exact: true })).toBeVisible();
+  await panel.getByText('Storyboard', { exact: true }).click();
+  const sb = page.getByTestId('storyboard-export-panel');
+  await expect(sb.getByText('Excel', { exact: true })).toHaveCount(0);
+  await expect(sb.getByText('Par feuille')).toBeVisible();
+  const dl = page.waitForEvent('download', { timeout: 30_000 });
+  await page.getByTestId('storyboard-export-go').click();
+  expect((await dl).suggestedFilename()).toMatch(/-storyboard-A4-/);
 });

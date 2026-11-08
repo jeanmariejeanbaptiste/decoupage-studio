@@ -1,4 +1,8 @@
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; flex-wrap: wrap; }
+.barLead { display: flex; align-items: center; gap: 8px; }
 .toolbar { display: flex; gap: 8px; align-items: center; }
+/* Plan sélectionné (le même que dans le tableau). */
+.selected > * { box-shadow: 0 0 0 2px var(--ink); }
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
 .seg button { border: 0; background: none; padding: 5px 11px; font-size: 13px; border-right: 1px solid var(--rule); }
 .seg button:last-child { border-right: 0; }
@@ -92,10 +96,10 @@
 .subject em { font-weight: 400; color: var(--ink-soft); }
 .tags { display: flex; flex-wrap: wrap; gap: 3px; margin: 1px 0 2px !important; }
 .tags span { font-size: 11px; line-height: 1.5; padding: 0 6px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
-.tValue { color: var(--rust); border-color: color-mix(in srgb, var(--rust) 35%, transparent); background: color-mix(in srgb, var(--rust) 7%, transparent); }
-.tAngle { color: #3b5f86; border-color: color-mix(in srgb, #3b5f86 35%, transparent); background: color-mix(in srgb, #3b5f86 7%, transparent); }
-.tMove { color: #4f7a3a; border-color: color-mix(in srgb, #4f7a3a 35%, transparent); background: color-mix(in srgb, #4f7a3a 7%, transparent); }
-.tFocal { color: #8a6a1e; border-color: color-mix(in srgb, #b88a2e 40%, transparent); background: color-mix(in srgb, #b88a2e 8%, transparent); font-family: var(--font-mono); }
+/* Valeur en noir, axes, mouvements et focale en gris : la nature de l'info se lit sans couleur. */
+.tValue { color: var(--ink); font-weight: 500; }
+.tAngle, .tMove { color: var(--ink-soft); }
+.tFocal { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .icons { display: inline-flex; gap: 2px; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
 .card:hover .icons, .icons:focus-within { opacity: 1; }
 .icons button { display: inline-flex; border: 0; background: none; padding: 3px; border-radius: 4px; color: var(--ink-soft); cursor: pointer; }

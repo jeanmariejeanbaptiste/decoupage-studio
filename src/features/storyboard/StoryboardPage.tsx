@@ -1,7 +1,7 @@
 import { NO_CROP, addKeyframe, cropStyle, framesOf, imageCount, removeFrame, setFrame, type Crop as CropT, type Frame } from '../../domain/keyframes';
 import { createPortal } from 'react-dom';
 import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
-import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -9,7 +9,6 @@ import { ArrowUpRight, Crop, ImagePlus, PenLine, Trash2 } from 'lucide-react';
 import { ShotSketch } from './ShotSketch';
 import { SketchEditor } from './SketchEditor';
 import { exportNodePages, waitForImages, waitForPages, type PageExportOptions } from '../export/imageExport';
-import { ExportPanel } from '../export/ExportPanel';
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { shotDurationSec } from '../../domain/rows';
@@ -26,8 +25,46 @@ import { goToShot } from '../registry/RegistryPage';
 import s from './StoryboardPage.module.css';
 
 
-/** Storyboard (§15.1) : les plans en cartes, réordonnables, planche imprimable 2, 4 ou 6 par page. */
-export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
+/** Planches du storyboard rendues hors écran le temps d'un export (PDF ou images A4). */
+export function StoryboardImaging({ doc, imaging, onDone }: { doc: ProjectDoc; imaging: PageExportOptions; onDone: () => void }) {
+  const timing = useMemo(() => computeTiming(doc), [doc]);
+  const perPage = doc.project.settings.exportPrefs?.storyboard?.perPage ?? 4;
+  const allShots = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
+  const imagesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!imagesRef.current) return;
+    const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
+    const root = imagesRef.current;
+    const expected = allShots.reduce((n, id) => n + (doc.shots[id] ? imageCount(doc.shots[id]) : 0), 0);
+    void waitForPages(root, '[data-testid="storyboard-sheet"]')
+      .then(async (p) => {
+        await waitForImages(root, expected);
+        return exportNodePages(p, base, imaging);
+      })
+      .finally(onDone);
+  }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div ref={imagesRef}>
+      <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={[s.print, s.imaging].join(' ')} orientation={imaging.orientation} />
+    </div>
+  );
+}
+
+/** Réglages de l'export du storyboard (dans le panneau d'export). */
+export function StoryboardExportOptions({ doc }: { doc: ProjectDoc }) {
+  return (
+    <label className={s.inkCheck}>
+      <input type="checkbox" checked={!!doc.project.settings.exportInkSaver} onChange={(e) => mutateDoc((d) => void (d.project.settings.exportInkSaver = e.target.checked))} />
+      Économie d’encre (cadres sans fond)
+    </label>
+  );
+}
+
+/**
+ * Storyboard (§15.1) : les plans en cartes, réordonnables, planche imprimable 2, 4 ou 6 par page.
+ * Vue du découpage technique : `lead` (choix de la vue) et `trail` (export) viennent de la page.
+ */
+export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { doc: ProjectDoc; lead?: ReactNode; trail?: ReactNode; selectedShot?: ID; onSelect?: (id: ID) => void }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const perPage = doc.project.settings.exportPrefs?.storyboard?.perPage ?? 4;
   const perRow = doc.project.settings.storyboardPerRow;
@@ -45,44 +82,20 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
   };
 
 
-  const [imaging, setImaging] = useState<PageExportOptions | null>(null);
-  const imagesRef = useRef<HTMLDivElement>(null);
+  // Le plan choisi dans le tableau est montré à l'arrivée sur le storyboard.
   useEffect(() => {
-    if (!imaging || !imagesRef.current) return;
-    const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
-    const root = imagesRef.current;
-    const expected = allShots.reduce((n, id) => n + (doc.shots[id] ? imageCount(doc.shots[id]) : 0), 0);
-    void waitForPages(root, '[data-testid="storyboard-sheet"]')
-      .then(async (p) => {
-        await waitForImages(root, expected);
-        return exportNodePages(p, base, imaging);
-      })
-      .finally(() => setImaging(null));
-  }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (selectedShot) document.querySelector(`[data-shot-card="${selectedShot}"]`)?.scrollIntoView({ block: 'center' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="page page--wide">
       <header className="page-head no-print">
-        <div className={s.toolbar}>
-          <AspectPicker doc={doc} />
-          <PerRowPicker doc={doc} />
-          <ExportPanel
-            doc={doc}
-            id="storyboard"
-            title="Exporter le storyboard"
-            perPage={[1, 2, 3, 4, 6, 9]}
-            noNumbers
-            disabled={allShots.length === 0 || !!imaging}
-            onExport={({ format, orientation, numbers }) => setImaging({ format: format as 'pdf' | 'images', orientation, numbers })}
-          >
-            <label className={s.inkCheck}>
-              <input
-                type="checkbox"
-                checked={!!doc.project.settings.exportInkSaver}
-                onChange={(e) => mutateDoc((d) => void (d.project.settings.exportInkSaver = e.target.checked))}
-              />
-              Économie d’encre (cadres sans fond)
-            </label>
-          </ExportPanel>
+        <div className={s.bar}>
+          <div className={s.barLead}>{lead}</div>
+          <div className={s.toolbar}>
+            <AspectPicker doc={doc} />
+            <PerRowPicker doc={doc} />
+            {trail}
+          </div>
         </div>
       </header>
 
@@ -103,7 +116,7 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
                 <SortableContext items={seq.shotIds} strategy={rectSortingStrategy}>
                   <div className={s.cards} style={perRow ? { gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))` } : undefined}>
                     {seq.shotIds.map((id) => (
-                      <SortableCard key={id} doc={doc} shot={doc.shots[id]} timing={timing} />
+                      <SortableCard key={id} doc={doc} shot={doc.shots[id]} timing={timing} selected={id === selectedShot} onSelect={onSelect} />
                     ))}
                   </div>
                 </SortableContext>
@@ -116,18 +129,6 @@ export function StoryboardPage({ doc }: { doc: ProjectDoc }) {
       {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
       <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
       <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} />
-      {imaging && (
-        <div ref={imagesRef}>
-          <Sheets
-            doc={doc}
-            shots={allShots}
-            perPage={perPage}
-            timing={timing}
-            className={[s.print, s.imaging].join(' ')}
-            orientation={imaging.orientation}
-          />
-        </div>
-      )}
     </div>
   );
 }
@@ -193,14 +194,19 @@ function Sheets({ doc, shots, perPage, timing, className, orientation }: { doc: 
   );
 }
 
-function SortableCard(props: { doc: ProjectDoc; shot: Shot; timing: Timing }) {
+function SortableCard({ selected, onSelect, ...props }: { doc: ProjectDoc; shot: Shot; timing: Timing; selected?: boolean; onSelect?: (id: ID) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.shot.id });
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined, opacity: isDragging ? 0.85 : 1}}
+      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 5 : undefined, opacity: isDragging ? 0.85 : 1 }}
       {...attributes}
       {...listeners}
+      className={selected ? s.selected : undefined}
+      data-shot-card={props.shot.id}
+      data-selected={selected || undefined}
+      // Choisir une carte la sélectionne aussi dans le tableau.
+      onClickCapture={() => onSelect?.(props.shot.id)}
       aria-roledescription="carte de storyboard déplaçable"
     >
       <Card {...props} />
@@ -499,7 +505,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
         </div>
       ) : (
       <div className={s.body}>
-        {/* Fiche compacte : une ligne justifiée, dans l'ordre des colonnes, chaque nature d'info sa couleur. */}
+        {/* Fiche compacte : une ligne justifiée, dans l'ordre des colonnes (valeur en noir, le reste en gris). */}
         <p className={s.line}>
           {[
             <b key="s">{shot.subject || <em>sans sujet</em>}</b>,

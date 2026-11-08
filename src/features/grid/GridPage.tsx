@@ -2,7 +2,6 @@ import { InterviewPanel, InterviewPreview } from '../interview/InterviewPanel';
 import { MobileCut, useIsMobile } from './MobileCut';
 import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
-import { recoverStaleChunk } from '../../ui/staleChunk';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Columns3, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
@@ -10,15 +9,12 @@ import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
-import { downloadBlob } from '../../store/persistence';
-import { fileNameFor } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
-import { exportDocumentPages, exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
-import { interviewDocument, oneShotAnnexDocument } from '../../domain/documents';
-import { ExportPanel } from '../export/ExportPanel';
-import { linkSelection, newSequenceAfter, unlinkSelection } from './actions';
+import { linkSelection, newSequenceAfter, rowOfShot, unlinkSelection } from './actions';
+import { CutExport } from './CutExport';
+import { StoryboardPage } from '../storyboard/StoryboardPage';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
@@ -30,7 +26,8 @@ import s from './GridPage.module.css';
 
 const IC = { size: 15, strokeWidth: 1.25 } as const;
 
-export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
+/** Découpage technique : le tableau, le storyboard (même découpage, en cartes) et l'aperçu imprimable. */
+export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; board?: boolean }) {
   const { displayDoc: doc, wrap, dragging } = useGridDnd(storeDoc);
   const model = useMemo(() => buildGridModel(doc), [doc]);
   // Lecture seule : toujours l'aperçu, la grille d'édition n'a pas lieu d'être.
@@ -68,17 +65,6 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
     });
   }, [sel, model, doc]);
   const multi = !!sel && sel.anchor.row !== sel.focus.row;
-  // Export image : le rendu d'export est monté hors écran le temps de la capture.
-  const [imaging, setImaging] = useState<PageExportOptions | null>(null);
-  const imageRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!imaging || !imageRef.current) return;
-    const root = imageRef.current;
-    const base = `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-decoupage-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
-    void waitForPages(root, '[data-testid="print-page"]')
-      .then((pages) => exportNodePages(pages, base, imaging, pages[0] ? getComputedStyle(pages[0]).backgroundColor : '#ffffff'))
-      .finally(() => setImaging(null));
-  }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Après la création de la première séquence, la grille prend le focus.
   const hadRows = useRef(model.rows.length > 0);
@@ -87,39 +73,96 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
     hadRows.current = model.rows.length > 0;
   }, [model.rows.length]);
 
+  // Vue choisie : le storyboard a son adresse (#/storyboard), le tableau et l'aperçu celle du découpage.
+  const toGrid = () => board && navigate('grid');
+  const views = (
+    <div className={s.views} role="radiogroup" aria-label="Affichage">
+      {institutional ? (
+        <>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!board && interviewView}
+            className={!board && interviewView ? s.viewOn : ''}
+            onClick={() => {
+              pickItw(true);
+              toGrid();
+            }}
+            data-testid="tab-interview"
+          >
+            Interview
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!board && !printView && !interviewView}
+            className={!board && !printView && !interviewView ? s.viewOn : ''}
+            onClick={() => {
+              pickItw(false);
+              toGrid();
+            }}
+            data-testid="tab-broll"
+          >
+            Illustrations
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!board && !printView}
+          className={!board && !printView ? s.viewOn : ''}
+          onClick={() => {
+            setUi({ printView: false });
+            toGrid();
+          }}
+          data-testid="view-table"
+        >
+          Tableau
+        </button>
+      )}
+      <button type="button" role="radio" aria-checked={board} className={board ? s.viewOn : ''} onClick={() => !board && navigate('storyboard')} data-testid="view-storyboard">
+        Storyboard
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={!board && printView}
+        aria-pressed={!board && printView}
+        className={!board && printView ? s.viewOn : ''}
+        onClick={() => {
+          setUi({ printView: true, editing: null });
+          toGrid();
+        }}
+        data-testid="toggle-print"
+      >
+        Aperçu
+      </button>
+    </div>
+  );
+
+  if (board) {
+    return (
+      <StoryboardPage
+        doc={storeDoc}
+        lead={views}
+        trail={<CutExport doc={storeDoc} defaultContent="storyboard" />}
+        selectedShot={selectedShot}
+        onSelect={(id) => {
+          const row = rowOfShot(storeDoc, id);
+          if (row >= 0) useUi.getState().setSelection({ row, col: 'subject' });
+        }}
+      />
+    );
+  }
+
   return (
     <div className="page page--wide">
       <header className="page-head">
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
-          {/* Gauche : ce qu'on regarde (édition ou aperçu), puis l'action liée à la sélection. */}
+          {/* Gauche : ce qu'on regarde (tableau, storyboard ou aperçu), puis l'action liée à la sélection. */}
           <div className={s.left}>
-            <div className={s.views} role="radiogroup" aria-label="Affichage">
-              {institutional ? (
-                <>
-                  <button type="button" role="radio" aria-checked={interviewView} className={interviewView ? s.viewOn : ''} onClick={() => pickItw(true)} data-testid="tab-interview">
-                    Interview
-                  </button>
-                  <button type="button" role="radio" aria-checked={!printView && !interviewView} className={!printView && !interviewView ? s.viewOn : ''} onClick={() => pickItw(false)} data-testid="tab-broll">
-                    Illustrations
-                  </button>
-                </>
-              ) : (
-                <button type="button" role="radio" aria-checked={!printView} className={!printView ? s.viewOn : ''} onClick={() => setUi({ printView: false })}>
-                  Découpage
-                </button>
-              )}
-              <button
-                type="button"
-                role="radio"
-                aria-checked={printView}
-                aria-pressed={printView}
-                className={printView ? s.viewOn : ''}
-                onClick={() => setUi({ printView: true, editing: null })}
-                data-testid="toggle-print"
-              >
-                Aperçu
-              </button>
-            </div>
+            {views}
             {!printView && !interviewView && (linked || multi) && (
               linked ? (
                 <Button size="sm" icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés">
@@ -158,67 +201,12 @@ export function GridPage({ doc: storeDoc }: { doc: ProjectDoc }) {
                 />
               </div>
             )}
-          <ExportPanel
-            doc={storeDoc}
-            id="grid"
-            title="Exporter le découpage"
-            extra={[
-              ...(institutional ? [{ key: 'interview', label: 'Fiche d’interview', hint: 'PDF A4 : une page par intervenant (dispositif, lieu, lumière, son, questions).' }] : []),
-              { key: 'excel', label: 'Excel', hint: 'Classeur avec fusions, couleurs et onglet Registre.' },
-              ...(Object.values(storeDoc.shots).some((x) => x.oneShot)
-                ? [{ key: 'annex', label: 'Annexe plans-séquences', hint: 'PDF A4 : une page par plan-séquence (frise des temps, tableau, transitions en clair, plan au sol dédié).' }]
-                : []),
-            ]}
-            disabled={(nSeq === 0 && !institutional) || !!imaging}
-            options={
-              <>
-              <label className={s.noMerge} title="Chaque ligne porte sa propre valeur (utile pour retraiter le tableau)">
-                <input
-                  type="checkbox"
-                  checked={!!storeDoc.project.settings.exportNoMerge}
-                  onChange={(e) => mutateDoc((d) => void (d.project.settings.exportNoMerge = e.target.checked || undefined))}
-                  data-testid="grid-export-nomerge"
-                />
-                Sans fusion de cellules
-              </label>
-              <label className={s.noMerge} title="PDF et images : sur chaque page, les colonnes facultatives vides (dialogue, son, notes…) sont masquées, et l’espace profite aux autres">
-                <input
-                  type="checkbox"
-                  checked={!!storeDoc.project.settings.exportSmart}
-                  onChange={(e) => mutateDoc((d) => void (d.project.settings.exportSmart = e.target.checked || undefined))}
-                  data-testid="grid-export-smart"
-                />
-                Export intelligent (colonnes vides masquées par page)
-              </label>
-              </>
-            }
-            onExport={async ({ format, orientation, numbers }) => {
-              try {
-                if (format === 'pdf' || format === 'images') setImaging({ format, orientation, numbers });
-                else if (format === 'interview')
-                  await exportDocumentPages(interviewDocument(storeDoc).html, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-interview`, { format: 'pdf', orientation: 'portrait', numbers });
-                else if (format === 'annex')
-                  await exportDocumentPages(oneShotAnnexDocument(storeDoc).html, `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
-                else {
-                  const { exportXlsx } = await import('../export/xlsx');
-                  downloadBlob(await exportXlsx(storeDoc), `${fileNameFor(storeDoc).replace(/\.decoupage$/, '')}.xlsx`);
-                }
-              } catch (err) {
-                if (recoverStaleChunk(err)) return;
-                useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
-              }
-            }}
-          />
+          <CutExport doc={storeDoc} defaultContent="grid" />
           </div>
         </div>
       </header>
 
       <OneShotStudio doc={storeDoc} />
-      {imaging && (
-        <div ref={imageRef} aria-hidden="true" style={{ position: 'fixed', left: -20000, top: 0 }}>
-          <ExportTable doc={storeDoc} paper="A4" orientation={imaging.orientation} safety={0} />
-        </div>
-      )}
       {interviewView ? (
         <InterviewPanel doc={storeDoc} />
       ) : nSeq === 0 && !(printView && institutional) ? (
