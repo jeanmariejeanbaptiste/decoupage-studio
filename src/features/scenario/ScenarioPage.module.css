@@ -35,6 +35,8 @@
 .pickerMenu kbd { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.layout:has(.sideWide) { grid-template-columns: minmax(0, 1fr) min(540px, 42%); }
+.sideWide { min-width: 0; }
 .center { min-width: 0; display: flex; justify-content: center; padding-bottom: 40px; }
 .zoom { width: fit-content; }
 .cutSheet { justify-self: center; }

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, FilePlus2, FileText, FileUp } from 'lucide-react';
 import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
-import { BLOCK_LABELS, blockLabel, scriptStats, type BlockType } from '../../domain/screenplay';
+import { BLOCK_LABELS, blockLabel, type BlockType } from '../../domain/screenplay';
 import { blockTypeKey } from '../../domain/shortcuts';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { pickFile, registerFlush } from '../../store/persistence';
@@ -18,6 +18,7 @@ import { ScriptExportButton } from './ScriptExportButton';
 import { goToShot } from '../registry/RegistryPage';
 import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
 import { CharactersPanel, DecorsPanel, ResearchPanel } from './ResearchPanels';
+import { ScriptStatsReports } from './ScriptStatsReports';
 import s from './ScenarioPage.module.css';
 
 type Tab = 'scenes' | 'characters' | 'decors' | 'research' | 'shots' | 'stats';
@@ -244,7 +245,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           )}
         </div>
 
-        <aside className={s.side} aria-label="Navigation du scénario">
+        <aside className={[s.side, tab === 'stats' ? s.sideWide : ''].join(' ')} aria-label="Navigation du scénario">
           <div className={s.tabs} role="tablist">
             {TABS.map(([t, label]) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? s.tabOn : ''} onClick={() => setTab(t)} data-testid={`scenario-tab-${t}`}>
@@ -257,7 +258,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           {tab === 'decors' && <DecorsPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />}
           {tab === 'research' && <ResearchPanel doc={doc} readOnly={readOnly} />}
           {tab === 'shots' && <ShotsPanel doc={doc} readOnly={readOnly} hot={hover ?? caretAnchor} onHover={setHover} onFlush={() => api.current?.flush()} />}
-          {tab === 'stats' && <Stats />}
+          {tab === 'stats' && <ScriptStatsReports doc={doc} blocks={sideBlocks} onGo={goTo} />}
         </aside>
       </div>
     </div>
@@ -417,65 +418,6 @@ function Chrono() {
     <span className={s.chrono} title="Durée estimée, à raison d’une page par minute : position du curseur / total" data-testid="scenario-chrono">
       <span>{chrono.at !== null ? mmss(chrono.at) : '–'}</span> / <b>{mmss(chrono.total)}</b>
     </span>
-  );
-}
-
-/** Statistiques : pages, durée estimée, séquences, mots, répliques par personnage. */
-function Stats() {
-  const blocks = useScriptUi((u) => u.blocks);
-  const pages = useScriptUi((u) => u.pages);
-  const st = useMemo(() => scriptStats(blocks), [blocks]);
-  const nf = (n: number) => n.toLocaleString('fr-FR');
-  const ie = (['INT', 'EXT', 'INT/EXT'] as const).filter((k) => st.intExt[k]).map((k) => `${k} ${st.intExt[k]}`);
-  const eff = Object.entries(st.effects)
-    .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => `${k.toLocaleLowerCase('fr')} ${v}`);
-  return (
-    <div className={s.stats} data-testid="scenario-stats">
-      <dl>
-        <div>
-          <dt>Pages</dt>
-          <dd>
-            {pages} <small>≈ {pages} min à l’écran</small>
-          </dd>
-        </div>
-        <div>
-          <dt>Séquences</dt>
-          <dd>
-            {st.scenes} {ie.length > 0 && <small>{ie.join(' · ')}</small>}
-            {eff.length > 0 && <small>{eff.join(' · ')}</small>}
-          </dd>
-        </div>
-        <div>
-          <dt>Mots</dt>
-          <dd>
-            {nf(st.words)} <small>dont {nf(st.dialogueWords)} dialogués</small>
-          </dd>
-        </div>
-      </dl>
-      {st.characters.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Personnage</th>
-              <th>Répliques</th>
-              <th>Mots</th>
-              <th>Séq.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {st.characters.map((c) => (
-              <tr key={c.name}>
-                <td>{c.name}</td>
-                <td>{c.replies}</td>
-                <td>{nf(c.words)}</td>
-                <td>{c.scenes}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
   );
 }
 

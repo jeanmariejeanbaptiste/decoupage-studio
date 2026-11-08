@@ -23,6 +23,9 @@ export interface SceneInfo {
   intExt: string;
   effect: string;
   durationSec: number;
+  /** Part de l'action et des dialogues dans la durée (secondes). */
+  actionSec: number;
+  dialogueSec: number;
   /** Répliques par personnage. */
   replies: Map<string, number>;
   /** Personnages présents : ceux qui parlent, et ceux nommés dans l'action. */
@@ -49,21 +52,32 @@ export function sceneReports(blocks: readonly SBlock[], knownNames: readonly str
   let speaker: string | null = null;
   let prev: SBlock['type'] | undefined;
   let lines = 0;
+  let actionLines = 0;
+  let dialogueLines = 0;
+  const sec = (n: number) => Math.round((n / SCRIPT_PAGE.lines) * 60);
   const close = () => {
-    if (cur) cur.durationSec = Math.round((lines / SCRIPT_PAGE.lines) * 60);
+    if (!cur) return;
+    cur.durationSec = sec(lines);
+    cur.actionSec = sec(actionLines);
+    cur.dialogueSec = sec(dialogueLines);
   };
   for (const b of blocks) {
     if (isEmptyBlock(b) || b.type === 'title' || NOT_PRINTED.has(b.type)) continue;
     if (b.type === 'heading') {
       close();
       const p = parseHeading(b.text);
-      cur = { n: scenes.length + 1, id: b.id, heading: upper(b.text).trim(), ...p, durationSec: 0, replies: new Map(), present: new Set() };
+      cur = { n: scenes.length + 1, id: b.id, heading: upper(b.text).trim(), ...p, durationSec: 0, actionSec: 0, dialogueSec: 0, replies: new Map(), present: new Set() };
       scenes.push(cur);
       speaker = null;
       lines = 0;
+      actionLines = 0;
+      dialogueLines = 0;
       prev = undefined;
     }
-    lines += blockLines(b).length + (prev ? blankLinesBefore(prev, b.type) : 0);
+    const n = blockLines(b).length;
+    lines += n + (prev ? blankLinesBefore(prev, b.type) : 0);
+    if (b.type === 'action') actionLines += n;
+    if (b.type === 'dialogue' || b.type === 'parenthetical' || b.type === 'character') dialogueLines += n;
     prev = b.type;
     if (!cur || b.type === 'heading') continue;
     if (b.type === 'character') {

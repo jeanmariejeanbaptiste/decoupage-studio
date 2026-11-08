@@ -217,6 +217,13 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await page.getByLabel('Nom du décor').fill('Gare du Nord — Hall');
   await page.getByLabel('Adresse de tournage').click();
   await expect(page.getByTestId('script-editor')).toContainText('INT. GARE DU NORD — HALL');
+  await page.getByTestId('scenario-tab-stats').click();
+  const reports = page.getByTestId('script-reports');
+  await expect(reports).toContainText('Signes avec / sans espaces');
+  await reports.getByLabel('Rapport', { exact: true }).selectOption('characters');
+  await expect(reports).toContainText('Séq. muettes');
+  await reports.getByLabel('Rapport', { exact: true }).selectOption('structure');
+  await expect(reports.getByRole('img', { name: 'Structure de l’histoire' })).toBeVisible();
   await page.getByTestId('scenario-tab-research').click();
   await page.getByLabel('Logline').fill('Une valise, une décision.');
   await page.getByTestId('research-add-doc').click();
