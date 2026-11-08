@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, Sparkles, X } from 'lucide-react';
 import {
   addBreakdownItems,
   breakdownCategories,
@@ -20,6 +20,8 @@ import { useReadOnly } from '../../store/share';
 import { useUi } from '../../store/uiStore';
 import { ask } from '../../ui/dialogStore';
 import { TabExport } from '../export/TabExport';
+import { suggestBreakdown } from '../assistant/quickActions';
+import { Button } from '../../ui/Button';
 import { breakdownCsv } from '../../domain/exports';
 import { breakdownDocument } from '../../domain/documents';
 import { paragraphsOf, SceneText, type Paragraph } from './SceneText';
@@ -131,7 +133,20 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         <p className={s.count}>
           {entries.length} scène{entries.length > 1 ? 's' : ''}
         </p>
-        <TabExport id="breakdown" orientation="portrait" doc={() => breakdownDocument(useProjectStore.getState().doc ?? doc)} fileBase={`${title}-depouillement`} file={{ label: 'CSV', name: `${title}-depouillement.csv`, content: () => breakdownCsv(useProjectStore.getState().doc ?? doc) }} />
+        <div className={s.tools}>
+          {!readOnly && (entry.seqId || entry.scene) && (
+            <Button
+              variant="outline"
+              icon={<Sparkles size={15} strokeWidth={1.25} />}
+              onClick={() => suggestBreakdown(doc, { seqId: entry.seqId, heading: entry.scene?.heading })}
+              title="L’assistant relève les éléments de cette scène et les ajoute au dépouillement (annulable en une fois)"
+              data-testid="breakdown-ai"
+            >
+              Dépouiller avec l’assistant
+            </Button>
+          )}
+          <TabExport id="breakdown" orientation="portrait" doc={() => breakdownDocument(useProjectStore.getState().doc ?? doc)} fileBase={`${title}-depouillement`} file={{ label: 'CSV', name: `${title}-depouillement.csv`, content: () => breakdownCsv(useProjectStore.getState().doc ?? doc) }} />
+        </div>
       </header>
       <div className={s.layout}>
         <nav className={s.scenes} aria-label="Scènes">

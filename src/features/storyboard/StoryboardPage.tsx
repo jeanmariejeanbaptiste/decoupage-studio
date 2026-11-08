@@ -1,7 +1,7 @@
 import { NO_CROP, addKeyframe, cropStyle, framesOf, imageCount, removeFrame, setFrame, type Crop as CropT, type Frame } from '../../domain/keyframes';
 import { createPortal } from 'react-dom';
 import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
-import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -47,6 +47,39 @@ export function StoryboardImaging({ doc, imaging, onDone }: { doc: ProjectDoc; i
   return (
     <div ref={imagesRef}>
       <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={[s.print, s.imaging].join(' ')} orientation={imaging.orientation} />
+    </div>
+  );
+}
+
+/**
+ * Aperçu des planches du storyboard, telles qu'elles sortiront à l'export : mêmes réglages
+ * (plans par planche, orientation, économie d'encre), réduites pour tenir dans la largeur.
+ */
+export function StoryboardPreview({ doc }: { doc: ProjectDoc }) {
+  const timing = useMemo(() => computeTiming(doc), [doc]);
+  const prefs = doc.project.settings.exportPrefs?.storyboard;
+  const perPage = prefs?.perPage ?? 4;
+  const orientation = prefs?.orientation ?? 'landscape';
+  const allShots = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
+  const box = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    // Largeur d'une planche (mm → px), réduite pour tenir dans la colonne.
+    const sheetPx = ((orientation === 'portrait' ? 210 : 297) * 96) / 25.4;
+    const fit = () => setZoom(Math.min(1, (el.clientWidth - 24) / sheetPx));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [orientation]);
+  if (!allShots.length) return <p className={s.previewEmpty}>Aucun plan à mettre en planche.</p>;
+  return (
+    <div ref={box} className={s.previewBox} data-testid="storyboard-preview">
+      <div style={{ zoom }}>
+        <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={[s.print, s.previewSheets].join(' ')} orientation={orientation} visible />
+      </div>
     </div>
   );
 }
@@ -167,13 +200,13 @@ function paginateShots(doc: ProjectDoc, shots: ID[], cols: number, rows: number)
   return pages.filter((p) => p.length);
 }
 
-function Sheets({ doc, shots, perPage, timing, className, orientation }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait' }) {
+function Sheets({ doc, shots, perPage, timing, className, orientation, visible = false }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait'; visible?: boolean }) {
   const ink = !!doc.project.settings.exportInkSaver;
   const [cols, rows] = sheetDims(perPage, orientation ?? 'landscape');
   const pages = paginateShots(doc, shots, cols, rows);
   const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
   return (
-    <div className={className} aria-hidden="true" style={size as React.CSSProperties | undefined}>
+    <div className={className} aria-hidden={visible ? undefined : true} style={size as React.CSSProperties | undefined}>
       {pages.map((ids, i) => (
         <div key={i} className={[s.sheet, ink ? s.ink : ''].join(' ')} data-testid="storyboard-sheet">
           <header className={s.sheetHead}>

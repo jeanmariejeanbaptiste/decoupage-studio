@@ -4,7 +4,8 @@ import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Columns3, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Sparkles, Unlink2 } from 'lucide-react';
+import { suggestShots } from '../assistant/quickActions';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -14,7 +15,7 @@ import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
 import { linkSelection, newSequenceAfter, rowOfShot, unlinkSelection } from './actions';
 import { CutExport } from './CutExport';
-import { StoryboardPage } from '../storyboard/StoryboardPage';
+import { StoryboardPage, StoryboardPreview } from '../storyboard/StoryboardPage';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
 import { buildGridModel } from './gridModel';
@@ -40,7 +41,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   const interviewView = institutional && itwTab && !printViewRaw;
   const printView = printViewRaw;
   const pickItw = (on: boolean) => {
-    setUi({ printView: false, itwTab: on ? 'itw' : 'broll' });
+    setUi({ itwTab: on ? 'itw' : 'broll' });
     try {
       localStorage.setItem('ds-itw-tab', on ? 'itw' : 'broll');
     } catch {
@@ -82,8 +83,8 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <button
             type="button"
             role="radio"
-            aria-checked={!board && interviewView}
-            className={!board && interviewView ? s.viewOn : ''}
+            aria-checked={!board && itwTab}
+            className={!board && itwTab ? s.viewOn : ''}
             onClick={() => {
               pickItw(true);
               toGrid();
@@ -95,8 +96,8 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <button
             type="button"
             role="radio"
-            aria-checked={!board && !printView && !interviewView}
-            className={!board && !printView && !interviewView ? s.viewOn : ''}
+            aria-checked={!board && !itwTab}
+            className={!board && !itwTab ? s.viewOn : ''}
             onClick={() => {
               pickItw(false);
               toGrid();
@@ -110,12 +111,9 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         <button
           type="button"
           role="radio"
-          aria-checked={!board && !printView}
-          className={!board && !printView ? s.viewOn : ''}
-          onClick={() => {
-            setUi({ printView: false });
-            toGrid();
-          }}
+          aria-checked={!board}
+          className={!board ? s.viewOn : ''}
+          onClick={toGrid}
           data-testid="view-table"
         >
           Tableau
@@ -124,28 +122,53 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
       <button type="button" role="radio" aria-checked={board} className={board ? s.viewOn : ''} onClick={() => !board && navigate('storyboard')} data-testid="view-storyboard">
         Storyboard
       </button>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={!board && printView}
-        aria-pressed={!board && printView}
-        className={!board && printView ? s.viewOn : ''}
-        onClick={() => {
-          setUi({ printView: true, editing: null });
-          toGrid();
-        }}
-        data-testid="toggle-print"
-      >
-        Aperçu
-      </button>
     </div>
   );
+  // Aperçu de la vue en cours, tel qu'à l'export : le tableau du découpage ou les planches du storyboard.
+  // (En lecture seule, l'aperçu est la seule vue : pas de bascule.)
+  const previewToggle = readOnly ? null : (
+    <button
+      type="button"
+      className={[s.preview, printView ? s.previewOn : ''].join(' ')}
+      aria-pressed={printView}
+      onClick={() => setUi({ printView: !printView, editing: null })}
+      title={board ? 'Planches du storyboard telles qu’à l’export' : 'Découpage tel qu’à l’export'}
+      data-testid="toggle-print"
+    >
+      <Eye {...IC} />
+      Aperçu
+    </button>
+  );
+
+  if (board && printView) {
+    return (
+      <div className="page page--wide">
+        <header className="page-head">
+          <div className={s.toolbar} role="toolbar" aria-label="Outils du storyboard">
+            <div className={s.left}>
+              {views}
+              {previewToggle}
+            </div>
+            <div className={s.right}>
+              <CutExport doc={storeDoc} defaultContent="storyboard" />
+            </div>
+          </div>
+        </header>
+        <StoryboardPreview doc={storeDoc} />
+      </div>
+    );
+  }
 
   if (board) {
     return (
       <StoryboardPage
         doc={storeDoc}
-        lead={views}
+        lead={
+          <>
+            {views}
+            {previewToggle}
+          </>
+        }
         trail={<CutExport doc={storeDoc} defaultContent="storyboard" />}
         selectedShot={selectedShot}
         onSelect={(id) => {
@@ -163,6 +186,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           {/* Gauche : ce qu'on regarde (tableau, storyboard ou aperçu), puis l'action liée à la sélection. */}
           <div className={s.left}>
             {views}
+            {previewToggle}
             {!printView && !interviewView && (linked || multi) && (
               linked ? (
                 <Button size="sm" icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés">
@@ -179,6 +203,19 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <div className={s.right}>
             {!printView && !interviewView && (
               <div className={s.icons}>
+                {!readOnly && nSeq > 0 && (
+                  <Button
+                    variant="icon"
+                    icon={<Sparkles {...IC} />}
+                    aria-label="Proposer un découpage avec l’assistant"
+                    title="L’assistant propose des plans pour la séquence sélectionnée et les ajoute à sa suite (annulable en une fois)"
+                    onClick={() => {
+                      const seqId = (focusRow !== undefined ? model.rows[focusRow]?.seqId : undefined) ?? doc.project.sequenceIds.find((id) => !doc.sequences[id]?.shotIds.length) ?? doc.project.sequenceIds[0];
+                      if (seqId) suggestShots(storeDoc, seqId);
+                    }}
+                    data-testid="grid-ai"
+                  />
+                )}
                 <ColumnsMenu doc={doc} />
                 <Button
                   variant="icon"

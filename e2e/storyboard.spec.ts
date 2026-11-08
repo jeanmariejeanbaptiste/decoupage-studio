@@ -162,6 +162,12 @@ test('découpage et storyboard : une page, trois vues, même sélection, export 
   await expect(page.getByRole('button', { name: /Découpage technique/ })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('[data-selected]')).toHaveCount(1);
   await expect(page.locator('[data-selected]').getByTestId('storyboard-card')).toContainText('2.2');
+  // Aperçu : les planches telles qu'à l'export, puis retour aux cartes.
+  await page.getByTestId('toggle-print').click();
+  await expect(page.getByTestId('storyboard-preview').getByTestId('storyboard-sheet').first()).toBeVisible();
+  await expect(page.getByTestId('storyboard-preview')).toContainText('planche 1 /');
+  await page.getByTestId('toggle-print').click();
+  await expect(page.getByTestId('storyboard-preview')).toHaveCount(0);
   // Choisir une carte la sélectionne dans le tableau.
   await page.getByTestId('storyboard-card').nth(1).click();
   await page.getByTestId('view-table').click();
