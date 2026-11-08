@@ -32,3 +32,11 @@
   .call input, .table input, .address, .notes { border: 0; background: none; }
 }
 .time { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+
+/* Repères du jour : horaires clés, soleil, météo, hôpital. */
+.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px 12px; }
+.key { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--ink-soft); }
+.key input { width: 100%; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 13px; }
+.keyWide { grid-column: span 5; }
+.num { font-weight: 600; font-variant-numeric: tabular-nums; }
+@media print { .key input { border: 0; padding: 0; } }

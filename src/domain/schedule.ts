@@ -25,6 +25,18 @@ export interface ShootingDay {
   /** Amplitude affichée de la journée. */
   dayStart?: string;
   dayEnd?: string;
+  /** Feuille de service : horaires clés (prêt à tourner, repas, fin prévue). */
+  pat?: string;
+  meal?: string;
+  wrap?: string;
+  /** Météo prévue, lever et coucher du soleil (saisis : aucune donnée n'est demandée en ligne). */
+  weather?: string;
+  sunrise?: string;
+  sunset?: string;
+  /** Hôpital le plus proche : nom, adresse, téléphone. */
+  hospital?: string;
+  /** Convocation détaillée par personnage (la convocation simple reste dans `calls`). */
+  callDetails?: Record<ID, { pickup?: string; makeup?: string; costume?: string; onSet?: string }>;
 }
 
 export interface Schedule {

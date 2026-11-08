@@ -24,7 +24,7 @@ import { Hand } from '../../ui/Hand';
 import s from './CallSheetPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { callSheetCsv } from '../../domain/exports';
-import { callSheetDocument } from '../../domain/documents';
+import { callSheetDocument, characterNumbers } from '../../domain/documents';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',
@@ -62,10 +62,11 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
+  const nums = characterNumbers(doc);
   const cast = stats.characterIds
     .map((id) => doc.characters[id])
     .filter(Boolean)
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    .sort((a, b) => (nums.get(a.id) ?? 99) - (nums.get(b.id) ?? 99));
 
   return (
     <div className="page">
@@ -180,40 +181,89 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           )}
         </section>
 
+        <section className={s.block} data-testid="callsheet-keys">
+          <h3>Repères du jour</h3>
+          <div className={s.keys}>
+            {(
+              [
+                ['pat', 'Prêt à tourner'],
+                ['meal', 'Repas'],
+                ['wrap', 'Fin prévue'],
+                ['sunrise', 'Lever du soleil'],
+                ['sunset', 'Coucher du soleil'],
+              ] as const
+            ).map(([k, label]) => (
+              <label key={k} className={s.key}>
+                <span>{label}</span>
+                <input type="time" value={day[k] ?? ''} onChange={(e) => set({ [k]: e.target.value || undefined })} aria-label={label} />
+              </label>
+            ))}
+            <label className={[s.key, s.keyWide].join(' ')}>
+              <span>Météo</span>
+              <input value={day.weather ?? ''} placeholder="Ensoleillé, 14 °C" onChange={(e) => set({ weather: e.target.value || undefined })} aria-label="Météo" />
+            </label>
+            <label className={[s.key, s.keyWide].join(' ')}>
+              <span>Hôpital le plus proche</span>
+              <input value={day.hospital ?? ''} placeholder="Nom, adresse, téléphone des urgences" onChange={(e) => set({ hospital: e.target.value || undefined })} aria-label="Hôpital le plus proche" />
+            </label>
+          </div>
+        </section>
+
         <section className={s.block}>
-          <h3>Convocations</h3>
+          <h3>Comédiens</h3>
           <table className={s.table}>
             <thead>
               <tr>
+                <th>N°</th>
                 <th>Rôle</th>
                 <th>Comédien·ne</th>
-                <th>Type</th>
+                <th>Départ</th>
                 <th>Convocation</th>
+                <th>HMC</th>
+                <th>Costume</th>
+                <th>Sur le plateau</th>
               </tr>
             </thead>
             <tbody>
               {cast.length === 0 && (
                 <tr>
-                  <td colSpan={4} className={s.muted}>
+                  <td colSpan={8} className={s.muted}>
                     Aucun personnage reconnu dans les plans du jour.
                   </td>
                 </tr>
               )}
-              {cast.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.name}</td>
-                  <td>{c.actor || '—'}</td>
-                  <td>{c.kind}</td>
+              {cast.map((c) => {
+                const x = day.callDetails?.[c.id] ?? {};
+                const detail = (k: 'pickup' | 'makeup' | 'costume' | 'onSet', label: string) => (
                   <td>
                     <input
                       type="time"
-                      value={day.calls?.[c.id] ?? ''}
-                      onChange={(e) => set({ calls: { ...(day.calls ?? {}), [c.id]: e.target.value } })}
-                      aria-label={`Convocation de ${c.name}`}
+                      value={x[k] ?? ''}
+                      onChange={(e) => set({ callDetails: { ...(day.callDetails ?? {}), [c.id]: { ...x, [k]: e.target.value || undefined } } })}
+                      aria-label={`${label} de ${c.name}`}
                     />
                   </td>
-                </tr>
-              ))}
+                );
+                return (
+                  <tr key={c.id}>
+                    <td className={s.num}>{nums.get(c.id)}</td>
+                    <td>{c.name}</td>
+                    <td>{c.actor || '—'}</td>
+                    {detail('pickup', 'Départ')}
+                    <td>
+                      <input
+                        type="time"
+                        value={day.calls?.[c.id] ?? ''}
+                        onChange={(e) => set({ calls: { ...(day.calls ?? {}), [c.id]: e.target.value } })}
+                        aria-label={`Convocation de ${c.name}`}
+                      />
+                    </td>
+                    {detail('makeup', 'HMC')}
+                    {detail('costume', 'Costume')}
+                    {detail('onSet', 'Sur le plateau')}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>

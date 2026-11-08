@@ -11,7 +11,7 @@ import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { callSheetStrips, dayEquipment, dayItinerary, dayStats, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripRange, stripsByTime } from './schedule';
+import { callSheetStrips, dayEquipment, dayStats, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripRange, stripsByTime } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -42,6 +42,13 @@ tr { break-inside: avoid; }
 .block { break-inside: avoid; margin-bottom: 8pt; }
 .chips span { display: inline-block; border: .6pt solid #d6d8dd; border-radius: 8pt; padding: 0 5pt; margin: 0 3pt 3pt 0; font-size: 8.5pt; }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4pt 14pt; }
+.cs-head { display: grid; grid-template-columns: 1fr 1.1fr 1fr; border: 1pt solid #111318; margin: 0 0 8pt; break-inside: avoid; }
+.cs-head > div { padding: 7pt 9pt; } .cs-head > div + div { border-left: .6pt solid #111318; }
+.cs-head p { margin: 0 0 2pt; } .cs-head h3 { margin: 4pt 0 2pt; } .cs-head h3:first-child { margin-top: 0; }
+.cs-prod { font-weight: 700; font-size: 11pt; } .cs-mid { text-align: center; display: flex; flex-direction: column; justify-content: center; }
+.cs-title { font-size: 13pt; font-weight: 700; } .cs-call { font-size: 20pt; font-weight: 700; margin-top: 6pt !important; letter-spacing: .02em; }
+.cs-events th { border: 0; padding: 1pt 6pt 1pt 0; text-transform: none; letter-spacing: 0; font-size: 8.5pt; color: #6b7079; } .cs-events td { border: 0; padding: 1pt 0; }
+.cs-depts { grid-template-columns: repeat(3, 1fr); }
 .day { break-inside: avoid; margin-bottom: 10pt; }
 .tone-ext { background: #f1f1f1; } .tone-night { background: #e0e0e0; } .tone-extnight { background: #d0d0d0; } .tone-twilight { background: repeating-linear-gradient(135deg, #e6e6e6 0 4px, #ffffff 4px 8px); }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
@@ -129,29 +136,106 @@ export function scheduleDocument(doc: ProjectDoc): DocPage {
   return shell(doc, 'Étape 8', 'Plan de travail', body, true);
 }
 
+/** Numéro de chaque personnage : principaux d'abord, puis par nombre de séquences (repris partout). */
+export function characterNumbers(doc: ProjectDoc): Map<string, number> {
+  const stats = characterStats(doc);
+  const rank = (k: string) => (k === 'principal' ? 0 : k === 'secondaire' ? 1 : 2);
+  const list = Object.values(doc.characters).sort(
+    (a, b) => rank(a.kind) - rank(b.kind) || (stats.get(b.id)?.sequenceIds.length ?? 0) - (stats.get(a.id)?.sequenceIds.length ?? 0) || a.name.localeCompare(b.name, 'fr'),
+  );
+  return new Map(list.map((c, i) => [c.id, i + 1]));
+}
+
+/**
+ * Feuille de service, au format des feuilles professionnelles : en-tête en trois blocs (production,
+ * jour et rendez-vous, météo, horaires clés et hôpital), puis séquences, plans, comédiens, figuration,
+ * besoins par poste, prévisions du lendemain et notes.
+ */
 export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
-  const d = scheduleDays(doc).find((x) => x.n === day);
+  const days = scheduleDays(doc);
+  const d = days.find((x) => x.n === day);
   const strips = callSheetStrips(doc, day);
-  const st = dayStats(doc, computeTiming(doc), day, strips);
-  const body = `<div class="grid"><div><h3>Rendez-vous</h3><p class="time" style="font-size:14pt">${esc(d?.callTime || '—')}</p></div><div><h3>Date</h3><p>${esc(d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'à préciser')}</p></div></div>
-<h3>Lieux et horaires</h3><table><thead><tr><th>Horaire</th><th>Lieu</th><th>Adresse</th><th>Séquence</th></tr></thead><tbody>${dayItinerary(doc, day)
-    .map((p) => `<tr><td class="time">${p.start ? `${p.start} – ${p.end}` : '—'}</td><td><b>${esc(p.decorId ? doc.decors[p.decorId]?.name : 'Décor non renseigné')}</b> ${esc(p.decorId ? doc.decors[p.decorId]?.intExt : '')}</td><td>${esc(p.address || 'à préciser')}</td><td>${esc(p.seqIds.map((id) => sequenceHeading(doc, id)).join(' · '))}</td></tr>`)
-    .join('') || '<tr><td class="muted">—</td></tr>'}</tbody></table>
-<h3>Convocations</h3><table><thead><tr><th>Rôle</th><th>Comédien·ne</th><th>Convocation</th></tr></thead><tbody>${st.characterIds
-    .map((id) => `<tr><td>${esc(doc.characters[id]?.name)}</td><td>${esc(doc.characters[id]?.actor || '—')}</td><td class="time">${esc(d?.calls?.[id] || '—')}</td></tr>`)
-    .join('')}</tbody></table>
-<h3>Plans du jour</h3><table><thead><tr><th>Horaire</th><th>Plan</th><th>Sujet</th><th>Valeur</th><th>Angle</th><th>Mouvement</th><th>Focale</th><th>Action</th></tr></thead><tbody>${strips
-    .flatMap((s) => s.shotIds)
+  const timing = computeTiming(doc);
+  const st = dayStats(doc, timing, day, strips);
+  const nums = characterNumbers(doc);
+  const date = d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Date à préciser';
+  const cell = (label: string, value?: string) => (value ? `<tr><th>${esc(label)}</th><td class="time">${esc(value)}</td></tr>` : '');
+  const events = [cell('Rendez-vous', d?.callTime), cell('Prêt à tourner', d?.pat), cell('Repas', d?.meal), cell('Fin prévue', d?.wrap ?? d?.dayEnd)].join('');
+  const sun = [d?.sunrise && `Lever ${d.sunrise}`, d?.sunset && `coucher ${d.sunset}`].filter(Boolean).join(' · ');
+  const head = `<div class="cs-head">
+<div><p class="cs-prod">${esc(doc.project.title)}</p><p class="muted">${esc(doc.project.version)}</p>
+${doc.project.director ? `<p>Réalisation : ${esc(doc.project.director)}</p>` : ''}${doc.project.dop ? `<p>Image : ${esc(doc.project.dop)}</p>` : ''}</div>
+<div class="cs-mid"><p class="cs-title">${esc(date)}</p><p>Jour ${day}${days.length ? ` sur ${days.length}` : ''}</p><p class="cs-call">RDV&nbsp;: ${esc(d?.callTime || '—')}</p></div>
+<div><h3>Météo</h3><p>${esc(d?.weather || '—')}</p>${sun ? `<p class="muted">${esc(sun)}</p>` : ''}
+${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></table>` : ''}
+<h3>Hôpital le plus proche</h3><p>${esc(d?.hospital || '—')}</p></div>
+</div>`;
+
+  const seqRows = strips
+    .map((strip) => {
+      const seq = doc.sequences[strip.seqId];
+      const r = stripRange(doc, day, strip);
+      const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
+      const heading = [[seq?.intExt, decor?.name ?? seq?.label].filter(Boolean).join('. '), seq?.effect].filter(Boolean).join(' — ');
+      const cast = sequenceCharacterIds(doc, strip.seqId).map((id) => nums.get(id)).filter((n): n is number => !!n).sort((a, b) => a - b);
+      const dur = strip.shotIds.reduce((n, id) => n + (doc.shots[id] ? (timing.blocks.get(doc.shots[id].actionBlockId)?.durationSec ?? 0) / Math.max(1, strip.shotIds.length) : 0), 0);
+      const address = d?.seqAddresses?.[strip.seqId] ?? (seq?.decorId ? d?.addresses?.[seq.decorId] : undefined) ?? decor?.address ?? '';
+      return `<tr><td class="time">${r ? `${r.start} – ${r.end}` : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${seq?.summary ? `<br><span class="muted">${esc(seq.summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${esc(address)}</td></tr>`;
+    })
+    .join('');
+  const scenes = `<h3>Séquences</h3><table><thead><tr><th>Horaire</th><th>Séq.</th><th>Description</th><th>Personnages</th><th>Plans · durée</th><th>Lieu de tournage</th></tr></thead><tbody>${seqRows || '<tr><td colspan="6" class="muted">Aucune séquence ce jour.</td></tr>'}</tbody></table>`;
+
+  const shots = `<h3>Plans</h3><table><thead><tr><th>Horaire</th><th>Plan</th><th>Image</th><th>Sujet · action</th></tr></thead><tbody>${strips
+    .flatMap((x) => x.shotIds)
     .sort((a, b) => (firstSlot(doc, day, a)?.start ?? '99').localeCompare(firstSlot(doc, day, b)?.start ?? '99'))
     .map((id) => {
-        const sh = doc.shots[id];
-        return `<tr><td class="time">${esc(shotSlotsText(doc, day, id) || '—')}</td><td class="code">${esc(shotCode(doc, id))}</td><td>${esc(sh.subject)}</td><td>${esc(sh.value)}</td><td>${esc(renderTokens(sh.angle))}</td><td>${esc(renderTokens(sh.movement, sh.movementSep))}</td><td>${esc(formatFocal(sh.focal, isZoom(sh.movement)))}</td><td>${esc(doc.blocks[sh.actionBlockId]?.text)}</td></tr>`;
-      })
-    .join('')}</tbody></table>
-<h3>Matériel requis</h3><div class="grid">${dayEquipment(doc, strips.flatMap((s) => s.shotIds), aggregateEquipment(doc), equipmentCategories(doc))
-    .map((g) => `<div><b>${esc(g.category)}</b><p>${g.labels.length ? g.labels.map(esc).join('<br>') : '<span class="muted">—</span>'}</p></div>`)
-    .join('')}</div>
-${d?.notes ? `<h3>Notes</h3><p class="text">${esc(d.notes)}</p>` : ''}`;
+      const sh = doc.shots[id];
+      const visual = [sh.value, renderTokens(sh.angle), renderTokens(sh.movement, sh.movementSep), formatFocal(sh.focal, isZoom(sh.movement))].filter(Boolean).join(' · ');
+      return `<tr><td class="time">${esc(shotSlotsText(doc, day, id) || '—')}</td><td class="code">${esc(shotCode(doc, id))}</td><td>${esc(visual)}</td><td>${esc([sh.subject, doc.blocks[sh.actionBlockId]?.text].filter(Boolean).join(' — '))}</td></tr>`;
+    })
+    .join('')}</tbody></table>`;
+
+  const castRows = [...st.characterIds]
+    .sort((a, b) => (nums.get(a) ?? 99) - (nums.get(b) ?? 99))
+    .map((id) => {
+      const c = doc.characters[id];
+      const x = d?.callDetails?.[id] ?? {};
+      return `<tr><td class="code">${nums.get(id) ?? ''}</td><td>${esc(c?.name)}</td><td>${esc(c?.actor || '—')}</td><td class="time">${esc(x.pickup || '')}</td><td class="time">${esc(d?.calls?.[id] || '—')}</td><td class="time">${esc(x.makeup || '')}</td><td class="time">${esc(x.costume || '')}</td><td class="time">${esc(x.onSet || '')}</td></tr>`;
+    })
+    .join('');
+  const cast = `<h3>Comédiens</h3><table><thead><tr><th>N°</th><th>Rôle</th><th>Comédien·ne</th><th>Départ</th><th>Convocation</th><th>HMC</th><th>Costume</th><th>Sur le plateau</th></tr></thead><tbody>${castRows || '<tr><td colspan="8" class="muted">Aucun comédien.</td></tr>'}</tbody></table>`;
+
+  // Besoins des postes, tirés du dépouillement des séquences du jour.
+  const needs = new Map<string, Set<string>>();
+  for (const strip of strips) {
+    const m = breakdownOf(doc, strip.seqId);
+    const der = derivedBreakdown(doc, strip.seqId);
+    for (const cat of breakdownCategories(doc)) {
+      // Personnages : tableau des comédiens ; machinerie, lumière, son : le matériel du jour.
+      if (cat === 'personnages' || cat === 'machinerie' || cat === 'lumiere' || cat === 'son') continue;
+      for (const item of [...(der[cat] ?? []), ...(m[cat] ?? [])]) {
+        const set = needs.get(cat) ?? new Set<string>();
+        set.add(item);
+        needs.set(cat, set);
+      }
+    }
+  }
+  const extras = needs.get('figurants');
+  needs.delete('figurants');
+  const figuration = extras?.size ? `<h3>Figuration</h3><p>${[...extras].map(esc).join(' · ')}</p>` : '';
+  const deptBoxes = [...needs.entries()].map(([cat, set]) => `<div><b>${esc(breakdownLabel(cat))}</b><p>${[...set].map(esc).join('<br>')}</p></div>`);
+  const equipment = dayEquipment(doc, strips.flatMap((x) => x.shotIds), aggregateEquipment(doc), equipmentCategories(doc))
+    .filter((g) => g.labels.length)
+    .map((g) => `<div><b>Matériel · ${esc(g.category)}</b><p>${g.labels.map(esc).join('<br>')}</p></div>`);
+  const depts = deptBoxes.length || equipment.length ? `<h3>Besoins des postes</h3><div class="grid cs-depts">${[...deptBoxes, ...equipment].join('')}</div>` : '';
+
+  const next = days.find((x) => x.n > day);
+  const nextStrips = next ? callSheetStrips(doc, next.n) : [];
+  const tomorrow = next
+    ? `<h3>Prévisions · jour ${next.n}${next.date ? `, ${esc(new Date(`${next.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}` : ''}${next.callTime ? ` · RDV ${esc(next.callTime)}` : ''}</h3><p>${nextStrips.map((x) => esc(sequenceHeading(doc, x.seqId))).join(' · ') || '<span class="muted">À préciser.</span>'}</p>`
+    : '';
+
+  const body = `${head}${scenes}${shots}${cast}${figuration}${depts}${tomorrow}${d?.notes ? `<h3>Notes</h3><p class="text">${esc(d.notes)}</p>` : ''}`;
   return shell(doc, 'Étape 9', `Feuille de service — Jour ${day}`, body);
 }
 

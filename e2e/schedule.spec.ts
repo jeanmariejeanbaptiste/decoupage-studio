@@ -33,7 +33,7 @@ test('feuille de service générée pour un jour', async ({ page }) => {
   await page.getByRole('button', { name: /Feuille de service/ }).click();
   const sheet = page.getByTestId('callsheet');
   await expect(sheet).toContainText('Jour 1');
-  await expect(sheet).toContainText('Convocations');
+  await expect(sheet).toContainText('Comédiens');
   await expect(sheet.getByTestId('callsheet-shots').locator('tbody tr').first()).toBeVisible();
   await expect(sheet).toContainText('Rails');
   await sheet.getByLabel('Heure de rendez-vous').fill('07:30');
