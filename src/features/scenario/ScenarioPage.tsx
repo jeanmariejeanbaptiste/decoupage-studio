@@ -168,6 +168,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           </div>
         </div>
         <div className={s.tools}>
+          {view === 'script' && !phone && <Chrono />}
           {!readOnly && (
             <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile} title="Final Draft, Fountain, PDF, Word, Markdown ou texte">
               Importer
@@ -391,6 +392,18 @@ function ShotsPanel({ doc, readOnly, hot, onHover, onFlush }: { doc: ProjectDoc;
         );
       })}
     </div>
+  );
+}
+
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+
+/** Chronomètre : durée estimée à la position du curseur, puis au total (1 page ≈ 1 minute). */
+function Chrono() {
+  const chrono = useScriptUi((u) => u.chrono);
+  return (
+    <span className={s.chrono} title="Durée estimée, à raison d’une page par minute : position du curseur / total" data-testid="scenario-chrono">
+      <span>{chrono.at !== null ? mmss(chrono.at) : '–'}</span> / <b>{mmss(chrono.total)}</b>
+    </span>
   );
 }
 

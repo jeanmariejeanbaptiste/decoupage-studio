@@ -121,6 +121,8 @@ export interface OutlineItem {
 }
 
 interface ScriptUi {
+  /** Durée estimée (1 page ≈ 1 minute), en secondes : position du curseur et total. */
+  chrono: { at: number | null; total: number };
   activeType: BlockType | null;
   /** Sélection dans la source (pour « Créer un plan »). */
   selection: { start: number; end: number } | null;
@@ -130,7 +132,14 @@ interface ScriptUi {
   blocks: readonly SBlock[];
 }
 
-export const useScriptUi = create<ScriptUi>(() => ({ activeType: null, selection: null, outline: [], pages: 1, activeHeading: null, blocks: [] }));
+export const useScriptUi = create<ScriptUi>(() => ({ chrono: { at: null, total: 0 }, activeType: null, selection: null, outline: [], pages: 1, activeHeading: null, blocks: [] }));
+
+/** Secondes de scénario à une hauteur donnée de la pile de pages (1 page imprimée ≈ 1 minute). */
+function secondsAt(y: number, offset: number): number {
+  const sheet = Math.floor(y / (PAGE.h + PAGE.gap));
+  const row = Math.max(0, Math.min(SCRIPT_PAGE.lines, (y - sheet * (PAGE.h + PAGE.gap) - PAGE.top) / LINE));
+  return Math.max(0, Math.round((sheet - offset + row / SCRIPT_PAGE.lines) * 60));
+}
 
 export interface ScriptEditorApi {
   flush: () => void;
@@ -661,6 +670,13 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const next = editorLayout(items);
     const same = next.pages === layout.pages && next.offset === layout.offset && items.every((it) => Math.abs((next.margins[it.id] ?? 0) - (layout.margins[it.id] ?? 0)) < 0.5);
     if (!same) setLayout(next);
+    else {
+      // Durée totale : jusqu'au bas du dernier bloc.
+      const last = el.lastElementChild as HTMLElement | null;
+      const total = last ? secondsAt(last.offsetTop + last.offsetHeight, layout.offset) : 0;
+      const prev = useScriptUi.getState().chrono;
+      if (prev.total !== total) useScriptUi.setState({ chrono: { ...prev, total } });
+    }
   });
 
   // --- Suivi de la sélection : type du bloc courant, passage lié, sélection pour « Créer un plan » ---
@@ -678,11 +694,21 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const range = !sel.collapsed && a !== null && z !== null && z > a ? { start: a, end: z } : null;
     const prev = useScriptUi.getState();
     if (prev.activeType !== (b?.type ?? null) || JSON.stringify(prev.selection) !== JSON.stringify(range)) useScriptUi.setState({ activeType: b?.type ?? null, selection: range });
+    // Position du curseur dans la durée estimée (pages de l'éditeur, zoom compris).
+    if (paged) {
+      const sl = window.getSelection();
+      const caretRect = sl?.rangeCount ? sl.getRangeAt(0).getBoundingClientRect() : null;
+      const box = el.getBoundingClientRect();
+      const k = box.width / (el.offsetWidth || 1) || 1;
+      const y = caretRect && caretRect.height ? (caretRect.top - box.top) / k : (bel?.offsetTop ?? 0);
+      const at = secondsAt(y, layout.offset);
+      if (prev.chrono.at !== at) useScriptUi.setState({ chrono: { ...useScriptUi.getState().chrono, at } });
+    }
     if (onCaretAnchor) {
       const pos = a ?? -1;
       onCaretAnchor(anchors.find((x) => pos >= x.start && pos <= x.end)?.id ?? null);
     }
-  }, [anchors, onCaretAnchor]);
+  }, [anchors, onCaretAnchor, paged, layout.offset]);
 
   useEffect(() => {
     let raf = 0;

@@ -108,3 +108,7 @@
 @media print {
   .toolbar, .side { display: none; }
 }
+
+/* Chronomètre : position du curseur (gris) / total (encre), chiffres alignés. */
+.chrono { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; margin-right: 6px; white-space: nowrap; }
+.chrono b { font-weight: 500; color: var(--ink); }

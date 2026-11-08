@@ -126,6 +126,8 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
     // Les 17 pages du modèle, à l'écran comme à l'export.
     await expect(page.getByText('22 séquences · 17 pages')).toBeVisible();
+    // Chronomètre : 1 page ≈ 1 minute ; la dernière page est entamée.
+    await expect(page.getByTestId('scenario-chrono')).toContainText('/ 16:');
     await expect(page.getByTestId('script-editor')).toContainText('Sed rhoncus convallis mollis.');
     const exportAs = async (format: string) => {
       const dl = page.waitForEvent('download', { timeout: 30_000 });
