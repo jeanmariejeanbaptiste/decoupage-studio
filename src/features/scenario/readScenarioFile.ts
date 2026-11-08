@@ -1,5 +1,5 @@
 import { fdxToFountain } from '../../domain/fdx';
-import { linesToFountain, stripMarkdown, textToLines, type SourceLine } from '../../domain/scenarioImport';
+import { linesToFountain, splitLongActions, stripMarkdown, textToLines, type SourceLine } from '../../domain/scenarioImport';
 
 /** Lignes d'un PDF avec leur position (retrait, centrage, espacement). */
 async function pdfLines(buf: ArrayBuffer): Promise<SourceLine[]> {
@@ -145,7 +145,7 @@ function looksLikeFountain(text: string): boolean {
   return headings > 0 && blanks >= Math.max(2, headings);
 }
 
-const normalize = (t: string) => t.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+const normalize = (t: string) => splitLongActions(t.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'));
 
 /** Lit un scénario (Final Draft, Fountain, PDF, Word, Markdown ou texte) et le convertit en Fountain. */
 export async function readScenarioFile(file: File): Promise<string> {

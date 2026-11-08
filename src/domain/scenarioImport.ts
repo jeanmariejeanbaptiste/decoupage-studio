@@ -180,3 +180,58 @@ export function linesToFountain(input: SourceLine[]): string {
   }
   return `${tp ? `${titleBlock(tp.title)}\n\n` : ''}${blocks.join('\n\n')}\n`;
 }
+
+/** Texte coupé en morceaux d'au plus `max` signes : entre deux phrases, sinon entre deux mots. */
+function chunks(text: string, max: number): string[] {
+  const parts = (text.match(/[^.!?…]+(?:[.!?…]+["»”’)]*\s*|$)/g) ?? [text]).flatMap((sn) => {
+    if (sn.length <= max) return [sn];
+    const words: string[] = [];
+    let cur = '';
+    for (const w of sn.split(/(?<=\s)/)) {
+      if (cur && cur.length + w.length > max) {
+        words.push(cur);
+        cur = '';
+      }
+      cur += w;
+    }
+    return cur ? [...words, cur] : words;
+  });
+  const out: string[] = [];
+  let cur = '';
+  for (const p of parts) {
+    if (cur && cur.length + p.length > max) {
+      out.push(cur.trim());
+      cur = '';
+    }
+    cur += p;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/**
+ * Paragraphe plus long qu'une page : coupé comme le ferait un logiciel d'écriture (sinon, à l'écran, il
+ * déborderait de sa feuille). Action : entre deux phrases (≈ 2 000 signes) ; réplique : en plusieurs
+ * répliques du même personnage, la suite marquée « (SUITE) ».
+ */
+export function splitLongActions(source: string, max = 2000): string {
+  return source
+    .split(/\n{2,}/)
+    .map((para) => {
+      const lines = para.split('\n');
+      const first = lines[0].trim();
+      const isCue = lines.length > 1 && (/^@/.test(first) || (/[A-ZÀ-Ü]/.test(first) && first === first.toLocaleUpperCase('fr') && !/^(INT|EXT|EST|I\/E)[.\s]/i.test(first)));
+      if (isCue) {
+        const body = lines.slice(1).join(' ');
+        if (body.length <= max * 0.6) return para;
+        // Réplique trop longue : 35 signes par ligne, environ 50 lignes par page.
+        const cue = first.replace(/\s*\((?:SUITE|CONT'D)\)\s*$/i, '');
+        return chunks(body, Math.round(max * 0.6))
+          .map((c, i) => `${i ? `${cue} (SUITE)` : first}\n${c}`)
+          .join('\n\n');
+      }
+      if (para.length <= max || /^(?:[A-Za-z ]+:|#|=|~|>|\[\[|\/\*)/.test(first)) return para;
+      return chunks(para.replace(/\n/g, ' '), max).join('\n\n');
+    })
+    .join('\n\n');
+}

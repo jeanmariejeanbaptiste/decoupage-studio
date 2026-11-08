@@ -57,3 +57,28 @@ describe('page de garde à l’import', () => {
     expect(linesToFountain(textToLines('INT. GARE - JOUR\n\nLéa arrive.\n'))).not.toMatch(/^Title:/);
   });
 });
+
+describe('paragraphes trop longs pour une page', () => {
+  it('coupés entre deux phrases ; répliques et en-têtes intacts', async () => {
+    const { splitLongActions } = await import('./scenarioImport');
+    const long = Array.from({ length: 120 }, (_, i) => `Phrase numéro ${i} du très long paragraphe.`).join(' ');
+    const src = `INT. GARE - JOUR\n\n${long}\n\nLÉA\nCourt.\n`;
+    const out = splitLongActions(src);
+    const paras = out.split(/\n{2,}/);
+    expect(paras.length).toBeGreaterThan(3);
+    expect(paras.every((p) => p.length <= 2000)).toBe(true);
+    expect(out.replace(/\s+/g, ' ')).toBe(src.replace(/\s+/g, ' '));
+    expect(out).toContain('LÉA\nCourt.');
+  });
+});
+
+describe('répliques trop longues', () => {
+  it('suite marquée (SUITE), sans perdre un mot ; mots sans ponctuation coupés aussi', async () => {
+    const { splitLongActions } = await import('./scenarioImport');
+    const words = Array.from({ length: 700 }, (_, i) => `mot${i}`).join(' ');
+    const out = splitLongActions(`MARC\n${words}\n\n${words}\n`);
+    expect(out).toContain('MARC (SUITE)');
+    expect(out.split(/\n{2,}/).every((p) => p.length <= 2000)).toBe(true);
+    expect(out.replace(/MARC \(SUITE\)/g, '').replace(/MARC/, '').replace(/\s+/g, ' ').trim()).toBe(`${words} ${words}`);
+  });
+});

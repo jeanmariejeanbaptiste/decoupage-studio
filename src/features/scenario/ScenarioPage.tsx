@@ -76,6 +76,18 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   // La page A4 se réduit pour tenir dans la largeur disponible.
   const center = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
+  // Hauteur réelle de la pile de pages (avant mise à l'échelle), pour réserver la place réduite.
+  const zoomInner = useRef<HTMLDivElement>(null);
+  const [zoomH, setZoomH] = useState(0);
+  useLayoutEffect(() => {
+    const el = zoomInner.current;
+    if (!el) return;
+    const measure = () => setZoomH(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [view, phone]);
   useLayoutEffect(() => {
     const el = center.current;
     if (!el || phone) return;
@@ -202,7 +214,9 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           ) : (
             <div
               className={s.zoom}
-              style={phone ? undefined : { zoom }}
+              // Réduction par mise à l'échelle uniforme (et non `zoom`, qui arrondit chaque page à sa façon :
+              // le texte dérivait d'une fraction de pixel par page jusqu'à sortir des feuilles).
+              style={phone || zoom === 1 ? undefined : { width: PAGE.w * zoom, height: zoomH * zoom }}
               // Safari sélectionne le mot sous un clic droit : seule une sélection faite avant compte.
               onPointerDownCapture={(e) => {
                 if (e.button === 2) hadSelection.current = !!useScriptUi.getState().selection;
@@ -214,6 +228,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
                 createShot({ x: e.clientX, y: e.clientY });
               }}
             >
+              <div ref={zoomInner} style={phone || zoom === 1 ? undefined : { width: PAGE.w, transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
               <ScriptEditor
                 key={doc.project.id}
                 doc={doc}
@@ -224,6 +239,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
                 apiRef={api}
                 paged={!phone}
               />
+              </div>
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent as RClipboardEvent, type KeyboardEvent as RKeyboardEvent } from 'react';
 import { create } from 'zustand';
+import { createPortal } from 'react-dom';
 import {
   BLOCK_LABELS,
   EFFECT_WORDS,
@@ -98,7 +99,8 @@ function editorLayout(items: ReadonlyArray<{ id: string; type: BlockType; h: num
   // Lignes occupées : arrondi au-dessus (un caractère d'une police de secours peut grandir une ligne de
   // quelques pixels) ; la position du bloc suivant part de la hauteur réelle, jamais d'une hauteur supposée.
   const lines = (h: number) => Math.max(1, Math.ceil((h - 0.5) / LINE));
-  const height = (it: { type: BlockType; h: number }) => (it.type === 'pagebreak' ? 0 : it.h);
+  // Hauteur réelle, saut de page compris (son filet mesure un pixel).
+  const height = (it: { type: BlockType; h: number }) => it.h;
   const { at, pages } = paginateItems(rest.map((it) => ({ id: it.id, type: pageType(it.type), lines: it.type === 'pagebreak' ? 0 : lines(it.h) })));
   const yOf = (p: { page: number; row: number }) => (p.page + offset) * (PAGE.h + PAGE.gap) + p.row * LINE;
   // Bas du bloc précédent, dans le repère du texte (sans la marge haute de la première page).
@@ -944,7 +946,8 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
           {label}
         </span>
       )}
-      {titleOpen && (
+      {titleOpen &&
+        createPortal(
         <TitleDialog
           initial={parseTitlePage(sdoc.blocks.find((b) => b.type === 'title')?.text ?? '')}
           onClose={() => setTitleOpen(false)}
@@ -955,8 +958,9 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
             const first = next.blocks.find((b) => b.type !== 'title') ?? next.blocks[0];
             apply({ doc: next, caret: { id: first.id, offset: 0 } });
           }}
-        />
-      )}
+        />,
+          document.body,
+        )}
       {acOpen && active && (
         <ul className={s.ac} style={{ top: active.top + active.height + 2, left: active.left }} role="listbox" aria-label="Suggestions">
           {sugg.map((v, i) => (

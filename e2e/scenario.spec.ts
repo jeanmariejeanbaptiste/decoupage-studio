@@ -214,3 +214,39 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await page.goto('/#/registry?tab=characters');
   await expect(page.getByText('Alice Martin')).toBeVisible();
 });
+
+test('scénario : aucune ligne ne sort de sa feuille (sauts de page, blocs variés, page réduite)', async ({ page }) => {
+  await page.goto('/#/');
+  await page.getByTestId('new-project').click();
+  await page.getByLabel('Titre du projet').fill('Pages');
+  await page.getByTestId('wizard-next').click();
+  await page.evaluate(() => (location.hash = '#/scenario'));
+  page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-pages.fountain'));
+  await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
+  await expect(page.getByText(/Scénario importé/)).toBeVisible();
+  await page.waitForTimeout(800);
+  const bad = await page.evaluate(() => {
+    const stack = document.querySelector<HTMLElement>('[data-testid="script-stack"]')!;
+    const editor = document.querySelector<HTMLElement>('[data-testid="script-editor"]')!;
+    const sr = stack.getBoundingClientRect();
+    const k = sr.width / stack.offsetWidth;
+    const sheets = Array.from(stack.querySelectorAll<HTMLElement>('[aria-hidden="true"] > div')).map((d) => ({ top: d.offsetTop, bottom: d.offsetTop + d.offsetHeight }));
+    const cs = getComputedStyle(editor);
+    const top = parseFloat(cs.paddingTop);
+    const bottom = parseFloat(cs.paddingBottom);
+    let n = 0;
+    for (const b of Array.from(editor.querySelectorAll<HTMLElement>('[data-bid]'))) {
+      if (b.dataset.type === 'title') continue;
+      const range = document.createRange();
+      range.selectNodeContents(b);
+      for (const r of Array.from(range.getClientRects())) {
+        if (r.height < 1) continue;
+        const cy = (r.top + r.height / 2 - sr.top) / k;
+        const s = sheets.find((x) => cy >= x.top && cy <= x.bottom);
+        if (!s || cy < s.top + top || cy > s.bottom - bottom) n++;
+      }
+    }
+    return n;
+  });
+  expect(bad).toBe(0);
+});
