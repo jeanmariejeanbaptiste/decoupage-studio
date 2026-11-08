@@ -118,13 +118,24 @@ const LEXICON: Partial<Record<BaseCategory, Record<string, string[]>>> = {
   },
 };
 
+/** Expressions trompeuses retirées avant la détection (« en train de », « feu rouge »…). */
+const STOP_PHRASES = [/en train de/g, /feux? (rouges?|verts?|orange)/g, /mettre le feu|prendre feu/g, /au cafe\b/g, /au lit\b/g];
+/** Mots ambigus (verbes ou sens courant) : retenus seulement après un déterminant (« un livre », « le lit »). */
+const AMBIGUOUS = new Set(['lit', 'livre', 'train', 'cafe', 'feu', 'verre', 'banc', 'bus', 'auto', 'sac', 'cle', 'pleure', 'larme', 'vent', 'photo']);
+const DETERMINER = "(?:le|la|les|l'|un|une|des|du|de la|sa|son|ses|mon|ma|mes|ton|ta|tes|notre|votre|leur|leurs|ce|cet|cette|ces)";
+
 /** Termes détectés dans un texte, par catégorie. */
 export function detectInText(text: string): Partial<Record<BreakdownCategory, string[]>> {
-  const t = ` ${fold(text).replace(/[^a-z0-9' ]+/g, ' ')} `;
+  let t = ` ${fold(text).replace(/[^a-z0-9' ]+/g, ' ')} `;
+  for (const re of STOP_PHRASES) t = t.replace(re, ' ');
   const out: Partial<Record<BreakdownCategory, string[]>> = {};
   for (const [cat, dict] of Object.entries(LEXICON) as Array<[BreakdownCategory, Record<string, string[]>]>) {
     for (const [canon, forms] of Object.entries(dict)) {
-      if (forms.some((f) => new RegExp(`[ ']${escapeRegExp(f)}(s|x)?[ ']`).test(t))) (out[cat] ??= []).push(canon);
+      const hit = forms.some((f) => {
+        const word = `${escapeRegExp(f)}(s|x)?[ ']`;
+        return AMBIGUOUS.has(f) ? new RegExp(`[ ']${DETERMINER} ?${word}`).test(t) : new RegExp(`[ ']${word}`).test(t);
+      });
+      if (hit) (out[cat] ??= []).push(canon);
     }
   }
   return out;

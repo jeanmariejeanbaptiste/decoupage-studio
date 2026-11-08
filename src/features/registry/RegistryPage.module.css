@@ -34,3 +34,6 @@
 .st_abandonné { color: var(--rust); text-decoration: line-through; }
 .addChip { width: 26px; appearance: none; -webkit-appearance: none; text-align: center; cursor: pointer; }
 .gap { white-space: nowrap; }
+
+.chipX { border: 0; background: none; padding: 0 0 0 4px; color: var(--ink-soft); cursor: pointer; font-size: 12px; line-height: 1; }
+.chipX:hover { color: var(--ink); }

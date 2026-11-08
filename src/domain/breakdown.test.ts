@@ -65,3 +65,11 @@ describe('catégories ajoutées', async () => {
     expect(aggregateEquipment(doc)['Régie'].map((l) => l.label)).toEqual(['Barnum']);
   });
 });
+
+describe('détection : faux positifs écartés', () => {
+  it('« en train de », « Ève lit », « elle livre », « feu rouge » ne sont pas des éléments', async () => {
+    const { detectInText } = await import('./breakdown');
+    expect(detectInText('Elle est en train de chanter. Ève lit. Elle livre le colis au feu rouge.')).toEqual({});
+    expect(detectInText('Il pose un livre sur le lit, prend le train.')).toEqual({ accessoires: ['Livre', 'Lit'], vehicules: ['Train'] });
+  });
+});

@@ -4,7 +4,7 @@ import { navigate, useLocation } from '../../app/router';
 import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters';
 import { formatFocal } from '../../domain/focal';
 import { shotCode, sequenceNumber } from '../../domain/numbering';
-import { addCharacter, mergeCharacters } from '../../domain/ops';
+import { addCharacter, mergeCharacters, refreshRecognition } from '../../domain/ops';
 import { addDecor, characterStats, decorStats, deleteCharacter, deleteDecor, sequenceProgress, setSequenceDecorByName } from '../../domain/registry';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { computeTiming, formatGap } from '../../domain/timing';
@@ -151,11 +151,26 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
         const others = chars.filter((c) => !ids.includes(c.id));
         return (
           <span className={s.chips}>
-            {ids.map((id) => (
-              <span key={id} className={s.chip} style={{ borderColor: doc.characters[id]?.color }}>
-                {doc.characters[id]?.name}
-              </span>
-            ))}
+            {ids.map((id) => {
+              // Personnage ajouté à la main (pas reconnu dans les plans) : il se retire ici.
+              const manual = doc.sequences[q.id]?.characterIds.includes(id);
+              return (
+                <span key={id} className={s.chip}>
+                  {doc.characters[id]?.name}
+                  {manual && (
+                    <button
+                      type="button"
+                      className={s.chipX}
+                      data-edit
+                      aria-label={`Retirer ${doc.characters[id]?.name} de la séquence`}
+                      onClick={() => mutateDoc((d) => void (d.sequences[q.id].characterIds = d.sequences[q.id].characterIds.filter((c) => c !== id)))}
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
+              );
+            })}
             {others.length > 0 && (
               <select
                 className={s.addChip}
@@ -264,7 +279,19 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
           {c.aliases?.length ? <em className={s.alias}>alias {c.aliases.join(', ')}</em> : null}
         </span>
       ),
-      edit: { get: (c) => c.name, set: (c, v) => v.trim() && mutateDoc((d) => void (d.characters[c.id].name = v.trim())) },
+      // Renommer garde l'ancien nom en alias : les plans qui le citent restent reconnus.
+      edit: {
+        get: (c) => c.name,
+        set: (c, v) =>
+          v.trim() &&
+          mutateDoc((d) => {
+            const ch = d.characters[c.id];
+            const old = ch.name;
+            ch.name = v.trim();
+            if (old && old !== ch.name) ch.aliases = [...new Set([...(ch.aliases ?? []), old])].filter((a) => a !== ch.name);
+            refreshRecognition(d);
+          }),
+      },
     },
     {
       key: 'kind',
@@ -273,7 +300,6 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
       text: (c) => c.kind,
       edit: { get: (c) => c.kind, options: KINDS.map((k) => ({ value: k, label: k })), set: (c, v) => mutateDoc((d) => void (d.characters[c.id].kind = v as CharacterKind)) },
     },
-    { key: 'color', label: 'Couleur', width: '70px', render: () => null, edit: { type: 'color', get: (c) => c.color ?? '', set: (c, v) => mutateDoc((d) => void (d.characters[c.id].color = v)) } },
     {
       key: 'actor',
       label: 'Comédien·ne',

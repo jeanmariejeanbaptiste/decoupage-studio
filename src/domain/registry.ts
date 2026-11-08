@@ -1,6 +1,6 @@
 import { sequenceCharacterIds } from './characters';
 import { newId } from './factory';
-import { refreshRecognition } from './ops';
+import { remapCharacter, refreshRecognition } from './ops';
 import type { Timing } from './timing';
 import type { Decor, ID, ProjectDoc } from './types';
 
@@ -44,6 +44,7 @@ export function sequenceProgress(doc: ProjectDoc, seqId: ID): { done: number; to
 export function deleteCharacter(doc: ProjectDoc, id: ID): void {
   delete doc.characters[id];
   for (const seq of Object.values(doc.sequences)) seq.characterIds = seq.characterIds.filter((c) => c !== id);
+  remapCharacter(doc, id);
   refreshRecognition(doc);
 }
 

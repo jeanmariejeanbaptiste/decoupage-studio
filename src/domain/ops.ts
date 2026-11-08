@@ -349,7 +349,22 @@ export function mergeCharacters(doc: ProjectDoc, fromId: ID, intoId: ID): void {
   for (const seq of Object.values(doc.sequences)) {
     seq.characterIds = [...new Set(seq.characterIds.map((id) => (id === fromId ? intoId : id)))];
   }
+  remapCharacter(doc, fromId, intoId);
   refreshRecognition(doc);
+}
+
+/**
+ * Fiche fusionnée ou supprimée : les convocations du plan de travail et les comédiens posés sur
+ * les plans au sol suivent (vers la fiche gardée, ou plus de fiche).
+ */
+export function remapCharacter(doc: ProjectDoc, fromId: ID, intoId?: ID): void {
+  for (const d of doc.schedule?.days ?? []) {
+    if (!d.calls?.[fromId]) continue;
+    if (intoId && !d.calls[intoId]) d.calls[intoId] = d.calls[fromId];
+    delete d.calls[fromId];
+  }
+  for (const plan of Object.values(doc.floorPlans ?? {}))
+    for (const it of plan.items) if (it.kind === 'actor' && it.characterId === fromId) it.characterId = intoId;
 }
 
 /** Vérifie les invariants du §3 ; renvoie la liste des violations (vide si tout va bien). */
