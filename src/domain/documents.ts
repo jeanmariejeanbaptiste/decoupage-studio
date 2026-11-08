@@ -49,6 +49,7 @@ tr { break-inside: avoid; }
 .cs-title { font-size: 13pt; font-weight: 700; } .cs-call { font-size: 20pt; font-weight: 700; margin-top: 6pt !important; letter-spacing: .02em; }
 .cs-events th { border: 0; padding: 1pt 6pt 1pt 0; text-transform: none; letter-spacing: 0; font-size: 8.5pt; color: #6b7079; } .cs-events td { border: 0; padding: 1pt 0; }
 .cs-depts { grid-template-columns: repeat(3, 1fr); }
+.itw-frames { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6pt; margin-top: 6pt; } .itw-frames figure { margin: 0; break-inside: avoid; } .itw-frames img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: .6pt solid #d6d8dd; display: block; } .itw-frames figcaption { font-size: 8pt; color: #6b7079; margin-top: 2pt; }
 .day { break-inside: avoid; margin-bottom: 10pt; }
 .tone-ext { background: #f1f1f1; } .tone-night { background: #e0e0e0; } .tone-extnight { background: #d0d0d0; } .tone-twilight { background: repeating-linear-gradient(135deg, #e6e6e6 0 4px, #ffffff 4px 8px); }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
@@ -339,6 +340,9 @@ export function interviewDocument(doc: ProjectDoc, orientation: 'portrait' | 'la
           const placed = setupShotIds(doc, st.id);
           const where = placed.length ? `${sequenceHeading(doc, doc.shots[placed[0]].sequenceId)} · plan${placed.length > 1 ? 's' : ''} ${placed.map((id) => shotCode(doc, id)).join(', ')}` : '';
           const cams = st.cameras.map((c) => `<tr><td class="code">Caméra ${esc(c.name)}</td><td>${esc(c.value)}</td><td>${esc(c.angle)}</td><td>${esc(c.focal ? `${c.focal} mm` : '')}</td><td>${esc(c.note ?? '')}</td></tr>`).join('');
+          // Storyboard du cadre : une image par caméra, sous le dispositif.
+          const frames = st.cameras.filter((c) => c.frame);
+          const board = frames.length ? `<div class="itw-frames">${frames.map((c) => `<figure><img data-blob="${esc(c.frame!)}" alt=""><figcaption>${esc(c.name)} · ${esc(c.value)}</figcaption></figure>`).join('')}</div>` : '';
           const setupHtml = `<table><thead><tr><th>Caméra</th><th>Valeur</th><th>Axe</th><th>Focale</th><th>Note</th></tr></thead><tbody>${cams}</tbody></table>
 <p>${esc(EYELINE[st.eyeline] ?? '')}</p>
 <div class="grid">
@@ -346,7 +350,7 @@ export function interviewDocument(doc: ProjectDoc, orientation: 'portrait' | 'la
 <div><h3>Arrière-plan</h3><p>${esc(st.background) || '—'}</p></div>
 <div><h3>Lumière</h3><p>${esc(st.light) || '—'}</p></div>
 <div><h3>Son</h3><p>${esc(st.sound) || '—'}</p></div>
-</div>`;
+</div>${board}`;
           const qs = qRows(itw ? questionsFor(itw, s.id, st.id) : []);
           const title = `<h3>${esc(st.name)}${where ? ` <span class="muted" style="font-weight:400">— ${esc(where)}</span>` : ''}</h3>`;
           return landscape

@@ -18,8 +18,9 @@ test('institutionnel : fiche d’interview, placée dans le découpage (lignes 1
   await expect(itw.getByRole('button', { name: 'Claire Martin' })).toBeVisible();
 
   // Le cadre rejoint le découpage : une nouvelle séquence, un plan par caméra.
-  await itw.getByTestId('setup-placement').selectOption({ label: 'Nouvelle séquence' });
+  await itw.getByTestId('setup-placement').getByRole('button', { name: 'Séquence' }).click();
   await expect(itw).toContainText('Plans 1.1A, 1.1B');
+  await expect(itw.getByTestId('setup-number')).toHaveValue('1');
 
   await page.getByTestId('view-table').click();
   // Une ligne par caméra, dans les colonnes habituelles ; l'action dit qui, où et combien de questions.

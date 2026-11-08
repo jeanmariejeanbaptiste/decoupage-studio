@@ -54,6 +54,7 @@ export function mediaKeys(doc: ProjectDoc): string[] {
   }
   for (const p of Object.values(doc.floorPlans ?? {})) add(p.bg?.blobKey);
   for (const k of richImageKeys(doc.intentionHtml)) add(k);
+  for (const subj of doc.interview?.subjects ?? []) for (const st of subj.setups ?? []) for (const c of st.cameras) add(c.frame);
   add(doc.project.settings.audioTrack?.blobKey);
   return [...keys];
 }

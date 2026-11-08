@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { interviewDocument } from '../../domain/documents';
-import { ArrowDown, ArrowUp, Check, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ImagePlus, Plus, Trash2, X } from 'lucide-react';
+import { useBlobUrl } from '../../ui/useBlobUrl';
+import { getBlob, putBlob } from '../../store/db';
 import { newId } from '../../domain/factory';
-import { addInterviewee, addSetup, ensureInterview, moveQuestion, placeSetup, questionsFor, removeInterviewee, removeSetup, setupShotIds, type Interviewee, type InterviewSetup } from '../../domain/interview';
+import { addInterviewee, addSetup, ensureInterview, moveQuestion, maxSetupNumber, placeSetup, questionsFor, setSetupNumber, setupNumber, removeInterviewee, removeSetup, setupShotIds, type Interviewee, type InterviewSetup } from '../../domain/interview';
 import { shotCode } from '../../domain/numbering';
 import { useUi } from '../../store/uiStore';
 import { fileNameFor } from '../../domain/serialize';
@@ -55,6 +57,9 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const questions = questionsFor(itw, subject.id, setup.id);
   // Cadre placé dans le découpage : ses plans (un par caméra), tels que numérotés.
   const placedIds = setupShotIds(doc, setup.id);
+  const placedSeq = placedIds.length ? doc.shots[placedIds[0]].sequenceId : undefined;
+  const placedNumber = placedIds.length ? setupNumber(doc, setup.id) : undefined;
+  const maxNumber = placedSeq ? maxSetupNumber(doc, setup.id, placedSeq) : 1;
   const placedCodes = placedIds.length ? `Plan${placedIds.length > 1 ? 's' : ''} ${placedIds.map((id) => shotCode(doc, id)).join(', ')}` : '';
   const shared = subjects.length > 1;
   const multi = subject.setups.length > 1;
@@ -129,23 +134,60 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             {shared && setup.eyeline !== 'camera' && subjects.some((o) => o.id !== subject.id && o.setups.some((y) => y.eyeline === setup.eyeline)) && (
               <p className={s.warn}>Même regard qu’un autre intervenant : ils ne pourront pas se répondre au montage.</p>
             )}
-            <label className={s.field}>
+            <div className={s.line}>
               <span>Découpage</span>
-              <select
-                value={setup.sequenceId && doc.sequences[setup.sequenceId] ? setup.sequenceId : ''}
-                disabled={readOnly}
-                onChange={(e) => mutateDoc((d) => placeSetup(d, setup.id, e.target.value || undefined))}
-                data-testid="setup-placement"
-              >
-                <option value="">Annexe seule</option>
-                {doc.project.sequenceIds.map((id, k) => (
-                  <option key={id} value={id}>
-                    {`Séquence ${k + 1}${doc.sequences[id]?.label ? ` — ${doc.sequences[id].label.toUpperCase()}` : ''}`}
-                  </option>
-                ))}
-                <option value="new">Nouvelle séquence</option>
-              </select>
-            </label>
+            </div>
+            <div className={s.place} role="radiogroup" aria-label="Place dans le découpage" data-testid="setup-placement">
+              <button type="button" role="radio" aria-checked={!placedSeq} className={!placedSeq ? s.placeOn : ''} disabled={readOnly} onClick={() => mutateDoc((d) => placeSetup(d, setup.id, undefined))}>
+                Annexe seule
+              </button>
+              {doc.project.sequenceIds.map((id, k) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={placedSeq === id}
+                  className={placedSeq === id ? s.placeOn : ''}
+                  disabled={readOnly}
+                  title={doc.sequences[id]?.label ? `Séquence ${k + 1} — ${doc.sequences[id].label.toUpperCase()}` : `Séquence ${k + 1}`}
+                  onClick={() => placedSeq !== id && mutateDoc((d) => placeSetup(d, setup.id, id))}
+                >
+                  Séq. {k + 1}
+                </button>
+              ))}
+              {!readOnly && (
+                <button type="button" className={s.placeNew} onClick={() => mutateDoc((d) => placeSetup(d, setup.id, 'new'))} title="Une séquence à part pour ce cadre">
+                  <Plus size={13} /> Séquence
+                </button>
+              )}
+            </div>
+            {placedSeq && placedNumber !== undefined && (
+              <div className={s.line}>
+                <span>Plan n°</span>
+                <div className={s.stepper}>
+                  <button type="button" aria-label="Plan précédent" disabled={readOnly || placedNumber <= 1} onClick={() => mutateDoc((d) => setSetupNumber(d, setup.id, placedNumber - 1))}>
+                    −
+                  </button>
+                  <input
+                    key={placedNumber}
+                    defaultValue={placedNumber}
+                    inputMode="numeric"
+                    aria-label="Numéro du plan"
+                    data-testid="setup-number"
+                    readOnly={readOnly}
+                    onBlur={(e) => {
+                      const v = Math.max(1, Math.min(maxNumber, Math.round(Number(e.target.value) || placedNumber)));
+                      if (v !== placedNumber) mutateDoc((d) => setSetupNumber(d, setup.id, v));
+                      else e.target.value = String(placedNumber);
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                  />
+                  <button type="button" aria-label="Plan suivant" disabled={readOnly || placedNumber >= maxNumber} onClick={() => mutateDoc((d) => setSetupNumber(d, setup.id, placedNumber + 1))}>
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
             {placedCodes && <p className={s.placed}>{placedCodes}</p>}
             {multi && !readOnly && (
               <button type="button" className={s.ghost} onClick={() => (mutateDoc((d) => removeSetup(d, subject.id, setup.id)), setPickedSetup(undefined))}>
@@ -170,6 +212,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                       <X size={13} />
                     </button>
                   )}
+                  <CameraFrame projectId={doc.project.id} blobKey={c.frame} readOnly={readOnly} label={`Image du cadre ${c.name}`} onChange={(key) => editSetup((x) => void (x.cameras[k].frame = key))} />
                 </div>
               ))}
             </div>
@@ -333,7 +376,7 @@ export function InterviewExport({ doc }: { doc: ProjectDoc }) {
       onExport={async ({ format, orientation, numbers }) => {
         try {
           const cur = useProjectStore.getState().doc ?? doc;
-          await exportDocumentPages(interviewDocument(cur, orientation).html, `${base}-interview-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format: format as 'pdf' | 'images', orientation, numbers });
+          await exportDocumentPages(await withFrames(interviewDocument(cur, orientation).html), `${base}-interview-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format: format as 'pdf' | 'images', orientation, numbers });
         } catch (err) {
           useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
         }
@@ -345,7 +388,15 @@ export function InterviewExport({ doc }: { doc: ProjectDoc }) {
 /** Aperçu de la fiche d'interview, telle qu'elle sera exportée (document isolé, hauteur ajustée). */
 export function InterviewPreview({ doc }: { doc: ProjectDoc }) {
   const orientation = orientationOf(doc);
-  const html = useMemo(() => interviewDocument(doc, orientation).html, [doc, orientation]);
+  const raw = useMemo(() => interviewDocument(doc, orientation).html, [doc, orientation]);
+  const [html, setHtml] = useState(raw);
+  useEffect(() => {
+    let alive = true;
+    void withFrames(raw).then((h) => alive && setHtml(h));
+    return () => {
+      alive = false;
+    };
+  }, [raw]);
   const ref = useRef<HTMLIFrameElement>(null);
   const fit = () => {
     const f = ref.current;
@@ -354,4 +405,60 @@ export function InterviewPreview({ doc }: { doc: ProjectDoc }) {
   };
   useEffect(fit, [html]);
   return <iframe ref={ref} className={[s.preview, orientation === 'portrait' ? s.previewPortrait : ''].join(' ')} srcDoc={html} title="Fiche d’interview" onLoad={fit} data-testid="interview-preview" />;
+}
+
+/** Storyboard du cadre : une image par caméra (déposée ou choisie), reprise dans la fiche exportée. */
+function CameraFrame({ projectId, blobKey, readOnly, label, onChange }: { projectId: string; blobKey?: string; readOnly: boolean; label: string; onChange: (key: string | undefined) => void }) {
+  const url = useBlobUrl(blobKey);
+  const input = useRef<HTMLInputElement>(null);
+  const take = async (file: File | undefined) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    onChange(await putBlob(projectId, file.name, file));
+  };
+  return (
+    <div className={s.frame}>
+      <button
+        type="button"
+        className={s.frameBox}
+        disabled={readOnly}
+        aria-label={label}
+        title={url ? 'Changer l’image (ou déposer un fichier)' : 'Choisir une image (ou déposer un fichier)'}
+        onClick={() => input.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          void take(e.dataTransfer.files[0]);
+        }}
+        data-testid="camera-frame"
+      >
+        {url ? <img src={url} alt="" /> : (
+          <>
+            <ImagePlus size={14} strokeWidth={1.3} /> Image du cadre
+          </>
+        )}
+      </button>
+      {url && !readOnly && (
+        <button type="button" className={s.frameDel} aria-label={`Retirer ${label.toLowerCase()}`} onClick={() => onChange(undefined)}>
+          <X size={11} />
+        </button>
+      )}
+      <input ref={input} type="file" accept="image/*" hidden onChange={(e) => void take(e.target.files?.[0])} />
+    </div>
+  );
+}
+
+/** Images des cadres (clés de la base) remplacées par leur contenu, pour l'aperçu et l'export. */
+async function withFrames(html: string): Promise<string> {
+  let out = html;
+  for (const key of new Set([...html.matchAll(/data-blob="([^"]+)"/g)].map((m) => m[1]))) {
+    const b = await getBlob(key);
+    if (!b) continue;
+    const data = await new Promise<string>((ok) => {
+      const r = new FileReader();
+      r.onload = () => ok(String(r.result));
+      r.readAsDataURL(b);
+    });
+    out = out.split(`data-blob="${key}"`).join(`src="${data}"`);
+  }
+  return out;
 }

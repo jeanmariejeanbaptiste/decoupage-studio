@@ -5,6 +5,7 @@
  */
 import { newId } from './factory';
 import { recognizeCharacters } from './characters';
+import { shotNumber } from './numbering';
 import { addSequence, addShot, normalizeBlocks, removeShot } from './ops';
 import type { ID, ProjectDoc, Shot } from './types';
 
@@ -16,6 +17,8 @@ export interface InterviewCamera {
   angle: string;
   focal: string;
   note?: string;
+  /** Image du cadre (storyboard propre à l'interview, utile quand elle reste en annexe). */
+  frame?: string;
 }
 
 export interface InterviewQuestion {
@@ -227,6 +230,50 @@ export const interviewSequenceLabel = (s: Pick<Interviewee, 'name'>) => `Intervi
  * Place un cadre dans une séquence (à sa fin), ou dans une nouvelle séquence en fin de découpage
  * (`'new'`) ; sans séquence, il sort du découpage et la fiche reste en annexe.
  */
+/** Numéro de plan auquel un cadre placé commence dans sa séquence (« 3 » pour 3A, 3B). */
+export function setupNumber(doc: ProjectDoc, setupId: ID): number | undefined {
+  const ids = setupShotIds(doc, setupId);
+  return ids.length ? shotNumber(doc, ids[0]) : undefined;
+}
+
+/** Plans d'une séquence hors ce cadre : le plus grand numéro qu'il peut prendre (en fin de séquence). */
+export function maxSetupNumber(doc: ProjectDoc, setupId: ID, seqId: ID): number {
+  const others = (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id]?.interview?.setupId !== setupId);
+  let n = 0;
+  let prev: ID | undefined;
+  for (const id of others) {
+    const g = doc.shots[id]?.interview?.setupId;
+    if (!g || g !== prev) n++;
+    prev = g;
+  }
+  return n + 1;
+}
+
+/**
+ * Donne au cadre le numéro de plan voulu dans sa séquence : ses caméras se placent avant le plan qui
+ * portait ce numéro (ou en fin de séquence), sans rien perdre de leurs réglages.
+ */
+export function setSetupNumber(doc: ProjectDoc, setupId: ID, number: number): void {
+  const ids = setupShotIds(doc, setupId);
+  if (!ids.length) return;
+  const seq = doc.sequences[doc.shots[ids[0]].sequenceId];
+  const rest = seq.shotIds.filter((id) => !ids.includes(id));
+  let n = 0;
+  let prev: ID | undefined;
+  let at = rest.length;
+  for (let i = 0; i < rest.length; i++) {
+    const g = doc.shots[rest[i]]?.interview?.setupId;
+    if (!g || g !== prev) n++;
+    prev = g;
+    if (n === number && (!g || doc.shots[rest[i - 1]]?.interview?.setupId !== g)) {
+      at = i;
+      break;
+    }
+  }
+  const order = [...rest.slice(0, at), ...ids, ...rest.slice(at)];
+  if (order.some((id, i) => id !== seq.shotIds[i])) seq.shotIds = order;
+}
+
 export function placeSetup(doc: ProjectDoc, setupId: ID, seqId?: ID | 'new'): void {
   const found = findSetup(doc, setupId);
   if (!found) return;

@@ -23,11 +23,12 @@
 .ghost { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
 .ghost:hover { color: var(--ink); }
 .cams { display: flex; flex-direction: column; gap: 8px; }
-.cam { display: grid; grid-template-columns: 30px 1fr 1.4fr 0.8fr auto; gap: 6px; align-items: end; }
+.cam { display: grid; grid-template-columns: 30px 1fr 1.4fr 0.8fr 28px; gap: 6px; align-items: end; }
+.cam > .frame { grid-column: 2 / 5; }
 @media (max-width: 600px) {
   .cam { grid-template-columns: 30px 1fr 76px 28px; grid-template-areas: 'n v f x' '. a a a'; }
   .cam > :nth-child(1) { grid-area: n; } .cam > :nth-child(2) { grid-area: v; } .cam > :nth-child(3) { grid-area: a; }
-  .cam > :nth-child(4) { grid-area: f; } .cam > :nth-child(5) { grid-area: x; }
+  .cam > :nth-child(4) { grid-area: f; } .cam > :nth-child(5) { grid-area: x; } .cam > .frame { grid-area: auto; grid-column: 2 / -1; }
 }
 .camName { align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--paper-card); font-weight: 700; font-size: 13px; }
 .iconBtn { display: inline-flex; padding: 6px; border: 0; border-radius: 8px; background: none; color: var(--ink-soft); cursor: pointer; }
@@ -50,3 +51,16 @@
 .setups .add { display: inline-flex; align-items: center; gap: 4px; border-style: dashed; }
 .preview { display: block; width: 100%; max-width: 297mm; min-height: 210mm; margin: 0 auto 24px; border: 0; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
 .previewPortrait { max-width: 210mm; min-height: 297mm; }
+.place { display: flex; flex-wrap: wrap; gap: 6px; }
+.place button { height: 30px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); font: inherit; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); cursor: pointer; }
+.place button:hover:not(:disabled) { color: var(--ink); }
+.place .placeOn, .place .placeOn:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); color: var(--paper-card); }
+.place .placeNew { display: inline-flex; align-items: center; gap: 4px; border-style: dashed; background: none; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); overflow: hidden; }
+.stepper button { width: 30px; height: 28px; border: 0; background: none; font: inherit; font-size: 15px; color: var(--ink); cursor: pointer; }
+.stepper button:disabled { opacity: 0.3; cursor: default; }
+.stepper input { width: 40px; height: 28px; border: 0; background: none; text-align: center; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; outline: none; }
+.frame { position: relative; }
+.frameBox { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 30px; max-height: 140px; padding: 0; border: 1px dashed var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink-soft); cursor: pointer; overflow: hidden; }
+.frameBox img { width: 100%; aspect-ratio: 16 / 9; max-height: 140px; object-fit: cover; }
+.frameDel { position: absolute; top: -6px; right: -6px; display: inline-flex; padding: 2px; border: 0; border-radius: 50%; background: var(--ink); color: var(--paper-card); cursor: pointer; }

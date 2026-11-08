@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
-import { ensureInterview, placeSetup, setupShotIds, syncInterviewShots } from './interview';
+import { ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
 import { addSequence, addShot, addShotAfter, deleteShot, duplicateShot, moveShot } from './ops';
 import { shotCode, shotNumberLabel } from './numbering';
 import { buildSequenceRows, sequenceMerges } from './rows';
@@ -121,5 +121,18 @@ describe('interview placée dans le découpage', () => {
     placeSetup(doc, setup.id, seq);
     const codes = runChecks(doc, computeTiming(doc)).map((i) => i.code);
     expect(codes).not.toContain('doc-close-wide');
+  });
+
+  it('le numéro du plan se choisit : avant le plan qui le portait, ou en fin de séquence', () => {
+    const { doc, seq, setup } = project();
+    placeSetup(doc, setup.id, seq);
+    syncInterviewShots(doc);
+    expect(setupNumber(doc, setup.id)).toBe(3);
+    setSetupNumber(doc, setup.id, 1);
+    syncInterviewShots(doc);
+    expect(order(doc, seq)).toEqual(['1A', '1B', '2', '3']);
+    setSetupNumber(doc, setup.id, 2);
+    expect(order(doc, seq)).toEqual(['1', '2A', '2B', '3']);
+    expect(maxSetupNumber(doc, setup.id, seq)).toBe(3);
   });
 });
