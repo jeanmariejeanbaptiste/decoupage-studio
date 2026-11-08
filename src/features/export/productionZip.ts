@@ -1,4 +1,6 @@
 import { toCsv } from '../../domain/csv';
+import { scriptToFdx } from '../../domain/fdx';
+import { blocksFromSource } from '../../domain/screenplay';
 import { allFloorPlans, breakdownCsv, callSheetCsv, charactersCsv, decorsCsv, equipmentCsv, scheduleCsv, sequencesCsv, shotsCsv } from '../../domain/exports';
 import { shotCode } from '../../domain/numbering';
 import { scheduleDays } from '../../domain/schedule';
@@ -12,7 +14,7 @@ Exporté le ${new Date().toLocaleString('fr-FR')}.
 
 00 Projet          fichier .decoupage (projet complet, à rouvrir dans l'application)
 01 Intention       note d'intention
-02 Scénario        scénario au format Fountain
+02 Scénario        scénario en PDF (mis en page), Final Draft (.fdx) et Fountain
 03 Dépouillement   éléments par séquence
 04 Découpage       tableau Excel fusionné (thème et économie d'encre du projet) et CSV
 05 Storyboard      images des plans, nommées par code de plan
@@ -36,7 +38,12 @@ export async function buildProductionZip(doc: ProjectDoc): Promise<Blob> {
   root.file('LISEZ-MOI.txt', README(doc));
   root.file(`00 Projet/${fileNameFor(doc)}`, serializeDoc(doc, undefined, await collectMedia(doc)));
   if (doc.intention?.trim()) root.file('01 Intention/Note d’intention.txt', doc.intention);
-  if (doc.scenario?.trim()) root.file('02 Scénario/Scénario.fountain', doc.scenario);
+  if (doc.scenario?.trim()) {
+    const { scriptPdf } = await import('../scenario/scriptExport');
+    root.file('02 Scénario/Scénario.pdf', await scriptPdf(doc.scenario, { title: doc.project.title }));
+    root.file('02 Scénario/Scénario.fdx', scriptToFdx(blocksFromSource(doc.scenario).blocks));
+    root.file('02 Scénario/Scénario.fountain', doc.scenario);
+  }
   root.file('03 Dépouillement/Dépouillement.csv', breakdownCsv(doc));
   root.file('04 Découpage/Découpage technique.xlsx', await exportXlsx(doc));
   root.file('04 Découpage/Découpage technique.csv', toCsv(doc));

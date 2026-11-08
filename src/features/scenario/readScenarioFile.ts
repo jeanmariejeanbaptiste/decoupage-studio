@@ -1,3 +1,4 @@
+import { fdxToFountain } from '../../domain/fdx';
 import { linesToFountain, stripMarkdown, textToLines, type SourceLine } from '../../domain/scenarioImport';
 
 /** Lignes d'un PDF avec leur position (retrait, centrage, espacement). */
@@ -143,10 +144,12 @@ function looksLikeFountain(text: string): boolean {
 
 const normalize = (t: string) => t.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
 
-/** Lit un scénario (PDF, Word, Markdown, texte ou Fountain) et le convertit en Fountain. */
+/** Lit un scénario (Final Draft, Fountain, PDF, Word, Markdown ou texte) et le convertit en Fountain. */
 export async function readScenarioFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.fountain') || name.endsWith('.spmd')) return normalize(await file.text());
+  // Final Draft : le type de chaque paragraphe est écrit dans le fichier, rien à deviner.
+  if (name.endsWith('.fdx')) return normalize(fdxToFountain(await file.text()));
   if (name.endsWith('.pdf')) return normalize(linesToFountain(await pdfLines(await file.arrayBuffer())));
   if (name.endsWith('.docx')) return normalize(linesToFountain(await docxLines(await file.arrayBuffer())));
   if (name.endsWith('.doc')) throw new Error('Format .doc ancien : enregistrez-le en .docx ou en PDF.');

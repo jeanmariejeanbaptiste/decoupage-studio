@@ -1,11 +1,10 @@
 import { useReadOnly } from '../../store/share';
-import { LinkModeToggle, addPassageAsShot, commitScenario } from './ScriptReader';
+import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, FilePlus2, FileUp } from 'lucide-react';
-import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
+import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { BLOCK_LABELS, blockLabel, scriptStats, type BlockType } from '../../domain/screenplay';
-import { scriptDocument } from '../../domain/scriptDocument';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { pickFile, registerFlush } from '../../store/persistence';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
@@ -14,7 +13,7 @@ import { readScenarioFile } from './readScenarioFile';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { useIsMobile } from '../../ui/useIsMobile';
-import { TabExport } from '../export/TabExport';
+import { ScriptExportButton } from './ScriptExportButton';
 import { goToShot } from '../registry/RegistryPage';
 import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
 import s from './ScenarioPage.module.css';
@@ -94,7 +93,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   };
 
   const importFile = async () => {
-    const f = await pickFile('.fountain,.txt,.spmd,.md,.markdown,.pdf,.docx,.doc,text/plain,application/pdf', false);
+    const f = await pickFile('.fountain,.fdx,.txt,.spmd,.md,.markdown,.pdf,.docx,.doc,text/plain,application/pdf', false);
     if (!f) return;
     api.current?.flush();
     if ((useProjectStore.getState().doc?.scenario ?? '').trim()) {
@@ -103,9 +102,15 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     }
     try {
       const content = await readScenarioFile(f);
-      commitScenario(content);
+      // Remplacement complet : les passages liés aux plans sont retrouvés par leur texte, ou détachés.
+      let dropped = 0;
+      mutateDoc((d) => {
+        dropped = relinkAnchors(d, d.scenario ?? '', content);
+        d.scenario = content;
+      });
       const n = scenesOf(content).length;
-      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''}. Le découpage n’est pas modifié.`, actionLabel: 'Annuler', action: undo });
+      const links = dropped ? ` ${dropped} passage${dropped > 1 ? 's' : ''} lié${dropped > 1 ? 's' : ''} introuvable${dropped > 1 ? 's' : ''}, détaché${dropped > 1 ? 's' : ''}.` : '';
+      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''}. Le découpage n’est pas modifié.${links}`, actionLabel: 'Annuler', action: undo });
     } catch (e) {
       toast({ message: (e as Error).message || 'Ce fichier n’a pas pu être lu.', tone: 'warn' });
     }
@@ -163,17 +168,11 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
         </div>
         <div className={s.tools}>
           {!readOnly && (
-            <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile} title="Fountain, PDF, Word, Markdown ou texte">
+            <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile} title="Final Draft, Fountain, PDF, Word, Markdown ou texte">
               Importer
             </Button>
           )}
-          <TabExport
-            id="scenario"
-            orientation="portrait"
-            doc={() => scriptDocument(current())}
-            fileBase={`${title}-scenario`}
-            file={{ label: 'Fountain', name: `${title}.fountain`, type: 'text/plain;charset=utf-8', content: () => current().scenario ?? '' }}
-          />
+          <ScriptExportButton doc={doc} current={current} title={title} />
         </div>
       </header>
 

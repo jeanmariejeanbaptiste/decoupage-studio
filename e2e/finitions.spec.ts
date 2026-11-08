@@ -303,25 +303,28 @@ test('exports des onglets : les pages contiennent bien le texte (jamais de page 
     await page.getByTestId('tab-export-go').click();
     const d = await dl;
     const buf = readFileSync(await d.path());
-    // Une seule page : une image ; plusieurs : un dossier compressé.
-    const png = d.suggestedFilename().endsWith('.zip')
-      ? await (await JSZip.loadAsync(buf)).file(Object.keys((await JSZip.loadAsync(buf)).files).filter((f) => f.endsWith('.png')).sort()[0])!.async('base64')
-      : buf.toString('base64');
-    const dark = await page.evaluate(async (data) => {
-      const img = new Image();
-      img.src = `data:image/png;base64,${data}`;
-      await img.decode();
-      const c = document.createElement('canvas');
-      c.width = img.width / 4;
-      c.height = img.height / 4;
-      const ctx = c.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      const px = ctx.getImageData(0, 0, c.width, c.height).data;
-      let n = 0;
-      for (let i = 0; i < px.length; i += 4) if (px[i] < 120 && px[i + 1] < 120 && px[i + 2] < 120) n++;
-      return n;
-    }, png);
-    expect(dark, route).toBeGreaterThan(300);
+    // Une seule page : une image ; plusieurs : un dossier compressé (chaque page est vérifiée).
+    const zip = d.suggestedFilename().endsWith('.zip') ? await JSZip.loadAsync(buf) : null;
+    const pngs = zip
+      ? await Promise.all(Object.keys(zip.files).filter((f) => f.endsWith('.png')).sort().map((f) => zip.file(f)!.async('base64')))
+      : [buf.toString('base64')];
+    for (const [i, png] of pngs.entries()) {
+      const dark = await page.evaluate(async (data) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${data}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        const px = ctx.getImageData(0, 0, c.width, c.height).data;
+        let n = 0;
+        for (let k = 0; k < px.length; k += 4) if (px[k] < 120 && px[k + 1] < 120 && px[k + 2] < 120) n++;
+        return n;
+      }, png);
+      expect(dark, `${route} page ${i + 1}`).toBeGreaterThan(300);
+    }
   }
 });
 

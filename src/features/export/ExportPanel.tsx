@@ -31,6 +31,8 @@ interface Props {
   perPage?: number[];
   /** Pas de numérotation proposée (la page porte déjà son numéro). */
   noNumbers?: boolean;
+  /** Format de page imposé (le scénario est toujours en A4 portrait). */
+  noOrientation?: boolean;
   disabled?: boolean;
   onExport: (choice: ExportChoice) => void | Promise<void>;
   children?: ReactNode;
@@ -50,6 +52,7 @@ export function ExportPanel({
   extra = [],
   perPage,
   noNumbers,
+  noOrientation,
   disabled,
   onExport,
   children,
@@ -165,7 +168,7 @@ export function ExportPanel({
           )}
           {paged && (
             <>
-              {seg(
+              {!noOrientation && seg(
                 'ori',
                 'Format A4',
                 [
