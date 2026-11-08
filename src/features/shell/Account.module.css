@@ -1,0 +1,21 @@
+.wrap { position: relative; }
+.signIn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 15px; background: none; font-size: 13px; color: inherit; }
+.signIn:hover { border-color: var(--ink-soft); }
+.avatar {
+  width: 28px; height: 28px; padding: 0; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--rule); border-radius: 50%; background: var(--tint);
+  font-size: 12.5px; font-weight: 600; color: var(--ink);
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1); }
+.busy { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ink-soft); }
+.panel {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 70; width: 260px;
+  padding: 14px; background: var(--paper-card); border: 1px solid var(--rule); border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(17, 19, 24, 0.12); color: var(--ink);
+  text-transform: none; letter-spacing: normal; font-family: var(--font-ui); text-align: left;
+}
+.name { margin: 0; font-weight: 600; font-size: 13.5px; }
+.mail { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+.state { margin: 10px 0 12px; font-size: 12.5px; color: var(--ink-soft); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -338,3 +338,7 @@
   .home *, .grain { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; }
   .dust { display: none; }
 }
+
+/* Compte Google (si la synchronisation est configurée), à côté du choix Jour / Nuit. */
+.topRight { display: inline-flex; align-items: center; gap: 12px; justify-self: end; }
+.account { color: var(--h-ink); border-color: color-mix(in srgb, var(--h-ink) 30%, transparent) !important; }

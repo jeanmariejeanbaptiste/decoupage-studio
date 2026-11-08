@@ -9,6 +9,8 @@ import { useUi } from '../../store/uiStore';
 import { NewProjectWizard } from './NewProjectWizard';
 import { switchTheme } from '../../ui/themeSwitch';
 import s from './HomePage.module.css';
+import { AccountButton } from './Account';
+import { useCloud } from '../../store/cloud';
 
 const FORMAT_LABEL: Record<string, string> = {
   fiction: 'Fiction',
@@ -32,7 +34,9 @@ export function HomePage() {
   const rev = useHomeHistory((h) => h.rev);
   const theme = useUi((u) => u.theme);
   const refresh = useCallback(() => void listProjects().then(setProjects), []);
-  useEffect(refresh, [refresh, rev]);
+  // Après une synchronisation Google Drive, des projets ont pu arriver d'un autre ordinateur.
+  const synced = useCloud((c) => c.lastSync);
+  useEffect(refresh, [refresh, rev, synced]);
 
   const open = async (id: string) => {
     if (await openStoredProject(id)) navigate('grid');
@@ -63,6 +67,8 @@ export function HomePage() {
       <header className={s.top}>
         <Timecode />
         <span />
+        <span className={s.topRight}>
+        <AccountButton className={s.account} />
         <button
           type="button"
           className={s.toggle}
@@ -72,6 +78,7 @@ export function HomePage() {
           <span className={theme === 'papier' ? s.toggleOn : ''}>Jour</span>
           <span className={theme === 'encre' ? s.toggleOn : ''}>Nuit</span>
         </button>
+        </span>
       </header>
 
       <main className={s.hero}>

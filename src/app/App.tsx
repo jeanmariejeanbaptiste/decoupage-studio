@@ -30,6 +30,9 @@ import { Topbar } from '../features/shell/Topbar';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { useIsMobile } from '../ui/useIsMobile';
 import { lastProjectId, openDoc, openStoredProject, saveToFile, startAutosave } from '../store/persistence';
+import { cloudForget, cloudRestore, preloadGoogle, startCloudPush, useCloud } from '../store/cloud';
+import { setHomeHooks } from '../store/homeHistory';
+import { AccountButton } from '../features/shell/Account';
 import { redo, undo, useDoc, useHistory } from '../store/projectStore';
 import { toggleSidebar, useUi } from '../store/uiStore';
 import { Button } from '../ui/Button';
@@ -89,8 +92,15 @@ export function App() {
 
   useEffect(() => {
     const stop = startAutosave();
+    // Synchronisation Google Drive (si configurée) : envoi après chaque enregistrement, suppressions suivies.
+    const stopCloud = startCloudPush();
+    setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => cloudRestore(id) });
+    if (useCloud.getState().enabled && useCloud.getState().user) void preloadGoogle().catch(() => undefined);
     void boot().finally(() => setBooted(true));
-    return stop;
+    return () => {
+      stop();
+      stopCloud();
+    };
   }, []);
 
   useEffect(() => {
@@ -177,6 +187,7 @@ export function App() {
           readOnly={readOnly}
           theme={theme}
           onToggleTheme={(e) => switchTheme(e)}
+          account={readOnly ? undefined : <AccountButton />}
         />
       )}
       <GuestBanner />

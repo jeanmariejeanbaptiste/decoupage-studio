@@ -30,6 +30,8 @@ jobs:
         env:
           # Chemin de base configurable : /<nom-du-dépôt>/ par défaut.
           BASE_PATH: ${{ vars.BASE_PATH || format('/{0}/', github.event.repository.name) }}
+          # Synchronisation Google Drive : identifiant OAuth (variable du dépôt) ; vide = connexion non proposée.
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       - run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
