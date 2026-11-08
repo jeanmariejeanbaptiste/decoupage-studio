@@ -212,6 +212,19 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                       <X size={13} />
                     </button>
                   )}
+                  {shared && (
+                    <div className={s.films} role="radiogroup" aria-label={`Caméra ${c.name} : intervenant filmé`}>
+                      <span>Filme</span>
+                      {subjects.map((x, n) => {
+                        const on = (c.filmsId ?? subject.id) === x.id;
+                        return (
+                          <button key={x.id} type="button" role="radio" aria-checked={on} className={on ? s.filmsOn : ''} disabled={readOnly} onClick={() => editSetup((y) => void (y.cameras[k].filmsId = x.id === subject.id ? undefined : x.id))}>
+                            {x.name || `Intervenant ${n + 1}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <CameraFrame projectId={doc.project.id} blobKey={c.frame} readOnly={readOnly} label={`Image du cadre ${c.name}`} onChange={(key) => editSetup((x) => void (x.cameras[k].frame = key))} />
                 </div>
               ))}

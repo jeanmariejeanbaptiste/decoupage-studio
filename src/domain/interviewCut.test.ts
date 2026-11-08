@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
-import { ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
+import { addInterviewee, ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
 import { addSequence, addShot, addShotAfter, deleteShot, duplicateShot, moveShot } from './ops';
 import { shotCode, shotNumberLabel } from './numbering';
 import { buildSequenceRows, sequenceMerges } from './rows';
@@ -134,5 +134,20 @@ describe('interview placée dans le découpage', () => {
     setSetupNumber(doc, setup.id, 2);
     expect(order(doc, seq)).toEqual(['1', '2A', '2B', '3']);
     expect(maxSetupNumber(doc, setup.id, seq)).toBe(3);
+  });
+
+  it('multicam : chaque caméra peut filmer un autre intervenant', () => {
+    const { doc, seq, setup } = project();
+    const paulId = addInterviewee(doc);
+    const paul = doc.interview!.subjects.find((x) => x.id === paulId)!;
+    paul.name = 'Paul Durand';
+    paul.role = 'technicien';
+    setup.cameras[1].filmsId = paulId;
+    placeSetup(doc, setup.id, seq);
+    syncInterviewShots(doc);
+    const [a, b] = setupShotIds(doc, setup.id);
+    expect(doc.shots[a].subject).toBe('Marie Dupont');
+    expect(doc.shots[b].subject).toBe('Paul Durand');
+    expect(doc.blocks[doc.shots[a].actionBlockId].text).toContain('Marie Dupont, directrice et Paul Durand, technicien');
   });
 });

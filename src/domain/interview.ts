@@ -19,6 +19,8 @@ export interface InterviewCamera {
   note?: string;
   /** Image du cadre (storyboard propre à l'interview, utile quand elle reste en annexe). */
   frame?: string;
+  /** Multicam : intervenant filmé par cette caméra (par défaut, celui du cadre). */
+  filmsId?: ID;
 }
 
 export interface InterviewQuestion {
@@ -192,7 +194,10 @@ export function findSetup(doc: ProjectDoc, setupId: ID): { subject: Interviewee;
 
 /** Action commune aux caméras d'un cadre : qui parle, à quel titre, où, son regard, ses questions. */
 export function interviewAction(subject: Pick<Interviewee, 'id' | 'name' | 'role'>, setup?: InterviewSetup, itw?: Interview): string {
-  const who = `Interview — ${subject.name.trim() || 'intervenant'}${subject.role.trim() ? `, ${subject.role.trim()}` : ''}`;
+  const label = (x: Pick<Interviewee, 'name' | 'role'>) => `${x.name.trim() || 'intervenant'}${x.role.trim() ? `, ${x.role.trim()}` : ''}`;
+  // Multicam : tous les intervenants filmés par les caméras du cadre.
+  const filmed = setup && itw ? [...new Set(setup.cameras.map((c) => c.filmsId ?? subject.id))].map((id) => itw.subjects.find((x) => x.id === id) ?? subject) : [subject];
+  const who = `Interview — ${filmed.map(label).join(' et ')}`;
   if (!setup) return who;
   const n = itw ? questionsFor(itw, subject.id, setup.id).length : 0;
   return [who, [setup.name.trim(), setup.place.trim()].filter(Boolean).join(', '), EYELINE_SHORT[setup.eyeline]?.toLocaleLowerCase('fr'), n ? `${n} question${n > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
@@ -206,18 +211,24 @@ function parseFocal(text: string): Shot['focal'] {
   return m[2] ? { from: num(m[1]), to: num(m[2]) } : { from: num(m[1]) };
 }
 
+/** Intervenant filmé par une caméra : celui choisi (multicam), sinon celui du cadre. */
+export function filmedBy(doc: ProjectDoc, subject: Interviewee, cam: InterviewCamera): Interviewee {
+  return (cam.filmsId && doc.interview?.subjects.find((x) => x.id === cam.filmsId)) || subject;
+}
+
 /** Champs d'un plan tirés d'une caméra de la fiche. */
-function cameraFields(subject: Interviewee, cam: InterviewCamera): Pick<Shot, 'subject' | 'value' | 'angle' | 'focal'> {
+function cameraFields(subject: Interviewee, cam: InterviewCamera, doc?: ProjectDoc): Pick<Shot, 'subject' | 'value' | 'angle' | 'focal'> {
+  const who = doc ? filmedBy(doc, subject, cam) : subject;
   return {
-    subject: subject.name.trim() || 'Intervenant',
+    subject: who.name.trim() || 'Intervenant',
     value: cam.value.trim(),
     angle: cam.angle.split(',').map((t) => t.trim()).filter(Boolean),
     focal: parseFocal(cam.focal),
   };
 }
 
-const cameraShot = (subject: Interviewee, setup: InterviewSetup, cam: InterviewCamera): Partial<Shot> => ({
-  ...cameraFields(subject, cam),
+const cameraShot = (subject: Interviewee, setup: InterviewSetup, cam: InterviewCamera, doc?: ProjectDoc): Partial<Shot> => ({
+  ...cameraFields(subject, cam, doc),
   movement: ['Fixe'],
   sound: setup.sound.trim() || undefined,
   interview: { subjectId: subject.id, setupId: setup.id, cameraId: cam.id },
@@ -286,7 +297,7 @@ export function placeSetup(doc: ProjectDoc, setupId: ID, seqId?: ID | 'new'): vo
   setup.sequenceId = target;
   let blockId: ID | undefined;
   for (const cam of setup.cameras) {
-    const id = addShot(doc, target, { blockId, action: { text: interviewAction(subject, setup, doc.interview) }, init: cameraShot(subject, setup, cam) });
+    const id = addShot(doc, target, { blockId, action: { text: interviewAction(subject, setup, doc.interview) }, init: cameraShot(subject, setup, cam, doc) });
     blockId ??= doc.shots[id].actionBlockId;
   }
 }
@@ -335,7 +346,7 @@ export function syncInterviewShots(doc: ProjectDoc): void {
       let moved = false;
       for (const cam of setup.cameras)
         if (!ids.some((id) => doc.shots[id].interview!.cameraId === cam.id)) {
-          addShot(doc, seqId, { blockId, index: doc.sequences[seqId].shotIds.indexOf(ids[ids.length - 1]) + 1, init: cameraShot(subject, setup, cam) });
+          addShot(doc, seqId, { blockId, index: doc.sequences[seqId].shotIds.indexOf(ids[ids.length - 1]) + 1, init: cameraShot(subject, setup, cam, doc) });
           moved = true;
         }
       const byCam = new Map(setupShotIds(doc, setup.id).map((id) => [doc.shots[id].interview!.cameraId, id]));
@@ -375,7 +386,7 @@ export function syncInterviewShots(doc: ProjectDoc): void {
       setup.cameras.forEach((cam, k) => {
         const sh = doc.shots[group[k]];
         if (!sh) return;
-        const f = cameraFields(subject, cam);
+        const f = cameraFields(subject, cam, doc);
         if (sh.subject !== f.subject) {
           sh.subject = f.subject;
           sh.characterIds = recognizeCharacters(f.subject, Object.values(doc.characters));
