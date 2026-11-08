@@ -33,6 +33,7 @@ import {
   type Span,
   TITLE_FIELDS,
 } from '../../domain/screenplay';
+import { SCRIPT_COLUMNS, SCRIPT_PAGE, paginateItems, plainText, titlePageLines } from '../../domain/scriptLayout';
 import { fold } from '../../domain/text';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { undo as appUndo, redo as appRedo } from '../../store/projectStore';
@@ -41,50 +42,72 @@ import m from '../../ui/Modal.module.css';
 import { commitScenario } from './ScriptReader';
 import s from './ScriptEditor.module.css';
 
-/** Géométrie de la page A4 à l'écran (96 px par pouce). */
-const MM = 96 / 25.4;
-export const PAGE = { w: 210 * MM, h: 297 * MM, top: 25 * MM, bottom: 22 * MM, left: 37 * MM, right: 22 * MM, gap: 28 };
-/** Hauteur d'une ligne : 12 pt, interligne 1,3. */
-const LINE = 12 * (96 / 72) * 1.3;
+/**
+ * Géométrie de la page à l'écran : celle du modèle imprimé (A4, Courier Prime 12 pt, interligne
+ * 12,1 pt, 58 lignes), convertie en pixels CSS (96 par pouce). L'écran montre les pages de l'export.
+ */
+/**
+ * Un point vaut un peu moins de 4/3 de pixel : une ligne (12,1 pt) fait alors 16 pixels tout rond.
+ * Hauteurs entières : les positions ne dérivent pas d'une page à l'autre, même sur un long scénario.
+ */
+const LINE = 16;
+const PT = LINE / SCRIPT_PAGE.lineH;
+/** Du haut d'une ligne à sa ligne de base : demi-interligne (négatif) plus le jambage haut de Courier Prime. */
+const BASELINE_IN_LINE = (SCRIPT_PAGE.lineH - (2300 / 2048) * SCRIPT_PAGE.fontSize) / 2 + (1600 / 2048) * SCRIPT_PAGE.fontSize;
+const PAGE_H = Math.round(SCRIPT_PAGE.h * PT);
+const TOP = Math.round((SCRIPT_PAGE.firstBaseline - BASELINE_IN_LINE) * PT);
+export const PAGE = {
+  w: Math.round(SCRIPT_PAGE.w * PT),
+  h: PAGE_H,
+  top: TOP,
+  bottom: PAGE_H - TOP - SCRIPT_PAGE.lines * LINE,
+  left: SCRIPT_COLUMNS.action.x * PT,
+  right: (SCRIPT_PAGE.w - SCRIPT_PAGE.right) * PT,
+  gap: 28,
+};
 const COMMIT_DELAY = 700;
 
-const DIALOGUE: ReadonlySet<BlockType> = new Set(['character', 'parenthetical', 'dialogue']);
+/** Ce que le scénario imprimé ignore prend tout de même sa place à l'écran, comme une action. */
+const pageType = (t: BlockType): BlockType => (t === 'note' || t === 'section' || t === 'synopsis' ? 'action' : t);
 
-/** Espace avant un bloc, en lignes de texte : rien dans une réplique, une ligne ailleurs, deux avant une séquence. */
-export function spacingBefore(prev: BlockType | undefined, cur: BlockType): number {
-  if (!prev) return 0;
-  if ((cur === 'dialogue' || cur === 'parenthetical') && DIALOGUE.has(prev)) return 0;
-  return cur === 'heading' ? LINE * 2 : LINE;
+interface EditorLayout {
+  margins: Record<string, number>;
+  /** Feuille de chaque bloc (0 = la première, page de titre comprise). */
+  pageOf: Record<string, number>;
+  /** Feuilles à l'écran, page de titre comprise. */
+  pages: number;
+  /** 1 s'il y a une page de titre (elle n'est ni numérotée ni comptée, comme à l'impression). */
+  offset: number;
 }
 
 /**
- * Pagination : chaque bloc garde sa hauteur ; celui qui dépasserait le bas de la page passe à la
- * suivante, avec ce qui doit rester groupé (en-tête et personnage avec la ligne qui suit).
+ * Pagination de l'éditeur : les règles de l'export (`paginateItems`), appliquées aux hauteurs
+ * mesurées des blocs. Chaque bloc reçoit l'espace au-dessus de lui, saut de page compris.
  */
-export function paginate(items: ReadonlyArray<{ id: string; type: BlockType; h: number }>, page = PAGE): { margins: Record<string, number>; pageOf: Record<string, number>; pages: number } {
-  const content = page.h - page.top - page.bottom;
-  const jump = page.bottom + page.gap + page.top;
+function editorLayout(items: ReadonlyArray<{ id: string; type: BlockType; h: number }>): EditorLayout {
   const margins: Record<string, number> = {};
   const pageOf: Record<string, number> = {};
-  let y = 0;
-  let p = 0;
-  let prev: BlockType | undefined;
-  items.forEach((it, i) => {
-    const next = items[i + 1];
-    let m = y === 0 ? 0 : spacingBefore(prev, it.type);
-    const keep = next && (it.type === 'heading' || it.type === 'character' || (it.type === 'parenthetical' && next.type === 'dialogue')) ? spacingBefore(it.type, next.type) + Math.min(next.h, LINE * 2) : 0;
-    const forced = prev === 'title' || prev === 'pagebreak';
-    if (y > 0 && (forced || y + m + it.h + keep > content)) {
-      margins[it.id] = content - y + jump;
-      p++;
-      y = 0;
-      m = 0;
-    } else margins[it.id] = m;
-    y += m + it.h;
-    pageOf[it.id] = p;
-    prev = it.type;
-  });
-  return { margins, pageOf, pages: p + 1 };
+  const title = items[0]?.type === 'title' ? items[0] : undefined;
+  const rest = title ? items.slice(1) : items;
+  const offset = title ? 1 : 0;
+  if (title) {
+    margins[title.id] = 0;
+    pageOf[title.id] = 0;
+  }
+  const lines = (h: number) => Math.max(1, Math.round(h / LINE));
+  const height = (it: { type: BlockType; h: number }) => (it.type === 'pagebreak' ? 0 : lines(it.h) * LINE);
+  const { at, pages } = paginateItems(rest.map((it) => ({ id: it.id, type: pageType(it.type), lines: it.type === 'pagebreak' ? 0 : lines(it.h) })));
+  const yOf = (p: { page: number; row: number }) => (p.page + offset) * (PAGE.h + PAGE.gap) + p.row * LINE;
+  // Bas du bloc précédent, dans le repère du texte (sans la marge haute de la première page).
+  let bottom = title ? SCRIPT_PAGE.lines * LINE : 0;
+  for (const it of rest) {
+    const p = at.get(it.id) ?? { page: 0, row: 0 };
+    pageOf[it.id] = p.page + offset;
+    const y = yOf(p);
+    margins[it.id] = Math.max(0, y - bottom);
+    bottom = y + height(it);
+  }
+  return { margins, pageOf, pages: pages + offset, offset };
 }
 
 // --- État partagé avec la barre d'outils et le panneau latéral -------------------------------
@@ -273,31 +296,30 @@ const Block = memo(function Block({ b, mt, n }: { b: SBlock; mt?: number; n?: nu
   return <div ref={ref} data-bid={b.id} data-type={b.type} data-n={n} data-empty={isEmptyBlock(b) || undefined} className={[s.b, s[`t_${b.type}`]].join(' ')} style={mt === undefined ? undefined : { marginTop: mt }} />;
 });
 
-/** Page de titre : mise en forme, non modifiable dans le texte (un clic ouvre ses champs). */
-const TitleBlock = memo(function TitleBlock({ b, mt, onEdit }: { b: SBlock; mt?: number; onEdit?: () => void }) {
+/** Page de titre : celle de l'export, ligne pour ligne ; non modifiable dans le texte (un clic ouvre ses champs). */
+const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit }: { b: SBlock; mt?: number; paged: boolean; onEdit?: () => void }) {
   const f = parseTitlePage(b.text);
-  const lines = (v?: string) => v?.split('\n').map((l, i) => <span key={i}>{l}</span>);
+  const lines = titlePageLines({ ...f, Title: f.Title || 'Sans titre' }, false);
   return (
     <div
       data-bid={b.id}
       data-type="title"
       contentEditable={false}
       className={[s.b, s.t_title, onEdit ? s.titleEditable : ''].join(' ')}
-      style={mt === undefined ? undefined : { marginTop: mt }}
+      style={{ marginTop: mt, height: paged ? SCRIPT_PAGE.lines * LINE : undefined }}
       onClick={onEdit}
       title={onEdit ? 'Modifier la page de titre' : undefined}
       data-testid="title-page"
     >
-      <p className={s.tpTitle}>{f.Title || 'Sans titre'}</p>
-      {f.Credit && <p>{f.Credit}</p>}
-      {f.Author && <p className={s.tpAuthor}>{lines(f.Author)}</p>}
-      {f.Source && <p>{lines(f.Source)}</p>}
-      {(f['Draft date'] || f.Contact) && (
-        <div className={s.tpFoot}>
-          {f.Contact && <p>{lines(f.Contact)}</p>}
-          {f['Draft date'] && <p>{f['Draft date']}</p>}
-        </div>
-      )}
+      {lines.map((l, i) => (
+        <span
+          key={i}
+          className={[s.tpLine, l.blockId === 'title:Title' ? s.tpTitle : '', l.align === 'center' ? s.tpCenter : ''].join(' ')}
+          style={paged ? { top: l.row * LINE } : undefined}
+        >
+          {plainText(l.text)}
+        </span>
+      ))}
     </div>
   );
 });
@@ -404,7 +426,17 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   const redoStack = useRef<Snapshot[]>([]);
   const lastTyping = useRef<{ id: string; at: number } | null>(null);
   const composing = useRef(false);
-  const [layout, setLayout] = useState<{ margins: Record<string, number>; pageOf: Record<string, number>; pages: number }>({ margins: {}, pageOf: {}, pages: 1 });
+  const [layout, setLayout] = useState<EditorLayout>({ margins: {}, pageOf: {}, pages: 1, offset: 0 });
+  // Police chargée après le premier rendu : les hauteurs changent, la pagination est refaite.
+  const [, setFontTick] = useState(0);
+  useEffect(() => {
+    const fonts = document.fonts;
+    if (!fonts) return;
+    const on = () => setFontTick((t) => t + 1);
+    fonts.addEventListener?.('loadingdone', on);
+    void fonts.ready.then(on);
+    return () => fonts.removeEventListener?.('loadingdone', on);
+  }, []);
   const [active, setActive] = useState<{ id: string; offset: number; top: number; left: number; height: number } | null>(null);
   const [pick, setPick] = useState(0);
   const [acClosed, setAcClosed] = useState<string | null>(null);
@@ -625,8 +657,8 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     }
     if (!paged) return;
     const items = Array.from(el.querySelectorAll<HTMLElement>('[data-bid]')).map((b) => ({ id: b.dataset.bid!, type: b.dataset.type as BlockType, h: b.offsetHeight }));
-    const next = paginate(items);
-    const same = next.pages === layout.pages && items.every((it) => Math.abs((next.margins[it.id] ?? 0) - (layout.margins[it.id] ?? 0)) < 0.5);
+    const next = editorLayout(items);
+    const same = next.pages === layout.pages && next.offset === layout.offset && items.every((it) => Math.abs((next.margins[it.id] ?? 0) - (layout.margins[it.id] ?? 0)) < 0.5);
     if (!same) setLayout(next);
   });
 
@@ -667,8 +699,9 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   // Plan, sommaire et nombre de pages : partagés avec la barre d'outils et le panneau.
   const numbers = useMemo(() => headingNumbers(sdoc.blocks), [sdoc.blocks]);
   useEffect(() => {
-    const outline: OutlineItem[] = sdoc.blocks.filter((b) => b.type === 'heading' && numbers.has(b.id)).map((b) => ({ id: b.id, n: numbers.get(b.id)!, text: b.text.toLocaleUpperCase('fr'), page: (layout.pageOf[b.id] ?? 0) + 1 }));
-    useScriptUi.setState({ outline, pages: layout.pages, blocks: sdoc.blocks });
+    // Numéros de page de l'impression : la page de titre ne compte pas.
+    const outline: OutlineItem[] = sdoc.blocks.filter((b) => b.type === 'heading' && numbers.has(b.id)).map((b) => ({ id: b.id, n: numbers.get(b.id)!, text: b.text.toLocaleUpperCase('fr'), page: Math.max(1, (layout.pageOf[b.id] ?? 0) + 1 - layout.offset) }));
+    useScriptUi.setState({ outline, pages: Math.max(1, layout.pages - layout.offset), blocks: sdoc.blocks });
   }, [sdoc.blocks, numbers, layout]);
   useEffect(() => {
     const blocks = sdoc.blocks;
@@ -823,12 +856,12 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   const label = activeBlock ? blockLabel(activeBlock.type) : '';
 
   return (
-    <div className={[s.stack, paged ? s.paged : s.flow].join(' ')} style={paged ? { height, width: PAGE.w } : undefined} data-testid="script-stack">
+    <div className={[s.stack, paged ? s.paged : s.flow].join(' ')} style={{ ['--pt' as string]: `${PT}px`, ...(paged ? { height, width: PAGE.w } : {}) }} data-testid="script-stack">
       {paged && (
         <div className={s.sheets} aria-hidden="true">
           {Array.from({ length: layout.pages }, (_, i) => (
             <div key={i} className={s.sheet} style={{ top: i * (PAGE.h + PAGE.gap), height: PAGE.h }}>
-              {i > 0 && <span className={s.pageNo}>{i + 1}.</span>}
+              {i + 1 - layout.offset > 1 && <span className={s.pageNo}>{i + 1 - layout.offset}.</span>}
             </div>
           ))}
         </div>
@@ -855,7 +888,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       >
         {sdoc.blocks.map((b) =>
           b.type === 'title' ? (
-            <TitleBlock key={b.id} b={b} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} onEdit={readOnly ? undefined : () => setTitleOpen(true)} />
+            <TitleBlock key={b.id} b={b} paged={paged} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} onEdit={readOnly ? undefined : () => setTitleOpen(true)} />
           ) : (
             <Block key={b.id} b={b} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} n={numbers.get(b.id)} />
           ),

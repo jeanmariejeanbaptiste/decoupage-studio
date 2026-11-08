@@ -28,6 +28,8 @@
   --font-display: var(--font-ui);
   --font-hand: var(--font-ui);
   --font-script: var(--font-ui);
+  /* Page du scénario (éditeur), au gabarit de l'export. */
+  --font-page: 'Courier Prime', 'Courier New', Courier, monospace;
   --font-mono: var(--font-ui);
   --font-export-title: var(--font-ui);
   --font-export: var(--font-ui);

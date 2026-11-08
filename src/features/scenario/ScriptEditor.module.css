@@ -10,48 +10,57 @@
   box-shadow: 0 1px 2px rgba(17, 19, 24, 0.05), 0 10px 30px rgba(17, 19, 24, 0.06);
 }
 :global(:root[data-theme='encre']) .sheet { --sheet: var(--paper-card); }
-.pageNo { position: absolute; top: 12mm; right: 18mm; font-size: 11pt; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+/* Numéro de page : en haut à droite, à partir de la deuxième page (ligne de base à 46,2 pt). */
+.pageNo {
+  position: absolute; top: calc(37.51 * var(--pt)); right: calc(48.08 * var(--pt));
+  font-family: var(--font-page); font-size: calc(12 * var(--pt)); line-height: 16px; color: var(--ink);
+}
 
+/* Page du scénario : la géométrie du modèle imprimé (Courier Prime 12 pt, interligne 12,1 pt). */
 .editor {
   position: relative;
   outline: none;
-  font-family: var(--font-script);
-  font-size: 12pt;
-  line-height: 1.3;
+  font-family: var(--font-page);
+  font-size: calc(12 * var(--pt));
+  line-height: 16px;
   color: var(--ink);
   caret-color: var(--ink);
+  font-variant-ligatures: none;
 }
 .flow .editor { padding: 8px 4px 40vh 24px; }
 .editor ::selection { background: rgba(17, 19, 24, 0.14); }
 :global(:root[data-theme='encre']) .editor ::selection { background: rgba(242, 243, 245, 0.22); }
 
-.b { position: relative; white-space: pre-wrap; overflow-wrap: break-word; min-height: 1.3em; }
-.t_heading { font-weight: 600; text-transform: uppercase; }
+.b { position: relative; white-space: pre-wrap; overflow-wrap: break-word; min-height: 16px; }
+.t_heading { text-transform: uppercase; }
+/* Numéro de séquence dans la marge, aligné à droite à 10 pt du texte, comme à l'impression. */
 .t_heading[data-n]::before {
-  content: attr(data-n);
-  position: absolute; left: -15mm; width: 10mm; text-align: right;
-  font-weight: 600; color: var(--ink-soft);
+  content: attr(data-n) '.';
+  position: absolute; right: calc(100% + 10 * var(--pt)); top: 0;
+  white-space: nowrap;
   pointer-events: none; user-select: none;
 }
-.t_character { margin-left: 56mm; text-transform: uppercase; }
-.t_parenthetical { margin-left: 40mm; max-width: 54mm; }
-.t_dialogue { margin-left: 25mm; max-width: 92mm; }
+/* Colonnes du modèle : retrait et largeur en caractères. */
+.t_character { margin-left: calc(144.4 * var(--pt)); width: calc(38ch + 0.5px); text-transform: uppercase; }
+.t_parenthetical { margin-left: calc(102 * var(--pt)); width: calc(26ch + 0.5px); }
+.t_dialogue { margin-left: calc(73.6 * var(--pt)); width: calc(35ch + 0.5px); }
 .t_transition { text-align: right; text-transform: uppercase; }
 .t_centered { text-align: center; }
+/* Notes, parties et résumés : aides à l'écriture, jamais imprimées. */
 .t_note { color: var(--ink-soft); font-style: italic; padding-left: 8px; border-left: 2px solid var(--rule); }
 .t_section, .t_synopsis { color: var(--ink-soft); }
-.t_section { font-weight: 600; }
-.t_title { text-align: center; color: var(--ink); padding-top: 70mm; min-height: 180mm; position: relative; user-select: none; }
-.t_title p { margin: 0 0 1.3em; white-space: pre-wrap; }
-.t_title span { display: block; }
+.t_section { font-weight: 700; }
+
+/* Page de titre : les lignes de l'export, à leur rang. */
+.t_title { position: relative; color: var(--ink); user-select: none; }
+.tpLine { position: absolute; left: 0; white-space: pre; }
+.tpCenter { right: 0; text-align: center; }
+.tpTitle { text-transform: uppercase; }
 .titleEditable { cursor: pointer; border-radius: 4px; }
 .titleEditable:hover { background: var(--hover); }
-.tpTitle { font-size: 16pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 2.6em !important; }
-.tpAuthor { margin-top: -0.6em !important; }
-.tpFoot { position: absolute; left: 0; bottom: 0; text-align: left; font-size: 11pt; color: var(--ink-soft); }
-.tpFoot p { margin: 0 0 0.4em; }
-.flow .t_title { padding-top: 24px; min-height: 0; }
-.flow .tpFoot { position: static; margin-top: 2em; }
+.flow .t_title { padding: 24px 0; }
+.flow .tpLine { position: static; display: block; white-space: pre-wrap; }
+.flow .tpTitle { margin-bottom: 16px; }
 .titleDialog { display: flex; flex-direction: column; gap: 10px; width: min(480px, 92vw); }
 .tdField { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-ui); }
 .tdField span { font-size: 11.5px; color: var(--ink-soft); }
@@ -59,10 +68,10 @@
 .t_pagebreak { height: 1px; min-height: 0; border-top: 1px dashed var(--rule); overflow: hidden; }
 
 /* Téléphone ou panneau étroit : retraits proportionnels, sans pages. */
-.flow .t_character { margin-left: 38%; }
-.flow .t_parenthetical { margin-left: 26%; max-width: 50%; }
-.flow .t_dialogue { margin-left: 16%; max-width: 70%; }
-.flow .t_heading[data-n]::before { left: auto; right: calc(100% + 6px); }
+.flow .t_character { margin-left: 38%; width: auto; }
+.flow .t_parenthetical { margin-left: 26%; width: auto; max-width: 50%; }
+.flow .t_dialogue { margin-left: 16%; width: auto; max-width: 70%; }
+.flow .t_heading[data-n]::before { right: calc(100% + 6px); }
 .flow .t_heading { margin-top: 18px; }
 .flow .t_action, .flow .t_character, .flow .t_transition, .flow .t_note, .flow .t_centered { margin-top: 12px; }
 .flow .t_heading:first-child, .flow .t_title + .b { margin-top: 0; }
@@ -84,10 +93,10 @@
 .b[data-empty][data-type='note']::after { content: 'Note'; left: 8px; }
 .b[data-empty][data-type='centered']::after { content: 'Texte centré'; left: 0; right: 0; text-align: center; }
 
-/* Type du bloc courant, dans la marge de gauche. */
+/* Type du bloc courant, dans la marge de gauche (avant les numéros de séquence). */
 .typeTag {
-  position: absolute; left: 6mm; width: 26mm;
-  font-family: var(--font-ui); font-size: 10.5px; line-height: 2.1;
+  position: absolute; left: 4mm; width: 18mm;
+  font-family: var(--font-ui); font-size: 10.5px; line-height: 16px;
   color: var(--ink-soft); letter-spacing: 0.04em;
   pointer-events: none; user-select: none;
 }

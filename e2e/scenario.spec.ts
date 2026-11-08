@@ -97,7 +97,8 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('dialog', { name: 'Page de titre' }).getByLabel('Auteur').fill('Nina Roy');
     await page.getByTestId('title-save').click();
     await expect(page.getByTestId('title-page')).toContainText('Nina Roy');
-    await expect(page.getByTestId('script-stack')).toHaveCSS('width', /^79\d/);
+    // Page A4 au gabarit du modèle (une ligne de 12,1 pt = 16 px).
+    await expect(page.getByTestId('script-stack')).toHaveCSS('width', /^78\d/);
     await page.getByRole('radio', { name: 'Découpage' }).click();
     await expect(page.getByTestId('scenario-cut')).toContainText('GARE');
     await page.getByRole('radio', { name: 'Scénario' }).click();
@@ -112,6 +113,42 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
     await expect(page.getByTestId('script-editor')).toContainText('Le soleil se lève.');
     await expect(page.getByTestId('title-page')).toHaveCount(0);
+  });
+
+  test('Final Draft : import fidèle, puis exports PDF, Word et Final Draft au gabarit du modèle', async ({ page }) => {
+    const { readFileSync } = await import('node:fs');
+    const { default: JSZip } = await import('jszip');
+    const fixture = (n: string) => readFileSync(new URL(`../src/domain/__fixtures__/kit/${n}`, import.meta.url));
+    await page.goto('/#/scenario?seed=fiction');
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: /^Importer/ }).click();
+    await (await chooser).setFiles({ name: 'modele.fdx', mimeType: 'application/xml', buffer: fixture('modele-complet.fdx') });
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
+    // Les 17 pages du modèle, à l'écran comme à l'export.
+    await expect(page.getByText('22 séquences · 17 pages')).toBeVisible();
+    await expect(page.getByTestId('script-editor')).toContainText('Sed rhoncus convallis mollis.');
+    const exportAs = async (format: string) => {
+      const dl = page.waitForEvent('download', { timeout: 30_000 });
+      await page.getByTestId('tab-export').click();
+      await page.getByTestId('tab-export-panel').getByText(format, { exact: true }).click();
+      await page.getByTestId('tab-export-go').click();
+      const d = await dl;
+      return { name: d.suggestedFilename(), buf: readFileSync(await d.path()) };
+    };
+    const pdf = await exportAs('PDF');
+    expect(pdf.name).toBe('La Consigne.pdf');
+    const { PDFDocument } = await import('pdf-lib');
+    const parsed = await PDFDocument.load(pdf.buf);
+    expect(parsed.getPageCount()).toBe(17);
+    expect(parsed.getPage(0).getSize()).toEqual({ width: 595.28, height: 841.89 });
+    const word = await exportAs('Word');
+    expect(word.name).toBe('La Consigne.docx');
+    const zip = await JSZip.loadAsync(word.buf);
+    expect(await zip.file('word/document.xml')!.async('string')).toContain('LOR. LOREM IPSUM DOLOR - ELIT');
+    expect(zip.file('word/fonts/font1.odttf')).toBeTruthy();
+    const fdx = await exportAs('Final Draft');
+    expect(fdx.name).toBe('La Consigne.fdx');
+    expect(fdx.buf.toString('utf8')).toContain('<Paragraph Number="1" Type="Scene Heading"><Text>LOR. LOREM IPSUM DOLOR - ELIT</Text></Paragraph>');
   });
 
   test('l’inspecteur montre le passage lié', async ({ page }) => {
