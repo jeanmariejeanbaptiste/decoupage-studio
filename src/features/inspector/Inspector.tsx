@@ -12,6 +12,8 @@ import type { ID, ProjectDoc, ShotStatus } from '../../domain/types';
 import { computeTiming } from '../../domain/timing';
 import { isZoom } from '../../domain/vocabulary';
 import { putBlob } from '../../store/db';
+import { cropStyle, removeFrame, setFrame } from '../../domain/keyframes';
+import { aspectRatio } from '../../domain/aspect';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
@@ -55,7 +57,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
   const dropImage = async (file: File | undefined) => {
     if (!file || !file.type.startsWith('image/')) return;
     const key = await putBlob(doc.project.id, file.name, file);
-    update((d) => void (d.shots[shot.id].storyboard = { blobKey: key }));
+    update((d) => setFrame(d, shot.id, 0, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined, baseCrop: undefined, baseFit: undefined, sketchAspect: undefined }));
   };
 
   return (
@@ -85,8 +87,8 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
       >
         {thumb ? (
           <>
-            <img src={thumb} alt={`Storyboard du plan ${shotCode(doc, shot.id)}`} />
-            <Button variant="icon" size="sm" className={s.thumbDel} aria-label="Retirer la vignette" icon={<Trash2 size={13} />} onClick={() => update((d) => void (d.shots[shot.id].storyboard = undefined))} />
+            <img src={thumb} alt={`Storyboard du plan ${shotCode(doc, shot.id)}`} style={{ aspectRatio: String(aspectRatio(doc.project.settings.storyboardAspect)), ...(shot.storyboard ? cropStyle(shot.storyboard) : {}) }} />
+            <Button variant="icon" size="sm" className={s.thumbDel} aria-label="Retirer la vignette" icon={<Trash2 size={13} />} onClick={() => update((d) => removeFrame(d, shot.id, 0))} />
           </>
         ) : (
           <label className={s.thumbEmpty}>

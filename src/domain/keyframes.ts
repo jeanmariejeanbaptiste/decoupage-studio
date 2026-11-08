@@ -25,7 +25,18 @@ export interface Frame {
   blobKey?: string;
   baseKey?: string;
   sketch?: SketchItem[];
+  /** Cadrage de l'image d'origine sous le dessin (le dessin enregistré l'intègre déjà). */
+  baseFit?: 'cover' | 'contain';
+  baseCrop?: Crop;
+  /** Format (largeur / hauteur) dans lequel le dessin a été fait. */
+  sketchAspect?: number;
   note?: string;
+}
+
+/** Transformation SVG équivalente au cadrage CSS d'une image (centre, décalage, rotation, zoom). */
+export function cropTransform(c: Crop | undefined, w: number, h: number): string {
+  const k = c ?? NO_CROP;
+  return `translate(${w / 2 + (k.x / 100) * w} ${h / 2 + (k.y / 100) * h}) rotate(${k.rot}) scale(${k.zoom}) translate(${-w / 2} ${-h / 2})`;
 }
 
 /** Toutes les keyframes d'un plan, dans l'ordre ; la première existe toujours (éventuellement vide). */
@@ -58,7 +69,9 @@ export function removeFrame(doc: ProjectDoc, shotId: string, index: number): voi
     shot.keyframes = shot.keyframes?.filter((_, i) => i !== index - 1);
   } else if (shot.keyframes?.length) {
     const [first, ...rest] = shot.keyframes;
-    shot.storyboard = first.blobKey ? { blobKey: first.blobKey, baseKey: first.baseKey, sketch: first.sketch, note: first.note, fit: first.fit, crop: first.crop } : undefined;
+    const { id: _id, ...rest0 } = first;
+    void _id;
+    shot.storyboard = first.blobKey ? (rest0 as Shot['storyboard']) : undefined;
     shot.keyframes = rest;
   } else shot.storyboard = undefined;
   if (shot.keyframes && !shot.keyframes.length) delete shot.keyframes;

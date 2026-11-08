@@ -1,6 +1,6 @@
-import { framesOf, setFrame } from '../../domain/keyframes';
+import { cropTransform, framesOf, setFrame } from '../../domain/keyframes';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { ArrowUpRight, Box, Pencil, MousePointer2, Trash2, Type, Undo2, X } from 'lucide-react';
+import { ArrowUpRight, Box, Pencil, MousePointer2, Redo2, Trash2, Type, Undo2, X } from 'lucide-react';
 import { aspectRatio } from '../../domain/aspect';
 import { newId } from '../../domain/factory';
 import { shotCode } from '../../domain/numbering';
@@ -9,28 +9,69 @@ import type { ID, ProjectDoc } from '../../domain/types';
 import { getBlob, putBlob } from '../../store/db';
 import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
+import { ask } from '../../ui/dialogStore';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import s from './SketchEditor.module.css';
 
 type Tool = 'pen' | 'arrow' | 'arrow3d' | 'text' | 'select';
 type P = [number, number];
-const COLORS = ['#1d1b18', '#c0392b', '#2c5d8a', '#2f8f4e', '#e0a020', '#ffffff'];
+/** Noirs, gris et blanc seulement (charte de l'outil). */
+const COLORS = ['#111318', '#4a4f57', '#8a9099', '#c4c8ce', '#ffffff'];
 
 /** Dessin sur une case de storyboard : crayon, texte, flèches 2D et flèches en fausse 3D. */
 export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: ProjectDoc; shotId: ID; frame?: number; onClose: () => void }) {
   const shot = doc.shots[shotId];
   const sb = shot ? framesOf(shot)[frame] : undefined;
   const baseKey = sb?.sketch ? sb.baseKey : sb?.blobKey;
+  // Cadrage de l'image d'origine, tel qu'affiché sur la carte : le dessin se pose exactement dessus.
+  const baseFit = (sb?.sketch ? sb.baseFit : sb?.fit) ?? 'cover';
+  const baseCrop = sb?.sketch ? sb.baseCrop : sb?.crop;
   const baseUrl = useBlobUrl(baseKey);
-  const H = Math.round(SKETCH_W / aspectRatio(doc.project.settings.storyboardAspect));
-  const [items, setItems] = useState<SketchItem[]>(sb?.sketch ?? []);
+  const aspect = sb?.sketch && sb.sketchAspect ? sb.sketchAspect : aspectRatio(doc.project.settings.storyboardAspect);
+  const H = Math.round(SKETCH_W / aspect);
+  const [items, setItemsRaw] = useState<SketchItem[]>(sb?.sketch ?? []);
+  // Historique propre au dessin : ⌘Z annule le dernier trait, pas une modification du projet.
+  const past = useRef<SketchItem[][]>([]);
+  const future = useRef<SketchItem[][]>([]);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const dirty = useRef(false);
+  const setItems = (next: SketchItem[] | ((l: SketchItem[]) => SketchItem[]), record = true) => {
+    const value = typeof next === 'function' ? next(itemsRef.current) : next;
+    if (value === itemsRef.current) return;
+    if (record) {
+      past.current.push(itemsRef.current);
+      future.current = [];
+    }
+    dirty.current = true;
+    itemsRef.current = value;
+    setItemsRaw(value);
+  };
+  const undoStroke = () => {
+    const prev = past.current.pop();
+    if (!prev) return;
+    future.current.push(itemsRef.current);
+    setItems(prev, false);
+  };
+  const redoStroke = () => {
+    const nxt = future.current.pop();
+    if (!nxt) return;
+    past.current.push(itemsRef.current);
+    setItems(nxt, false);
+  };
   const [tool, setTool] = useState<Tool>('pen');
-  const [color, setColor] = useState(COLORS[1]);
+  const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(5);
   const [preset, setPreset] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<SketchItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [textDraft, setTextDraft] = useState<{ at: P; x: number; y: number; value: string } | null>(null);
+  const commitText = () => {
+    const t = textDraft?.value.trim();
+    if (textDraft && t) setItems((l) => [...l, { id: newId(), kind: 'text', at: textDraft.at, text: t, color, size: 34 }]);
+    setTextDraft(null);
+  };
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ id: string; from: P; orbit?: boolean } | null>(null);
   const selRef = useRef<string | null>(null);
@@ -57,23 +98,49 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
               ? { roll: clamp(it.roll + (e.deltaY || e.deltaX) * 0.4) }
               : { yaw: clamp(it.yaw + e.deltaX * 0.4), pitch: clamp(it.pitch + e.deltaY * 0.4) };
         return l.map((i) => (i.id === id ? ({ ...i, ...patch } as SketchItem) : i));
-      });
+      }, false);
     };
     svg.addEventListener('wheel', onWheel, { passive: false });
     return () => svg.removeEventListener('wheel', onWheel);
   }, []);
 
+  const close = async () => {
+    if (dirty.current) {
+      const r = await ask({ title: 'Abandonner ce dessin ?', body: 'Les traits ajoutés depuis l’ouverture ne seront pas enregistrés.', confirmLabel: 'Abandonner' });
+      if (!r.ok) return;
+    }
+    onClose();
+  };
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !(e.target instanceof HTMLInputElement)) {
-        setItems((l) => l.filter((i) => i.id !== selected));
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y') && !typing) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'y' || e.key === 'Y' || e.shiftKey) redoStroke();
+        else undoStroke();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        if (typing) return;
+        if (selRef.current) setSelected(null);
+        else void closeRef.current();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selRef.current && !typing) {
+        const id = selRef.current;
+        setItems((l) => l.filter((i) => i.id !== id));
         setSelected(null);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selected, onClose]);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pt = (e: { clientX: number; clientY: number }): P => {
     const m = svgRef.current!.getScreenCTM()!.inverse();
@@ -95,17 +162,25 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
       setSelected(it.id);
       setTool('select');
     } else if (tool === 'text') {
-      const text = window.prompt('Texte à poser sur l’image')?.trim();
-      if (text) setItems((l) => [...l, { id: newId(), kind: 'text', at: p, text, color, size: 34 }]);
+      const m = svgRef.current!.getScreenCTM()!;
+      const box = svgRef.current!.parentElement!.getBoundingClientRect();
+      const sp = new DOMPoint(p[0], p[1]).matrixTransform(m);
+      setTextDraft({ at: p, x: sp.x - box.left, y: sp.y - box.top, value: '' });
     } else {
       const orbit = (e.target as Element).closest('[data-orbit]')?.getAttribute('data-orbit');
       if (orbit) {
+        past.current.push(itemsRef.current);
+        future.current = [];
         drag.current = { id: orbit, from: p, orbit: true };
         return;
       }
       const hit = (e.target as Element).closest('[data-sketch]')?.getAttribute('data-sketch');
       setSelected(hit ?? null);
-      if (hit) drag.current = { id: hit, from: p, orbit: e.shiftKey && items.find((i) => i.id === hit)?.kind === 'arrow3d' };
+      if (hit) {
+        past.current.push(itemsRef.current);
+        future.current = [];
+        drag.current = { id: hit, from: p, orbit: e.shiftKey && items.find((i) => i.id === hit)?.kind === 'arrow3d' };
+      }
     }
   };
   const move = (e: PointerEvent<SVGSVGElement>) => {
@@ -116,7 +191,8 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
       const d = drag.current;
       const [dx, dy] = [p[0] - d.from[0], p[1] - d.from[1]];
       d.from = p;
-      setItems((l) =>
+      setItems(
+        (l) =>
         l.map((i) => {
           if (i.id !== d.id) return i;
           // Orbite : glisser horizontalement fait tourner, verticalement incline.
@@ -126,6 +202,7 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
           if (i.kind === 'arrow') return { ...i, from: t(i.from), to: t(i.to) };
           return { ...i, at: t(i.at) };
         }),
+        false,
       );
     }
   };
@@ -138,31 +215,54 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
   const save = async () => {
     setSaving(true);
     try {
-      const svg = svgRef.current!.cloneNode(true) as SVGSVGElement;
-      svg.querySelectorAll('.no-image').forEach((n) => n.remove());
-      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svg.setAttribute('width', String(SKETCH_W * 2));
-      svg.setAttribute('height', String(H * 2));
-      const img = svg.querySelector('image');
-      if (img && baseKey) {
-        const blob = await getBlob(baseKey);
-        if (blob) img.setAttribute('href', await toDataUrl(blob));
-      }
-      const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
-      const im = new Image();
-      await new Promise<void>((ok, ko) => {
-        im.onload = () => ok();
-        im.onerror = () => ko(new Error('Rendu impossible'));
-        im.src = url;
-      });
+      const W2 = SKETCH_W * 2;
+      const H2 = H * 2;
       const canvas = document.createElement('canvas');
-      canvas.width = SKETCH_W * 2;
-      canvas.height = H * 2;
-      canvas.getContext('2d')!.drawImage(im, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
+      canvas.width = W2;
+      canvas.height = H2;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W2, H2);
+      // 1. L'image d'origine, peinte directement (Safari omet les images imbriquées dans un SVG).
+      const blob = baseKey ? await getBlob(baseKey) : undefined;
+      if (blob) {
+        const img = await loadImage(URL.createObjectURL(blob), true);
+        const c = baseCrop ?? { zoom: 1, x: 0, y: 0, rot: 0 };
+        const k = (baseFit === 'contain' ? Math.min : Math.max)(W2 / img.naturalWidth, H2 / img.naturalHeight);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, W2, H2);
+        ctx.clip();
+        ctx.translate(W2 / 2 + (c.x / 100) * W2, H2 / 2 + (c.y / 100) * H2);
+        ctx.rotate((c.rot * Math.PI) / 180);
+        ctx.scale(c.zoom, c.zoom);
+        ctx.drawImage(img, (-img.naturalWidth * k) / 2, (-img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+        ctx.restore();
+      }
+      // 2. Les traits et flèches (SVG sans image ni texte).
+      const svg = svgRef.current!.cloneNode(true) as SVGSVGElement;
+      svg.querySelectorAll('.no-image, image, text, [data-base]').forEach((n) => n.remove());
+      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svg.setAttribute('width', String(W2));
+      svg.setAttribute('height', String(H2));
+      const strokes = await loadImage(URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' })), true);
+      ctx.drawImage(strokes, 0, 0, W2, H2);
+      // 3. Les textes, avec la police de l'application.
+      await document.fonts.ready;
+      for (const it of items) {
+        if (it.kind !== 'text') continue;
+        ctx.font = `700 ${it.size * 2}px "Inter Variable", Inter, sans-serif`;
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.strokeText(it.text, it.at[0] * 2, it.at[1] * 2);
+        ctx.fillStyle = it.color;
+        ctx.fillText(it.text, it.at[0] * 2, it.at[1] * 2);
+      }
       const png = await new Promise<Blob>((ok, ko) => canvas.toBlob((b) => (b ? ok(b) : ko(new Error('Rendu impossible'))), 'image/png'));
       const key = await putBlob(doc.project.id, `dessin-${shotCode(doc, shotId)}.png`, png);
-      mutateDoc((d) => setFrame(d, shotId, frame, { blobKey: key, baseKey, sketch: items }));
+      // Le dessin enregistré intègre déjà le cadrage : la carte l'affiche tel quel.
+      mutateDoc((d) => setFrame(d, shotId, frame, { blobKey: key, baseKey, sketch: items, baseCrop, baseFit, sketchAspect: aspect, crop: undefined, fit: undefined }));
       onClose();
     } finally {
       setSaving(false);
@@ -211,8 +311,9 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
             Épaisseur
             <input type="range" min={2} max={18} value={width} onChange={(e) => setWidth(Number(e.target.value))} />
           </label>
-          <Button variant="icon" aria-label="Annuler le dernier élément" icon={<Undo2 size={16} />} onClick={() => setItems((l) => l.slice(0, -1))} />
-          <Button variant="icon" aria-label="Fermer sans enregistrer" icon={<X size={18} />} onClick={onClose} />
+          <Button variant="icon" aria-label="Annuler (⌘Z)" title="Annuler (⌘Z)" icon={<Undo2 size={16} />} onClick={undoStroke} />
+          <Button variant="icon" aria-label="Rétablir (⇧⌘Z)" title="Rétablir (⇧⌘Z)" icon={<Redo2 size={16} />} onClick={redoStroke} />
+          <Button variant="icon" aria-label="Fermer sans enregistrer" icon={<X size={18} />} onClick={() => void close()} />
         </header>
         {(tool === 'arrow3d' || sel?.kind === 'arrow3d') && (
           <div className={s.presets}>
@@ -242,7 +343,7 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
                 {ARROW3D_PRESETS.map((p, i) => (
                   <button key={p.label} type="button" className={preset === i ? s.on : ''} onClick={() => setPreset(i)}>
                     <svg viewBox="-0.7 -0.6 1.4 1.2" width="34" height="28" aria-hidden="true">
-                      <Arrow3D yaw={p.yaw} pitch={p.pitch} roll={p.roll} color="#c0392b" size={1} at={[0, 0]} />
+                      <Arrow3D yaw={p.yaw} pitch={p.pitch} roll={p.roll} color="#4a4f57" size={1} at={[0, 0]} />
                     </svg>
                     {p.label}
                   </button>
@@ -251,10 +352,30 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
             )}
           </div>
         )}
-        <div className={s.stage}>
+        <div className={s.stage} style={{ position: 'relative' }}>
+          {textDraft && (
+            <input
+              className={s.textInput}
+              style={{ left: textDraft.x, top: textDraft.y - 18, color }}
+              autoFocus
+              value={textDraft.value}
+              placeholder="Texte"
+              aria-label="Texte à poser sur l’image"
+              onChange={(e) => setTextDraft({ ...textDraft, value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitText();
+                if (e.key === 'Escape') setTextDraft(null);
+              }}
+              onBlur={commitText}
+            />
+          )}
           <svg ref={svgRef} viewBox={`0 0 ${SKETCH_W} ${H}`} className={[s.canvas, tool !== 'select' ? s.drawing : ''].join(' ')} onPointerDown={down} onPointerMove={move} onPointerUp={up} data-testid="sketch-canvas">
             <rect width={SKETCH_W} height={H} fill="#ffffff" />
-            {baseUrl && <image href={baseUrl} width={SKETCH_W} height={H} preserveAspectRatio="xMidYMid meet" />}
+            {baseUrl && (
+              <g data-base transform={cropTransform(baseCrop, SKETCH_W, H)}>
+                <image href={baseUrl} width={SKETCH_W} height={H} preserveAspectRatio={baseFit === 'contain' ? 'xMidYMid meet' : 'xMidYMid slice'} />
+              </g>
+            )}
             {[...items, ...(draft ? [draft] : [])].map((i) => (
               <g key={i.id} data-sketch={i.id} className={i.id === selected ? s.sel : undefined}>
                 <SketchShape item={i} />
@@ -263,8 +384,8 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
             {sel && <SelectionBox item={sel} />}
             {sel?.kind === 'arrow3d' && (
               <g className="no-image" data-orbit={sel.id} style={{ cursor: 'grab' }}>
-                <circle cx={sel.at[0]} cy={sel.at[1] - sel.size * 0.62} r={13} fill="#ffffff" stroke="#2c5d8a" strokeWidth={2} />
-                <path d={`M ${sel.at[0] - 6} ${sel.at[1] - sel.size * 0.62 - 2} a 6 6 0 1 1 3 7`} fill="none" stroke="#2c5d8a" strokeWidth={2} />
+                <circle cx={sel.at[0]} cy={sel.at[1] - sel.size * 0.62} r={13} fill="#ffffff" stroke="#111318" strokeWidth={2} />
+                <path d={`M ${sel.at[0] - 6} ${sel.at[1] - sel.size * 0.62 - 2} a 6 6 0 1 1 3 7`} fill="none" stroke="#111318" strokeWidth={2} />
               </g>
             )}
           </svg>
@@ -275,8 +396,8 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
               Supprimer l’élément
             </Button>
           )}
-          <span>Dessinez directement, ou sur l’image importée ; le dessin reste modifiable.</span>
-          <Button variant="ghost" onClick={() => (setItems([]), setSelected(null))}>
+          <span />
+          <Button variant="ghost" onClick={() => (setItems([]), setSelected(null))} disabled={!items.length}>
             Tout effacer
           </Button>
           <Button variant="primary" disabled={saving} onClick={() => void save()} data-testid="sketch-save">
@@ -324,14 +445,21 @@ function SelectionBox({ item }: { item: SketchItem }) {
   const pts: P[] = item.kind === 'pen' ? item.points : item.kind === 'arrow' ? [item.from, item.to] : item.kind === 'arrow3d' ? [[item.at[0] - item.size * 0.6, item.at[1] - item.size * 0.5], [item.at[0] + item.size * 0.6, item.at[1] + item.size * 0.5]] : [item.at, [item.at[0] + item.text.length * item.size * 0.5, item.at[1] - item.size]];
   const xs = pts.map((p) => p[0]);
   const ys = pts.map((p) => p[1]);
-  return <rect className="no-image" x={Math.min(...xs) - 8} y={Math.min(...ys) - 8} width={Math.max(...xs) - Math.min(...xs) + 16} height={Math.max(...ys) - Math.min(...ys) + 16} fill="none" stroke="#2c5d8a" strokeDasharray="6 4" strokeWidth={1.5} pointerEvents="none" />;
+  return <rect className="no-image" x={Math.min(...xs) - 8} y={Math.min(...ys) - 8} width={Math.max(...xs) - Math.min(...xs) + 16} height={Math.max(...ys) - Math.min(...ys) + 16} fill="none" stroke="#4a4f57" strokeDasharray="6 4" strokeWidth={1.5} pointerEvents="none" />;
 }
 
-function toDataUrl(blob: Blob): Promise<string> {
-  return new Promise((ok, ko) => {
-    const r = new FileReader();
-    r.onload = () => ok(String(r.result));
-    r.onerror = () => ko(r.error);
-    r.readAsDataURL(blob);
-  });
+/** Charge une image et attend son décodage (libère l'adresse temporaire ensuite si demandé). */
+async function loadImage(url: string, revoke = false): Promise<HTMLImageElement> {
+  const img = new Image();
+  try {
+    await new Promise<void>((ok, ko) => {
+      img.onload = () => ok();
+      img.onerror = () => ko(new Error('Rendu impossible'));
+      img.src = url;
+    });
+    await img.decode().catch(() => undefined);
+    return img;
+  } finally {
+    if (revoke) setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
 }
