@@ -228,5 +228,5 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Plan au sol : barre unique, palette d'outils verticale, raccourcis, vues renommées sur place et dupliquées proprement, plan à pleine hauteur, gestes annulables d'un coup, nombreuses corrections.
 - Google Drive (store/cloud.ts) : connexion facultative, synchronisation projet par projet (le plus récent l'emporte), suppressions propagées entre appareils ; dormante tant que la variable de dépôt GOOGLE_CLIENT_ID n'est pas renseignée.
 - Charte : plus aucune couleur dans les pages de travail (storyboard, dépouillement, plan au sol, sélection, contrôles natifs) ; l'accueil et le panneau de partage gardent leur ambiance d'après le moodboard.
-- Tests : 294 tests unitaires, 84 parcours de bout en bout (Chromium).
+- Tests : 294 tests unitaires, 83 parcours de bout en bout (Chromium).
 
