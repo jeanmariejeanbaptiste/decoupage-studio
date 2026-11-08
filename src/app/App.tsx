@@ -29,7 +29,7 @@ import { Sidebar } from '../features/shell/Sidebar';
 import { Topbar } from '../features/shell/Topbar';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { useIsMobile } from '../ui/useIsMobile';
-import { lastProjectId, openDoc, openStoredProject, saveToFile, startAutosave } from '../store/persistence';
+import { lastProjectId, openDoc, openStoredProject, pruneOrphanBlobs, saveToFile, startAutosave } from '../store/persistence';
 import { cloudForget, cloudRestore, preloadGoogle, startCloudPush, useCloud } from '../store/cloud';
 import { setHomeHooks } from '../store/homeHistory';
 import { AccountButton } from '../features/shell/Account';
@@ -96,7 +96,11 @@ export function App() {
     const stopCloud = startCloudPush();
     setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => void cloudRestore(id) });
     if (useCloud.getState().enabled && useCloud.getState().user) void preloadGoogle().catch(() => undefined);
-    void boot().finally(() => setBooted(true));
+    void boot().finally(() => {
+      setBooted(true);
+      // Ménage discret : images et sons qui ne servent plus à aucun projet.
+      setTimeout(() => void pruneOrphanBlobs().catch(() => undefined), 1500);
+    });
     return () => {
       stop();
       stopCloud();

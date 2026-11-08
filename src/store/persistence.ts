@@ -280,3 +280,21 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Images et sons que plus aucun projet n'utilise (remplacés, effacés) : retirés du navigateur.
+ * Lancé au démarrage, quand l'historique d'annulation ne peut plus les réclamer ; les états encore
+ * annulables du projet ouvert sont tout de même consultés.
+ */
+export async function pruneOrphanBlobs(): Promise<number> {
+  const keep = new Set<string>();
+  for (const p of await db.projects.toArray()) for (const k of mediaKeys(p.doc)) keep.add(k);
+  const st = useProjectStore.getState();
+  const t = useProjectStore.temporal.getState();
+  for (const d of [st.doc, ...t.pastStates.map((s) => s.doc), ...t.futureStates.map((s) => s.doc)]) if (d) for (const k of mediaKeys(d)) keep.add(k);
+  const keys = (await db.blobs.toCollection().primaryKeys()) as string[];
+  const dead = keys.filter((k) => !keep.has(k));
+  if (dead.length) await db.blobs.bulkDelete(dead);
+  return dead.length;
+}
+
