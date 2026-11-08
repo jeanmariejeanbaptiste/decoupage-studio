@@ -11,6 +11,8 @@ export interface EquipmentItem {
 export interface EquipmentLine extends EquipmentItem {
   shotIds: ID[];
   manual: boolean;
+  /** Projecteurs d'un même modèle sur un plan au sol : nombre le plus élevé d'une séquence. */
+  count?: number;
 }
 
 export const EQUIPMENT_CATEGORIES: readonly EquipmentCategory[] = ['Image', 'Machinerie', 'Lumière', 'Son'];
@@ -109,6 +111,29 @@ export function aggregateEquipment(doc: ProjectDoc): Record<EquipmentCategory, E
         if (!line.shotIds.includes(shotId)) line.shotIds.push(shotId);
         byKey.set(item.key, line);
       }
+    }
+  }
+  // Projecteurs posés sur les plans au sol avec leur modèle : ils rejoignent la liste Lumière.
+  for (const [key, plan] of Object.entries(doc.floorPlans ?? {})) {
+    const seqId = plan.seqId ?? key;
+    const seq = doc.sequences[seqId];
+    if (!seq) continue;
+    const counts = new Map<string, { label: string; n: number }>();
+    for (const it of plan.items) {
+      if (it.kind !== 'light' || !it.model?.trim()) continue;
+      const specs = [it.watts ? `${it.watts} W` : '', it.kelvin ? `${it.kelvin} K` : ''].filter(Boolean).join(', ');
+      const label = `${it.model.trim()}${specs ? ` (${specs})` : ''}`;
+      const c = counts.get(label) ?? { label, n: 0 };
+      c.n++;
+      counts.set(label, c);
+    }
+    for (const c of counts.values()) {
+      const lineKey = `plan-light:${fold(c.label)}`;
+      const line = byKey.get(lineKey) ?? { key: lineKey, category: 'Lumière', label: c.label, shotIds: [], manual: false, count: 0 };
+      line.count = Math.max(line.count ?? 0, c.n);
+      line.label = line.count > 1 ? `${c.label} ×${line.count}` : c.label;
+      for (const id of seq.shotIds) if (!line.shotIds.includes(id)) line.shotIds.push(id);
+      byKey.set(lineKey, line);
     }
   }
   for (const m of doc.manualEquipment) {

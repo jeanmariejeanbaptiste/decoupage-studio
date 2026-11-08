@@ -11,7 +11,18 @@ export interface Point {
 export type FloorItem =
   | { id: ID; kind: 'camera'; x: number; y: number; rot: number; shotIds: ID[]; label?: string; beat?: number }
   | { id: ID; kind: 'actor'; x: number; y: number; characterId?: ID; label: string; to?: Point; beat?: number; rot?: number }
-  | { id: ID; kind: 'wall' | 'rail'; x: number; y: number; x2: number; y2: number; /** Mur blanc : renvoie un peu de lumière. */ white?: boolean }
+  | {
+      id: ID;
+      kind: 'wall' | 'rail';
+      x: number;
+      y: number;
+      x2: number;
+      y2: number;
+      /** Mur blanc : renvoie un peu de lumière. */
+      white?: boolean;
+      /** Mur tracé depuis les dimensions de la pièce (remplacé si elles changent). */
+      room?: boolean;
+    }
   | { id: ID; kind: 'door' | 'window'; x: number; y: number; rot: number; width: number }
   | {
       id: ID;
@@ -26,6 +37,10 @@ export type FloorItem =
       power?: number;
       /** Lumière de jeu (lampe visible dans le champ) : rayonne tout autour. */
       practical?: boolean;
+      /** Projecteur réel : modèle, puissance électrique (W), température de couleur (K). */
+      model?: string;
+      watts?: number;
+      kelvin?: number;
     }
   | { id: ID; kind: 'reflector' | 'diffuser' | 'flag'; x: number; y: number; x2: number; y2: number; label?: string };
 
@@ -47,6 +62,68 @@ export interface FloorPlan {
   bg?: { blobKey: string; opacity: number; x: number; y: number; w: number; ratio?: number };
   /** Épaisseur des traits (murs, rails, portes, fenêtres, réflecteurs…) : multiplicateur, 1 par défaut. */
   stroke?: number;
+  /** Dimensions réelles de la pièce, en mètres (1 unité du plan = 1 cm). */
+  room?: Room;
+}
+
+export interface Room {
+  w: number;
+  l: number;
+  h?: number;
+}
+
+/** Gabarits de pièce (largeur × longueur × hauteur, en mètres). */
+export const ROOM_PRESETS: ReadonlyArray<{ label: string; room: Room }> = [
+  { label: 'Petite pièce', room: { w: 5, l: 6, h: 2.5 } },
+  { label: 'Pièce moyenne', room: { w: 6, l: 7.5, h: 3 } },
+  { label: 'Grande pièce', room: { w: 8, l: 10, h: 5 } },
+];
+
+/** Superficie (m²) et volume (m³) d'une pièce. */
+export function roomSize(r: Room): { area: number; volume?: number } {
+  const area = Math.round(r.w * r.l * 100) / 100;
+  return { area, volume: r.h ? Math.round(area * r.h * 10) / 10 : undefined };
+}
+
+/**
+ * Pose (ou remplace) les quatre murs de la pièce aux dimensions données, coin en haut à gauche à
+ * l'origine du plan ; sans dimensions, ces murs sont retirés. Les autres murs ne bougent pas.
+ */
+export function setRoom(doc: ProjectDoc, planKey: string, room: Room | undefined): void {
+  if (!room && !doc.floorPlans?.[planKey]) return;
+  const plan = ensure(doc, planKey);
+  plan.items = plan.items.filter((i) => !(i.kind === 'wall' && i.room));
+  plan.room = room && room.w > 0 && room.l > 0 ? room : undefined;
+  if (!plan.room) return;
+  const W = Math.round(plan.room.w * 100);
+  const L = Math.round(plan.room.l * 100);
+  const corners = [
+    [0, 0, W, 0],
+    [W, 0, W, L],
+    [W, L, 0, L],
+    [0, L, 0, 0],
+  ];
+  for (const [x, y, x2, y2] of corners) plan.items.push({ id: newId(), kind: 'wall', x, y, x2, y2, room: true });
+}
+
+/** Projecteurs courants : puissance et température par défaut. */
+export const LIGHT_PRESETS: ReadonlyArray<{ model: string; watts: number; kelvin: number }> = [
+  { model: 'Fresnel 650 W', watts: 650, kelvin: 3200 },
+  { model: 'Fresnel 1 kW', watts: 1000, kelvin: 3200 },
+  { model: 'Fresnel 2 kW', watts: 2000, kelvin: 3200 },
+  { model: 'HMI 1 800 W (M18)', watts: 1800, kelvin: 5600 },
+  { model: 'HMI 4 kW', watts: 4000, kelvin: 5600 },
+  { model: 'HMI 9 kW (M90)', watts: 9000, kelvin: 5600 },
+  { model: 'Panneau LED 200 W', watts: 200, kelvin: 5600 },
+  { model: 'Tube LED', watts: 30, kelvin: 5600 },
+  { model: 'Ballon (lanterne chinoise)', watts: 500, kelvin: 3200 },
+];
+
+/** Puissance et température en bref : « 2 kW · 3 200 K ». */
+export function lightSpecs(l: { watts?: number; kelvin?: number }): string {
+  const w = l.watts ? (l.watts >= 1000 ? `${String(Math.round(l.watts / 100) / 10).replace('.', ',')} kW` : `${l.watts} W`) : '';
+  const k = l.kelvin ? `${l.kelvin.toLocaleString('fr-FR')} K` : '';
+  return [w, k].filter(Boolean).join(' · ');
 }
 
 export interface PlanRef {

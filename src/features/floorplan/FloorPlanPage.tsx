@@ -61,7 +61,7 @@ import { useBlobUrl } from '../../ui/useBlobUrl';
 import { aiPlanInstructions, extractPlanText, parsePlanFile, placePlan, type ParsedPlan } from '../../domain/planImport';
 import { toggleAssistant } from '../assistant/assistant';
 import { askWithImage, isConfigured, loadAiSettings, modelOf, type ImageInput } from '../assistant/providers';
-import { WORLD, type FloorPlan } from '../../domain/floorplan';
+import { LIGHT_PRESETS, ROOM_PRESETS, WORLD, lightSpecs, roomSize, setRoom, type FloorPlan, type Room } from '../../domain/floorplan';
 import { Button } from '../../ui/Button';
 import s from './FloorPlanPage.module.css';
 import { CineCameraIcon, FresnelIcon, RailsIcon } from './icons';
@@ -841,6 +841,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                     <input type="range" min={0.05} max={1} step={0.05} value={bg.opacity} onChange={(e) => gestureMutate((d) => void (d.floorPlans![planKey].bg!.opacity = Number(e.target.value)))} {...gestureEnd} aria-label="Opacité du fond" />
                   </label>
                 )}
+                <p className={s.menuTitle}>Pièce</p>
+                <RoomFields key={planKey} room={planOf(doc, planKey).room} onCommit={(r) => mutateDoc((d) => setRoom(d, planKey, r))} />
                 <p className={s.menuTitle}>Traits</p>
                 <label className={s.menuRange} title="Épaisseur des traits : murs, rails, portes, fenêtres, réflecteurs, diffuseurs, drapeaux">
                   <span>Épaisseur</span>
@@ -1416,6 +1418,11 @@ function ItemShape({
             <path d={[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r = (a * Math.PI) / 180; return `M ${item.x + Math.cos(r) * 12} ${item.y + Math.sin(r) * 12} L ${item.x + Math.cos(r) * 17} ${item.y + Math.sin(r) * 17}`; }).join(' ')} className={s.practicalRays} />
             <text x={item.x} y={item.y + 30} className={s.label}>
               {item.label}
+              {lightSpecs(item) && (
+                <tspan x={item.x} dy="1.25em" className={s.specs}>
+                  {lightSpecs(item)}
+                </tspan>
+              )}
             </text>
           </g>
         );
@@ -1425,7 +1432,7 @@ function ItemShape({
             <circle r={18} className={s.hitArea} />
             <Symbol shapes={FRESNEL} />
           </g>
-          <BehindLabel x={item.x} y={item.y} rot={item.rot} dist={30}>
+          <BehindLabel x={item.x} y={item.y} rot={item.rot} dist={30} sub={lightSpecs(item) || undefined}>
             {item.label}
           </BehindLabel>
           {selected && (
@@ -1465,11 +1472,17 @@ async function imageForAi(url: string): Promise<{ input: ImageInput; w: number; 
 }
 
 /** Repère placé derrière un objet orienté (projecteur, caméra). */
-function BehindLabel({ x, y, rot, dist, children }: { x: number; y: number; rot: number; dist: number; children: React.ReactNode }) {
+function BehindLabel({ x, y, rot, dist, children, sub }: { x: number; y: number; rot: number; dist: number; children: React.ReactNode; sub?: string }) {
   const at = labelBehind(x, y, rot, dist);
   return (
     <text x={at.x} y={at.y} className={s.label} style={{ textAnchor: at.anchor }}>
       {children}
+      {sub && (
+        // Repère au-dessus de l'objet : la ligne de caractéristiques monte, pour ne pas le chevaucher.
+        <tspan x={at.x} dy={at.y < y ? '-1.25em' : '1.25em'} className={s.specs}>
+          {sub}
+        </tspan>
+      )}
     </text>
   );
 }
@@ -1711,8 +1724,9 @@ function Properties({
               aria-label="Portée"
             />
           </label>
+          <LightSpecsFields key={item.id} item={item} onCommit={(p) => update(p as Partial<FloorItem>)} />
           <label className={s.field}>
-            <span>Puissance : {Math.round((item.power ?? 1) * 100)} %</span>
+            <span>Intensité : {Math.round((item.power ?? 1) * 100)} %</span>
             <input type="range" min={0.2} max={1.6} step={0.1} value={item.power ?? 1} onChange={(e) => slide({ power: Number(e.target.value) } as Partial<FloorItem>)} {...gestureEnd} aria-label="Puissance" />
           </label>
         </>
@@ -1744,3 +1758,114 @@ function Ends({ item, onDown }: { item: { id: ID; x: number; y: number; x2: numb
     </>
   );
 }
+
+/** Nombre saisi au clavier (virgule acceptée) ; vide = non renseigné. */
+const parseNum = (v: string) => {
+  const n = Number(v.replace(',', '.').replace(/\s/g, ''));
+  return v.trim() && Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
+/** Dimensions réelles de la pièce : les murs suivent, la superficie s'affiche. */
+function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | undefined) => void }) {
+  const [w, setW] = useState(room?.w ? String(room.w) : '');
+  const [l, setL] = useState(room?.l ? String(room.l) : '');
+  const [h, setH] = useState(room?.h ? String(room.h) : '');
+  const draft = parseNum(w) && parseNum(l) ? { w: parseNum(w)!, l: parseNum(l)!, ...(parseNum(h) ? { h: parseNum(h) } : {}) } : undefined;
+  const size = draft ? roomSize(draft) : undefined;
+  const apply = (r: Room | undefined) => {
+    setW(r ? String(r.w) : '');
+    setL(r ? String(r.l) : '');
+    setH(r?.h ? String(r.h) : '');
+    onCommit(r);
+  };
+  const field = (label: string, value: string, set: (v: string) => void) => (
+    <label className={s.roomField}>
+      <span>{label}</span>
+      <input value={value} inputMode="decimal" onChange={(e) => set(e.target.value)} onBlur={() => draft && onCommit(draft)} onKeyDown={(e) => e.key === 'Enter' && draft && onCommit(draft)} aria-label={`${label} de la pièce (m)`} />
+      <em>m</em>
+    </label>
+  );
+  return (
+    <div className={s.room} data-testid="fp-room">
+      <div className={s.roomFields}>
+        {field('Largeur', w, setW)}
+        {field('Longueur', l, setL)}
+        {field('Hauteur', h, setH)}
+      </div>
+      <div className={s.menuRow}>
+        {ROOM_PRESETS.map((p) => (
+          <Button key={p.label} size="sm" variant="ghost" onClick={() => apply(p.room)} title={`${p.room.w} × ${p.room.l} × ${p.room.h} m`}>
+            {p.label}
+          </Button>
+        ))}
+      </div>
+      {size && (
+        <p className={s.roomSize} data-testid="fp-room-size">
+          Superficie {String(size.area).replace('.', ',')} m²{size.volume ? ` · volume ${String(size.volume).replace('.', ',')} m³` : ''}
+          {room && (
+            <button type="button" className={s.roomClear} onClick={() => apply(undefined)}>
+              Retirer les murs
+            </button>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Projecteur réel : modèle, puissance (W), température de couleur (K). */
+function LightSpecsFields({ item, onCommit }: { item: { model?: string; watts?: number; kelvin?: number }; onCommit: (p: { model?: string; watts?: number; kelvin?: number }) => void }) {
+  const [model, setModel] = useState(item.model ?? '');
+  const [watts, setWatts] = useState(item.watts ? String(item.watts) : '');
+  const [kelvin, setKelvin] = useState(item.kelvin ? String(item.kelvin) : '');
+  const commit = (m = model, w = watts, k = kelvin) => onCommit({ model: m.trim() || undefined, watts: parseNum(w), kelvin: parseNum(k) });
+  return (
+    <>
+      <label className={s.field}>
+        <span>Modèle</span>
+        <input
+          list="fp-light-models"
+          value={model}
+          placeholder="Fresnel 2 kW, HMI M18…"
+          onChange={(e) => {
+            const v = e.target.value;
+            setModel(v);
+            const preset = LIGHT_PRESETS.find((p) => p.model === v);
+            if (preset) {
+              setWatts(String(preset.watts));
+              setKelvin(String(preset.kelvin));
+              commit(v, String(preset.watts), String(preset.kelvin));
+            }
+          }}
+          onBlur={() => commit()}
+          aria-label="Modèle du projecteur"
+        />
+        <datalist id="fp-light-models">
+          {LIGHT_PRESETS.map((p) => (
+            <option key={p.model} value={p.model} />
+          ))}
+        </datalist>
+      </label>
+      <div className={s.roomFields}>
+        <label className={s.roomField}>
+          <span>Puissance</span>
+          <input value={watts} inputMode="numeric" onChange={(e) => setWatts(e.target.value)} onBlur={() => commit()} aria-label="Puissance (W)" data-testid="fp-watts" />
+          <em>W</em>
+        </label>
+        <label className={s.roomField}>
+          <span>Température</span>
+          <input value={kelvin} inputMode="numeric" onChange={(e) => setKelvin(e.target.value)} onBlur={() => commit()} aria-label="Température de couleur (K)" data-testid="fp-kelvin" />
+          <em>K</em>
+        </label>
+      </div>
+      <div className={s.menuRow}>
+        {[3200, 4300, 5600].map((k) => (
+          <Button key={k} size="sm" variant={Number(kelvin) === k ? 'primary' : 'ghost'} onClick={() => (setKelvin(String(k)), commit(model, watts, String(k)))}>
+            {k.toLocaleString('fr-FR')} K
+          </Button>
+        ))}
+      </div>
+    </>
+  );
+}
+

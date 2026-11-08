@@ -4,7 +4,7 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { cameraCone, choreography, computeLighting, oneShotPlansOf, planOf, plansOf, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
@@ -201,7 +201,10 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         );
         {
           const at = i.practical ? { x: i.x, y: i.y + 30, anchor: 'middle' } : labelBehind(i.x, i.y, i.rot, 30);
-          out.push(`<text x="${at.x.toFixed(1)}" y="${at.y.toFixed(1)}" font-size="12" text-anchor="${at.anchor}" fill="#6b7079">${xml(i.label ?? '')}</text>`);
+          const specs = lightSpecs(i);
+          out.push(
+            `<text x="${at.x.toFixed(1)}" y="${at.y.toFixed(1)}" font-size="12" text-anchor="${at.anchor}" fill="#6b7079">${xml(i.label ?? '')}${specs ? `<tspan x="${at.x.toFixed(1)}" dy="${at.y < i.y ? '-1.25em' : '1.25em'}" font-size="10">${xml(specs)}</tspan>` : ''}</text>`,
+          );
         }
         break;
     }
