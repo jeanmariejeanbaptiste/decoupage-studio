@@ -1,5 +1,4 @@
 import { mergeKey } from './text';
-import type { InterviewBand } from './interview';
 import type { ColumnKey, ID, ProjectSettings } from './types';
 
 export interface MergeRow {
@@ -13,10 +12,6 @@ export interface MergeRow {
   lines?: SubLine[];
   /** Institutionnel : cadre d'interview dont ce plan est une caméra (aucune fusion ne franchit le groupe). */
   group?: ID;
-  /** Première caméra du cadre : la bande, dessinée sur toute la largeur, couvre aussi les suivantes. */
-  band?: InterviewBand;
-  /** Caméra suivante du cadre : rien à dessiner, la bande de la première la montre. */
-  follower?: boolean;
 }
 
 /** Sous-ligne d'un plan-séquence : « T1 », « T2 »… ou « ↳ » pour une liaison entre deux temps. */
@@ -96,9 +91,3 @@ export function repeatedFlags(spans: readonly MergeSpan[], rowCount: number): bo
   for (const s of spans) for (let i = s.startRow + 1; i < s.startRow + s.span; i++) flags[i] = true;
   return flags;
 }
-
-/** Colonnes couvertes par une bande d'interview : toutes, sauf la séquence, le N° et un TC cumulé par séquence. */
-export function bandColumns(columns: readonly ColumnKey[], opts: Pick<MergeOptions, 'tcMode' | 'tcGranularity'>): ColumnKey[] {
-  return columns.filter((c) => c !== 'sequence' && c !== 'number' && !(c === 'tc' && opts.tcMode === 'cumulatif' && opts.tcGranularity === 'sequence'));
-}
-

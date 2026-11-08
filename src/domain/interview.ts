@@ -187,8 +187,13 @@ export function findSetup(doc: ProjectDoc, setupId: ID): { subject: Interviewee;
   return undefined;
 }
 
-/** Action commune aux caméras d'un cadre : qui parle, et à quel titre. */
-export const interviewAction = (s: Pick<Interviewee, 'name' | 'role'>) => `Interview — ${s.name.trim() || 'intervenant'}${s.role.trim() ? `, ${s.role.trim()}` : ''}`;
+/** Action commune aux caméras d'un cadre : qui parle, à quel titre, où, son regard, ses questions. */
+export function interviewAction(subject: Pick<Interviewee, 'id' | 'name' | 'role'>, setup?: InterviewSetup, itw?: Interview): string {
+  const who = `Interview — ${subject.name.trim() || 'intervenant'}${subject.role.trim() ? `, ${subject.role.trim()}` : ''}`;
+  if (!setup) return who;
+  const n = itw ? questionsFor(itw, subject.id, setup.id).length : 0;
+  return [who, [setup.name.trim(), setup.place.trim()].filter(Boolean).join(', '), EYELINE_SHORT[setup.eyeline]?.toLocaleLowerCase('fr'), n ? `${n} question${n > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+}
 
 /** Focale saisie librement dans la fiche (« 50 », « 24-70 mm ») : en millimètres. */
 function parseFocal(text: string): Shot['focal'] {
@@ -234,7 +239,7 @@ export function placeSetup(doc: ProjectDoc, setupId: ID, seqId?: ID | 'new'): vo
   setup.sequenceId = target;
   let blockId: ID | undefined;
   for (const cam of setup.cameras) {
-    const id = addShot(doc, target, { blockId, action: { text: interviewAction(subject) }, init: cameraShot(subject, setup, cam) });
+    const id = addShot(doc, target, { blockId, action: { text: interviewAction(subject, setup, doc.interview) }, init: cameraShot(subject, setup, cam) });
     blockId ??= doc.shots[id].actionBlockId;
   }
 }
@@ -317,7 +322,7 @@ export function syncInterviewShots(doc: ProjectDoc): void {
         for (const t of touched) normalizeBlocks(doc, t);
       }
       // Champs tirés de la fiche.
-      const text = interviewAction(subject);
+      const text = interviewAction(subject, setup, doc.interview);
       const block = doc.blocks[doc.shots[group[0]].actionBlockId];
       if (block && block.text !== text) block.text = text;
       setup.cameras.forEach((cam, k) => {
@@ -340,40 +345,3 @@ export function syncInterviewShots(doc: ProjectDoc): void {
 
 /** Regard de l'intervenant, en bref (bande du découpage). */
 export const EYELINE_SHORT: Record<InterviewSetup['eyeline'], string> = { gauche: 'Regard à gauche', droite: 'Regard à droite', camera: 'Face caméra' };
-
-/** Bande d'un cadre d'interview dans le découpage : qui, où, et une ligne par caméra. */
-export interface InterviewBand {
-  subjectId: ID;
-  setupId: ID;
-  name: string;
-  role: string;
-  setup: string;
-  place: string;
-  eyeline: string;
-  questions: number;
-  cameras: { shotId: ID; number: string; text: string }[];
-}
-
-/** En-tête de la bande d'un cadre (les lignes de caméras sont ajoutées par l'appelant). */
-export function interviewBandHead(doc: ProjectDoc, setupId: ID): Omit<InterviewBand, 'cameras'> | undefined {
-  const found = findSetup(doc, setupId);
-  if (!found) return undefined;
-  const { subject, setup } = found;
-  return {
-    subjectId: subject.id,
-    setupId,
-    name: subject.name.trim() || 'Intervenant',
-    role: subject.role.trim(),
-    setup: setup.name.trim(),
-    place: setup.place.trim(),
-    eyeline: EYELINE_SHORT[setup.eyeline] ?? '',
-    questions: doc.interview ? questionsFor(doc.interview, subject.id, setup.id).length : 0,
-  };
-}
-
-/** Texte d'une bande sur une ligne (exports tableur et texte). */
-export function interviewBandText(b: InterviewBand): string {
-  const head = ['INTERVIEW', [b.name, b.role].filter(Boolean).join(', '), [b.setup, b.place].filter(Boolean).join(' — '), b.eyeline, b.questions ? `${b.questions} question${b.questions > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
-  return [head, ...b.cameras.map((c) => `${c.number}  ${c.text}`)].join('\n');
-}
-

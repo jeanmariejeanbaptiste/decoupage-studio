@@ -2,7 +2,7 @@ import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { COLUMN_DEFS, columnWidths, tcLast } from '../../domain/columns';
 import { nudgeWidths, wordDeficit, type ColumnMeasure } from '../../domain/columnFit';
-import { bandColumns, displaySpan, type MergeMap, type MergeRow } from '../../domain/merge';
+import { displaySpan, type MergeMap, type MergeRow } from '../../domain/merge';
 import { cleanCuts, paginate, sliceMerges, type PageSlice } from '../../domain/pagination';
 import { sequenceMerges } from '../../domain/rows';
 import { computeTiming } from '../../domain/timing';
@@ -89,8 +89,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
       const title = root.querySelector('h1');
       const titleH = title ? title.getBoundingClientRect().height + parseFloat(getComputedStyle(title).marginBottom || '0') : 0;
       const avail = (pageH - 2 * PAD_Y) * PX_PER_MM - head - 4 - tighten;
-      // Jamais de coupure dans une bande d'interview (ses caméras suivantes n'ont pas de ligne propre).
-      const cuts = sequences.map((q) => cleanCuts(q.merges, cols, q.rows.length).map((ok, i) => ok && !q.rows[i]?.follower));
+      const cuts = sequences.map((q) => cleanCuts(q.merges, cols, q.rows.length));
       // Hauteur du texte d'une cellule fusionnée, s'il fallait le répéter seul sur une ligne en haut de page.
       const startExtra = bodies.map((b, k) => {
         const extra = new Array<number>(rowHeights[k]?.length ?? 0).fill(0);
@@ -167,62 +166,9 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
               </td>
             );
           };
-          if (row.follower) return <tr key={row.shotId} className={s.bandFollow} />;
-          if (row.band) {
-            const band = row.band;
-            const cover = bandColumns(cs, doc.project.settings);
-            return (
-              <tr key={row.shotId} className={s.bandRow} data-testid="export-band">
-                {cs.map((c) => {
-                  if (c === 'number')
-                    return (
-                      <td key={c} rowSpan={band.cameras.length} className={[s.c_number, s.bandNum].join(' ')} data-col={c}>
-                        <div className={s.bandLines}>
-                          <span />
-                          {band.cameras.map((x) => (
-                            <span key={x.shotId}>{x.number}</span>
-                          ))}
-                        </div>
-                      </td>
-                    );
-                  if (cover.includes(c))
-                    return c === cover[0] ? (
-                      <td key="band" colSpan={cover.length} rowSpan={band.cameras.length} className={s.bandCell}>
-                        <div className={s.bandLines}>
-                          <div className={s.bandHead}>
-                            <span className={s.bandTag}>Interview</span>
-                            <b>{band.name}</b>
-                            {[band.role, [band.setup, band.place].filter(Boolean).join(' — '), band.eyeline, band.questions ? `${band.questions} question${band.questions > 1 ? 's' : ''}` : '']
-                              .filter(Boolean)
-                              .map((t, k) => (
-                                <span key={k} className={s.bandSoft}>
-                                  {t}
-                                </span>
-                              ))}
-                          </div>
-                          {band.cameras.map((x) => (
-                            <div key={x.shotId} className={s.bandCam}>
-                              {x.text}
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                    ) : null;
-                  const span = merges.get(c)?.find((m) => m.startRow === i);
-                  if (!span) return null;
-                  const h = displaySpan(rows, i, span.span);
-                  return (
-                    <td key={c} rowSpan={h > 1 ? h : undefined} className={s[`c_${c}`]} data-col={c}>
-                      {span.value}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          }
           return (
             <Fragment key={row.shotId}>
-              <tr className={lines ? s.oneShot : undefined}>
+              <tr className={[lines ? s.oneShot : '', row.group ? s.itwRow : ''].join(' ') || undefined}>
                 {cs.map((c) => {
                   if (lines && BEAT_COLUMNS.includes(c)) return beatCell(c, 0);
                   const span = merges.get(c)?.find((m) => m.startRow === i);

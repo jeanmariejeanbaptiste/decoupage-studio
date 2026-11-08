@@ -267,8 +267,8 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         </div>
       ) : printView ? (
         <div className={[s.printPreview, 'paper-light'].join(' ')}>
-          {/* Aperçu à l'écran : le papier, quel que soit le thème. */}
-          <ExportTable doc={doc} theme="papier" />
+          {/* Aperçu : les pages A4 de l'export (paysage par défaut), sur papier quel que soit le thème. */}
+          <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} />
         </div>
       ) : isMobile ? (
         // Téléphone : mêmes outils (colonnes, aperçu, export, lier), mais un plan à la fois.

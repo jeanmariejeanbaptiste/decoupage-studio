@@ -35,7 +35,7 @@ describe('interview placée dans le découpage', () => {
     expect(shotCode(doc, ca)).toBe('1.3A');
     expect(doc.shots[ca]).toMatchObject({ subject: 'Marie Dupont', value: 'Rapproché', focal: { from: 50 } });
     expect(doc.shots[cb].actionBlockId).toBe(doc.shots[ca].actionBlockId);
-    expect(doc.blocks[doc.shots[ca].actionBlockId].text).toBe('Interview — Marie Dupont, directrice');
+    expect(doc.blocks[doc.shots[ca].actionBlockId].text).toBe('Interview — Marie Dupont, directrice · Cadre 1 · regard à gauche');
     expect(setup.sequenceId).toBe(seq);
   });
 
@@ -100,14 +100,14 @@ describe('interview placée dans le découpage', () => {
     expect(doc.shots[ca].value).toBe('Rapproché');
   });
 
-  it('nouvelle séquence, bande et fusions : rien ne franchit le cadre', () => {
+  it('nouvelle séquence, lignes et fusions : rien ne franchit le cadre', () => {
     const { doc, setup } = project();
     placeSetup(doc, setup.id, 'new');
     const seq = setup.sequenceId!;
     expect(doc.sequences[seq].label).toBe('Interview Marie Dupont');
     const rows = buildSequenceRows(doc, computeTiming(doc), seq, ['sequence', 'number', 'subject', 'value', 'movement']);
-    expect(rows[0].band?.cameras.map((c) => c.number)).toEqual(['1A', '1B']);
-    expect(rows[1].follower).toBe(true);
+    expect(rows.map((r) => r.cells.number)).toEqual(['1A', '1B']);
+    expect(rows[1].group).toBe(setup.id);
     // Un plan ordinaire « Fixe » sous le cadre ne fusionne pas avec ses caméras.
     addShot(doc, seq, { init: { subject: 'Marie Dupont', value: 'Rapproché', movement: ['Fixe'] } });
     const { merges } = sequenceMerges(doc, computeTiming(doc), seq, ['sequence', 'number', 'subject', 'movement']);

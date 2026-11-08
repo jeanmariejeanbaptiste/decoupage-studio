@@ -1,5 +1,4 @@
 import { computeMerges, type MergeMap, type MergeRow } from './merge';
-import { interviewBandHead } from './interview';
 import { formatAperture, formatFocal } from './focal';
 import { deduceEquipment } from './equipment';
 import { sequenceHeading, shotNumberLabel } from './numbering';
@@ -96,25 +95,12 @@ export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, co
       lines: shot.oneShot ? beatSubLines(shot.oneShot.beats, (v) => valueLabel(v, doc.project.settings.labelStyle)) : undefined,
       cells: Object.fromEntries(columns.map((c) => [c, text(doc, timing, shot, c, i)])),
     };
-    const setupId = shot.interview?.setupId;
-    if (setupId) {
-      row.group = setupId;
-      if (shots[i - 1]?.interview?.setupId === setupId) row.follower = true;
-      else {
-        const head = interviewBandHead(doc, setupId);
-        const mates: Shot[] = [];
-        for (let k = i; k < shots.length && shots[k].interview?.setupId === setupId; k++) mates.push(shots[k]);
-        if (head) row.band = { ...head, cameras: mates.map((m) => ({ shotId: m.id, number: shotNumberLabel(doc, m.id), text: cameraText(doc, m) })) };
-      }
-    }
+    // Plan d'interview : une ligne par caméra ; aucune fusion ne franchit son cadre.
+    if (shot.interview) row.group = shot.interview.setupId;
     return row;
   });
 }
 
-/** Une caméra d'interview en une ligne : valeur · axe · focale. */
-function cameraText(doc: ProjectDoc, shot: Shot): string {
-  return [valueLabel(shot.value, doc.project.settings.labelStyle), renderTokens(shot.angle), formatFocal(shot.focal, false)].filter((x) => x && x.trim()).join(' · ');
-}
 
 export function sequenceMerges(
   doc: ProjectDoc,
