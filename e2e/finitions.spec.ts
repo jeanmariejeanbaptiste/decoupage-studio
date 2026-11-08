@@ -31,8 +31,12 @@ test('import d’un scénario Word : séquences, personnages et répliques', asy
   await page.getByRole('button', { name: /^Importer/ }).click();
   await (await chooser).setFiles({ name: 'scenario.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: buf });
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
-  await expect(page.getByTestId('toast').filter({ hasText: '2 séquences détectées' })).toBeVisible();
-  await expect(page.getByTestId('scenario-editor')).toHaveValue(/@SAM\nEncore une heure\./);
+  await expect(page.getByTestId('toast').filter({ hasText: 'Scénario importé : 2 séquences' })).toBeVisible();
+  const editor = page.getByTestId('script-editor');
+  await expect(editor.locator('[data-type="character"]')).toHaveText('SAM');
+  await expect(editor.locator('[data-type="dialogue"]')).toHaveText('Encore une heure.');
+  await expect(editor.locator('[data-type="heading"]')).toHaveText(['INT. ATELIER - NUIT', 'EXT. COUR - JOUR']);
+  expect(await page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toMatch(/SAM\nEncore une heure\./);
 });
 
 test('suppression : plan (annulable) et séquence volumineuse protégée', async ({ page }) => {

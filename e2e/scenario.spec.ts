@@ -1,35 +1,63 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function selectText(page: Page, needle: string, length = needle.length) {
-  await page.getByTestId('scenario-editor').evaluate(
-    (el, [n, len]) => {
-      const ta = el as HTMLTextAreaElement;
-      const i = ta.value.indexOf(n as string);
-      ta.focus();
-      ta.setSelectionRange(i, i + (len as number));
-    },
-    [needle, length] as const,
-  );
+/** Sélectionne un passage dans l'éditeur (blocs séparés par un retour à la ligne). */
+async function selectText(page: Page, needle: string) {
+  await page.getByTestId('script-editor').evaluate((root, n) => {
+    const blocks = Array.from(root.querySelectorAll<HTMLElement>('[data-bid]')).filter((b) => b.dataset.type !== 'title');
+    let full = '';
+    const starts: number[] = [];
+    for (const b of blocks) {
+      starts.push(full.length);
+      full += (b.textContent ?? '') + '\n';
+    }
+    const i = full.indexOf(n);
+    if (i < 0) throw new Error(`introuvable : ${n}`);
+    const at = (pos: number): [Node, number] => {
+      let k = blocks.length - 1;
+      while (k > 0 && starts[k] > pos) k--;
+      const off = pos - starts[k];
+      const w = document.createTreeWalker(blocks[k], NodeFilter.SHOW_TEXT);
+      let acc = 0;
+      let node: Node | null;
+      while ((node = w.nextNode())) {
+        const len = node.nodeValue?.length ?? 0;
+        if (off <= acc + len) return [node, off - acc];
+        acc += len;
+      }
+      return [blocks[k], blocks[k].childNodes.length];
+    };
+    const [sn, so] = at(i);
+    const [en, eo] = at(i + n.length);
+    (root as HTMLElement).focus();
+    const r = document.createRange();
+    r.setStart(sn, so);
+    r.setEnd(en, eo);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }, needle);
+  await expect(page.getByTestId('create-shot-from-selection')).toBeEnabled();
 }
 
 test.describe('scénario et liaison', () => {
   test('clic droit → créer un plan avec cette action', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
+    await page.getByTestId('scenario-tab-shots').click();
     const marc = page.getByTestId('scenario-shot').filter({ hasText: 'Marc attend sous la pluie' });
     await expect(page.getByTestId('scenario-shot').first()).toBeVisible();
     const before = await marc.count();
     await selectText(page, 'Marc attend sous la pluie');
-    await page.getByTestId('scenario-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
+    await page.getByTestId('script-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
     // Mode lié (par défaut) : le plan va directement dans la séquence de la scène.
     await expect(marc).toHaveCount(before + 1);
   });
 
   test('les répliques sélectionnées vont dans le dialogue', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    const src = "GUICHETIER\nC'est pour combien de temps ?";
+    await page.getByTestId('scenario-tab-shots').click();
     // Mode libre : la séquence se choisit, celle de la scène est suggérée en premier.
     await page.getByTestId('scenario-link-mode').uncheck();
-    await selectText(page, src);
+    await selectText(page, "GUICHETIER\nC'est pour combien de temps ?");
     await page.getByTestId('create-shot-from-selection').click();
     await expect(page.getByRole('menuitem').first()).toContainText('(suggérée)');
     await page.getByRole('menuitem').first().click();
@@ -38,17 +66,22 @@ test.describe('scénario et liaison', () => {
     expect(shot?.subject).toBe('Guichetier');
   });
 
-  test('un nouvel en-tête ne touche pas le découpage, sauf sur demande', async ({ page }) => {
+  test('écrire au clavier : en-tête, personnage et réplique reconnus ; le découpage ne bouge que sur demande', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    const editor = page.getByTestId('scenario-editor');
-    await editor.click();
+    const editor = page.getByTestId('script-editor');
+    await editor.locator('[data-bid]').last().click();
     await page.keyboard.press('Control+End');
-    await page.keyboard.type('\nINT. CAFÉ DE LA GARE - NUIT\n\nNINA\nBonsoir.\n');
-    await page.waitForTimeout(900);
+    await page.keyboard.type('\nINT. CAFÉ DE LA GARE - NUIT\n\nNINA\nBonsoir.');
+    await expect(editor.locator('[data-type="heading"]').last()).toHaveText('INT. CAFÉ DE LA GARE - NUIT');
+    await expect(editor.locator('[data-type="character"]').last()).toHaveText('NINA');
+    await expect(editor.locator('[data-type="dialogue"]').last()).toHaveText('Bonsoir.');
+    await expect(page.getByTestId('scenario-outline')).toContainText('CAFÉ DE LA GARE');
+    await page.getByTestId('scenario-tab-shots').click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toContain('NINA\nBonsoir.');
     await expect(page.locator('aside').getByText('4, CAFÉ DE LA GARE')).toHaveCount(0);
     await page.getByTestId('import-scenes').click();
     await expect(page.locator('aside').getByText('4, CAFÉ DE LA GARE')).toBeVisible();
-    await page.getByRole('button', { name: 'Ouvrir le découpage' }).click();
+    await page.getByRole('button', { name: /Découpage technique/ }).click();
     await expect(page.locator('tbody[data-seq]').nth(3)).toContainText('CAFÉ DE LA GARE');
     await page.locator('tbody[data-seq]').nth(3).getByRole('button', { name: 'Ajouter un plan' }).click();
     await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(12);
@@ -56,21 +89,29 @@ test.describe('scénario et liaison', () => {
     await expect(page.getByTestId('character-row').filter({ has: page.locator('td:first-child', { hasText: 'Nina' }) })).toHaveCount(1);
   });
 
-  test('vue page, import et export .fountain', async ({ page }) => {
+  test('pages A4, page de titre, vue découpage, import et export .fountain', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    await page.getByRole('radio', { name: 'Page', exact: true }).click();
-    await expect(page.getByTestId('script-reader')).toContainText('INT. GARE — CONSIGNE - JOUR');
+    // Page de titre mise en forme, modifiable par ses champs.
+    await expect(page.getByTestId('title-page')).toContainText('La Consigne');
+    await page.getByTestId('title-page').click();
+    await page.getByRole('dialog', { name: 'Page de titre' }).getByLabel('Auteur').fill('Nina Roy');
+    await page.getByTestId('title-save').click();
+    await expect(page.getByTestId('title-page')).toContainText('Nina Roy');
+    await expect(page.getByTestId('script-stack')).toHaveCSS('width', /^79\d/);
     await page.getByRole('radio', { name: 'Découpage' }).click();
     await expect(page.getByTestId('scenario-cut')).toContainText('GARE');
-    await page.getByRole('radio', { name: 'Page', exact: true }).click();
+    await page.getByRole('radio', { name: 'Scénario' }).click();
     const dl = page.waitForEvent('download');
-    await page.getByRole('button', { name: '.fountain' }).click();
+    await page.getByTestId('tab-export').click();
+    await page.getByTestId('tab-export-panel').getByText('Fountain', { exact: true }).click();
+    await page.getByTestId('tab-export-go').click();
     expect((await dl).suggestedFilename()).toBe('La Consigne.fountain');
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: /^Importer/ }).click();
     await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('EXT. TOIT - AUBE\n\nLe soleil se lève.\n') });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
-    await expect(page.getByTestId('script-reader')).toContainText('Le soleil se lève.');
+    await expect(page.getByTestId('script-editor')).toContainText('Le soleil se lève.');
+    await expect(page.getByTestId('title-page')).toHaveCount(0);
   });
 
   test('l’inspecteur montre le passage lié', async ({ page }) => {

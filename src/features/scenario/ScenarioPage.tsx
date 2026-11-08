@@ -1,329 +1,449 @@
 import { useReadOnly } from '../../store/share';
-import { LinkModeToggle, ScriptReader, addPassageAsShot, commitScenario } from './ScriptReader';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { Download, FilePlus2, FileUp, ListTree, ScrollText, SquarePen } from 'lucide-react';
-import { navigate } from '../../app/router';
-import { importScenes, matchSequence, parseDialogue, parseFountain, scenesOf } from '../../domain/fountain';
+import { LinkModeToggle, addPassageAsShot, commitScenario } from './ScriptReader';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, FilePlus2, FileUp } from 'lucide-react';
+import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
+import { BLOCK_LABELS, blockLabel, scriptStats, type BlockType } from '../../domain/screenplay';
+import { scriptDocument } from '../../domain/scriptDocument';
 import type { ID, ProjectDoc } from '../../domain/types';
-import { downloadBlob, pickFile } from '../../store/persistence';
+import { pickFile, registerFlush } from '../../store/persistence';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
 import { ask } from '../../ui/dialogStore';
 import { readScenarioFile } from './readScenarioFile';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
-import { Hand } from '../../ui/Hand';
+import { useIsMobile } from '../../ui/useIsMobile';
+import { TabExport } from '../export/TabExport';
 import { goToShot } from '../registry/RegistryPage';
+import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
 import s from './ScenarioPage.module.css';
 
-const SYNC_DELAY = 900;
+type Tab = 'scenes' | 'shots' | 'stats';
+const TABS: ReadonlyArray<[Tab, string]> = [
+  ['scenes', 'Séquences'],
+  ['shots', 'Plans'],
+  ['stats', 'Statistiques'],
+];
 
-interface Mark {
-  start: number;
-  end: number;
-  blockId: ID;
-  color: string;
-}
+const savedTab = (): Tab => {
+  try {
+    const t = localStorage.getItem('ds-scenario-tab');
+    return t === 'shots' || t === 'stats' ? t : 'scenes';
+  } catch {
+    return 'scenes';
+  }
+};
 
+/** Scénario : écrit sur des pages A4, comme dans un logiciel d'écriture, et relié au découpage. */
 export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
-  const [text, setText] = useState(doc.scenario ?? '');
-  // Lecture seule : le scénario se lit en page, jamais en édition.
   const readOnly = useReadOnly();
-  const [chosen, setMode] = useState<'edit' | 'page' | 'cut'>('edit');
-  const mode = readOnly && chosen === 'edit' ? 'page' : chosen;
-  const [hoverBlock, setHoverBlock] = useState<ID | null>(null);
-  const [caretBlock, setCaretBlock] = useState<ID | null>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
+  const phone = useIsMobile();
+  const [view, setView] = useState<'script' | 'cut'>('script');
+  const [tab, setTabState] = useState<Tab>(savedTab);
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    try {
+      localStorage.setItem('ds-scenario-tab', t);
+    } catch {
+      /* choix valable pour la session */
+    }
+  };
+  const [hover, setHover] = useState<ID | null>(null);
+  const [caretAnchor, setCaretAnchor] = useState<ID | null>(null);
+  const api = useRef<ScriptEditorApi | null>(null);
+  const activeType = useScriptUi((u) => u.activeType);
+  const selection = useScriptUi((u) => u.selection);
   const toast = useUi((u) => u.toast);
 
-  // Rechargement quand on change de projet.
-  useEffect(() => setText(doc.scenario ?? ''), [doc.project.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // En quittant la page, le texte en attente est appliqué.
-  const latest = useRef(text);
-  latest.current = text;
-  useEffect(
-    () => () => {
-      if (latest.current !== (useProjectStore.getState().doc?.scenario ?? '')) commitScenario(latest.current);
-    },
-    [],
+  // Passages déjà liés au découpage : surlignés dans le texte.
+  const anchors = useMemo(
+    () =>
+      Object.values(doc.blocks)
+        .filter((b) => b.scenarioAnchor && b.scenarioAnchor.end > b.scenarioAnchor.start)
+        .map((b) => ({ id: b.id, start: b.scenarioAnchor!.start, end: b.scenarioAnchor!.end })),
+    [doc.blocks],
   );
 
-  // Analyse automatique, débouncée.
-  useEffect(() => {
-    if (text === (useProjectStore.getState().doc?.scenario ?? '')) return;
-    const t = setTimeout(() => commitScenario(text), SYNC_DELAY);
-    return () => clearTimeout(t);
-  }, [text]);
+  // Saisie en attente appliquée avant un enregistrement ou un export.
+  useEffect(() => registerFlush(() => api.current?.flush()), []);
 
-  const elements = useMemo(() => parseFountain(text), [text]);
-  const scenes = useMemo(() => scenesOf(text, elements), [text, elements]);
-  const marks: Mark[] = useMemo(() => {
-    const out: Mark[] = [];
-    for (const seqId of doc.project.sequenceIds) {
-      const seq = doc.sequences[seqId];
-      for (const bId of seq?.actionBlockIds ?? []) {
-        const a = doc.blocks[bId]?.scenarioAnchor;
-        if (a && a.end > a.start) out.push({ start: a.start, end: a.end, blockId: bId, color: seq.color ?? 'var(--rust)' });
-      }
-    }
-    return out.sort((x, y) => x.start - y.start);
-  }, [doc]);
+  // La page A4 se réduit pour tenir dans la largeur disponible.
+  const center = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  useLayoutEffect(() => {
+    const el = center.current;
+    if (!el || phone) return;
+    const fit = () => setZoom(Math.max(0.55, Math.min(1, (el.clientWidth - 8) / (PAGE.w + 60))));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [phone, view]);
 
-  const flush = () => {
-    if (text !== (useProjectStore.getState().doc?.scenario ?? '')) commitScenario(text);
-  };
-
-  /** Crée le plan : dans la séquence de la scène (mode lié) ou celle choisie dans un menu (mode libre). */
-  const createShot = (start: number, end: number, at?: { x: number; y: number }) => {
-    if (end <= start) {
+  /** Crée un plan avec le passage sélectionné : dans la séquence de sa scène (mode lié) ou au choix. */
+  const createShot = (at: { x: number; y: number }) => {
+    const sel = useScriptUi.getState().selection;
+    if (!sel) {
       toast({ message: 'Sélectionnez d’abord un passage du scénario.', tone: 'warn' });
       return;
     }
-    flush();
-    addPassageAsShot(start, end, at ?? { x: window.innerWidth / 2, y: 160 });
-  };
-
-  const onContextMenu = (e: MouseEvent<HTMLTextAreaElement>) => {
-    const ta = e.currentTarget;
-    const { selectionStart: a, selectionEnd: b } = ta;
-    if (b <= a) return;
-    e.preventDefault();
-    createShot(a, b, { x: e.clientX, y: e.clientY });
-  };
-
-  const onCaret = () => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const pos = ta.selectionStart;
-    setCaretBlock(marks.find((m) => pos >= m.start && pos <= m.end)?.blockId ?? null);
+    api.current?.flush();
+    addPassageAsShot(sel.start, sel.end, at);
   };
 
   const importFile = async () => {
     const f = await pickFile('.fountain,.txt,.spmd,.md,.markdown,.pdf,.docx,.doc,text/plain,application/pdf', false);
     if (!f) return;
-    if (text.trim()) {
+    api.current?.flush();
+    if ((useProjectStore.getState().doc?.scenario ?? '').trim()) {
       const r = await ask({ title: 'Remplacer le scénario actuel ?', body: `Le texte de « ${f.name} » remplacera le scénario en cours (annulable).`, confirmLabel: 'Remplacer' });
       if (!r.ok) return;
     }
     try {
-      toast({ message: `Lecture de « ${f.name} »…` });
       const content = await readScenarioFile(f);
-      setText(content);
       commitScenario(content);
       const n = scenesOf(content).length;
-      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''} détectée${n > 1 ? 's' : ''}. Le découpage n’est pas modifié.`, actionLabel: 'Annuler', action: undo });
+      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''}. Le découpage n’est pas modifié.`, actionLabel: 'Annuler', action: undo });
     } catch (e) {
       toast({ message: (e as Error).message || 'Ce fichier n’a pas pu être lu.', tone: 'warn' });
     }
   };
 
-  const highlighted = hoverBlock ?? caretBlock;
+  const title = doc.project.title || 'scenario';
+  const current = () => useProjectStore.getState().doc ?? doc;
 
   return (
-    <div className="page page--wide">
-      <header className="page-head">
-        <div className={s.toolbar}>
+    <div className={['page page--wide', s.page].join(' ')}>
+      <header className={s.toolbar}>
+        <div className={s.tools}>
+          {!readOnly && view === 'script' && (
+            <>
+              <TypePicker type={activeType} onPick={(t) => api.current?.setType(t)} onTitle={() => api.current?.editTitle()} />
+              <Button
+                icon={<FilePlus2 size={15} strokeWidth={1.25} />}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  createShot({ x: r.left, y: r.bottom + 4 });
+                }}
+                disabled={!selection}
+                title="Créer un plan avec le passage sélectionné (aussi au clic droit)"
+                data-testid="create-shot-from-selection"
+              >
+                Créer un plan
+              </Button>
+            </>
+          )}
           <div className={s.seg} role="radiogroup" aria-label="Affichage du scénario">
-            <button type="button" role="radio" aria-checked={mode === 'edit'} className={mode === 'edit' ? s.on : ''} onClick={() => setMode('edit')}>
-              <SquarePen size={14} strokeWidth={1.25} /> Fountain
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === 'page'}
-              data-view
-              className={mode === 'page' ? s.on : ''}
-              onClick={() => {
-                flush();
-                setMode('page');
-              }}
-            >
-              <ScrollText size={14} strokeWidth={1.25} /> Page
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === 'cut'}
-              data-view
-              className={mode === 'cut' ? s.on : ''}
-              title="Le découpage technique mis en forme comme un scénario (lecture seule)"
-              onClick={() => {
-                flush();
-                setMode('cut');
-              }}
-            >
-              <ListTree size={14} strokeWidth={1.25} /> Découpage
-            </button>
+            {(
+              [
+                ['script', 'Scénario', 'Le texte, page par page'],
+                ['cut', 'Découpage', 'Le découpage technique mis en forme comme un scénario (lecture seule)'],
+              ] as const
+            ).map(([v, label, hint]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={view === v}
+                className={view === v ? s.on : ''}
+                title={hint}
+                data-view
+                onClick={() => {
+                  api.current?.flush();
+                  setView(v);
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <Button
-            icon={<FilePlus2 size={15} strokeWidth={1.25} />}
-            onClick={(e) => {
-              const ta = taRef.current;
-              const r = e.currentTarget.getBoundingClientRect();
-              if (ta) createShot(ta.selectionStart, ta.selectionEnd, { x: r.left, y: r.bottom + 4 });
-            }}
-            disabled={mode !== 'edit'}
-            title="Créer un plan avec le passage sélectionné (aussi au clic droit)"
-            data-testid="create-shot-from-selection"
-          >
-            Créer un plan
-          </Button>
-          <LinkModeToggle doc={doc} />
-          <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile}>
-            Importer (PDF, Word, MD…)
-          </Button>
-          <Button
-            variant="outline"
-            icon={<Download size={15} strokeWidth={1.25} />}
-            onClick={() => downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), `${doc.project.title || 'scenario'}.fountain`)}
-            disabled={!text.trim()}
-          >
-            .fountain
-          </Button>
+        </div>
+        <div className={s.tools}>
+          {!readOnly && (
+            <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile} title="Fountain, PDF, Word, Markdown ou texte">
+              Importer
+            </Button>
+          )}
+          <TabExport
+            id="scenario"
+            orientation="portrait"
+            doc={() => scriptDocument(current())}
+            fileBase={`${title}-scenario`}
+            file={{ label: 'Fountain', name: `${title}.fountain`, type: 'text/plain;charset=utf-8', content: () => current().scenario ?? '' }}
+          />
         </div>
       </header>
 
       <div className={s.layout}>
-        <div className={['a4-sheet', s.paper].join(' ')}>
-          {mode === 'cut' ? (
-            <CutView doc={doc} />
-          ) : mode === 'edit' ? (
-            <Editor text={text} onChange={setText} marks={marks} highlighted={highlighted} taRef={taRef} onContextMenu={onContextMenu} onCaret={onCaret} onBlur={flush} />
+        <div className={s.center} ref={center}>
+          {view === 'cut' ? (
+            <div className={['a4-sheet', s.cutSheet].join(' ')}>
+              <CutView doc={doc} />
+            </div>
           ) : (
-            <ScriptReader doc={doc} source={text} />
-          )}
-        </div>
-        <aside className={s.side} aria-label="Séquences et plans liés">
-          <div className={s.sideHead}>
-            <Hand>plans</Hand>
-            <Button variant="outline" size="sm" onClick={() => navigate('grid')}>
-              Ouvrir le découpage
-            </Button>
-          </div>
-          {scenes.some((sc) => !matchSequence(doc, sc)) && (
-            <button
-              type="button"
-              className={s.quiet}
-              data-testid="import-scenes"
-              title="Ajoute à la fin du découpage les séquences du scénario qui n’y figurent pas encore (rien n’est modifié ni réordonné)"
-              onClick={() => {
-                flush();
-                const r = mutateDoc((d) => importScenes(d, latest.current));
-                if (r) toast({ message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.characters} personnage${r.characters > 1 ? 's' : ''} ajouté${r.sequences + r.characters > 1 ? 's' : ''} au découpage.`, actionLabel: 'Annuler', action: undo });
+            <div
+              className={s.zoom}
+              style={phone ? undefined : { zoom }}
+              onContextMenu={(e) => {
+                // Clic droit sur une sélection : le passage devient un plan.
+                if (readOnly || !useScriptUi.getState().selection) return;
+                e.preventDefault();
+                createShot({ x: e.clientX, y: e.clientY });
               }}
             >
-              + Ajouter au découpage les {scenes.filter((sc) => !matchSequence(doc, sc)).length} séquence(s) absente(s)
-            </button>
+              <ScriptEditor
+                key={doc.project.id}
+                doc={doc}
+                readOnly={readOnly}
+                anchors={anchors}
+                hot={hover ?? caretAnchor}
+                onCaretAnchor={setCaretAnchor}
+                apiRef={api}
+                paged={!phone}
+              />
+            </div>
           )}
-          {doc.project.sequenceIds.length === 0 && <p className={s.muted}>Le découpage est vide : sélectionnez un passage puis « Créer un plan ».</p>}
-          {doc.project.sequenceIds.map((seqId) => {
-            const seq = doc.sequences[seqId];
-            return (
-              <section key={seqId} className={s.scene}>
-                <h3>
-                  {sequenceHeading(doc, seqId)}
-                  <span>{[seq?.intExt, seq?.effect].filter(Boolean).join(' · ')}</span>
-                </h3>
-                <ul>
-                  {(seq?.shotIds ?? []).map((id) => {
-                    const shot = doc.shots[id];
-                    const block = doc.blocks[shot.actionBlockId];
-                    const linked = !!block?.scenarioAnchor;
-                    return (
-                      <li
-                        key={id}
-                        className={[linked ? s.linked : '', highlighted && shot.actionBlockId === highlighted ? s.hot : ''].join(' ')}
-                        onMouseEnter={() => linked && setHoverBlock(shot.actionBlockId)}
-                        onMouseLeave={() => setHoverBlock(null)}
-                        data-testid="scenario-shot"
-                      >
-                        <button type="button" onClick={() => goToShot(doc, id)}>
-                          {shotCode(doc, id)}
-                        </button>
-                        <span className={s.what}>
-                          {[shot.subject, shot.value].filter(Boolean).join(' · ') || '—'}
-                          <em>{block?.text || block?.dialogue}</em>
-                        </span>
-                      </li>
-                    );
-                  })}
-                  {seq && seq.shotIds.length === 0 && <li className={s.muted}>Aucun plan : sélectionnez un passage puis « Créer un plan ».</li>}
-                </ul>
-              </section>
-            );
-          })}
+        </div>
+
+        <aside className={s.side} aria-label="Navigation du scénario">
+          <div className={s.tabs} role="tablist">
+            {TABS.map(([t, label]) => (
+              <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? s.tabOn : ''} onClick={() => setTab(t)} data-testid={`scenario-tab-${t}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'scenes' && (
+            <Outline
+              onPick={(id) => {
+                if (view !== 'script') {
+                  setView('script');
+                  setTimeout(() => api.current?.scrollTo(id), 60);
+                } else api.current?.scrollTo(id);
+              }}
+            />
+          )}
+          {tab === 'shots' && <ShotsPanel doc={doc} readOnly={readOnly} hot={hover ?? caretAnchor} onHover={setHover} onFlush={() => api.current?.flush()} />}
+          {tab === 'stats' && <Stats />}
         </aside>
       </div>
     </div>
   );
 }
 
-function Editor({
-  text,
-  onChange,
-  marks,
-  highlighted,
-  taRef,
-  onContextMenu,
-  onCaret,
-  onBlur,
-}: {
-  text: string;
-  onChange: (t: string) => void;
-  marks: Mark[];
-  highlighted: ID | null;
-  taRef: React.RefObject<HTMLTextAreaElement>;
-  onContextMenu: (e: MouseEvent<HTMLTextAreaElement>) => void;
-  onCaret: () => void;
-  onBlur: () => void;
-}) {
-  useLayoutEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    ta.style.height = '0px';
-    ta.style.height = `${Math.max(480, ta.scrollHeight)}px`;
-  }, [text, taRef]);
-
-  // Fond de surlignage : même typographie que la zone de saisie, texte transparent.
-  const parts: Array<{ text: string; mark?: Mark }> = [];
-  let pos = 0;
-  for (const m of marks) {
-    const a = Math.max(pos, Math.min(m.start, text.length));
-    const b = Math.min(m.end, text.length);
-    if (b <= a) continue;
-    if (a > pos) parts.push({ text: text.slice(pos, a) });
-    parts.push({ text: text.slice(a, b), mark: m });
-    pos = b;
-  }
-  parts.push({ text: text.slice(pos) + '\n' });
-
+/** Type du paragraphe courant ; le menu garde le curseur dans le texte. */
+function TypePicker({ type, onPick, onTitle }: { type: BlockType | null; onPick: (t: BlockType) => void; onTitle: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener('pointerdown', away);
+    return () => window.removeEventListener('pointerdown', away);
+  }, [open]);
   return (
-    <div className={s.editor}>
-      <div className={s.backdrop} aria-hidden="true">
-        {parts.map((p, i) =>
-          p.mark ? (
-            <mark key={i} className={p.mark.blockId === highlighted ? s.markHot : s.mark} style={{ ['--mark' as string]: p.mark.color }}>
-              {p.text}
-            </mark>
-          ) : (
-            <span key={i}>{p.text}</span>
-          ),
-        )}
-      </div>
-      <textarea
-        ref={taRef}
-        className={s.textarea}
-        value={text}
-        spellCheck={false}
-        onChange={(e) => onChange(e.target.value)}
-        onContextMenu={onContextMenu}
-        onSelect={onCaret}
-        onBlur={onBlur}
-        aria-label="Scénario (syntaxe Fountain)"
-        placeholder={'INT. CHAMBRE - JOUR\n\nLéa, assise sur le lit, regarde l’affiche.\n\nLÉA\n(murmurant)\nUn jour, ce sera moi.'}
-        data-testid="scenario-editor"
-      />
+    <div className={s.picker} ref={ref}>
+      <button
+        type="button"
+        className={s.pickerBtn}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen(!open)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title="Type du paragraphe (Tab pour en changer)"
+        data-testid="block-type"
+      >
+        {type ? blockLabel(type) : 'Paragraphe'}
+        <ChevronDown size={14} strokeWidth={1.4} aria-hidden="true" />
+      </button>
+      {open && (
+        <ul className={s.pickerMenu} role="listbox" aria-label="Type du paragraphe">
+          {BLOCK_LABELS.map(([t, label], i) => (
+            <li
+              key={t}
+              role="option"
+              aria-selected={t === type}
+              className={t === type ? s.pickOn : ''}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPick(t);
+                setOpen(false);
+              }}
+            >
+              <span>{label}</span>
+              <kbd>⌥{i + 1}</kbd>
+            </li>
+          ))}
+          <li
+            role="option"
+            aria-selected={false}
+            className={s.pickSep}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setOpen(false);
+              onTitle();
+            }}
+          >
+            <span>Page de titre…</span>
+          </li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Sommaire : une ligne par séquence, avec sa page ; un clic y mène. */
+function Outline({ onPick }: { onPick: (id: string) => void }) {
+  const outline = useScriptUi((u) => u.outline);
+  const active = useScriptUi((u) => u.activeHeading);
+  const pages = useScriptUi((u) => u.pages);
+  if (!outline.length) return <p className={s.muted}>Aucune séquence pour l’instant.</p>;
+  return (
+    <>
+      <p className={s.count}>
+        {outline.length} séquence{outline.length > 1 ? 's' : ''} · {pages} page{pages > 1 ? 's' : ''}
+      </p>
+      <ol className={s.outline} data-testid="scenario-outline">
+        {outline.map((o) => (
+          <li key={o.id}>
+            <button type="button" className={o.id === active ? s.current : ''} aria-current={o.id === active || undefined} onClick={() => onPick(o.id)}>
+              <span className={s.n}>{o.n}</span>
+              <span className={s.h}>{o.text || 'Sans titre'}</span>
+              <span className={s.p}>{o.page}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+}
+
+/** Plans du découpage, séquence par séquence, reliés à leurs passages. */
+function ShotsPanel({ doc, readOnly, hot, onHover, onFlush }: { doc: ProjectDoc; readOnly: boolean; hot: ID | null; onHover: (id: ID | null) => void; onFlush: () => void }) {
+  const toast = useUi((u) => u.toast);
+  const scenes = useMemo(() => scenesOf(doc.scenario ?? ''), [doc.scenario]);
+  const missing = scenes.filter((sc) => !matchSequence(doc, sc)).length;
+  return (
+    <div className={s.shots}>
+      {!readOnly && (
+        <div className={s.shotsHead}>
+          <LinkModeToggle doc={doc} />
+          {missing > 0 && (
+            <button
+              type="button"
+              className={s.quiet}
+              data-testid="import-scenes"
+              title="Ajoute à la fin du découpage les séquences du scénario qui n’y figurent pas encore (rien n’est modifié ni réordonné)"
+              onClick={() => {
+                onFlush();
+                const src = useProjectStore.getState().doc?.scenario ?? '';
+                const r = mutateDoc((d) => importScenes(d, src));
+                if (r) toast({ message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.characters} personnage${r.characters > 1 ? 's' : ''} ajouté${r.sequences + r.characters > 1 ? 's' : ''} au découpage.`, actionLabel: 'Annuler', action: undo });
+              }}
+            >
+              + Ajouter au découpage {missing > 1 ? `les ${missing} séquences absentes` : 'la séquence absente'}
+            </button>
+          )}
+        </div>
+      )}
+      {doc.project.sequenceIds.length === 0 && <p className={s.muted}>Le découpage est vide : sélectionnez un passage puis « Créer un plan ».</p>}
+      {doc.project.sequenceIds.map((seqId) => {
+        const seq = doc.sequences[seqId];
+        return (
+          <section key={seqId} className={s.scene}>
+            <h3>
+              {sequenceHeading(doc, seqId)}
+              <span>{[seq?.intExt, seq?.effect].filter(Boolean).join(' · ')}</span>
+            </h3>
+            <ul>
+              {(seq?.shotIds ?? []).map((id) => {
+                const shot = doc.shots[id];
+                const block = doc.blocks[shot.actionBlockId];
+                const linked = !!block?.scenarioAnchor;
+                return (
+                  <li
+                    key={id}
+                    className={[linked ? s.linked : '', hot && shot.actionBlockId === hot ? s.hot : ''].join(' ')}
+                    onMouseEnter={() => linked && onHover(shot.actionBlockId)}
+                    onMouseLeave={() => onHover(null)}
+                    data-testid="scenario-shot"
+                  >
+                    <button type="button" onClick={() => goToShot(doc, id)}>
+                      {shotCode(doc, id)}
+                    </button>
+                    <span className={s.what}>
+                      {[shot.subject, shot.value].filter(Boolean).join(' · ') || '—'}
+                      <em>{block?.text || block?.dialogue}</em>
+                    </span>
+                  </li>
+                );
+              })}
+              {seq && seq.shotIds.length === 0 && <li className={s.muted}>Aucun plan.</li>}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Statistiques : pages, durée estimée, séquences, mots, répliques par personnage. */
+function Stats() {
+  const blocks = useScriptUi((u) => u.blocks);
+  const pages = useScriptUi((u) => u.pages);
+  const st = useMemo(() => scriptStats(blocks), [blocks]);
+  const nf = (n: number) => n.toLocaleString('fr-FR');
+  const ie = (['INT', 'EXT', 'INT/EXT'] as const).filter((k) => st.intExt[k]).map((k) => `${k} ${st.intExt[k]}`);
+  const eff = Object.entries(st.effects)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k.toLocaleLowerCase('fr')} ${v}`);
+  return (
+    <div className={s.stats} data-testid="scenario-stats">
+      <dl>
+        <div>
+          <dt>Pages</dt>
+          <dd>
+            {pages} <small>≈ {pages} min à l’écran</small>
+          </dd>
+        </div>
+        <div>
+          <dt>Séquences</dt>
+          <dd>
+            {st.scenes} {ie.length > 0 && <small>{ie.join(' · ')}</small>}
+            {eff.length > 0 && <small>{eff.join(' · ')}</small>}
+          </dd>
+        </div>
+        <div>
+          <dt>Mots</dt>
+          <dd>
+            {nf(st.words)} <small>dont {nf(st.dialogueWords)} dialogués</small>
+          </dd>
+        </div>
+      </dl>
+      {st.characters.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th>Personnage</th>
+              <th>Répliques</th>
+              <th>Mots</th>
+              <th>Séq.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {st.characters.map((c) => (
+              <tr key={c.name}>
+                <td>{c.name}</td>
+                <td>{c.replies}</td>
+                <td>{nf(c.words)}</td>
+                <td>{c.scenes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

@@ -395,17 +395,6 @@ function CuttingSection({ doc }: { doc: ProjectDoc }) {
           ]}
         />
       </Row>
-      <Row label="Passages du scénario" hint="Où va un passage ajouté depuis le scénario.">
-        <Radio
-          name="Passages du scénario"
-          value={st.scenarioLink ?? 'auto'}
-          onChange={(v) => patch({ scenarioLink: v })}
-          options={[
-            ['auto', 'Séquence de sa scène'],
-            ['free', 'Au choix'],
-          ]}
-        />
-      </Row>
       <Row label="Modèles" hint="Ajoute aussitôt des séquences types au découpage.">
         <TemplatesMenu doc={doc} variant="outline" />
       </Row>
