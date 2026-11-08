@@ -4,7 +4,9 @@
  * restent dans la grille classique, avec un créneau horaire par séquence au lieu d'un minutage.
  */
 import { newId } from './factory';
-import type { ID, ProjectDoc } from './types';
+import { recognizeCharacters } from './characters';
+import { addSequence, addShot, normalizeBlocks, removeShot } from './ops';
+import type { ID, ProjectDoc, Shot } from './types';
 
 export interface InterviewCamera {
   id: ID;
@@ -41,6 +43,8 @@ export interface InterviewSetup {
   background: string;
   light: string;
   sound: string;
+  /** Séquence du découpage où ce cadre est tourné (un plan par caméra) ; absente = annexe seule. */
+  sequenceId?: ID;
 }
 
 export interface Interviewee {
@@ -162,3 +166,214 @@ export function moveQuestion(itw: Interview, subjectId: ID, qId: ID, delta: -1 |
   const b = itw.questions.findIndex((q) => q.id === other.id);
   [itw.questions[a], itw.questions[b]] = [itw.questions[b], itw.questions[a]];
 }
+
+// --- L'interview dans le découpage ----------------------------------------------------------------
+//
+// Un cadre d'interview peut rester une annexe (fiche seule) ou être placé dans une séquence : il y
+// devient un plan par caméra (2.3A, 2.3B : un numéro, une lettre par caméra), groupés et dessinés en
+// une seule bande dans le découpage. La fiche reste la source : sujet, valeur, axe, focale et action
+// des plans la suivent ; on déplace ou supprime le groupe d'un bloc.
+
+/** Plans du découpage tournés par un cadre (un par caméra), dans l'ordre des séquences. */
+export function setupShotIds(doc: ProjectDoc, setupId: ID): ID[] {
+  const out: ID[] = [];
+  for (const seqId of doc.project.sequenceIds) for (const id of doc.sequences[seqId]?.shotIds ?? []) if (doc.shots[id]?.interview?.setupId === setupId) out.push(id);
+  return out;
+}
+
+/** Intervenant et cadre d'un identifiant de cadre. */
+export function findSetup(doc: ProjectDoc, setupId: ID): { subject: Interviewee; setup: InterviewSetup } | undefined {
+  for (const subject of doc.interview?.subjects ?? []) for (const setup of subject.setups ?? []) if (setup.id === setupId) return { subject, setup };
+  return undefined;
+}
+
+/** Action commune aux caméras d'un cadre : qui parle, et à quel titre. */
+export const interviewAction = (s: Pick<Interviewee, 'name' | 'role'>) => `Interview — ${s.name.trim() || 'intervenant'}${s.role.trim() ? `, ${s.role.trim()}` : ''}`;
+
+/** Focale saisie librement dans la fiche (« 50 », « 24-70 mm ») : en millimètres. */
+function parseFocal(text: string): Shot['focal'] {
+  const m = /(\d+(?:[.,]\d+)?)(?:\s*(?:[-–]|à)\s*(\d+(?:[.,]\d+)?))?/.exec(text ?? '');
+  if (!m) return {};
+  const num = (v: string) => Number(v.replace(',', '.'));
+  return m[2] ? { from: num(m[1]), to: num(m[2]) } : { from: num(m[1]) };
+}
+
+/** Champs d'un plan tirés d'une caméra de la fiche. */
+function cameraFields(subject: Interviewee, cam: InterviewCamera): Pick<Shot, 'subject' | 'value' | 'angle' | 'focal'> {
+  return {
+    subject: subject.name.trim() || 'Intervenant',
+    value: cam.value.trim(),
+    angle: cam.angle.split(',').map((t) => t.trim()).filter(Boolean),
+    focal: parseFocal(cam.focal),
+  };
+}
+
+const cameraShot = (subject: Interviewee, setup: InterviewSetup, cam: InterviewCamera): Partial<Shot> => ({
+  ...cameraFields(subject, cam),
+  movement: ['Fixe'],
+  sound: setup.sound.trim() || undefined,
+  interview: { subjectId: subject.id, setupId: setup.id, cameraId: cam.id },
+});
+
+/** Libellé de la séquence créée pour un cadre placé à part. */
+export const interviewSequenceLabel = (s: Pick<Interviewee, 'name'>) => `Interview${s.name.trim() ? ` ${s.name.trim()}` : ''}`;
+
+/**
+ * Place un cadre dans une séquence (à sa fin), ou dans une nouvelle séquence en fin de découpage
+ * (`'new'`) ; sans séquence, il sort du découpage et la fiche reste en annexe.
+ */
+export function placeSetup(doc: ProjectDoc, setupId: ID, seqId?: ID | 'new'): void {
+  const found = findSetup(doc, setupId);
+  if (!found) return;
+  const { subject, setup } = found;
+  for (const id of setupShotIds(doc, setupId)) removeShot(doc, id);
+  setup.sequenceId = undefined;
+  let target = seqId === 'new' ? undefined : seqId && doc.sequences[seqId] ? seqId : undefined;
+  if (seqId === 'new') target = addSequence(doc, undefined, { label: interviewSequenceLabel(subject) }, false);
+  if (!target) return;
+  setup.sequenceId = target;
+  let blockId: ID | undefined;
+  for (const cam of setup.cameras) {
+    const id = addShot(doc, target, { blockId, action: { text: interviewAction(subject) }, init: cameraShot(subject, setup, cam) });
+    blockId ??= doc.shots[id].actionBlockId;
+  }
+}
+
+const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * Remet les plans d'interview d'accord avec la fiche (après chaque modification du projet, et au
+ * chargement). Idempotente : rien n'est réécrit quand tout est déjà juste.
+ * - cadre, caméra ou intervenant supprimés : leurs plans quittent le découpage ;
+ * - caméra ajoutée : son plan rejoint le groupe ; une caméra n'a qu'un plan (les doubles redeviennent
+ *   des plans ordinaires) ;
+ * - les caméras d'un cadre restent groupées, dans leur ordre, à la place du premier plan, avec une
+ *   action commune ; un cadre dont le groupe a été supprimé redevient une annexe seule ;
+ * - sujet, valeur, axe, focale et action suivent la fiche.
+ */
+export function syncInterviewShots(doc: ProjectDoc): void {
+  const linked: Shot[] = [];
+  for (const seqId of doc.project.sequenceIds) for (const id of doc.sequences[seqId]?.shotIds ?? []) if (doc.shots[id]?.interview) linked.push(doc.shots[id]);
+  const placed = (doc.interview?.subjects ?? []).some((x) => (x.setups ?? []).some((y) => y.sequenceId));
+  if (!linked.length && !placed) return;
+  // Plans orphelins (cadre ou caméra disparus), doubles d'une même caméra.
+  const seen = new Set<string>();
+  for (const sh of linked) {
+    const link = sh.interview!;
+    const found = findSetup(doc, link.setupId);
+    if (!found || !found.setup.cameras.some((c) => c.id === link.cameraId)) {
+      removeShot(doc, sh.id);
+      continue;
+    }
+    const key = `${link.setupId}/${link.cameraId}`;
+    if (seen.has(key)) sh.interview = undefined;
+    else seen.add(key);
+  }
+  for (const subject of doc.interview?.subjects ?? [])
+    for (const setup of subject.setups ?? []) {
+      const ids = setupShotIds(doc, setup.id);
+      if (!ids.length) {
+        if (setup.sequenceId) setup.sequenceId = undefined;
+        continue;
+      }
+      const first = doc.shots[ids[0]];
+      const seqId = first.sequenceId;
+      const blockId = first.actionBlockId;
+      if (setup.sequenceId !== seqId) setup.sequenceId = seqId;
+      let moved = false;
+      for (const cam of setup.cameras)
+        if (!ids.some((id) => doc.shots[id].interview!.cameraId === cam.id)) {
+          addShot(doc, seqId, { blockId, index: doc.sequences[seqId].shotIds.indexOf(ids[ids.length - 1]) + 1, init: cameraShot(subject, setup, cam) });
+          moved = true;
+        }
+      const byCam = new Map(setupShotIds(doc, setup.id).map((id) => [doc.shots[id].interview!.cameraId, id]));
+      const group = setup.cameras.map((c) => byCam.get(c.id)!).filter(Boolean);
+      // Groupe contigu, dans l'ordre des caméras, à la place du premier plan.
+      const seq = doc.sequences[seqId];
+      const at = seq.shotIds.indexOf(group.find((id) => seq.shotIds.includes(id))!);
+      const rest = seq.shotIds.filter((id) => !group.includes(id));
+      const before = seq.shotIds.slice(0, at).filter((id) => !group.includes(id)).length;
+      const order = [...rest.slice(0, before), ...group, ...rest.slice(before)];
+      const touched = new Set<ID>();
+      for (const id of group) {
+        const sh = doc.shots[id];
+        if (sh.sequenceId !== seqId) {
+          const from = doc.sequences[sh.sequenceId];
+          if (from) from.shotIds = from.shotIds.filter((x) => x !== id);
+          touched.add(sh.sequenceId);
+          sh.sequenceId = seqId;
+        }
+        if (sh.actionBlockId !== blockId) {
+          sh.actionBlockId = blockId;
+          moved = true;
+        }
+      }
+      if (!sameList(seq.shotIds, order)) {
+        seq.shotIds = order;
+        moved = true;
+      }
+      if (moved || touched.size) {
+        touched.add(seqId);
+        for (const t of touched) normalizeBlocks(doc, t);
+      }
+      // Champs tirés de la fiche.
+      const text = interviewAction(subject);
+      const block = doc.blocks[doc.shots[group[0]].actionBlockId];
+      if (block && block.text !== text) block.text = text;
+      setup.cameras.forEach((cam, k) => {
+        const sh = doc.shots[group[k]];
+        if (!sh) return;
+        const f = cameraFields(subject, cam);
+        if (sh.subject !== f.subject) {
+          sh.subject = f.subject;
+          sh.characterIds = recognizeCharacters(f.subject, Object.values(doc.characters));
+        }
+        if (sh.value !== f.value) sh.value = f.value;
+        if (!sameList(sh.angle, f.angle)) sh.angle = f.angle;
+        if (sh.focal.from !== f.focal.from || sh.focal.to !== f.focal.to) sh.focal = f.focal;
+        const sound = setup.sound.trim() || undefined;
+        if (sh.sound !== sound) sh.sound = sound;
+        if (sh.interview!.subjectId !== subject.id) sh.interview!.subjectId = subject.id;
+      });
+    }
+}
+
+/** Regard de l'intervenant, en bref (bande du découpage). */
+export const EYELINE_SHORT: Record<InterviewSetup['eyeline'], string> = { gauche: 'Regard à gauche', droite: 'Regard à droite', camera: 'Face caméra' };
+
+/** Bande d'un cadre d'interview dans le découpage : qui, où, et une ligne par caméra. */
+export interface InterviewBand {
+  subjectId: ID;
+  setupId: ID;
+  name: string;
+  role: string;
+  setup: string;
+  place: string;
+  eyeline: string;
+  questions: number;
+  cameras: { shotId: ID; number: string; text: string }[];
+}
+
+/** En-tête de la bande d'un cadre (les lignes de caméras sont ajoutées par l'appelant). */
+export function interviewBandHead(doc: ProjectDoc, setupId: ID): Omit<InterviewBand, 'cameras'> | undefined {
+  const found = findSetup(doc, setupId);
+  if (!found) return undefined;
+  const { subject, setup } = found;
+  return {
+    subjectId: subject.id,
+    setupId,
+    name: subject.name.trim() || 'Intervenant',
+    role: subject.role.trim(),
+    setup: setup.name.trim(),
+    place: setup.place.trim(),
+    eyeline: EYELINE_SHORT[setup.eyeline] ?? '',
+    questions: doc.interview ? questionsFor(doc.interview, subject.id, setup.id).length : 0,
+  };
+}
+
+/** Texte d'une bande sur une ligne (exports tableur et texte). */
+export function interviewBandText(b: InterviewBand): string {
+  const head = ['INTERVIEW', [b.name, b.role].filter(Boolean).join(', '), [b.setup, b.place].filter(Boolean).join(' — '), b.eyeline, b.questions ? `${b.questions} question${b.questions > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+  return [head, ...b.cameras.map((c) => `${c.number}  ${c.text}`)].join('\n');
+}
+

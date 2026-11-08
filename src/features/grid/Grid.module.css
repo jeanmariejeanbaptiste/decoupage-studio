@@ -253,3 +253,22 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 .spacer td, .seqAddRow td, .gapRow td { background: transparent !important; border: 0 !important; }
 .spacer td { height: 18px; }
 .seqAddBtn, .seqAddBtn:hover { background: transparent !important; }
+
+/* Bande d'interview (institutionnel) : une ligne sur toute la largeur, puis une ligne par caméra,
+   alignée sur son numéro (2.3A, 2.3B). Filet d'encre à gauche, fond kraft : on la repère d'un coup d'œil. */
+.bandRow > td { height: auto; }
+.bandRow > .bandCell, .bandRow > .bandNum, .bandRow > .gutter { background: var(--kraft); }
+.bandFollow { height: 0; }
+.bandLines { display: grid; grid-auto-rows: 20px; align-items: center; padding: 5px 0; min-width: 0; }
+.bandCell { padding: 0 12px !important; text-align: left; vertical-align: top; box-shadow: inset 2px 0 0 var(--ink); }
+.bandHead { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.bandHead > strong { font-weight: 600; }
+.bandTag { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); margin-right: 4px; }
+.bandSoft { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; }
+.bandSoft::before { content: '·'; margin-right: 8px; }
+.bandCam { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bandNum { vertical-align: top; }
+.bandNum .numHandle { position: static; height: 20px; }
+.bandNumNext { display: flex; align-items: center; justify-content: center; height: 20px; color: var(--rust); font-weight: 600; font-variant-numeric: oldstyle-nums tabular-nums; }
+.bandOpen { margin-left: auto; display: inline-flex; border: 0; background: none; padding: 2px; color: var(--ink-soft); cursor: pointer; opacity: 0.55; transition: opacity var(--t-fast) var(--ease); }
+.bandOpen:hover, .bandOpen:focus-visible { opacity: 1; color: var(--ink); }

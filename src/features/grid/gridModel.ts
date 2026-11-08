@@ -73,10 +73,19 @@ export function cellSpan(doc: ProjectDoc, model: GridModel, row: number, col: Co
   const r = model.rows[row];
   if (!r) return { start: row, end: row };
   const kind = spanKind(doc, col);
-  if (kind === 'row') return { start: row, end: row };
+  if (kind === 'row' && !doc.shots[r.shotId]?.interview) return { start: row, end: row };
   const seq = model.bySeq.get(r.seqId)!;
   const last = seq.firstRow + seq.rows.length - 1;
   if (kind === 'sequence') return { start: seq.firstRow, end: last };
+  // Cadre d'interview : ses caméras forment une seule bande, d'un bout à l'autre de la ligne.
+  const group = doc.shots[r.shotId]?.interview?.setupId;
+  if (group) {
+    let start = row;
+    let end = row;
+    while (start > seq.firstRow && doc.shots[model.rows[start - 1].shotId]?.interview?.setupId === group) start--;
+    while (end < last && doc.shots[model.rows[end + 1].shotId]?.interview?.setupId === group) end++;
+    return { start, end };
+  }
   const block = doc.shots[r.shotId]?.actionBlockId;
   let start = row;
   let end = row;

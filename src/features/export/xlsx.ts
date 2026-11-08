@@ -3,6 +3,8 @@ import type { Borders, PaperSize, Workbook, Worksheet } from 'exceljs';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { COLUMN_DEFS, columnWidths } from '../../domain/columns';
 import { sequenceMerges } from '../../domain/rows';
+import { bandColumns } from '../../domain/merge';
+import { interviewBandText } from '../../domain/interview';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { formatTc } from '../../domain/timecode';
 import { computeTiming, formatGap } from '../../domain/timing';
@@ -104,8 +106,30 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
     const firstBeat = BEAT_COLUMNS.find((c) => columns.includes(c));
     // Ligne Excel de départ de chaque plan : un plan-séquence occupe une ligne par temps et par liaison.
     const starts: number[] = [];
+    const cover = bandColumns(columns, doc.project.settings);
     rows.forEach((r) => {
+      // Cadre d'interview : une seule ligne (la bande), qui porte toutes ses caméras.
+      if (r.follower) {
+        starts.push(starts[starts.length - 1]);
+        return;
+      }
       starts.push(ws.rowCount + 1);
+      if (r.band) {
+        const band = r.band;
+        const head = interviewBandText({ ...band, cameras: [] });
+        const row = ws.addRow(columns.map((c) => (c === 'number' ? band.cameras.map((x) => x.number).join('\n') : c === cover[0] ? [head, ...band.cameras.map((x) => x.text)].join('\n') : cover.includes(c) ? '' : (r.cells[c] ?? ''))));
+        row.height = Math.round((band.cameras.length + 1) * 12.5 + 8);
+        columns.forEach((c, i) => {
+          const cell = row.getCell(i + 1);
+          const inBand = cover.includes(c) || c === 'number';
+          cell.fill = fill(inBand ? p.head : p.bg);
+          cell.border = border;
+          cell.alignment = { vertical: c === 'number' ? 'bottom' : inBand ? 'top' : 'middle', horizontal: c === cover[0] ? 'left' : 'center', wrapText: true, indent: c === cover[0] ? 1 : 0 };
+          cell.font = { name: FONT, size: 9, bold: c === 'number' || c === 'sequence', color: { argb: `FF${colorFor(c, p)}` } };
+        });
+        if (cover.length > 1) ws.mergeCells(row.number, columns.indexOf(cover[0]) + 1, row.number, columns.indexOf(cover[cover.length - 1]) + 1);
+        return;
+      }
       const lines = r.lines ?? [undefined];
       lines.forEach((l, k) => {
         const row = ws.addRow(columns.map(() => ''));
@@ -124,7 +148,7 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
     const endOf = (i: number) => starts[i] + Math.max(1, rows[i].lines?.length ?? 1) - 1;
     // Hauteur de chaque ligne : assez pour le texte le plus long, réparti sur les lignes qu'il couvre.
     rows.forEach((r, i) => {
-      if (r.lines && r.lines.length > 1) return;
+      if ((r.lines && r.lines.length > 1) || r.band || r.follower) return;
       let need = 30;
       for (const c of columns) {
         const span = noMerge ? undefined : merges.get(c)?.find((m) => m.startRow <= i && i < m.startRow + m.span);
@@ -139,6 +163,7 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
         const top = starts[span.startRow];
         const bottom = endOf(span.startRow + span.span - 1);
         if (rows[span.startRow].lines && BEAT_COLUMNS.includes(c)) continue;
+        if (rows[span.startRow].group && cover.includes(c)) continue;
         if (bottom > top && !noMerge) ws.mergeCells(top, i + 1, bottom, i + 1);
       }
     });

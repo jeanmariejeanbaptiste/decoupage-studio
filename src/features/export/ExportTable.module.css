@@ -135,3 +135,15 @@
 
 /* Titres de colonnes : coupure entre les mots seulement, jamais au milieu d'un mot. */
 .headLabel { display: inline-block; max-width: 100%; word-break: keep-all; overflow-wrap: normal; hyphens: none; white-space: normal; }
+
+/* Bande d'interview : une ligne sur toute la largeur, puis une ligne par caméra, alignée sur son numéro. */
+.bandRow .bandCell, .bandRow .bandNum { background: var(--x-head); vertical-align: top; }
+.bandFollow { height: 0; }
+.bandLines { display: grid; grid-auto-rows: 1.45em; align-items: center; }
+.bandCell { text-align: left !important; box-shadow: inset 2px 0 0 currentColor; }
+.bandHead { display: flex; align-items: center; gap: 0.6em; white-space: nowrap; overflow: hidden; }
+.bandTag { font-size: 0.8em; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6; margin-right: 0.3em; }
+.bandSoft { opacity: 0.65; }
+.bandSoft::before { content: '·'; margin-right: 0.6em; }
+.bandCam { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bandNum .bandLines span { text-align: center; }

@@ -5,6 +5,7 @@ import { useStore } from 'zustand';
 import { produce } from 'immer';
 import { apply, type Op } from '../domain/patch';
 import type { ProjectDoc } from '../domain/types';
+import { syncInterviewShots } from '../domain/interview';
 
 interface ProjectState {
   doc: ProjectDoc | null;
@@ -41,6 +42,8 @@ export const useProjectStore = create<ProjectState>()(
         if (next === cur) return;
         set({
           doc: produce(next, (d) => {
+            // Institutionnel : les plans d'interview suivent la fiche (caméras, intervenant, place).
+            syncInterviewShots(d);
             d.project.updatedAt = new Date().toISOString();
           }),
         });

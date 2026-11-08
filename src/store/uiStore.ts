@@ -28,8 +28,10 @@ export interface UiState {
   toasts: Toast[];
   theme: 'papier' | 'encre';
   printView: boolean;
-  /** Institutionnel : volet affiché (interview ou illustrations). */
+  /** Institutionnel : volet affiché (la fiche d'interview, ou le tableau du découpage). */
   itwTab: 'itw' | 'broll';
+  /** Fiche d'interview à ouvrir sur cet intervenant et ce cadre (depuis la bande du découpage). */
+  itwFocus: { subjectId: ID; setupId: ID } | null;
   /** Un seul panneau à droite du découpage à la fois : l'inspecteur ou le scénario. */
   rightPanel: 'inspector' | 'scenario' | null;
   sidebarOpen: boolean;
@@ -71,6 +73,7 @@ export const useUi = create<UiState>()((set) => ({
       return 'itw';
     }
   })(),
+  itwFocus: null,
   rightPanel: typeof window !== 'undefined' && window.innerWidth >= 1600 ? 'inspector' : null,
   oneShotEditor: null,
   sidebarOpen: (() => {
@@ -108,3 +111,14 @@ export function toggleSidebar(open = !useUi.getState().sidebarOpen): void {
     /* stockage indisponible : le choix vaut pour la session */
   }
 }
+
+/** Ouvre la fiche d'interview du découpage sur cet intervenant et ce cadre. */
+export function openInterviewFiche(subjectId: ID, setupId: ID): void {
+  useUi.getState().set({ itwTab: 'itw', printView: false, editing: null, itwFocus: { subjectId, setupId } });
+  try {
+    localStorage.setItem('ds-itw-tab', 'itw');
+  } catch {
+    /* stockage indisponible */
+  }
+}
+

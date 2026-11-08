@@ -1,4 +1,5 @@
 import { mergeKey } from './text';
+import type { InterviewBand } from './interview';
 import type { ColumnKey, ID, ProjectSettings } from './types';
 
 export interface MergeRow {
@@ -10,6 +11,12 @@ export interface MergeRow {
   isolated?: boolean;
   /** Plan-séquence : une sous-ligne par temps (et par liaison), alignées d'une colonne à l'autre. */
   lines?: SubLine[];
+  /** Institutionnel : cadre d'interview dont ce plan est une caméra (aucune fusion ne franchit le groupe). */
+  group?: ID;
+  /** Première caméra du cadre : la bande, dessinée sur toute la largeur, couvre aussi les suivantes. */
+  band?: InterviewBand;
+  /** Caméra suivante du cadre : rien à dessiner, la bande de la première la montre. */
+  follower?: boolean;
 }
 
 /** Sous-ligne d'un plan-séquence : « T1 », « T2 »… ou « ↳ » pour une liaison entre deux temps. */
@@ -71,7 +78,11 @@ function mergeColumn(rows: readonly MergeRow[], col: ColumnKey, opts: MergeOptio
   rows.forEach((row, i) => {
     const key = keyFor(row, col, opts);
     const last = spans[spans.length - 1];
-    const forcedBreak = (row.mergeBreak?.includes(col) ?? false) || (col !== 'sequence' && (!!row.isolated || !!rows[i - 1]?.isolated));
+    const wide = col === 'sequence' || (col === 'tc' && opts.tcMode === 'cumulatif' && opts.tcGranularity === 'sequence');
+    const forcedBreak =
+      (row.mergeBreak?.includes(col) ?? false) ||
+      (col !== 'sequence' && (!!row.isolated || !!rows[i - 1]?.isolated)) ||
+      (!wide && i > 0 && (row.group ?? '') !== (rows[i - 1]?.group ?? ''));
     if (!never && last && key === prevKey && !forcedBreak) last.span += 1;
     else spans.push({ startRow: i, span: 1, value: row.cells[col] ?? '' });
     prevKey = key;
@@ -85,3 +96,9 @@ export function repeatedFlags(spans: readonly MergeSpan[], rowCount: number): bo
   for (const s of spans) for (let i = s.startRow + 1; i < s.startRow + s.span; i++) flags[i] = true;
   return flags;
 }
+
+/** Colonnes couvertes par une bande d'interview : toutes, sauf la séquence, le N° et un TC cumulé par séquence. */
+export function bandColumns(columns: readonly ColumnKey[], opts: Pick<MergeOptions, 'tcMode' | 'tcGranularity'>): ColumnKey[] {
+  return columns.filter((c) => c !== 'sequence' && c !== 'number' && !(c === 'tc' && opts.tcMode === 'cumulatif' && opts.tcGranularity === 'sequence'));
+}
+

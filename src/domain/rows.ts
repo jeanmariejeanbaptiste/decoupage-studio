@@ -1,7 +1,8 @@
 import { computeMerges, type MergeMap, type MergeRow } from './merge';
+import { interviewBandHead } from './interview';
 import { formatAperture, formatFocal } from './focal';
 import { deduceEquipment } from './equipment';
-import { sequenceHeading } from './numbering';
+import { sequenceHeading, shotNumberLabel } from './numbering';
 import { formatTc } from './timecode';
 import { shotTcLabel, type Timing, shotOwnSec } from './timing';
 import { renderTokens } from './tokens';
@@ -26,7 +27,7 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
     case 'sequence':
       return sequenceHeading(doc, shot.sequenceId);
     case 'number':
-      return String(index + 1);
+      return shotNumberLabel(doc, shot.id) || String(index + 1);
     case 'subject':
       return shot.subject;
     case 'value':
@@ -85,17 +86,34 @@ export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, co
   const text = forExport ? exportCellText : cellText;
   const seq = doc.sequences[seqId];
   if (!seq) return [];
-  return seq.shotIds
-    .map((id) => doc.shots[id])
-    .filter((s): s is Shot => !!s)
-    .map((shot, i) => ({
+  const shots = seq.shotIds.map((id) => doc.shots[id]).filter((s): s is Shot => !!s);
+  return shots.map((shot, i) => {
+    const row: MergeRow = {
       shotId: shot.id,
       blockId: shot.actionBlockId,
       mergeBreak: shot.mergeBreak,
       isolated: !!shot.oneShot,
       lines: shot.oneShot ? beatSubLines(shot.oneShot.beats, (v) => valueLabel(v, doc.project.settings.labelStyle)) : undefined,
       cells: Object.fromEntries(columns.map((c) => [c, text(doc, timing, shot, c, i)])),
-    }));
+    };
+    const setupId = shot.interview?.setupId;
+    if (setupId) {
+      row.group = setupId;
+      if (shots[i - 1]?.interview?.setupId === setupId) row.follower = true;
+      else {
+        const head = interviewBandHead(doc, setupId);
+        const mates: Shot[] = [];
+        for (let k = i; k < shots.length && shots[k].interview?.setupId === setupId; k++) mates.push(shots[k]);
+        if (head) row.band = { ...head, cameras: mates.map((m) => ({ shotId: m.id, number: shotNumberLabel(doc, m.id), text: cameraText(doc, m) })) };
+      }
+    }
+    return row;
+  });
+}
+
+/** Une caméra d'interview en une ligne : valeur · axe · focale. */
+function cameraText(doc: ProjectDoc, shot: Shot): string {
+  return [valueLabel(shot.value, doc.project.settings.labelStyle), renderTokens(shot.angle), formatFocal(shot.focal, false)].filter((x) => x && x.trim()).join(' · ');
 }
 
 export function sequenceMerges(

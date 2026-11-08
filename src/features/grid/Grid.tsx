@@ -7,7 +7,7 @@ import { editableText, isEditable, parseTsv, toTsv } from '../../domain/cells';
 import { COLUMN_DEFS } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { redo, undo } from '../../store/projectStore';
-import { useUi, type CellPos } from '../../store/uiStore';
+import { openInterviewFiche, useUi, type CellPos } from '../../store/uiStore';
 import {
   clearSelection,
   commitCell,
@@ -88,6 +88,12 @@ export function Grid({ doc, model, animate = false }: Props) {
   const startEdit = (pos: CellPos, initial?: string) => {
     if (!isEditable(pos.col) || !model.rows[pos.row]) return;
     const sid = model.rows[pos.row].shotId;
+    // Plan d'interview : il se règle dans sa fiche (seul le libellé de la séquence s'édite ici).
+    const link = doc.shots[sid]?.interview;
+    if (link && pos.col !== 'sequence') {
+      openInterviewFiche(link.subjectId, link.setupId);
+      return;
+    }
     if (doc.shots[sid]?.oneShot && BEAT_COLUMNS.includes(pos.col)) {
       setSelection({ row: pos.row, col: pos.col });
       useUi.getState().set({ oneShotEditor: sid });

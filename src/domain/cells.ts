@@ -80,6 +80,8 @@ export function setCellText(doc: ProjectDoc, shotId: ID, col: ColumnKey, text: s
   if (!shot || !isEditable(col)) return false;
   // Plan-séquence : les colonnes de cadrage se modifient temps par temps, dans l'inspecteur.
   if (shot.oneShot && BEAT_COLUMNS.includes(col)) return false;
+  // Plan d'interview : il se règle dans la fiche d'interview (seul le libellé de séquence reste ici).
+  if (shot.interview && col !== 'sequence') return false;
   const block = doc.blocks[shot.actionBlockId];
   const seq = doc.sequences[shot.sequenceId];
   const s = doc.project.settings;

@@ -1,5 +1,5 @@
 import { richImageKeys } from './richText';
-import { ensureInterview, upgradeInterview } from './interview';
+import { ensureInterview, syncInterviewShots, upgradeInterview } from './interview';
 import { defaultSettings, makeBlock } from './factory';
 import { normalizeScenario } from './fountain';
 import { activeColumns } from './columns';
@@ -156,6 +156,8 @@ export function migrate(input: ProjectDoc): ProjectDoc {
     }
   }
   normalizeScenario(doc);
+  // Plans d'interview remis d'accord avec la fiche (fichier modifié ailleurs, ancienne version).
+  syncInterviewShots(doc);
   return doc;
 }
 

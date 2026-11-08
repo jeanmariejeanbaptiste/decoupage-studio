@@ -3,6 +3,7 @@
  * fournisseur (Anthropic, OpenAI, Gemini…) : schémas JSON, puis exécution sur un brouillon du projet.
  * Toutes les modifications d'une réponse forment une seule étape d'annulation (voir features/assistant).
  */
+import { shotNumberLabel } from './numbering';
 import { addBreakdownItems, breakdownCategories, breakdownLabel, breakdownOf } from './breakdown';
 import { applyFormat } from './factory';
 import { scenesOf, shiftAnchors } from './fountain';
@@ -58,8 +59,8 @@ export const AI_TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'get_scenario',
-    description: 'Texte du scénario (syntaxe Fountain), en entier ou pour une scène.',
-    schema: obj({ scene: int('Numéro de la scène (facultatif : tout le scénario sinon)') }, []),
+    description: 'Texte du scénario (syntaxe Fountain), en entier ou pour une séquence.',
+    schema: obj({ scene: int('Numéro de la séquence du scénario (facultatif : tout le scénario sinon)') }, []),
     writes: false,
   },
   {
@@ -143,8 +144,8 @@ export const AI_TOOLS: readonly ToolDef[] = [
   {
     name: 'write_scenario',
     description:
-      'Écrit dans le scénario, en syntaxe Fountain (en-têtes « INT. LIEU - JOUR », noms en capitales au-dessus des répliques) : à la fin, ou à la place d’une scène existante.',
-    schema: obj({ text: str('Texte Fountain'), replace_scene: int('Numéro de la scène à remplacer (absent = ajout à la fin)') }, ['text']),
+      'Écrit dans le scénario, en syntaxe Fountain (en-têtes « INT. LIEU - JOUR », noms en capitales au-dessus des répliques) : à la fin, ou à la place d’une séquence existante.',
+    schema: obj({ text: str('Texte Fountain'), replace_scene: int('Numéro de la séquence à remplacer (absent = ajout à la fin)') }, ['text']),
     writes: true,
   },
   {
@@ -231,8 +232,11 @@ function describeSequence(doc: ProjectDoc, seqId: ID) {
       const sh = doc.shots[id];
       const b = doc.blocks[sh.actionBlockId];
       const shared = seq.shotIds.filter((x) => doc.shots[x]?.actionBlockId === sh.actionBlockId).length > 1;
+      const label = shotNumberLabel(doc, id);
       return {
         shot: i + 1,
+        number_shown: label !== String(i + 1) ? label : undefined,
+        interview: sh.interview ? 'plan d’une caméra d’interview : réglé dans la fiche d’interview, non modifiable ici' : undefined,
         subject: sh.subject,
         value: sh.value,
         angle: renderTokens(sh.angle),
@@ -283,7 +287,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const n = asInt(input.scene);
         if (n === undefined) return { result: src || '(scénario vide)' };
         const sc = scenesOf(src)[n - 1];
-        if (!sc) return { result: `Scène ${n} introuvable.`, isError: true };
+        if (!sc) return { result: `Séquence ${n} introuvable.`, isError: true };
         return { result: src.slice(sc.start, sc.end) };
       }
       case 'get_breakdown': {
@@ -351,6 +355,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const seqId = seqIdAt(doc, input.sequence);
         const shotId = shotIdAt(doc, seqId, input.shot);
         const shot = doc.shots[shotId];
+        if (shot.interview) throw new Error('Ce plan vient de la fiche d’interview : il se modifie dans la fiche (vue Interview), pas ici.');
         Object.assign(shot, shotPatch(input));
         const action = asStr(input.action);
         if (action !== undefined && doc.blocks[shot.actionBlockId]) doc.blocks[shot.actionBlockId].text = action;
@@ -386,11 +391,11 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const n = asInt(input.replace_scene);
         if (n !== undefined) {
           const sc = scenesOf(src)[n - 1];
-          if (!sc) throw new Error(`Scène ${n} introuvable.`);
+          if (!sc) throw new Error(`Séquence ${n} introuvable.`);
           const next = src.slice(0, sc.start) + text.replace(/\n*$/, '\n\n') + src.slice(sc.end).replace(/^\n+/, '');
           shiftAnchors(doc, src, next);
           doc.scenario = next;
-          return { result: 'ok', change: `Scène ${n} du scénario réécrite` };
+          return { result: 'ok', change: `Séquence ${n} du scénario réécrite` };
         }
         const next = src.trimEnd() ? `${src.trimEnd()}\n\n${text}\n` : `${text}\n`;
         shiftAnchors(doc, src, next);

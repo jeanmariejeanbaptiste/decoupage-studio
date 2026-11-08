@@ -76,6 +76,8 @@ export function duplicateShot(doc: ProjectDoc, shotId: ID): ID {
   copy.keyframes = undefined;
   copy.shootingDay = undefined;
   copy.mergeBreak = undefined;
+  // Une copie d'un plan d'interview devient un plan ordinaire (la fiche n'a qu'un plan par caméra).
+  copy.interview = undefined;
   doc.shots[copy.id] = copy;
   seq.shotIds.splice(seq.shotIds.indexOf(shotId) + 1, 0, copy.id);
   normalizeBlocks(doc, seq.id);
@@ -84,7 +86,25 @@ export function duplicateShot(doc: ProjectDoc, shotId: ID): ID {
   return copy.id;
 }
 
+/**
+ * Plans d'un même cadre d'interview (institutionnel : une caméra par plan), dans l'ordre du découpage ;
+ * pour tout autre plan, lui seul. Ils se suppriment et se déplacent ensemble.
+ */
+export function interviewGroupOf(doc: ProjectDoc, shotId: ID): ID[] {
+  const setupId = doc.shots[shotId]?.interview?.setupId;
+  if (!setupId) return doc.shots[shotId] ? [shotId] : [];
+  const out: ID[] = [];
+  for (const sid of doc.project.sequenceIds) for (const id of doc.sequences[sid]?.shotIds ?? []) if (doc.shots[id]?.interview?.setupId === setupId) out.push(id);
+  return out.length ? out : [shotId];
+}
+
+/** Supprime un plan ; un plan d'interview part avec les autres caméras de son cadre. */
 export function deleteShot(doc: ProjectDoc, shotId: ID): void {
+  for (const id of interviewGroupOf(doc, shotId)) removeShot(doc, id);
+}
+
+/** Supprime ce seul plan, sans toucher aux autres caméras d'un cadre d'interview. */
+export function removeShot(doc: ProjectDoc, shotId: ID): void {
   const shot = doc.shots[shotId];
   if (!shot) return;
   const seq = seqOf(doc, shot.sequenceId);
@@ -125,6 +145,11 @@ export function moveSequence(doc: ProjectDoc, seqId: ID, toIndex: number): void 
 export function moveShot(doc: ProjectDoc, shotId: ID, toSeqId: ID, toIndex: number): number {
   const shot = doc.shots[shotId];
   if (!shot) return 0;
+  const group = interviewGroupOf(doc, shotId);
+  if (group.length > 1) {
+    moveGroup(doc, group, toSeqId, toIndex);
+    return 0;
+  }
   const from = seqOf(doc, shot.sequenceId);
   const to = seqOf(doc, toSeqId);
   from.shotIds = from.shotIds.filter((id) => id !== shotId);
@@ -150,6 +175,47 @@ export function moveShot(doc: ProjectDoc, shotId: ID, toSeqId: ID, toIndex: numb
   to.shotIds.splice(Math.max(0, Math.min(toIndex, to.shotIds.length)), 0, shotId);
   splits += normalizeBlocks(doc, to.id);
   return splits;
+}
+
+/** Vrai si une insertion à `at` tomberait entre deux caméras d'un même cadre d'interview. */
+export function insideGroup(doc: ProjectDoc, ids: readonly ID[], at: number): boolean {
+  const a = doc.shots[ids[at - 1]]?.interview?.setupId;
+  return !!a && a === doc.shots[ids[at]]?.interview?.setupId;
+}
+
+/**
+ * Déplace d'un bloc les caméras d'un cadre d'interview, avec leur action commune. `toIndex` suit la
+ * convention du glisser-déposer : dans la même séquence, le groupe prend la place du plan visé (au-dessus
+ * en montant, en dessous en descendant) ; vers une autre séquence, il s'insère avant ce plan.
+ */
+function moveGroup(doc: ProjectDoc, group: ID[], toSeqId: ID, toIndex: number): void {
+  const to = seqOf(doc, toSeqId);
+  const first = doc.shots[group[0]];
+  const sameSeq = group.every((id) => doc.shots[id].sequenceId === toSeqId);
+  const target = to.shotIds[toIndex];
+  if (sameSeq && target && group.includes(target)) return;
+  const down = sameSeq && toIndex > to.shotIds.indexOf(group[0]);
+  const touched = new Set<ID>([toSeqId]);
+  for (const id of group) {
+    const sh = doc.shots[id];
+    const from = doc.sequences[sh.sequenceId];
+    if (from) from.shotIds = from.shotIds.filter((x) => x !== id);
+    if (sh.sequenceId !== toSeqId) {
+      touched.add(sh.sequenceId);
+      sh.mergeBreak = undefined;
+      unlinkShotFromPlans(doc, id, false);
+      sh.sequenceId = toSeqId;
+    }
+    sh.actionBlockId = first.actionBlockId;
+  }
+  const block = doc.blocks[first.actionBlockId];
+  if (block && block.sequenceId !== toSeqId) block.sequenceId = toSeqId;
+  // Jamais au milieu d'un autre cadre : le groupe se pose après lui.
+  let at = target ? to.shotIds.indexOf(target) + (down ? 1 : 0) : Math.min(toIndex, to.shotIds.length);
+  if (at < 0) at = to.shotIds.length;
+  while (at > 0 && at < to.shotIds.length && insideGroup(doc, to.shotIds, at)) at++;
+  to.shotIds.splice(at, 0, ...group);
+  for (const t of touched) normalizeBlocks(doc, t);
 }
 
 /**

@@ -66,8 +66,10 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
     if (seq.shotIds.length === 0) {
       push({ code: 'empty-sequence', level: 'warn', sequenceId: seqId, where, message: 'Cette séquence ne contient aucun plan.' });
     } else if (doc.project.format === 'institutionnel') {
-      const first = doc.shots[seq.shotIds[0]];
-      const last = doc.shots[seq.shotIds[seq.shotIds.length - 1]];
+      // Les plans d'interview ne comptent pas : la règle vaut pour les illustrations.
+      const broll = seq.shotIds.filter((id) => doc.shots[id] && !doc.shots[id].interview);
+      const first = doc.shots[broll[0]];
+      const last = doc.shots[broll[broll.length - 1]];
       if (first && !isWide(first.value))
         push({ code: 'doc-open-wide', level: 'warn', sequenceId: seqId, shotId: first.id, where, message: 'La séquence ne s’ouvre pas sur un plan large (général, ensemble ou moyen).' });
       if (last && !isWide(last.value))

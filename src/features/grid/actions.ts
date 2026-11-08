@@ -13,6 +13,7 @@ import {
   deleteSequence,
   deleteShot,
   duplicateShot,
+  interviewGroupOf,
   linkAction,
   moveSequence,
   moveShot,
@@ -234,9 +235,13 @@ export function moveCurrentShot(delta: -1 | 1): void {
   const cur = currentShotId();
   if (!d || !cur) return;
   const seq = d.sequences[d.shots[cur].sequenceId];
-  const i = seq.shotIds.indexOf(cur);
-  const j = i + delta;
+  // Un cadre d'interview se déplace d'un bloc, et un plan voisin le franchit d'un seul pas.
+  const own = interviewGroupOf(d, cur).filter((id) => seq.shotIds.includes(id));
+  const i = seq.shotIds.indexOf(delta < 0 ? own[0] : own[own.length - 1]);
+  let j = i + delta;
   if (j < 0 || j >= seq.shotIds.length) return;
+  const near = interviewGroupOf(d, seq.shotIds[j]).filter((id) => seq.shotIds.includes(id));
+  if (own.length === 1 && near.length > 1) j = seq.shotIds.indexOf(delta < 0 ? near[0] : near[near.length - 1]);
   const splits = mutateDoc((x) => moveShot(x, cur, seq.id, j)) ?? 0;
   select(cur);
   if (splits) notifySplit(splits);

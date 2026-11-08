@@ -168,6 +168,8 @@ export interface Shot {
   mergeBreak?: ColumnKey[];
   /** Plan-séquence : un seul plan découpé en temps chorégraphiques. */
   oneShot?: { beats: OneShotBeat[] };
+  /** Institutionnel : plan tourné par une caméra d'un cadre d'interview (synchronisé avec la fiche). */
+  interview?: { subjectId: ID; setupId: ID; cameraId: ID };
 }
 
 /** Un temps du plan-séquence : ce que voit la caméra entre deux repères. */

@@ -1,9 +1,9 @@
 import { SeqMeta } from './SeqMeta';
-import { Trash2 } from 'lucide-react';
+import { ArrowUpRight, Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
 import { Fragment, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
-import { displayLines, displaySpan } from '../../domain/merge';
+import { bandColumns, displayLines, displaySpan } from '../../domain/merge';
 import {
   deleteSequenceOf,
   deleteShotById,
@@ -16,7 +16,7 @@ import { DroppableBody, DroppableRow, NumberHandle, SeqHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { addShot } from '../../domain/ops';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
-import { useUi } from '../../store/uiStore';
+import { openInterviewFiche, useUi } from '../../store/uiStore';
 import { sequenceNumber } from '../../domain/numbering';
 import { formatGap } from '../../domain/timing';
 import { focalTooltip } from '../../domain/focal';
@@ -215,16 +215,7 @@ export function SequenceBody({
             </td>
           );
         };
-        return (
-          <Fragment key={r.shotId}>
-            <DroppableRow
-              shotId={r.shotId}
-              className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')}
-              data-shot={r.shotId}
-              data-testid="shot-row"
-            >
-              {withGutter(
-                columns.map((col) => {
+        const cellTd = (col: ColumnKey) => {
                   if (lines && BEAT_COLUMNS.includes(col)) return beatTd(col, 0);
                   const kind = spanKind(doc, col);
                   let span = 1;
@@ -327,7 +318,7 @@ export function SequenceBody({
                         <>
                           <NumberHandle
                             shotId={r.shotId}
-                            label={`${seqNumber}.${i + 1}`}
+                            label={`${seqNumber}.${text}`}
                             num={text}
                             onPick={() => {
                               const row = rowOfShot(doc, r.shotId);
@@ -337,7 +328,7 @@ export function SequenceBody({
                           <button
                             type="button"
                             className={s.rowAdd}
-                            aria-label={`Insérer un plan après le plan ${seqNumber}.${i + 1}`}
+                            aria-label={`Insérer un plan après le plan ${seqNumber}.${text}`}
                             title="Insérer un plan ici"
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={() => insertShotAfter(r.shotId)}
@@ -361,7 +352,115 @@ export function SequenceBody({
                       )}
                     </td>
                   );
-                }),
+        };
+        // Cadre d'interview : ses caméras suivantes sont dessinées dans la bande de la première.
+        if (r.follower) return <tr key={r.shotId} className={s.bandFollow} />;
+        if (r.band) {
+          const band = r.band;
+          const cover = bandColumns(columns, doc.project.settings);
+          const bandSelected = !!rect && row >= rect.r0 && row <= rect.r1 && rect.cols.some((c) => cover.includes(c));
+          const bandFocus = !!focus && focus.row === row && cover.includes(focus.col);
+          const open = () => openInterviewFiche(band.subjectId, band.setupId);
+          const label = band.cameras.map((c) => c.number).join(', ');
+          const cells = columns.map((col) => {
+            if (col === 'number')
+              return (
+                <td key={col} rowSpan={band.cameras.length} role="gridcell" data-cell={`${row}:number`} className={[s.cell, s.c_number, s.bandNum].join(' ')} onMouseDown={(e) => e.button === 0 && onCellMouseDown(e, { row, col })}>
+                  <div className={s.bandLines}>
+                    <span aria-hidden="true" />
+                    {band.cameras.map((c, k) =>
+                      k === 0 ? (
+                        <NumberHandle key={c.shotId} shotId={c.shotId} label={c.number} num={c.number} onPick={() => useUi.getState().setSelection({ row, col: cover[0] ?? 'number' })} />
+                      ) : (
+                        <span key={c.shotId} className={s.bandNumNext}>
+                          {c.number}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </td>
+              );
+            if (!cover.includes(col)) return cellTd(col);
+            if (col !== cover[0]) return null;
+            return (
+              <td
+                key="band"
+                colSpan={cover.length}
+                rowSpan={band.cameras.length}
+                role="gridcell"
+                aria-selected={bandSelected}
+                data-cell={`${row}:${bandFocus ? focus!.col : col}`}
+                className={[s.cell, s.bandCell, bandSelected ? s.selected : '', bandFocus ? s.focus : ''].join(' ')}
+                onMouseDown={(e) => e.button === 0 && onCellMouseDown(e, { row, col })}
+                onDoubleClick={open}
+                title="Double-clic : ouvrir la fiche d’interview"
+              >
+                <div className={s.bandLines}>
+                  <div className={s.bandHead}>
+                    <span className={s.bandTag}>Interview</span>
+                    <strong>{band.name}</strong>
+                    {band.role && <span className={s.bandSoft}>{band.role}</span>}
+                    {(band.setup || band.place) && <span className={s.bandSoft}>{[band.setup, band.place].filter(Boolean).join(' — ')}</span>}
+                    {band.eyeline && <span className={s.bandSoft}>{band.eyeline}</span>}
+                    {band.questions > 0 && (
+                      <span className={s.bandSoft}>
+                        {band.questions} question{band.questions > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className={s.bandOpen}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={open}
+                      aria-label={`Ouvrir la fiche d’interview de ${band.name}`}
+                      title="Ouvrir la fiche d’interview"
+                      tabIndex={-1}
+                      data-testid="band-open"
+                    >
+                      <ArrowUpRight size={13} strokeWidth={1.4} />
+                    </button>
+                  </div>
+                  {band.cameras.map((c) => (
+                    <div key={c.shotId} className={s.bandCam}>
+                      {c.text || <span className={s.placeholder}>cadre à régler dans la fiche</span>}
+                    </div>
+                  ))}
+                </div>
+              </td>
+            );
+          });
+          return (
+            <DroppableRow key={r.shotId} shotId={r.shotId} className={[s.row, s.bandRow].join(' ')} data-shot={r.shotId} data-testid="interview-band">
+              {withGutter(
+                cells,
+                <td key="gutter" rowSpan={band.cameras.length} className={s.gutter} data-testid="shot-gutter">
+                  <button
+                    type="button"
+                    className={s.rowDel}
+                    aria-label={`Retirer l’interview ${label} du découpage`}
+                    title="Retirer l’interview du découpage (la fiche reste en annexe)"
+                    onClick={() => deleteShotById(r.shotId)}
+                    tabIndex={-1}
+                    data-testid="delete-shot"
+                  >
+                    <Trash2 size={13} strokeWidth={1.4} />
+                  </button>
+                  <IssueDot issues={band.cameras.flatMap((c) => model.issues.get(c.shotId) ?? [])} />
+                </td>,
+              )}
+            </DroppableRow>
+          );
+        }
+        return (
+          <Fragment key={r.shotId}>
+            <DroppableRow
+              shotId={r.shotId}
+              className={[s.row, shot?.oneShot ? s.oneShot : ''].join(' ')}
+              data-shot={r.shotId}
+              data-testid="shot-row"
+            >
+              {withGutter(
+                columns.map(cellTd),
                 <td
                   key="gutter"
                   className={s.gutter}
@@ -373,7 +472,7 @@ export function SequenceBody({
                   <button
                     type="button"
                     className={s.rowDel}
-                    aria-label={`Supprimer le plan ${seqNumber}.${i + 1}`}
+                    aria-label={`Supprimer le plan ${seqNumber}.${r.cells.number ?? i + 1}`}
                     title="Supprimer ce plan"
                     onClick={() => deleteShotById(r.shotId)}
                     tabIndex={-1}
