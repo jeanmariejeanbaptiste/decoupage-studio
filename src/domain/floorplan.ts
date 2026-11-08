@@ -1,5 +1,6 @@
 import { newId } from './factory';
 import { horizontalFov } from './focal';
+import { shotCode } from './numbering';
 import type { ID, ProjectDoc } from './types';
 
 export interface Point {
@@ -69,7 +70,7 @@ export function oneShotPlansOf(doc: ProjectDoc, seqId: ID): Array<PlanRef & { sh
   if (!seq) return [];
   return seq.shotIds
     .filter((id) => doc.shots[id]?.oneShot)
-    .map((id) => ({ key: oneShotPlanKey(id), shotId: id, name: `Plan-séquence ${doc.project.sequenceIds.indexOf(seqId) + 1}.${seq.shotIds.indexOf(id) + 1}` }));
+    .map((id) => ({ key: oneShotPlanKey(id), shotId: id, name: `Plan-séquence ${shotCode(doc, id)}` }));
 }
 
 export function addPlan(doc: ProjectDoc, seqId: ID): string {
@@ -197,16 +198,44 @@ export function removeFloorItem(doc: ProjectDoc, seqId: ID, id: ID): void {
   plan.items = plan.items.filter((x) => x.id !== id);
 }
 
-/** Focale de la caméra : celle du premier plan lié (départ du zoom le cas échéant). */
+/**
+ * Focale de la caméra : celle du premier plan lié (départ du zoom le cas échéant) ; dans la vue
+ * d'un plan-séquence, celle du temps où la caméra est posée.
+ */
 export function cameraFocal(
   doc: ProjectDoc,
   cam: Extract<FloorItem, { kind: 'camera' }>,
 ): number | undefined {
   for (const id of cam.shotIds) {
-    const f = doc.shots[id]?.focal.from ?? doc.shots[id]?.focal.to;
+    const shot = doc.shots[id];
+    if (!shot) continue;
+    const beat = cam.beat ? shot.oneShot?.beats[cam.beat - 1]?.focal : undefined;
+    const f = beat ?? shot.focal.from ?? shot.focal.to;
     if (f) return f;
   }
   return undefined;
+}
+
+/** Clés de tous les plans au sol rattachés à une séquence (vues, plans-séquences). */
+export function planKeysOfSequence(doc: ProjectDoc, seqId: ID): string[] {
+  const shotKeys = new Set((doc.sequences[seqId]?.shotIds ?? []).map(oneShotPlanKey));
+  return Object.entries(doc.floorPlans ?? {})
+    .filter(([key, p]) => key === seqId || p.seqId === seqId || shotKeys.has(key))
+    .map(([key]) => key);
+}
+
+/**
+ * Un plan quitte sa séquence (déplacé ou supprimé) : les caméras des autres séquences ne le
+ * couvrent plus, et sa vue de plan-séquence disparaît s'il est supprimé.
+ */
+export function unlinkShotFromPlans(doc: ProjectDoc, shotId: ID, deleted: boolean): void {
+  const seqId = doc.shots[shotId]?.sequenceId;
+  for (const [key, plan] of Object.entries(doc.floorPlans ?? {})) {
+    const owner = plan.seqId ?? (plan.oneShotId ? doc.shots[plan.oneShotId]?.sequenceId : key);
+    if (!deleted && owner === seqId) continue;
+    for (const it of plan.items) if (it.kind === 'camera' && it.shotIds.includes(shotId)) it.shotIds = it.shotIds.filter((x) => x !== shotId);
+  }
+  if (deleted && doc.floorPlans) delete doc.floorPlans[oneShotPlanKey(shotId)];
 }
 
 /** Polygone du cône de champ (vue de dessus) : sommet, puis arc échantillonné. */
@@ -241,7 +270,7 @@ export function cameraCone(
 export function camerasForShot(doc: ProjectDoc, shotId: ID): string[] {
   const seqId = doc.shots[shotId]?.sequenceId;
   if (!seqId) return [];
-  return plansOf(doc, seqId)
+  return [...plansOf(doc, seqId), ...oneShotPlansOf(doc, seqId)]
     .flatMap((ref) => planOf(doc, ref.key).items)
     .filter(
       (i): i is Extract<FloorItem, { kind: 'camera' }> => i.kind === 'camera' && i.shotIds.includes(shotId),

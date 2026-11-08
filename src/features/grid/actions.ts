@@ -16,7 +16,7 @@ import {
   linkAction,
   moveSequence,
   moveShot,
-  unlinkAction,
+  unlinkAction, detachAction,
 } from '../../domain/ops';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
@@ -271,10 +271,22 @@ export function linkSelection(): void {
   mutateDoc((x) => linkAction(x, ids));
 }
 
+/** « Délier » : une action entièrement sélectionnée est déliée ; sinon seuls les plans sélectionnés s'en détachent. */
 export function unlinkSelection(): void {
   const ids = selectedShotIds();
   if (ids.length === 0) return;
-  mutateDoc((x) => unlinkAction(x, ids));
+  mutateDoc((x) => {
+    const picked = new Set(ids);
+    const whole: ID[] = [];
+    for (const id of ids) {
+      const shot = x.shots[id];
+      if (!shot) continue;
+      const sharing = x.sequences[shot.sequenceId].shotIds.filter((o) => x.shots[o]?.actionBlockId === shot.actionBlockId);
+      if (sharing.every((o) => picked.has(o))) whole.push(id);
+      else detachAction(x, id);
+    }
+    if (whole.length) unlinkAction(x, whole);
+  });
 }
 
 /** ⌘⇧↓ : recopie la première cellule de la sélection vers le bas. */

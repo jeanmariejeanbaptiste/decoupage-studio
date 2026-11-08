@@ -156,13 +156,18 @@ export function computeTiming(doc: ProjectDoc): Timing {
     let sum = 0;
     for (const bId of orderedBlockIds(doc, seqId)) {
       const b = doc.blocks[bId];
-      const d = blockDuration(b, settings);
+      // Mode durée : chaque plan compte pour sa durée saisie, sinon pour sa part de l'action.
+      const own = settings.tcMode === 'duree' ? seq.shotIds.map((id) => doc.shots[id]).filter((sh) => sh?.actionBlockId === bId) : [];
+      const perShot = own.some((sh) => sh.durationSec !== undefined);
+      const base = blockDuration(b, settings);
+      const d = perShot ? Math.round(own.reduce((n, sh) => n + (sh.durationSec ?? base / own.length), 0)) : base;
       const range = { in: blockCursor, out: blockCursor + d };
-      blocks.set(bId, { durationSec: d, manual: b.overrideSec !== undefined, range, label: formatRange(range) });
+      blocks.set(bId, { durationSec: d, manual: perShot || b.overrideSec !== undefined, range, label: formatRange(range) });
       blockCursor += d;
       sum += d;
     }
-    const manual = settings.tcGranularity === 'sequence' && seq.overrideSec !== undefined;
+    // Durée forcée d'une séquence : seulement en cumulatif par séquence (un reste d'un autre mode est ignoré).
+    const manual = settings.tcMode === 'cumulatif' && settings.tcGranularity === 'sequence' && seq.overrideSec !== undefined;
     const durationSec = manual ? Math.round(seq.overrideSec ?? 0) : sum;
     const range = { in: start, out: start + durationSec };
     cursor += durationSec;
@@ -194,13 +199,24 @@ export function shotTcLabel(doc: ProjectDoc, timing: Timing, shotId: ID): string
   if (!shot) return '';
   const s = doc.project.settings;
   if (s.tcMode === 'duree') {
-    // Durée propre du plan : celle de son action, partagée entre les plans qui la couvrent.
-    const n = doc.sequences[shot.sequenceId]?.shotIds.filter((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId).length ?? 1;
-    const sec = timing.blocks.get(shot.actionBlockId)?.durationSec ?? 0;
-    return sec > 0 ? formatTc(Math.round(sec / Math.max(1, n))) : '';
+    const sec = shotOwnSec(doc, timing, shotId);
+    return sec > 0 ? formatTc(Math.round(sec)) : '';
   }
   if (s.tcMode === 'cumulatif' && s.tcGranularity === 'sequence') return timing.sequences.get(shot.sequenceId)?.label ?? '';
   return timing.blocks.get(shot.actionBlockId)?.label ?? '';
+}
+
+/** Durée d'un plan : la sienne (mode durée), sinon sa part de l'action qu'il couvre. */
+export function shotOwnSec(doc: ProjectDoc, timing: Timing, shotId: ID): number {
+  const shot = doc.shots[shotId];
+  if (!shot) return 0;
+  const sharing = doc.sequences[shot.sequenceId]?.shotIds.filter((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId) ?? [shotId];
+  if (doc.project.settings.tcMode === 'duree') {
+    if (shot.durationSec !== undefined) return shot.durationSec;
+    const block = doc.blocks[shot.actionBlockId];
+    return block ? blockDuration(block, doc.project.settings) / Math.max(1, sharing.length) : 0;
+  }
+  return (timing.blocks.get(shot.actionBlockId)?.durationSec ?? 0) / Math.max(1, sharing.length);
 }
 
 export function formatGap(g: Gap): string {

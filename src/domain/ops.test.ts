@@ -222,7 +222,7 @@ describe('actions liées : aucune donnée de minutage perdue', () => {
   };
   const blockOf = (doc: ProjectDoc, id: string) => doc.blocks[doc.shots[id].actionBlockId];
 
-  it('délier, détacher et déplacer gardent durée forcée, plage et passage', async () => {
+  it('délier, détacher et déplacer gardent la durée forcée (répartie, total inchangé), la plage et le passage', async () => {
     const { linkAction, unlinkAction, detachAction, moveShot } = await import('./ops');
     for (const op of ['unlink', 'detach', 'move'] as const) {
       const { doc, other, ids } = setup();
@@ -231,8 +231,11 @@ describe('actions liées : aucune donnée de minutage perdue', () => {
       if (op === 'unlink') unlinkAction(doc, ids);
       if (op === 'detach') detachAction(doc, ids[2]);
       if (op === 'move') moveShot(doc, ids[2], other, 0);
+      const distinct = [...new Set(ids.map((id) => blockOf(doc, id)))];
+      expect(distinct.length, op).toBeGreaterThan(1);
+      // L'action n'est pas comptée deux fois : les parts de la durée forcée font toujours 12 s.
+      expect(distinct.reduce((n, b) => n + (b.overrideSec ?? 0), 0), op).toBe(12);
       for (const id of ids) {
-        expect(blockOf(doc, id).overrideSec, op).toBe(12);
         expect(blockOf(doc, id).tc, op).toEqual({ in: 3, out: 15 });
         expect(blockOf(doc, id).scenarioAnchor, op).toEqual({ start: 0, end: 9 });
       }

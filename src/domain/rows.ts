@@ -3,7 +3,7 @@ import { formatAperture, formatFocal } from './focal';
 import { deduceEquipment } from './equipment';
 import { sequenceHeading } from './numbering';
 import { formatTc } from './timecode';
-import { shotTcLabel, type Timing } from './timing';
+import { shotTcLabel, type Timing, shotOwnSec } from './timing';
 import { renderTokens } from './tokens';
 import { isZoom, valueLabel } from './vocabulary';
 import { BEAT_COLUMNS, beatColumnText, beatSubLines, formatOneShotDuration, oneShotTiming } from './oneshot';
@@ -69,9 +69,7 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
 
 /** Durée indicative d'un plan : durée de son action répartie entre les plans qui la couvrent. */
 export function shotDurationSec(doc: ProjectDoc, timing: Timing, shot: Shot): number {
-  const seq = doc.sequences[shot.sequenceId];
-  const n = seq?.shotIds.filter((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId).length ?? 1;
-  return (timing.blocks.get(shot.actionBlockId)?.durationSec ?? 0) / Math.max(1, n);
+  return shotOwnSec(doc, timing, shot.id);
 }
 
 /** Texte d'une cellule à l'export : un mouvement de caméra laissé vide s'écrit « Fixe ». */

@@ -5,6 +5,7 @@
 import { recognizeCharacters } from './characters';
 import { blockDuration } from './timing';
 import { makeBlock, makeSequence, makeShot, newId } from './factory';
+import { planKeysOfSequence, unlinkShotFromPlans } from './floorplan';
 import type { ActionBlock, Character, ID, ProjectDoc, Sequence, Shot } from './types';
 
 function seqOf(doc: ProjectDoc, seqId: ID): Sequence {
@@ -69,11 +70,15 @@ export function duplicateShot(doc: ProjectDoc, shotId: ID): ID {
   const seq = seqOf(doc, src.sequenceId);
   const copy: Shot = JSON.parse(JSON.stringify(src)) as Shot;
   copy.id = newId();
+  // Images propres à chaque plan : la copie repart sans storyboard (ni keyframes partagées).
   copy.storyboard = undefined;
+  copy.keyframes = undefined;
   copy.mergeBreak = undefined;
   doc.shots[copy.id] = copy;
   seq.shotIds.splice(seq.shotIds.indexOf(shotId) + 1, 0, copy.id);
   normalizeBlocks(doc, seq.id);
+  // Un plan-séquence a sa propre chorégraphie : la copie ne partage pas son action.
+  if (copy.oneShot) detachAction(doc, copy.id);
   return copy.id;
 }
 
@@ -81,6 +86,7 @@ export function deleteShot(doc: ProjectDoc, shotId: ID): void {
   const shot = doc.shots[shotId];
   if (!shot) return;
   const seq = seqOf(doc, shot.sequenceId);
+  unlinkShotFromPlans(doc, shotId, true);
   seq.shotIds = seq.shotIds.filter((id) => id !== shotId);
   delete doc.shots[shotId];
   normalizeBlocks(doc, seq.id);
@@ -89,6 +95,9 @@ export function deleteShot(doc: ProjectDoc, shotId: ID): void {
 export function deleteSequence(doc: ProjectDoc, seqId: ID): void {
   const seq = doc.sequences[seqId];
   if (!seq) return;
+  // Plans au sol, dépouillement et jours de la séquence partent avec elle (annulable).
+  for (const key of planKeysOfSequence(doc, seqId)) delete doc.floorPlans![key];
+  if (doc.breakdown) delete doc.breakdown[seqId];
   for (const id of seq.shotIds) delete doc.shots[id];
   for (const b of Object.values(doc.blocks)) if (b.sequenceId === seqId) delete doc.blocks[b.id];
   delete doc.sequences[seqId];
@@ -115,17 +124,20 @@ export function moveShot(doc: ProjectDoc, shotId: ID, toSeqId: ID, toIndex: numb
   let splits = 0;
   if (from.id !== to.id) {
     const block = doc.blocks[shot.actionBlockId];
-    const shared = from.shotIds.some((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId);
-    if (block && !shared) {
+    const others = from.shotIds.filter((id) => doc.shots[id]?.actionBlockId === shot.actionBlockId).length;
+    if (block && !others) {
       block.sequenceId = to.id;
       block.tc = block.tc ? { ...block.tc } : undefined;
     } else {
-      const copy = makeBlock(to.id, blockData(block));
+      const part = overrideShare(block?.overrideSec, 1, others + 1);
+      const copy = makeBlock(to.id, { ...blockData(block), overrideSec: part });
       doc.blocks[copy.id] = copy;
+      if (block?.overrideSec !== undefined && part !== undefined) block.overrideSec -= part;
       shot.actionBlockId = copy.id;
     }
     shot.sequenceId = to.id;
     shot.mergeBreak = undefined;
+    unlinkShotFromPlans(doc, shotId, false);
     splits += normalizeBlocks(doc, from.id);
   }
   to.shotIds.splice(Math.max(0, Math.min(toIndex, to.shotIds.length)), 0, shotId);
@@ -166,6 +178,17 @@ export function normalizeBlocks(doc: ProjectDoc, seqId: ID): number {
     seen.add(bId);
     prev = bId;
   }
+  // Action scindée (plans devenus discontinus) : sa durée forcée est répartie selon le nombre de plans.
+  for (const [orig, copyId] of remap) {
+    const a = doc.blocks[orig];
+    const b = doc.blocks[copyId];
+    if (!a || !b || a.sequenceId !== seqId || a.overrideSec === undefined) continue;
+    const na = seq.shotIds.filter((id) => doc.shots[id].actionBlockId === orig).length;
+    const nb = seq.shotIds.filter((id) => doc.shots[id].actionBlockId === copyId).length;
+    const total = a.overrideSec;
+    b.overrideSec = overrideShare(total, nb, na + nb);
+    a.overrideSec = total - (b.overrideSec ?? 0);
+  }
   const used = new Set(seq.shotIds.map((id) => doc.shots[id].actionBlockId));
   for (const b of Object.values(doc.blocks)) if (b.sequenceId === seqId && !used.has(b.id)) delete doc.blocks[b.id];
   const ordered: ID[] = [];
@@ -175,6 +198,11 @@ export function normalizeBlocks(doc: ProjectDoc, seqId: ID): number {
   }
   seq.actionBlockIds = ordered;
   return splits;
+}
+
+/** Part d'une durée forcée quand une action couverte par `total` plans est scindée en une part de `n` plans. */
+function overrideShare(sec: number | undefined, n: number, total: number): number | undefined {
+  return sec === undefined ? undefined : Math.round((sec * n) / Math.max(1, total));
 }
 
 /**
@@ -255,11 +283,14 @@ export function unlinkAction(doc: ProjectDoc, shotIds: readonly ID[]): void {
     const seq = seqOf(doc, shot.sequenceId);
     const sharing = seq.shotIds.filter((x) => doc.shots[x].actionBlockId === shot.actionBlockId);
     if (sharing.length < 2) continue;
+    // La durée forcée de l'action est partagée entre les plans déliés (le total ne change pas).
+    const total = block?.overrideSec;
     for (const other of sharing.slice(1)) {
-      const copy = makeBlock(seq.id, blockData(block));
+      const copy = makeBlock(seq.id, { ...blockData(block), overrideSec: overrideShare(total, 1, sharing.length) });
       doc.blocks[copy.id] = copy;
       doc.shots[other].actionBlockId = copy.id;
     }
+    if (block && total !== undefined) block.overrideSec = total - (sharing.length - 1) * (overrideShare(total, 1, sharing.length) ?? 0);
     touched.add(seq.id);
   }
   for (const s of touched) normalizeBlocks(doc, s);
@@ -270,10 +301,13 @@ export function detachAction(doc: ProjectDoc, shotId: ID): void {
   const shot = doc.shots[shotId];
   if (!shot) return;
   const seq = seqOf(doc, shot.sequenceId);
-  if (seq.shotIds.filter((x) => doc.shots[x].actionBlockId === shot.actionBlockId).length < 2) return;
+  const n = seq.shotIds.filter((x) => doc.shots[x].actionBlockId === shot.actionBlockId).length;
+  if (n < 2) return;
   const block = doc.blocks[shot.actionBlockId];
-  const copy = makeBlock(seq.id, blockData(block));
+  const part = overrideShare(block?.overrideSec, 1, n);
+  const copy = makeBlock(seq.id, { ...blockData(block), overrideSec: part });
   doc.blocks[copy.id] = copy;
+  if (block?.overrideSec !== undefined && part !== undefined) block.overrideSec -= part;
   shot.actionBlockId = copy.id;
   normalizeBlocks(doc, seq.id);
 }
