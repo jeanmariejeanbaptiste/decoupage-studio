@@ -94,12 +94,27 @@ export function App() {
     const stop = startAutosave();
     // Synchronisation Google Drive (si configurée) : envoi après chaque enregistrement, suppressions suivies.
     const stopCloud = startCloudPush();
-    setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => cloudRestore(id) });
+    setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => void cloudRestore(id) });
     if (useCloud.getState().enabled && useCloud.getState().user) void preloadGoogle().catch(() => undefined);
     void boot().finally(() => setBooted(true));
     return () => {
       stop();
       stopCloud();
+    };
+  }, []);
+
+  // Un fichier lâché hors d'une zone de dépôt ne doit pas remplacer l'application par ce fichier.
+  useEffect(() => {
+    const stray = (e: DragEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el instanceof HTMLInputElement && el.type === 'file') return;
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    };
+    window.addEventListener('dragover', stray);
+    window.addEventListener('drop', stray);
+    return () => {
+      window.removeEventListener('dragover', stray);
+      window.removeEventListener('drop', stray);
     };
   }, []);
 

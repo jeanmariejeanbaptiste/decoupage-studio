@@ -267,6 +267,8 @@ function AspectPicker({ doc }: { doc: ProjectDoc }) {
   const a = doc.project.settings.storyboardAspect ?? DEFAULT_ASPECT;
   const preset = ASPECT_PRESETS.findIndex((p) => Math.abs(p.w / p.h - a.w / a.h) < 0.001);
   const [custom, setCustom] = useState(preset < 0);
+  // Format changé ailleurs (annulation, autre participant) : le menu suit.
+  useEffect(() => setCustom(preset < 0), [a.w, a.h]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (v: { w: number; h: number }) => mutateDoc((d) => void (d.project.settings.storyboardAspect = v));
   return (
     <label className={s.aspect} data-edit>

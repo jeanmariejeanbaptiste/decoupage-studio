@@ -33,7 +33,7 @@ export function TabExport({ doc, fileBase = 'document', file, id = 'tab', orient
         defaultOrientation={orientation}
         extra={extra}
         onExport={async ({ format, orientation, numbers }) => {
-          if (format === 'word') return downloadWord(doc(), fileBase);
+          if (format === 'word') return downloadWord(doc(), fileBase, orientation);
           if (format === 'file' && file) {
             const c = await file.content();
             return downloadBlob(typeof c === 'string' ? new Blob([c], { type: file.type ?? 'text/csv;charset=utf-8' }) : c, file.name);

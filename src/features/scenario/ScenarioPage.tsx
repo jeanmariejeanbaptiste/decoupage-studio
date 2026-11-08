@@ -52,6 +52,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const [hover, setHover] = useState<ID | null>(null);
   const [caretAnchor, setCaretAnchor] = useState<ID | null>(null);
   const api = useRef<ScriptEditorApi | null>(null);
+  const hadSelection = useRef(true);
   const activeType = useScriptUi((u) => u.activeType);
   const selection = useScriptUi((u) => u.selection);
   const toast = useUi((u) => u.toast);
@@ -186,9 +187,13 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
             <div
               className={s.zoom}
               style={phone ? undefined : { zoom }}
+              // Safari sélectionne le mot sous un clic droit : seule une sélection faite avant compte.
+              onPointerDownCapture={(e) => {
+                if (e.button === 2) hadSelection.current = !!useScriptUi.getState().selection;
+              }}
               onContextMenu={(e) => {
                 // Clic droit sur une sélection : le passage devient un plan.
-                if (readOnly || !useScriptUi.getState().selection) return;
+                if (readOnly || !useScriptUi.getState().selection || !hadSelection.current) return;
                 e.preventDefault();
                 createShot({ x: e.clientX, y: e.clientY });
               }}

@@ -8,7 +8,7 @@ import { create } from 'zustand';
 import { GOOGLE_CLIENT_ID } from '../app/config';
 import { parseProjectFile, serializeDoc } from '../domain/serialize';
 import type { ProjectDoc } from '../domain/types';
-import { db, listProjects, loadProject, saveProject } from './db';
+import { db, deleteProject, listProjects, loadProject, saveProject } from './db';
 import { flushEditors, flushSave, openStoredProject } from './persistence';
 import { useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
@@ -191,19 +191,38 @@ async function upload(meta: Record<string, unknown>, blob: Blob, id?: string): P
 const download = async (id: string) => (await drive(`${API}/files/${id}?alt=media`)).blob();
 const removeFile = (id: string) => drive(`${API}/files/${id}`, { method: 'DELETE' });
 
-function tombstones(): string[] {
+/** Suppressions faites ici hors connexion, à reporter dans le Drive (identifiant et date). */
+interface Tomb {
+  id: string;
+  at: string;
+}
+function tombstones(): Tomb[] {
   try {
-    return JSON.parse(localStorage.getItem(TOMB_KEY) ?? '[]') as string[];
+    const raw = JSON.parse(localStorage.getItem(TOMB_KEY) ?? '[]') as Array<string | Tomb>;
+    // Ancien format : identifiants seuls.
+    return raw.map((x) => (typeof x === 'string' ? { id: x, at: new Date(0).toISOString() } : x));
   } catch {
     return [];
   }
 }
-function setTombstones(ids: string[]) {
+function setTombstones(list: Tomb[]) {
   try {
-    localStorage.setItem(TOMB_KEY, JSON.stringify([...new Set(ids)]));
+    const byId = new Map(list.map((x) => [x.id, x]));
+    localStorage.setItem(TOMB_KEY, JSON.stringify([...byId.values()]));
   } catch {
     /* stockage indisponible */
   }
+}
+
+/** Projet supprimé : ses fichiers quittent le Drive, une marque datée prévient les autres appareils. */
+async function buryRemote(projectId: string, at: string, files: DriveFile[]): Promise<void> {
+  for (const f of files) if (f.appProperties?.projectId === projectId && f.appProperties.kind !== 'tombstone') await removeFile(f.id);
+  const old = files.find((f) => f.appProperties?.kind === 'tombstone' && f.appProperties.projectId === projectId);
+  await upload(
+    { name: `deleted-${projectId}`, ...(old ? {} : { parents: ['appDataFolder'] }), appProperties: { kind: 'tombstone', projectId, deletedAt: at } },
+    new Blob(['{}'], { type: 'application/json' }),
+    old?.id,
+  );
 }
 
 async function pushProject(doc: ProjectDoc, files: DriveFile[]): Promise<void> {
@@ -241,22 +260,37 @@ export async function syncAll(): Promise<void> {
     flushEditors();
     await flushSave();
     let files = await listFiles();
-    // Projets supprimés ici hors connexion : supprimés aussi du Drive.
+    // Projets supprimés ici hors connexion : reportés dans le Drive.
     const dead = tombstones();
-    for (const f of files) if (f.appProperties?.projectId && dead.includes(f.appProperties.projectId)) await removeFile(f.id);
     if (dead.length) {
+      for (const d of dead) await buryRemote(d.id, d.at, files);
       setTombstones([]);
-      files = files.filter((f) => !(f.appProperties?.projectId && dead.includes(f.appProperties.projectId)));
+      files = await listFiles();
     }
+    // Projets supprimés sur un autre appareil : retirés ici, sauf s'ils ont été modifiés depuis.
+    const graves = new Map(files.filter((f) => f.appProperties?.kind === 'tombstone').map((f) => [f.appProperties!.projectId, f]));
     const remote = files.filter((f) => f.appProperties?.kind === 'project');
-    const locals = await listProjects();
-    const ids = new Set([...locals.map((l) => l.id), ...remote.map((r) => r.appProperties!.projectId)]);
+    let locals = await listProjects();
     const openId = useProjectStore.getState().doc?.project.id;
+    for (const [id, g] of graves) {
+      const l = locals.find((x) => x.id === id);
+      const at = g.appProperties!.deletedAt ?? '';
+      if (!l) continue;
+      if (l.updatedAt <= at && id !== openId) await deleteProject(id);
+      else if (l.updatedAt > at) {
+        // Modifié après la suppression : le projet revit partout.
+        await removeFile(g.id);
+        graves.delete(id);
+      }
+    }
+    locals = await listProjects();
+    const ids = new Set([...locals.map((l) => l.id), ...remote.map((r) => r.appProperties!.projectId)]);
     let reopen = false;
     for (const id of ids) {
       const l = locals.find((x) => x.id === id);
       const r = remote.find((x) => x.appProperties!.projectId === id);
       const rAt = r?.appProperties?.updatedAt ?? '';
+      if (!l && graves.has(id)) continue;
       if (r && (!l || rAt > l.updatedAt)) {
         const doc = parseProjectFile(await (await download(r.id)).text());
         await saveProject(doc);
@@ -277,18 +311,27 @@ export async function syncAll(): Promise<void> {
 /** Projet supprimé dans le navigateur : retiré du Drive (tout de suite, ou à la prochaine connexion). */
 export async function cloudForget(projectId: string): Promise<void> {
   if (!useCloud.getState().user) return;
-  if (!valid()) return setTombstones([...tombstones(), projectId]);
+  const at = new Date().toISOString();
+  if (!valid()) return setTombstones([...tombstones(), { id: projectId, at }]);
   try {
-    const files = await listFiles();
-    for (const f of files) if (f.appProperties?.projectId === projectId) await removeFile(f.id);
+    await buryRemote(projectId, at, await listFiles());
   } catch {
-    setTombstones([...tombstones(), projectId]);
+    setTombstones([...tombstones(), { id: projectId, at }]);
   }
 }
 
-/** Suppression annulée : le projet n'est plus à retirer du Drive. */
-export function cloudRestore(projectId: string): void {
-  setTombstones(tombstones().filter((id) => id !== projectId));
+/** Suppression annulée : le projet n'est plus à retirer, et revient dans le Drive. */
+export async function cloudRestore(projectId: string): Promise<void> {
+  setTombstones(tombstones().filter((x) => x.id !== projectId));
+  if (!useCloud.getState().user || !valid()) return;
+  try {
+    const files = await listFiles();
+    for (const f of files) if (f.appProperties?.kind === 'tombstone' && f.appProperties.projectId === projectId) await removeFile(f.id);
+    const doc = await loadProject(projectId);
+    if (doc) await pushProject(doc, files);
+  } catch {
+    /* repris à la prochaine synchronisation */
+  }
 }
 
 /** Après chaque enregistrement local, le projet ouvert part dans le Drive (débouncé). */

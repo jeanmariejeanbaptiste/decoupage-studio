@@ -61,12 +61,15 @@ export function ExportPanel({
   const [format, setFormat] = useState('pdf');
   const ref = useRef<HTMLDivElement>(null);
   const st = doc.project.settings;
-  const prefs = st.exportPrefs?.[id] ?? {};
+  // Choix faits ici : gardés aussi localement (un invité en lecture seule ne peut pas modifier le projet).
+  const [local, setLocal] = useState<Record<string, { orientation?: Orientation; numbers?: boolean; perPage?: number }>>({});
+  const prefs = { ...st.exportPrefs?.[id], ...local[id] };
   const orientation = prefs.orientation ?? defaultOrientation;
   const numbers = !noNumbers && (prefs.numbers ?? true);
   const per = prefs.perPage ?? perPage?.[1] ?? perPage?.[0];
   // Réglages d'export mémorisés avec le projet, mais hors de l'historique (⌘Z annule le travail, pas un réglage d'export).
   const setPrefs = (patch: typeof prefs) => {
+    setLocal((l) => ({ ...l, [id]: { ...l[id], ...patch } }));
     const t = useProjectStore.temporal.getState();
     t.pause();
     try {

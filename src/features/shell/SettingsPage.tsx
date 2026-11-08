@@ -446,7 +446,19 @@ function ShortcutsSection() {
                   {capturing === d.id ? 'Appuyez sur les touches…' : formatCombo(map[d.id])}
                 </button>
                 {map[d.id] !== DEFAULT_SHORTCUTS[d.id] && (
-                  <button type="button" className={s.reset} onClick={() => setKey(d.id, DEFAULT_SHORTCUTS[d.id])} aria-label={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`} title={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`}>
+                  <button
+                    type="button"
+                    className={s.reset}
+                    onClick={() => {
+                      // Le raccourci d'origine a pu être donné à une autre action entre-temps.
+                      const other = conflictOf(map, d.id, DEFAULT_SHORTCUTS[d.id]);
+                      if (other) return setError({ id: d.id, text: `${formatCombo(DEFAULT_SHORTCUTS[d.id])} est déjà pris par « ${other.label} ».` });
+                      setError(null);
+                      setKey(d.id, DEFAULT_SHORTCUTS[d.id]);
+                    }}
+                    aria-label={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`}
+                    title={`Rétablir ${formatCombo(DEFAULT_SHORTCUTS[d.id])}`}
+                  >
                     <RotateCcw size={13} strokeWidth={1.4} />
                   </button>
                 )}

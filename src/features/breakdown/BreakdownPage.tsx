@@ -187,7 +187,8 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         </section>
 
         <aside className={s.sheetSide} aria-label="Fiche de dépouillement">
-          <BreakdownSheet doc={doc} seqId={entry.seqId} readOnly={readOnly} onAdd={tag} onRemove={untag} onHot={setHot} />
+          {/* Une fiche par scène : une saisie commencée ne passe pas à la scène suivante. */}
+          <BreakdownSheet key={entry.key} doc={doc} seqId={entry.seqId} readOnly={readOnly} onAdd={tag} onRemove={untag} onHot={setHot} />
         </aside>
       </div>
     </div>

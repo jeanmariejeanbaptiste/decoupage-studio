@@ -3,6 +3,10 @@ import type { Effect, ID, IntExt, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import s from './SeqMeta.module.css';
 
+/** Largeur au plus juste d'une liste : `field-sizing` (Chrome) sinon calculée (Safari, Firefox). */
+const sizing = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content');
+const fit = (label: string): React.CSSProperties | undefined => (sizing ? undefined : { width: `calc(${label.length}ch + 0.6em)` });
+
 const INT_EXT: IntExt[] = ['INT', 'EXT', 'INT/EXT'];
 const EFFECTS: Effect[] = ['JOUR', 'NUIT', 'AUBE', 'CRÉPUSCULE'];
 
@@ -19,6 +23,7 @@ export function SeqMeta({ doc, seqId, readOnly, className }: { doc: ProjectDoc; 
       <select
         value={seq.intExt ?? ''}
         disabled={readOnly}
+        style={fit(seq.intExt ?? 'INT/EXT ?')}
         aria-label="Intérieur ou extérieur"
         onChange={(e) => mutateDoc((d) => void (d.sequences[seqId].intExt = (e.target.value || undefined) as IntExt | undefined))}
         data-testid="seq-intext"
@@ -32,6 +37,7 @@ export function SeqMeta({ doc, seqId, readOnly, className }: { doc: ProjectDoc; 
       <select
         value={seq.effect ?? ''}
         disabled={readOnly}
+        style={fit(seq.effect ?? 'Effet ?')}
         aria-label="Effet"
         onChange={(e) => mutateDoc((d) => void (d.sequences[seqId].effect = (e.target.value || undefined) as Effect | undefined))}
         data-testid="seq-effect"
