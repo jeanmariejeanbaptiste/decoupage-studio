@@ -3,6 +3,11 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import {
   Camera,
   Copy,
+  Layers,
+  Maximize,
+  Plus,
+  ZoomIn,
+  ZoomOut,
   RectangleVertical,
   DoorOpen,
   Lamp,
@@ -25,6 +30,7 @@ import {
   cameraCone,
   camerasForShot,
   deletePlan,
+  duplicatePlan,
   DEFAULT_RANGE,
   DEFAULT_SPREAD,
   computeLighting,
@@ -48,7 +54,9 @@ import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { isZoom } from '../../domain/vocabulary';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { ask } from '../../ui/dialogStore';
+import { useDraft } from '../../ui/useDraft';
 import { useUi } from '../../store/uiStore';
 import { putBlob } from '../../store/db';
 import { useBlobUrl } from '../../ui/useBlobUrl';
@@ -64,43 +72,63 @@ import { downloadBlob } from '../../store/persistence';
 import { floorPlansDocument } from '../../domain/documents';
 
 type Tool = 'select' | FloorKind | 'practical';
-const IC = { size: 15, strokeWidth: 1.25 } as const;
 /** Outils rangés par famille : décor, équipe et machinerie, lumière. */
-const TOOL_GROUPS: Array<{ label: string; tools: Array<{ key: Tool; label: string; icon: JSX.Element }> }> = [
-  { label: '', tools: [{ key: 'select', label: 'Sélection', icon: <MousePointer2 {...IC} /> }] },
+const TI = { size: 17, strokeWidth: 1.3 } as const;
+const TOOL_GROUPS: Array<{ label: string; tools: Array<{ key: Tool; label: string; icon: JSX.Element; hotkey?: string }> }> = [
+  { label: 'Sélection', tools: [{ key: 'select', label: 'Sélection', icon: <MousePointer2 {...TI} />, hotkey: 'V' }] },
   {
     label: 'Décor',
     tools: [
-      { key: 'wall', label: 'Mur', icon: <Minus {...IC} /> },
-      { key: 'door', label: 'Porte', icon: <DoorOpen {...IC} /> },
-      { key: 'window', label: 'Fenêtre', icon: <Square {...IC} /> },
+      { key: 'wall', label: 'Mur', icon: <Minus {...TI} />, hotkey: 'M' },
+      { key: 'door', label: 'Porte', icon: <DoorOpen {...TI} />, hotkey: 'P' },
+      { key: 'window', label: 'Fenêtre', icon: <Square {...TI} />, hotkey: 'F' },
     ],
   },
   {
     label: 'Plateau',
     tools: [
-      { key: 'camera', label: 'Caméra', icon: <Camera {...IC} /> },
-      { key: 'rail', label: 'Rails', icon: <TrainTrack {...IC} /> },
-      { key: 'actor', label: 'Comédien', icon: <User {...IC} /> },
+      { key: 'camera', label: 'Caméra', icon: <Camera {...TI} />, hotkey: 'C' },
+      { key: 'rail', label: 'Rails', icon: <TrainTrack {...TI} /> },
+      { key: 'actor', label: 'Comédien', icon: <User {...TI} />, hotkey: 'A' },
     ],
   },
   {
     label: 'Lumière',
     tools: [
-      { key: 'light', label: 'Projecteur', icon: <Lamp {...IC} /> },
-      { key: 'practical', label: 'Lampe de jeu', icon: <Lightbulb {...IC} /> },
-      { key: 'reflector', label: 'Réflecteur', icon: <RectangleVertical {...IC} /> },
-      { key: 'diffuser', label: 'Diffuseur', icon: <Grid2x2 {...IC} /> },
-      { key: 'flag', label: 'Drapeau', icon: <Flag {...IC} /> },
+      { key: 'light', label: 'Projecteur', icon: <Lamp {...TI} />, hotkey: 'L' },
+      { key: 'practical', label: 'Lampe de jeu', icon: <Lightbulb {...TI} /> },
+      { key: 'reflector', label: 'Réflecteur', icon: <RectangleVertical {...TI} /> },
+      { key: 'diffuser', label: 'Diffuseur', icon: <Grid2x2 {...TI} /> },
+      { key: 'flag', label: 'Drapeau', icon: <Flag {...TI} /> },
     ],
   },
 ];
+const HOTKEYS: Record<string, Tool> = Object.fromEntries(TOOL_GROUPS.flatMap((g) => g.tools.filter((x) => x.hotkey).map((x) => [x.hotkey!.toLowerCase(), x.key])));
+
+/**
+ * Un geste (curseur glissé, touches fléchées) = une seule étape d'annulation : la première
+ * modification est retenue, les suivantes remplacent l'état sans s'ajouter à l'historique.
+ */
+const gesture = { on: false };
+function gestureMutate(fn: (d: ProjectDoc) => void) {
+  mutateDoc(fn);
+  if (!gesture.on) {
+    gesture.on = true;
+    useProjectStore.temporal.getState().pause();
+  }
+}
+function endGesture() {
+  if (!gesture.on) return;
+  gesture.on = false;
+  useProjectStore.temporal.getState().resume();
+}
+const gestureEnd = { onPointerUp: endGesture, onKeyUp: endGesture, onBlur: endGesture };
 
 type Drag =
   | { mode: 'move'; id: ID; from: Point; to: Point }
-  | { mode: 'rotate'; id: ID; to: Point }
-  | { mode: 'path'; id: ID; to: Point }
-  | { mode: 'end1' | 'end2'; id: ID; to: Point }
+  | { mode: 'rotate'; id: ID; from: Point; to: Point }
+  | { mode: 'path'; id: ID; from: Point; to: Point }
+  | { mode: 'end1' | 'end2'; id: ID; from: Point; to: Point }
   | { mode: 'line'; kind: (typeof LINE_KINDS)[number]; from: Point; to: Point }
   | { mode: 'group'; ids: ID[]; from: Point; to: Point }
   | { mode: 'box'; from: Point; to: Point }
@@ -132,6 +160,7 @@ function useImageSize(url: string | null | undefined): { w: number; h: number } 
 }
 
 const deg = (a: Point, b: Point) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+const handleOffset = (item: FloorItem) => (item.kind === 'door' || item.kind === 'window' ? 90 : 0);
 
 type View = { x: number; y: number; w: number; h: number };
 
@@ -164,6 +193,13 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const svgRef = useRef<SVGSVGElement>(null);
   // Zoom et déplacement : fenêtre visible du plan (bornée), recentrable.
   const [view, setView] = useState<View>({ x: 0, y: 0, w: PLAN_W, h: PLAN_H });
+  // Le cadre visible prend les proportions de la zone de dessin : pas de bandes vides, et le point
+  // sous le pointeur reste exact pour le zoom.
+  const aspectRef = useRef(PLAN_H / PLAN_W);
+  const fitAspect = (v: View): View => {
+    const h = v.w * aspectRef.current;
+    return Math.abs(h - v.h) < 0.01 ? v : { ...v, y: v.y + (v.h - h) / 2, h };
+  };
   // Import du fichier .md de l'IA : analysé en mémoire, jamais conservé.
   const [mdImport, setMdImport] = useState<{ name: string; plan: ParsedPlan } | null>(null);
   const [realScale, setRealScale] = useState(false);
@@ -173,6 +209,22 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const ghostOnRef = useRef(false);
 
   const [planPick, setPlanPick] = useState<string | undefined>(memory.pick);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [planMenu, setPlanMenu] = useState(false);
+  const planMenuRef = useRef<HTMLDivElement>(null);
+  const bgInput = useRef<HTMLInputElement>(null);
+  const aiInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!planMenu) return;
+    const away = (e: globalThis.PointerEvent) => !planMenuRef.current?.contains(e.target as Node) && setPlanMenu(false);
+    const esc = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && setPlanMenu(false);
+    window.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [planMenu]);
   useEffect(() => {
     if (!seqId || !doc.sequences[seqId]) setSeqId(doc.project.sequenceIds[0]);
   }, [doc, seqId]);
@@ -191,13 +243,13 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     if (!planKey) return;
     if (viewFor.current !== planKey) {
       viewFor.current = planKey;
-      setView(memory.views[planKey] ?? { x: 0, y: 0, w: PLAN_W, h: PLAN_H });
+      setView(fitAspect(memory.views[planKey] ?? { x: 0, y: 0, w: PLAN_W, h: PLAN_H }));
       return;
     }
     rememberView(planKey, view);
   }, [planKey, view]);
   const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
-  const { beams, shadows } = useMemo(() => computeLighting(items), [items]);
+  const lighting = useMemo(() => computeLighting(items), [items]);
   const bg = planKey ? planOf(doc, planKey).bg : undefined;
   const bgUrl = useBlobUrl(bg?.blobKey);
   const nat = useImageSize(bgUrl);
@@ -260,7 +312,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           // Pincer (ou Ctrl + molette) : zoom centré sur le pointeur, borné.
           const f = Math.exp(e.deltaY * 0.01);
           const w = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.w * f));
-          const h = (w * PLAN_H) / PLAN_W;
+          const h = w * aspectRef.current;
           const px = v.x + (e.clientX - r.left) * k;
           const py = v.y + (e.clientY - r.top) * k;
           return { x: px - (px - v.x) * (w / v.w), y: py - (py - v.y) * (h / v.h), w, h };
@@ -289,14 +341,23 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           return v;
         }
         const w = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.w * f));
-        const h = (w * PLAN_H) / PLAN_W;
+        const h = w * aspectRef.current;
         return { x: px - (px - v.x) * (w / v.w), y: py - (py - v.y) * (h / v.h), w, h };
       });
     };
+    // La zone de dessin change de taille (fenêtre, panneau) : le cadre suit ses proportions.
+    const ro = new ResizeObserver(() => {
+      const r = svg.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      aspectRef.current = r.height / r.width;
+      setView((v) => fitAspect(v));
+    });
+    ro.observe(svg);
     svg.addEventListener('wheel', onWheel, { passive: false });
     svg.addEventListener('gesturestart', onGestureStart, { passive: false } as AddEventListenerOptions);
     svg.addEventListener('gesturechange', onGesture, { passive: false } as AddEventListenerOptions);
     return () => {
+      ro.disconnect();
       svg.removeEventListener('wheel', onWheel);
       svg.removeEventListener('gesturestart', onGestureStart);
       svg.removeEventListener('gesturechange', onGesture);
@@ -306,18 +367,18 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const fitView = () => {
     const pts = items.flatMap((i) => ('x2' in i ? [[i.x, i.y], [i.x2, i.y2]] : [[i.x, i.y]]));
     if (bg) pts.push([bg.x, bg.y], [bg.x + bg.w, bg.y + bg.w * bgRatio]);
-    if (!pts.length) return setView({ x: 0, y: 0, w: PLAN_W, h: PLAN_H });
+    if (!pts.length) return setView(fitAspect({ x: 0, y: 0, w: PLAN_W, h: PLAN_H }));
     const xs = pts.map((p) => p[0]);
     const ys = pts.map((p) => p[1]);
     const [x0, x1, y0, y1] = [Math.min(...xs) - 80, Math.max(...xs) + 80, Math.min(...ys) - 80, Math.max(...ys) + 80];
-    const w = Math.min(ZOOM_MAX, Math.max(PLAN_W / 6, x1 - x0, ((y1 - y0) * PLAN_W) / PLAN_H));
-    const h = (w * PLAN_H) / PLAN_W;
+    const w = Math.min(ZOOM_MAX, Math.max(PLAN_W / 6, x1 - x0, (y1 - y0) / aspectRef.current));
+    const h = w * aspectRef.current;
     setView({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
   };
   const zoomBy = (f: number) =>
     setView((v) => {
       const w = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.w * f));
-      const h = (w * PLAN_H) / PLAN_W;
+      const h = w * aspectRef.current;
       return { x: v.x + (v.w - w) / 2, y: v.y + (v.h - h) / 2, w, h };
     });
   const sel = items.find((i) => i.id === selected);
@@ -349,6 +410,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const mutate = (fn: (d: ProjectDoc) => void) => mutateDoc(fn);
 
   const onCanvasDown = (e: PointerEvent<SVGSVGElement>) => {
+    // Bouton principal seulement (le clic droit ou du milieu ne pose rien) ; Safari ne donne pas le
+    // focus clavier à un dessin SVG cliqué : on le lui donne.
+    if (e.button !== 0) return;
+    svgRef.current?.focus({ preventScroll: true });
     if (placed && (e.target as Element).closest('[data-ghost]')) {
       svgRef.current?.setPointerCapture(e.pointerId);
       const p = toSvg(e);
@@ -363,9 +428,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     }
     if (tool === 'select') {
       if (e.target === svgRef.current || (e.target as Element).getAttribute('data-bg')) {
-        // Rectangle de sélection : glisser sur le fond pour sélectionner plusieurs éléments.
+        // Rectangle de sélection : glisser sur le fond pour sélectionner plusieurs éléments ;
+        // avec Maj, la sélection en cours (même d'un seul élément) est complétée.
+        if (e.shiftKey) setMulti(multi.length ? multi : selected ? [selected] : []);
+        else setMulti([]);
         setSelected(null);
-        if (!e.shiftKey) setMulti([]);
         svgRef.current?.setPointerCapture(e.pointerId);
         const p = toSvg(e);
         setDrag({ mode: 'box', from: p, to: p });
@@ -373,6 +440,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       return;
     }
     const p = toSvg(e);
+    setMulti([]);
     if (isLineKind(tool)) {
       svgRef.current?.setPointerCapture(e.pointerId);
       setDrag({ mode: 'line', kind: tool, from: p, to: p });
@@ -407,8 +475,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // Quel que soit l'outil actif, cliquer sur un élément existant le sélectionne et le déplace
   // (sans en créer un nouveau) ; l'outil reste actif pour le placement suivant.
   const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' | 'end1' | 'end2' = 'move') => {
-    if (bgEdit) return;
+    if (bgEdit || e.button !== 0) return;
     e.stopPropagation();
+    svgRef.current?.focus({ preventScroll: true });
     if (e.shiftKey && mode === 'move') {
       // Maj + clic : ajoute ou retire l'élément de la sélection.
       const cur = multi.length ? multi : selected ? [selected] : [];
@@ -425,7 +494,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     }
     setMulti([]);
     setSelected(id);
-    setDrag(mode === 'move' ? { mode, id, from: p, to: p } : { mode, id, to: p });
+    setDrag({ mode, id, from: p, to: p });
   };
 
   const onMove = (e: PointerEvent) => {
@@ -474,6 +543,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     }
     const item = items.find((i) => i.id === d0.id);
     if (!item) return;
+    // Poignée saisie puis relâchée sans bouger : rien ne change.
+    if (d0.mode !== 'move' && Math.hypot(d0.to.x - d0.from.x, d0.to.y - d0.from.y) < 1) return;
     if (d0.mode === 'move') {
       const dx = snap(d0.to.x - d0.from.x);
       const dy = snap(d0.to.y - d0.from.y);
@@ -482,7 +553,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       const p = { x: snap(d0.to.x, 5), y: snap(d0.to.y, 5) };
       mutate((d) => updateFloorItem(d, planKey, item.id, (d0.mode === 'end1' ? { x: p.x, y: p.y } : { x2: p.x, y2: p.y }) as Partial<FloorItem>));
     } else if (d0.mode === 'rotate') {
-      const rot = Math.round(deg(item, d0.to) / 5) * 5;
+      // La poignée d'une porte ou d'une fenêtre est posée à 90° de son axe.
+      const rot = Math.round((deg(item, d0.to) - handleOffset(item)) / 5) * 5;
       mutate((d) => updateFloorItem(d, planKey, item.id, { rot } as Partial<FloorItem>));
     } else {
       mutate((d) =>
@@ -506,6 +578,13 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
         mutate((d) => multi.forEach((id) => removeFloorItem(d, planKey, id)));
         setMulti([]);
       } else if (e.key === 'Escape') setMulti([]);
+      return;
+    }
+    // Lettres seules : choix de l'outil (V sélection, M mur, P porte, F fenêtre, C caméra, A comédien, L projecteur) ;
+    // R reste la rotation de l'élément sélectionné.
+    if (!e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && HOTKEYS[e.key.toLowerCase()]) {
+      e.preventDefault();
+      setTool(HOTKEYS[e.key.toLowerCase()]);
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
@@ -558,7 +637,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       return moved;
     }
     if (drag.mode === 'rotate' && ('rot' in item || item.kind === 'actor'))
-      return { ...item, rot: Math.round(deg(item, drag.to) / 5) * 5 } as FloorItem;
+      return { ...item, rot: Math.round((deg(item, drag.to) - handleOffset(item)) / 5) * 5 } as FloorItem;
     if ((drag.mode === 'end1' || drag.mode === 'end2') && 'x2' in item) {
       const p = { x: snap(drag.to.x, 5), y: snap(drag.to.y, 5) };
       return (drag.mode === 'end1' ? { ...item, x: p.x, y: p.y } : { ...item, x2: p.x, y2: p.y }) as FloorItem;
@@ -567,49 +646,60 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       return { ...item, to: { x: snap(drag.to.x), y: snap(drag.to.y) } };
     return item;
   };
+  // Pendant qu'on déplace ou tourne un élément, la lumière et les ombres suivent.
+  const { beams, shadows } = drag && (drag.mode === 'move' || drag.mode === 'rotate' || drag.mode === 'end1' || drag.mode === 'end2') ? computeLighting(items.map(preview)) : lighting;
 
   const seq = doc.sequences[seqId];
 
+  const exportPanel = (
+    <ExportPanel
+      doc={doc}
+      id="floorplan"
+      title="Exporter les plans au sol (une page par vue)"
+      extra={[
+        { key: 'svg', label: 'SVG', hint: 'Toutes les vues en dessins vectoriels, dans un dossier compressé.' },
+        { key: 'word', label: 'Word', hint: 'Document Word avec toutes les vues.' },
+      ]}
+      onExport={async ({ format, orientation, numbers }) => {
+        try {
+          const all = allFloorPlans(doc);
+          const base = `${doc.project.title || 'projet'}-plans-au-sol`;
+          if (format === 'pdf' || format === 'images') {
+            const svgs = all.length ? all.map((p) => p.svg) : [floorPlanSvg(doc, planKey, sequenceHeading(doc, seqId))];
+            return await exportSvgPages(svgs, `${base}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });
+          }
+          if (format === 'word') return downloadWord(floorPlansDocument(doc), base);
+          const { default: JSZip } = await import('jszip');
+          const zip = new JSZip();
+          for (const p of all) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
+          downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
+        } catch (err) {
+          if (recoverStaleChunk(err)) return;
+          useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
+        }
+      }}
+    />
+  );
+  const pickView = (key: string | undefined) => {
+    setPlanPick(key);
+    setSelected(null);
+    setMulti([]);
+  };
+  const stroke = planOf(doc, planKey).stroke ?? 1;
+
   return (
-    <div className="page page--wide">
-      <header className="page-head">
-        <ExportPanel
-          doc={doc}
-          id="floorplan"
-          title="Exporter les plans au sol (une page par vue)"
-          extra={[
-            { key: 'svg', label: 'SVG', hint: 'Toutes les vues en dessins vectoriels, dans un dossier compressé.' },
-            { key: 'word', label: 'Word', hint: 'Document Word avec toutes les vues.' },
-          ]}
-          onExport={async ({ format, orientation, numbers }) => {
-            try {
-              const all = allFloorPlans(doc);
-              const base = `${doc.project.title || 'projet'}-plans-au-sol`;
-              if (format === 'pdf' || format === 'images') {
-                const svgs = all.length ? all.map((p) => p.svg) : [floorPlanSvg(doc, planKey, sequenceHeading(doc, seqId))];
-                return await exportSvgPages(svgs, `${base}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });
-              }
-              if (format === 'word') return downloadWord(floorPlansDocument(doc), base);
-              const { default: JSZip } = await import('jszip');
-              const zip = new JSZip();
-              for (const p of all) zip.file(`${p.name.replace(/[\\/:*?"<>|]+/g, '-')}.svg`, p.svg);
-              downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base}.zip`);
-            } catch (err) {
-              if (recoverStaleChunk(err)) return;
-              useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
-            }
-          }}
-        />
-        <label className={s.seqPick} data-view>
-          <span>Séquence</span>
+    <div className={['page page--wide', s.page].join(' ')}>
+      <header className={s.toolbar}>
+        <div className={s.tbLeft}>
           <select
+            className={s.seqSelect}
             value={seqId}
             onChange={(e) => {
               setSeqId(e.target.value);
-              setPlanPick(undefined);
-              setSelected(null);
+              pickView(undefined);
             }}
             aria-label="Séquence du plan au sol"
+            data-view
           >
             {doc.project.sequenceIds.map((id) => (
               <option key={id} value={id}>
@@ -617,32 +707,32 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               </option>
             ))}
           </select>
-        </label>
-      </header>
-
-      <div className={s.layout}>
-        <div>
           <div className={s.plans} role="tablist" aria-label="Vues du plan au sol">
-            {plans.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                role="tab"
-                aria-selected={p.key === planKey}
-                className={p.key === planKey ? s.planOn : ''}
-                onClick={() => {
-                  setPlanPick(p.key);
-                  setSelected(null);
-                }}
-                onDoubleClick={() => {
-                  const name = window.prompt('Nom de la vue', p.name);
-                  if (name !== null) mutateDoc((d) => renamePlan(d, p.key, name));
-                }}
-                title="Double-cliquer pour renommer"
-              >
-                {p.name}
-              </button>
-            ))}
+            {plans.map((p) =>
+              renaming === p.key ? (
+                <RenameField
+                  key={p.key}
+                  value={p.name}
+                  onDone={(name) => {
+                    setRenaming(null);
+                    if (name !== null && name !== p.name) mutateDoc((d) => renamePlan(d, p.key, name));
+                  }}
+                />
+              ) : (
+                <button
+                  key={p.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={p.key === planKey}
+                  className={p.key === planKey ? s.planOn : ''}
+                  onClick={() => pickView(p.key)}
+                  onDoubleClick={() => setRenaming(p.key)}
+                  title="Double-cliquer pour renommer"
+                >
+                  {p.name}
+                </button>
+              ),
+            )}
             {psPlans.map((p) => (
               <button
                 key={p.key}
@@ -651,8 +741,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 aria-selected={p.key === planKey}
                 className={[s.psTab, p.key === planKey ? s.planOn : ''].join(' ')}
                 onClick={() => {
-                  setPlanPick(p.key);
-                  setSelected(null);
+                  pickView(p.key);
                   setBeat(1);
                 }}
                 title="Vue propre au plan-séquence : caméra et comédiens placés temps par temps"
@@ -661,175 +750,184 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 {p.name}
               </button>
             ))}
-            <button
-              type="button"
-              className={s.planAdd}
-              onClick={() => {
-                const key = mutateDoc((d) => addPlan(d, seqId));
-                if (key) setPlanPick(key);
-                setSelected(null);
-              }}
-              data-testid="add-plan"
-            >
-              + Nouvelle vue
-            </button>
-            <button
-              type="button"
-              className={s.planAdd}
-              title="Dupliquer cette vue"
-              onClick={() => {
-                const key = mutateDoc((d) => {
-                  const k = addPlan(d, seqId);
-                  d.floorPlans![k].items = JSON.parse(JSON.stringify(planOf(d, planKey).items));
-                  return k;
-                });
-                if (key) setPlanPick(key);
-              }}
-            >
-              <Copy size={12} /> Dupliquer
-            </button>
-            <button
-              type="button"
-              className={s.planAdd}
-              data-testid="delete-plan"
-              title={
-                plans.length > 1
-                  ? 'Supprimer cette vue'
-                  : 'Vider cette vue (une séquence garde toujours une vue)'
-              }
-              onClick={() => {
-                const name = plans.find((p) => p.key === planKey)?.name ?? 'cette vue';
-                if (
-                  planOf(doc, planKey).items.length &&
-                  !window.confirm(`Supprimer « ${name} » et son contenu ? (annulable avec ⌘Z)`)
-                )
-                  return;
-                mutateDoc((d) => deletePlan(d, planKey));
-                setPlanPick(undefined);
-                setSelected(null);
-              }}
-            >
-              <Trash2 size={12} /> {plans.length > 1 && !psView ? 'Supprimer cette vue' : 'Vider la vue'}
-            </button>
-          </div>
-          <div className={s.tools} role="toolbar" aria-label="Outils du plan au sol" data-edit>
-            {TOOL_GROUPS.map((g) => (
-              <div key={g.label || 'sel'} className={s.toolGroup} role="group" aria-label={g.label || 'Sélection'}>
-                {g.label && <span className={s.toolGroupLabel}>{g.label}</span>}
-                {g.tools.map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    className={[s.tool, tool === t.key ? s.on : ''].join(' ')}
-                    aria-pressed={tool === t.key}
-                    onClick={() => setTool(t.key)}
-                    data-testid={`tool-${t.key}`}
-                  >
-                    {t.icon}
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-          <div className={s.viewBar}>
-            <button type="button" data-view onClick={() => zoomBy(1 / 1.25)} aria-label="Zoomer" title="Zoomer (ou pincer)">+</button>
-            <button type="button" data-view onClick={() => zoomBy(1.25)} aria-label="Dézoomer" title="Dézoomer">−</button>
-            <button type="button" data-view onClick={fitView} data-testid="fp-fit" title="Recentrer sur les éléments">Recentrer</button>
-            <span className={s.viewSep} />
-            <label className={s.bgBtn} title="Plan des locaux en fond, pour dessiner les murs par-dessus">
-              {bg ? 'Changer le fond' : 'Fond de plan'}
-              <input
-                type="file"
-                accept="image/*"
-                className="visually-hidden"
-                data-testid="fp-bg-input"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!f?.type.startsWith('image/')) return;
-                  const key = await putBlob(doc.project.id, f.name, f);
-                  mutateDoc((d) => {
-                    const p = (d.floorPlans ??= {})[planKey] ?? ((d.floorPlans[planKey] = { items: [] }) as FloorPlan);
-                    p.bg = { blobKey: key, opacity: 0.45, x: 0, y: 0, w: PLAN_W };
-                  });
+            <span className={s.planActions} data-edit>
+              <Button
+                variant="icon"
+                size="sm"
+                icon={<Plus size={14} strokeWidth={1.4} />}
+                aria-label="Nouvelle vue"
+                title="Nouvelle vue"
+                onClick={() => {
+                  const key = mutateDoc((d) => addPlan(d, seqId));
+                  if (key) pickView(key);
+                }}
+                data-testid="add-plan"
+              />
+              <Button
+                variant="icon"
+                size="sm"
+                icon={<Copy size={13} strokeWidth={1.4} />}
+                aria-label="Dupliquer la vue"
+                title="Dupliquer la vue"
+                onClick={() => {
+                  const key = mutateDoc((d) => duplicatePlan(d, seqId, planKey));
+                  if (key) pickView(key);
                 }}
               />
-            </label>
-            {bg && (
-              <>
-                <button type="button" className={bgEdit ? s.on : ''} aria-pressed={bgEdit} onClick={() => setBgEdit(!bgEdit)} title="Glisser pour déplacer l’image, molette ou pincement pour l’agrandir" data-testid="fp-bg-edit">
-                  Ajuster le fond
-                </button>
-                {bgEdit && (
-                  <>
-                    <button type="button" onClick={() => scaleBg(1 / 1.15)} aria-label="Réduire le fond">−</button>
-                    <button type="button" onClick={() => scaleBg(1.15)} aria-label="Agrandir le fond">+</button>
-                  </>
+              <Button
+                variant="icon"
+                size="sm"
+                icon={<Trash2 size={13} strokeWidth={1.4} />}
+                aria-label={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue'}
+                title={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue (une séquence garde toujours une vue)'}
+                data-testid="delete-plan"
+                onClick={async () => {
+                  const name = [...plans, ...psPlans].find((p) => p.key === planKey)?.name ?? 'cette vue';
+                  if (planOf(doc, planKey).items.length) {
+                    const r = await ask({ title: plans.length > 1 && !psView ? `Supprimer « ${name} » ?` : `Vider « ${name} » ?`, body: 'Son contenu disparaît (annulable avec ⌘Z).', confirmLabel: plans.length > 1 && !psView ? 'Supprimer' : 'Vider', danger: true });
+                    if (!r.ok) return;
+                  }
+                  mutateDoc((d) => deletePlan(d, planKey));
+                  pickView(undefined);
+                }}
+              />
+            </span>
+          </div>
+        </div>
+        <div className={s.tbRight}>
+          <div className={s.zoomGroup} data-view>
+            <Button variant="icon" size="sm" icon={<ZoomOut size={15} strokeWidth={1.3} />} onClick={() => zoomBy(1.25)} aria-label="Dézoomer" title="Dézoomer" />
+            <Button variant="icon" size="sm" icon={<ZoomIn size={15} strokeWidth={1.3} />} onClick={() => zoomBy(1 / 1.25)} aria-label="Zoomer" title="Zoomer (ou pincer)" />
+            <Button variant="icon" size="sm" icon={<Maximize size={14} strokeWidth={1.3} />} onClick={fitView} aria-label="Recentrer" title="Recentrer sur les éléments" data-testid="fp-fit" />
+          </div>
+          <div className={s.menuWrap} ref={planMenuRef} data-edit>
+            <Button variant="ghost" icon={<Layers size={15} strokeWidth={1.3} />} aria-expanded={planMenu} onClick={() => setPlanMenu(!planMenu)} data-testid="fp-plan-menu">
+              Plan des locaux
+            </Button>
+            {planMenu && (
+              <div className={s.menu} role="dialog" aria-label="Plan des locaux">
+                <p className={s.menuTitle}>Image de fond</p>
+                <div className={s.menuRow}>
+                  <Button variant="outline" size="sm" onClick={() => bgInput.current?.click()}>
+                    {bg ? 'Changer l’image…' : 'Choisir une image…'}
+                  </Button>
+                  {bg && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant={bgEdit ? 'primary' : 'ghost'}
+                        aria-pressed={bgEdit}
+                        onClick={() => {
+                          setBgEdit(!bgEdit);
+                          setPlanMenu(false);
+                        }}
+                        title="Glisser pour déplacer l’image, molette ou pincement pour l’agrandir"
+                        data-testid="fp-bg-edit"
+                      >
+                        Ajuster
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => mutateDoc((d) => void delete d.floorPlans![planKey].bg)}>
+                        Retirer
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {bg && (
+                  <label className={s.menuRange}>
+                    <span>Opacité</span>
+                    <input type="range" min={0.05} max={1} step={0.05} value={bg.opacity} onChange={(e) => gestureMutate((d) => void (d.floorPlans![planKey].bg!.opacity = Number(e.target.value)))} {...gestureEnd} aria-label="Opacité du fond" />
+                  </label>
                 )}
-                <label className={s.bgRange}>
-                  opacité
-                  <input type="range" min={0.05} max={1} step={0.05} value={bg.opacity} onChange={(e) => mutateDoc((d) => void (d.floorPlans![planKey].bg!.opacity = Number(e.target.value)))} aria-label="Opacité du fond" />
+                <p className={s.menuTitle}>Traits</p>
+                <label className={s.menuRange} title="Épaisseur des traits : murs, rails, portes, fenêtres, réflecteurs, diffuseurs, drapeaux">
+                  <span>Épaisseur</span>
+                  <input
+                    type="range"
+                    min={0.3}
+                    max={3}
+                    step={0.1}
+                    value={stroke}
+                    onChange={(e) =>
+                      gestureMutate((d) => {
+                        const p = (d.floorPlans ??= {})[planKey] ?? ((d.floorPlans[planKey] = { items: [] }) as FloorPlan);
+                        p.stroke = Number(e.target.value) === 1 ? undefined : Number(e.target.value);
+                      })
+                    }
+                    {...gestureEnd}
+                    aria-label="Épaisseur des traits"
+                    data-testid="fp-stroke"
+                  />
                 </label>
-                <button type="button" onClick={() => mutateDoc((d) => void delete d.floorPlans![planKey].bg)} title="Retirer le fond">×</button>
-              </>
+                <p className={s.menuTitle}>Depuis un plan existant</p>
+                <div className={s.menuRow}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    title={bg ? 'Copier les consignes, calculées pour l’image de fond, à donner à une IA avec cette même image' : 'Copier les consignes à donner à une IA avec l’image du plan des locaux'}
+                    onClick={async () => {
+                      const text = aiPlanInstructions(bg && nat ? { ratio: nat.h / nat.w, pixels: nat } : {});
+                      await navigator.clipboard.writeText(text).catch(() => undefined);
+                      setPlanMenu(false);
+                      useUi.getState().toast({
+                        message: bg
+                          ? 'Consignes copiées pour cette image : donnez-les à votre IA avec la même image, demandez un fichier plan.md, puis importez-le ici.'
+                          : 'Consignes copiées : donnez-les à votre IA avec l’image du plan, demandez un fichier plan.md, puis importez-le ici. Posez d’abord l’image en fond pour un calage exact.',
+                      });
+                    }}
+                    data-testid="fp-ai-copy"
+                  >
+                    Copier les consignes pour une IA
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => aiInput.current?.click()} title="Importer le fichier Markdown (.md) produit par l’IA : il est analysé puis oublié">
+                    Importer le .md…
+                  </Button>
+                </div>
+              </div>
             )}
-            <label data-edit className={s.bgRange} title="Épaisseur des traits : murs, rails, portes, fenêtres, réflecteurs, diffuseurs, drapeaux">
-              traits
-              <input
-                type="range"
-                min={0.3}
-                max={3}
-                step={0.1}
-                value={planOf(doc, planKey).stroke ?? 1}
-                onChange={(e) =>
-                  mutateDoc((d) => {
-                    const p = (d.floorPlans ??= {})[planKey] ?? ((d.floorPlans[planKey] = { items: [] }) as FloorPlan);
-                    p.stroke = Number(e.target.value) === 1 ? undefined : Number(e.target.value);
-                  })
-                }
-                aria-label="Épaisseur des traits"
-                data-testid="fp-stroke"
-              />
-            </label>
-            <span className={s.viewSep} />
-            <button
-              type="button"
-              className={s.aiBtn}
-              title={bg ? 'Copier les consignes, calculées pour l’image de fond, à donner à une IA avec cette même image' : 'Copier les consignes à donner à une IA avec l’image du plan des locaux'}
-              onClick={async () => {
-                const text = aiPlanInstructions(bg && nat ? { ratio: nat.h / nat.w, pixels: nat } : {});
-                await navigator.clipboard.writeText(text).catch(() => undefined);
-                useUi.getState().toast({
-                  message: bg
-                    ? 'Consignes copiées pour cette image : donnez-les à votre IA avec la même image, demandez un fichier plan.md, puis importez-le ici.'
-                    : 'Consignes copiées : donnez-les à votre IA avec l’image du plan, demandez un fichier plan.md, puis importez-le ici. Conseil : posez d’abord l’image en fond pour un calage exact.',
-                });
-              }}
-              data-testid="fp-ai-copy"
-            >
-              Consignes IA
-            </button>
-            <label data-edit className={s.aiBtn} title="Importer le fichier Markdown (.md) produit par l’IA : il est analysé puis oublié">
-              Importer le fichier .md
-              <input
-                type="file"
-                accept=".md,.markdown,.txt,text/markdown,text/plain"
-                className="visually-hidden"
-                data-testid="fp-ai-file"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!f) return;
-                  const plan = parsePlanFile(await f.text());
-                  setGhost({ dx: 0, dy: 0, k: 1 });
-                  setRealScale(false);
-                  setBgEdit(false);
-                  setMdImport({ name: f.name, plan });
-                }}
-              />
-            </label>
           </div>
+          {exportPanel}
+        </div>
+      </header>
+      {/* Fichiers choisis depuis le menu « Plan des locaux » (champs toujours présents). */}
+      <input
+        ref={bgInput}
+        type="file"
+        accept="image/*"
+        className="visually-hidden"
+        data-testid="fp-bg-input"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          setPlanMenu(false);
+          if (!f?.type.startsWith('image/')) return;
+          const key = await putBlob(doc.project.id, f.name, f);
+          mutateDoc((d) => {
+            const p = (d.floorPlans ??= {})[planKey] ?? ((d.floorPlans[planKey] = { items: [] }) as FloorPlan);
+            p.bg = { blobKey: key, opacity: 0.45, x: 0, y: 0, w: PLAN_W };
+          });
+        }}
+      />
+      <input
+        ref={aiInput}
+        type="file"
+        accept=".md,.markdown,.txt,text/markdown,text/plain"
+        className="visually-hidden"
+        data-testid="fp-ai-file"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          setPlanMenu(false);
+          if (!f) return;
+          const plan = parsePlanFile(await f.text());
+          setGhost({ dx: 0, dy: 0, k: 1 });
+          setRealScale(false);
+          setBgEdit(false);
+          setMdImport({ name: f.name, plan });
+        }}
+      />
+
+      <div className={s.layout}>
+        <div className={s.stageCol}>
           {mdImport && (
             <div className={s.mdBox} data-testid="fp-ai-report">
               <p className={s.mdHead}>
@@ -915,6 +1013,44 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               <em>{beat ? `les caméras et comédiens placés maintenant sont au temps T${beat}` : 'choisissez un temps pour placer caméra et comédiens à chaque étape'}</em>
             </div>
           )}
+          <div className={s.stage}>
+            <div className={s.palette} role="toolbar" aria-label="Outils du plan au sol" aria-orientation="vertical" data-edit>
+              {TOOL_GROUPS.map((g) => (
+                <div key={g.label} className={s.paletteGroup} role="group" aria-label={g.label}>
+                  {g.tools.map((x) => (
+                    <button
+                      key={x.key}
+                      type="button"
+                      className={[s.paletteTool, tool === x.key ? s.on : ''].join(' ')}
+                      aria-pressed={tool === x.key}
+                      aria-label={x.label}
+                      title={x.hotkey ? `${x.label} (${x.hotkey})` : x.label}
+                      onClick={() => {
+                        setTool(x.key);
+                        svgRef.current?.focus({ preventScroll: true });
+                      }}
+                      data-testid={`tool-${x.key}`}
+                    >
+                      {x.icon}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {bgEdit && bg && (
+              <div className={s.bgBar} data-edit>
+                <span>Fond : glisser pour le déplacer, molette pour l’agrandir</span>
+                <button type="button" onClick={() => scaleBg(1 / 1.15)} aria-label="Réduire le fond">
+                  −
+                </button>
+                <button type="button" onClick={() => scaleBg(1.15)} aria-label="Agrandir le fond">
+                  +
+                </button>
+                <button type="button" className={s.bgDone} onClick={() => setBgEdit(false)}>
+                  Terminer
+                </button>
+              </div>
+            )}
           <svg
             ref={svgRef}
             className={[s.canvas, tool !== 'select' ? s.placing : ''].join(' ')}
@@ -922,6 +1058,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             onPointerDown={onCanvasDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
+            onPointerCancel={() => setDrag(null)}
             onKeyDown={onKey}
             tabIndex={0}
             role="application"
@@ -1036,10 +1173,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 y1={snap(drag.from.y)}
                 x2={snap(drag.to.x)}
                 y2={snap(drag.to.y)}
-                className={s[drag.kind]}
+                className={[s[drag.kind], s.linePreview].join(' ')}
               />
             )}
           </svg>
+          </div>
         </div>
 
         <aside className={['card', s.panel].join(' ')} aria-label="Propriétés">
@@ -1271,6 +1409,60 @@ const KIND_LABEL: Record<FloorKind, string> = {
   flag: 'Drapeau (négatif)',
 };
 
+/** Repère d'un élément : appliqué après une pause ou en quittant le champ (une étape d'annulation). */
+function LabelField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft, flush] = useDraft(value, onCommit);
+  return (
+    <label className={s.field}>
+      <span>Repère</span>
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={flush} onKeyDown={(e) => e.key === 'Enter' && flush()} />
+    </label>
+  );
+}
+
+/** Largeur d'une porte ou d'une fenêtre : saisie libre, bornée à la validation. */
+function WidthField({ value, onCommit }: { value: number; onCommit: (w: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const w = Math.max(20, Math.round(Number(text.replace(',', '.')) || 0));
+    if (w !== value) onCommit(w);
+    else setText(String(value));
+  };
+  return (
+    <label className={s.field}>
+      <span>Largeur (cm)</span>
+      <input inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} />
+    </label>
+  );
+}
+
+/** Nom d'une vue modifié sur place (Entrée valide, Échap annule). */
+function RenameField({ value, onDone }: { value: string; onDone: (name: string | null) => void }) {
+  const [v, setV] = useState(value);
+  const done = useRef(false);
+  const finish = (name: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(name);
+  };
+  return (
+    <input
+      className={s.renameField}
+      value={v}
+      autoFocus
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => finish(v)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') finish(v);
+        if (e.key === 'Escape') finish(null);
+      }}
+      aria-label="Nom de la vue"
+    />
+  );
+}
+
 function Properties({
   doc,
   seqId,
@@ -1287,6 +1479,8 @@ function Properties({
   onDelete: () => void;
 }) {
   const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, planKey, item.id, patch));
+  // Curseurs : un geste entier = une seule étape d'annulation.
+  const slide = (patch: Partial<FloorItem>) => gestureMutate((d) => updateFloorItem(d, planKey, item.id, patch));
   const seq = doc.sequences[seqId];
   return (
     <div className={s.props} data-testid="fp-properties">
@@ -1303,13 +1497,7 @@ function Properties({
         item.kind === 'reflector' ||
         item.kind === 'diffuser' ||
         item.kind === 'flag') && (
-        <label className={s.field}>
-          <span>Repère</span>
-          <input
-            value={item.label ?? ''}
-            onChange={(e) => update({ label: e.target.value } as Partial<FloorItem>)}
-          />
-        </label>
+        <LabelField key={item.id} value={item.label ?? ''} onCommit={(v) => update({ label: v } as Partial<FloorItem>)} />
       )}
       {beats > 0 && (item.kind === 'camera' || item.kind === 'actor') && (
         <label className={s.field}>
@@ -1396,7 +1584,7 @@ function Properties({
             size="sm"
             onClick={() =>
               update({
-                to: item.to ? undefined : { x: Math.min(PLAN_W, item.x + 120), y: item.y },
+                to: item.to ? undefined : { x: item.x + 120, y: item.y },
               } as Partial<FloorItem>)
             }
           >
@@ -1415,7 +1603,8 @@ function Properties({
               max={160}
               step={5}
               value={item.spread ?? DEFAULT_SPREAD}
-              onChange={(e) => update({ spread: Number(e.target.value) } as Partial<FloorItem>)}
+              onChange={(e) => slide({ spread: Number(e.target.value) } as Partial<FloorItem>)}
+              {...gestureEnd}
               aria-label="Ouverture du faisceau"
             />
           </label>
@@ -1428,29 +1617,19 @@ function Properties({
               max={700}
               step={20}
               value={item.range ?? DEFAULT_RANGE}
-              onChange={(e) => update({ range: Number(e.target.value) } as Partial<FloorItem>)}
+              onChange={(e) => slide({ range: Number(e.target.value) } as Partial<FloorItem>)}
+              {...gestureEnd}
               aria-label="Portée"
             />
           </label>
           <label className={s.field}>
             <span>Puissance : {Math.round((item.power ?? 1) * 100)} %</span>
-            <input type="range" min={0.2} max={1.6} step={0.1} value={item.power ?? 1} onChange={(e) => update({ power: Number(e.target.value) } as Partial<FloorItem>)} aria-label="Puissance" />
+            <input type="range" min={0.2} max={1.6} step={0.1} value={item.power ?? 1} onChange={(e) => slide({ power: Number(e.target.value) } as Partial<FloorItem>)} {...gestureEnd} aria-label="Puissance" />
           </label>
         </>
       )}
       {(item.kind === 'door' || item.kind === 'window') && (
-        <label className={s.field}>
-          <span>Largeur</span>
-          <input
-            type="number"
-            min={20}
-            step={10}
-            value={item.width}
-            onChange={(e) =>
-              update({ width: Math.max(20, Number(e.target.value) || 20) } as Partial<FloorItem>)
-            }
-          />
-        </label>
+        <WidthField key={item.id} value={item.width} onCommit={(w) => update({ width: w } as Partial<FloorItem>)} />
       )}
       <Button
         variant="danger"

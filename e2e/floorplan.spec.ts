@@ -135,3 +135,45 @@ test('plan au sol : import du fichier .md de l’IA, aperçu ajustable, sélecti
   await page.getByTestId('fp-fit').click();
   expect(await vb()).not.toBe(zoomed);
 });
+
+test('plan au sol : palette, raccourcis, clic droit sans effet, vues renommées et dupliquées, un geste = une annulation', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=fiction');
+  const canvas = page.getByTestId('floorplan');
+  await canvas.focus();
+  await page.keyboard.press('c');
+  await expect(page.getByTestId('tool-camera')).toHaveAttribute('aria-pressed', 'true');
+  const box = (await canvas.boundingBox())!;
+  // Le clic droit ne pose rien.
+  await page.mouse.click(box.x + 420, box.y + 300, { button: 'right' });
+  await expect(page.getByTestId('fp-camera')).toHaveCount(0);
+  await page.mouse.click(box.x + 420, box.y + 300);
+  await expect(page.getByTestId('fp-camera')).toHaveCount(1);
+  // Une vue se renomme sur place et se duplique avec son contenu.
+  await page.getByRole('tab', { name: 'Vue 1' }).dblclick();
+  await page.getByLabel('Nom de la vue').fill('Plan large');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('tab', { name: 'Plan large', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Dupliquer la vue' }).click();
+  await expect(page.getByRole('tab', { name: 'Plan large (copie)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('fp-camera')).toHaveCount(1);
+  const ids = await page.evaluate(() => {
+    const d = (window as unknown as { __ds: { doc: () => { floorPlans: Record<string, { items: Array<{ id: string }> }> } } }).__ds.doc();
+    return Object.values(d.floorPlans).flatMap((p) => p.items.map((i) => i.id));
+  });
+  expect(new Set(ids).size).toBe(ids.length);
+  // Un projecteur : glisser le curseur de puissance n'ajoute qu'une étape d'annulation.
+  await page.keyboard.press('Escape');
+  await canvas.focus();
+  await page.keyboard.press('l');
+  await page.mouse.click(box.x + 250, box.y + 200);
+  const props = page.getByTestId('fp-properties');
+  await expect(props).toContainText('Puissance : 100 %');
+  const slider = (await props.getByLabel('Puissance').boundingBox())!;
+  await page.mouse.move(slider.x + slider.width * 0.55, slider.y + slider.height / 2);
+  await page.mouse.down();
+  for (const f of [0.6, 0.7, 0.8, 0.95]) await page.mouse.move(slider.x + slider.width * f, slider.y + slider.height / 2);
+  await page.mouse.up();
+  await expect(props).not.toContainText('Puissance : 100 %');
+  await page.keyboard.press('Control+z');
+  await expect(props).toContainText('Puissance : 100 %');
+});

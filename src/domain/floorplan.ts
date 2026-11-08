@@ -80,6 +80,19 @@ export function addPlan(doc: ProjectDoc, seqId: ID): string {
   return key;
 }
 
+/** Copie d'une vue : mêmes éléments (avec leurs propres identifiants), même fond et même épaisseur de traits. */
+export function duplicatePlan(doc: ProjectDoc, seqId: ID, key: string): string {
+  const src = planOf(doc, key);
+  const k = addPlan(doc, seqId);
+  const copy = doc.floorPlans![k];
+  copy.items = src.items.map((i) => ({ ...JSON.parse(JSON.stringify(i)), id: newId() }) as FloorItem);
+  if (src.bg) copy.bg = { ...src.bg };
+  if (src.stroke !== undefined) copy.stroke = src.stroke;
+  const name = src.name ?? plansOf(doc, seqId).find((p) => p.key === key)?.name;
+  if (name) copy.name = `${name} (copie)`;
+  return k;
+}
+
 export function renamePlan(doc: ProjectDoc, key: string, name: string): void {
   ensure(doc, key).name = name.trim() || undefined;
 }

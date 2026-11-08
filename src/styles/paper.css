@@ -20,6 +20,8 @@ body::before {
 #root { position: relative; z-index: 1; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
+/* Cases, boutons radio et curseurs natifs : noir (ou blanc en thème encre), jamais le bleu du système. */
+input, progress { accent-color: var(--ink); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 ::selection { background: rgba(17, 19, 24, 0.14); }
 :root[data-theme='encre'] ::selection { background: rgba(242, 243, 245, 0.22); }

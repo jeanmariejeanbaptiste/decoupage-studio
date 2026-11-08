@@ -171,3 +171,27 @@ describe('éclairage : diffuseur et drapeau', async () => {
     expect(chain).toEqual(['l', 'd', 'r']);
   });
 });
+
+describe('dupliquer une vue', () => {
+  it('copie éléments, fond et traits, avec de nouveaux identifiants', async () => {
+    const { duplicatePlan, plansOf } = await import('./floorplan');
+    const doc = buildRav3();
+    const seqId = doc.project.sequenceIds[0];
+    const next = produce(doc, (d) => {
+      addFloorItem(d, seqId, 'camera', { x: 100, y: 100 });
+      addFloorItem(d, seqId, 'wall', { x: 0, y: 0 }, { x: 200, y: 0 });
+      d.floorPlans![seqId].bg = { blobKey: 'k', opacity: 0.4, x: 0, y: 0, w: 1000 };
+      d.floorPlans![seqId].stroke = 1.6;
+      duplicatePlan(d, seqId, seqId);
+    });
+    const views = plansOf(next, seqId);
+    expect(views).toHaveLength(2);
+    const a = planOf(next, views[0].key);
+    const b = planOf(next, views[1].key);
+    expect(b.items.map((i) => i.kind)).toEqual(a.items.map((i) => i.kind));
+    expect(b.items.some((i) => a.items.some((j) => j.id === i.id))).toBe(false);
+    expect(b.bg).toEqual(a.bg);
+    expect(b.stroke).toBe(1.6);
+    expect(views[1].name).toBe('Vue 1 (copie)');
+  });
+});
