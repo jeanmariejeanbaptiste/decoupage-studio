@@ -35,7 +35,7 @@ describe('interview placée dans le découpage', () => {
     expect(shotCode(doc, ca)).toBe('1.3A');
     expect(doc.shots[ca]).toMatchObject({ subject: 'Marie Dupont', value: 'Rapproché', focal: { from: 50 } });
     expect(doc.shots[cb].actionBlockId).toBe(doc.shots[ca].actionBlockId);
-    expect(doc.blocks[doc.shots[ca].actionBlockId].text).toBe('Interview — Marie Dupont, directrice · Cadre 1 · regard à gauche');
+    expect(doc.blocks[doc.shots[ca].actionBlockId].text).toBe('Interview — Marie Dupont, directrice · regard à gauche');
     expect(setup.sequenceId).toBe(seq);
   });
 
