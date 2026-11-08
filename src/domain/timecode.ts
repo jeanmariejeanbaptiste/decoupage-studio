@@ -26,12 +26,16 @@ export function parseTc(input: string): ParsedTc {
     if (c !== undefined) return b < 60 && c < 60 ? { kind: 'sec', sec: a * 3600 + b * 60 + c } : null;
     return b < 60 ? { kind: 'sec', sec: a * 60 + b } : null;
   }
-  m = /^(?:(\d+)h)?(?:(\d+)(?:m|min|'))?(?:(\d+)(?:s|"|sec)?)?$/.exec(raw);
+  // « 1h30 » : une heure trente (le nombre après « h » compte en minutes).
+  m = /^(\d+)h(\d{1,2})$/.exec(raw);
+  if (m && Number(m[2]) < 60) return { kind: 'sec', sec: Number(m[1]) * 3600 + Number(m[2]) * 60 };
+  // « 1'30'' », « 1'30" », « 1m30 », « 2min », « 1h2m3s ».
+  m = /^(?:(\d+)h)?(?:(\d+)(?:m|min|'))?(?:(\d+)(?:s|"|''|sec)?)?$/.exec(raw);
   if (m && (m[1] || m[2]) && /[hm']/.test(raw)) {
     const sec = Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
     return { kind: 'sec', sec };
   }
-  m = /^(\d+)(?:s|sec)$/.exec(raw);
+  m = /^(\d+)(?:s|sec|"|'')$/.exec(raw);
   if (m) return { kind: 'sec', sec: Number(m[1]) };
   m = /^(\d+)$/.exec(raw);
   if (m) {

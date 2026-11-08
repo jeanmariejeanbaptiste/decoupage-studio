@@ -325,7 +325,15 @@ export function SequenceBody({
                         </span>
                       ) : col === 'number' ? (
                         <>
-                          <NumberHandle shotId={r.shotId} label={`${seqNumber}.${i + 1}`} num={text} />
+                          <NumberHandle
+                            shotId={r.shotId}
+                            label={`${seqNumber}.${i + 1}`}
+                            num={text}
+                            onPick={() => {
+                              const row = rowOfShot(doc, r.shotId);
+                              if (row >= 0) useUi.getState().setSelection({ row, col: 'subject' }, { row, col: model.columns[model.columns.length - 1] });
+                            }}
+                          />
                           <button
                             type="button"
                             className={s.rowAdd}

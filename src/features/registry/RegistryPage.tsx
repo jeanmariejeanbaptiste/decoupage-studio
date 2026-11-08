@@ -37,6 +37,8 @@ const STATUSES: ShotStatus[] = ['à tourner', 'tourné', 'abandonné'];
 
 /** Saute au plan dans la grille. */
 export function goToShot(doc: ProjectDoc, shotId: ID | undefined) {
+  // On arrive sur la grille d'édition (pas l'aperçu, ni l'onglet Interview d'un institutionnel).
+  useUi.getState().set({ printView: false, itwTab: 'broll', editing: null });
   if (!shotId) return navigate('grid');
   const row = rowOfShot(doc, shotId);
   if (row >= 0) useUi.getState().setSelection({ row, col: 'subject' });

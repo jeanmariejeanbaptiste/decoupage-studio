@@ -86,7 +86,8 @@ function TextEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorPr
       e.preventDefault();
       onCancel();
     }
-    e.stopPropagation();
+    // Les raccourcis de l'application (⌘S, ⌘K…) restent disponibles pendant la saisie.
+    if (!(e.metaKey || e.ctrlKey)) e.stopPropagation();
   };
 
   const common = {
@@ -137,7 +138,7 @@ function TokenEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorP
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    e.stopPropagation();
+    if (!(e.metaKey || e.ctrlKey)) e.stopPropagation();
     if (sug.onKey(e)) {
       e.preventDefault();
       return;
@@ -249,7 +250,7 @@ function FocalEditor({ doc, shotId, initial, replace, onCommit, onCancel }: Edit
   const digits = (v: string) => v.replace(/[^\d.,]/g, '');
 
   const onKeyDown = (which: 'from' | 'to') => (e: KeyboardEvent<HTMLInputElement>) => {
-    e.stopPropagation();
+    if (!(e.metaKey || e.ctrlKey)) e.stopPropagation();
     if (which === 'from' && sug.onKey(e)) {
       e.preventDefault();
       return;

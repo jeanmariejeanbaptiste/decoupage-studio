@@ -54,3 +54,13 @@ describe('timecode', () => {
     expect(unionLength([[5, 5]])).toBe(0);
   });
 });
+
+describe('saisies de durée usuelles', () => {
+  it('heures-minutes, secondes et notation à apostrophes', () => {
+    expect(parseTc('1h30')).toEqual({ kind: 'sec', sec: 5400 });
+    expect(parseTc('45"')).toEqual({ kind: 'sec', sec: 45 });
+    expect(parseTc("1'30''")).toEqual({ kind: 'sec', sec: 90 });
+    expect(parseTc("1'30\"")).toEqual({ kind: 'sec', sec: 90 });
+    expect(parseTc('2min')).toEqual({ kind: 'sec', sec: 120 });
+  });
+});

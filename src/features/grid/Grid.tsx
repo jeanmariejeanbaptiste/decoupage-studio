@@ -64,6 +64,20 @@ export function Grid({ doc, model, animate = false }: Props) {
 
   const focusGrid = useCallback(() => wrapRef.current?.focus({ preventScroll: true }), []);
 
+  // Safari n'envoie « copier » et « coller » à un élément non modifiable que si ces événements
+  // préalables sont interceptés : ⌘C / ⌘V fonctionnent alors comme dans Chrome.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const allow = (e: Event) => {
+      if (!useUi.getState().editing) e.preventDefault();
+    };
+    for (const t of ['beforecopy', 'beforepaste', 'beforecut']) el.addEventListener(t, allow);
+    return () => {
+      for (const t of ['beforecopy', 'beforepaste', 'beforecut']) el.removeEventListener(t, allow);
+    };
+  }, []);
+
   // Fait défiler la cellule active dans la vue.
   useEffect(() => {
     if (!selection) return;
@@ -139,8 +153,11 @@ export function Grid({ doc, model, animate = false }: Props) {
       return;
     }
     if (k === 'Tab') {
+      const next = moveCell(doc, model, sel.focus, e.shiftKey ? 'left' : 'right', true);
+      // Aux extrémités de la grille, Tab en sort (navigation au clavier dans la page).
+      if (next.row === sel.focus.row && next.col === sel.focus.col) return;
       e.preventDefault();
-      setSelection(moveCell(doc, model, sel.focus, e.shiftKey ? 'left' : 'right', true));
+      setSelection(next);
       return;
     }
     if (k === 'Enter' || k === 'F2') {
@@ -157,7 +174,8 @@ export function Grid({ doc, model, animate = false }: Props) {
       setSelection(sel.focus);
       return;
     }
-    if (k.length === 1 && !mod && !e.altKey && k !== '?') {
+    // Caractère imprimable (y compris avec Option sur Mac : « œ … [ { | ~ ») : la saisie commence.
+    if (k.length === 1 && !mod && k !== '?' && !(e.altKey && /^[a-z0-9]$/i.test(k))) {
       e.preventDefault();
       startEdit(sel.focus, k);
     }
@@ -189,11 +207,19 @@ export function Grid({ doc, model, animate = false }: Props) {
       pasteMatrix(Array.from({ length: rect.r1 - rect.r0 + 1 }, () => matrix[0]), { row: rect.r0, col: rect.cols[0] }, columns);
       return;
     }
-    pasteMatrix(matrix, sel.focus, columns);
+    // Collage à partir du coin haut gauche de la sélection, quel que soit le sens où elle a été tirée.
+    const rect = selectionRect(model, sel.anchor, sel.focus);
+    pasteMatrix(matrix, { row: rect.r0, col: rect.cols[0] }, columns);
   };
 
   const onCellMouseDown = (e: MouseEvent, pos: CellPos) => {
-    if (useUi.getState().editing) return;
+    const ed = useUi.getState().editing;
+    if (ed) {
+      // Clic dans la cellule en cours d'édition : on laisse faire le champ.
+      if (ed.pos.row === pos.row && ed.pos.col === pos.col) return;
+      // Clic ailleurs : la saisie est validée, puis la cellule cliquée est sélectionnée.
+      (document.activeElement as HTMLElement | null)?.blur();
+    }
     const sel = useUi.getState().selection;
     if (e.shiftKey && sel) {
       e.preventDefault();

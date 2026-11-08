@@ -19,6 +19,8 @@ import {
   unlinkAction, detachAction,
 } from '../../domain/ops';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
+import { detectInText } from '../../domain/breakdown';
+import { fold } from '../../domain/text';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
 import { useUi, type CellPos } from '../../store/uiStore';
 import { ask } from '../../ui/dialogStore';
@@ -93,12 +95,27 @@ export function commitCell(shotId: ID, col: ColumnKey, text: string): boolean {
   return true;
 }
 
-/** « Créer le personnage “X” ? » — proposition non bloquante (§4.1). */
+/**
+ * « Créer le personnage “X” ? » — proposition non bloquante (§4.1), seulement pour ce qui ressemble à
+ * un nom de personne (« Léa », « Jean-Pierre » ; pas « Hall de gare », « Valise » ni « Main de Léa »).
+ */
 function proposeCharacter(subject: string) {
   const d = doc();
-  const name = subject.trim();
-  if (!d || !name || name.length > 32) return;
-  if (recognizeCharacters(name, Object.values(d.characters)).length) return;
+  if (!d) return;
+  const names = subject
+    .split(/\s*(?:,|\+|&|\bet\b)\s*/)
+    .map((n) => n.trim())
+    .filter(Boolean);
+  const unknown = names.filter((name) => {
+    if (name.length > 32 || /\d/.test(name)) return false;
+    const words = name.split(/\s+/);
+    if (words.length > 3 || words.some((w) => !/^\p{Lu}/u.test(w))) return false;
+    if (Object.keys(detectInText(name)).length) return false;
+    if (Object.values(d.decors).some((x) => fold(x.name) === fold(name))) return false;
+    return !recognizeCharacters(name, Object.values(d.characters)).length;
+  });
+  if (unknown.length !== 1) return;
+  const name = unknown[0];
   ui().toast({
     message: `« ${name} » n’est pas dans la base des personnages.`,
     actionLabel: `Créer le personnage`,
@@ -202,8 +219,14 @@ export async function deleteSequenceOf(shotId?: ID, seqIdArg?: ID): Promise<void
       return;
     }
   }
+  // La sélection reste à la même hauteur : premier plan de la séquence qui prend la place.
+  const order = d.project.sequenceIds;
+  const i = order.indexOf(seqId);
   mutateDoc((x) => deleteSequence(x, seqId));
-  ui().setSelection(null);
+  const after = doc();
+  const next = after ? (after.project.sequenceIds[i] ?? after.project.sequenceIds[i - 1]) : undefined;
+  const shot = next ? after?.sequences[next]?.shotIds[0] : undefined;
+  ui().setSelection(after && shot ? { row: rowOfShot(after, shot), col: 'subject' } : null);
 }
 
 export function moveCurrentShot(delta: -1 | 1): void {

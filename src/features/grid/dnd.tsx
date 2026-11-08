@@ -42,7 +42,7 @@ export function ShotHandle({ shotId, label }: { shotId: string; label: string })
 }
 
 /** Cellule N° entière servant de poignée : le numéro reste lisible, la main indique qu'on peut glisser. */
-export function NumberHandle({ shotId, label, num }: { shotId: string; label: string; num: string }) {
+export function NumberHandle({ shotId, label, num, onPick }: { shotId: string; label: string; num: string; onPick?: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: shotDragId(shotId) });
   return (
     <button
@@ -53,6 +53,8 @@ export function NumberHandle({ shotId, label, num }: { shotId: string; label: st
       title="Glisser pour déplacer le plan"
       data-testid="shot-handle"
       onMouseDown={(e) => e.stopPropagation()}
+      // Un simple clic (sans glisser) sélectionne le plan.
+      onClick={onPick}
       {...attributes}
       {...listeners}
       tabIndex={-1}

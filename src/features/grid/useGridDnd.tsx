@@ -28,7 +28,9 @@ type Drag =
 
 const collision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);
-  return hits.length ? hits : closestCenter(args);
+  // Une ligne survolée l'emporte sur la séquence qui la contient (dépôt à cette place, pas en fin).
+  const rows = hits.filter((h) => String(h.id).startsWith('row:'));
+  return rows.length ? rows : hits.length ? hits : closestCenter(args);
 };
 
 /**
@@ -63,10 +65,14 @@ export function useGridDnd(doc: ProjectDoc) {
         if (!target) return;
         const index = doc.sequences[target.sequenceId].shotIds.indexOf(over.id);
         setDrag({ ...drag, target: { seqId: target.sequenceId, index } });
-      } else if (over.kind === 'seqdrop' && !drag.target) {
-        // Survol d'une séquence (hors ligne) : dépôt en fin de séquence.
+      } else if (over.kind === 'seqdrop') {
+        // Survol d'une séquence hors de ses lignes (séquence vide, bas de séquence) : dépôt en fin de séquence,
+        // même si une ligne a été survolée avant.
         const seq = doc.sequences[over.id];
-        if (seq && over.id !== doc.shots[drag.id]?.sequenceId) setDrag({ ...drag, target: { seqId: over.id, index: seq.shotIds.length } });
+        if (seq && over.id !== doc.shots[drag.id]?.sequenceId) {
+          const index = seq.shotIds.length;
+          if (drag.target?.seqId !== over.id || drag.target.index !== index) setDrag({ ...drag, target: { seqId: over.id, index } });
+        }
       }
     } else {
       const seqId = over.kind === 'row' ? doc.shots[over.id]?.sequenceId : over.kind === 'seqdrop' ? over.id : undefined;

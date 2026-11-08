@@ -98,7 +98,8 @@ export function computeTiming(doc: ProjectDoc): Timing {
   if (settings.tcMode === 'piste') {
     const allOuts: number[] = [];
     for (const b of Object.values(doc.blocks)) if (b.tc?.out !== undefined) allOuts.push(b.tc.out);
-    const trackSec = settings.audioTrack?.durationSec ?? Math.max(0, ...allOuts);
+    // Durée de piste inconnue (0) : la fin de la dernière plage en tient lieu.
+    const trackSec = settings.audioTrack?.durationSec || Math.max(0, ...allOuts);
     const everyRange: Array<[number, number]> = [];
     for (const seqId of doc.project.sequenceIds) {
       const seq = doc.sequences[seqId];
