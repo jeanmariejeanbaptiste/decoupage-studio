@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 
 export type Route =
   | 'home'
@@ -44,5 +44,6 @@ function subscribe(cb: () => void): () => void {
 
 export function useLocation(): Location {
   const hash = useSyncExternalStore(subscribe, () => window.location.hash, () => '');
-  return parseHash(hash);
+  // Même adresse, même objet : les effets qui dépendent des paramètres ne se relancent pas à chaque rendu.
+  return useMemo(() => parseHash(hash), [hash]);
 }

@@ -29,21 +29,28 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
     };
   }, [theme, settings.exportInkSaver]);
 
+  const auto = params.get('auto') === '1';
   useEffect(() => {
-    if (params.get('auto') !== '1') return;
+    if (!auto) return;
     let cancelled = false;
-    // Attend que la pagination soit calculée avant d'ouvrir l'impression.
+    // Attend que la pagination soit calculée avant d'ouvrir l'impression ; une seule fois : l'adresse
+    // perd « auto=1 » (revenir en arrière ou changer un réglage ne relance pas l'impression).
     const start = Date.now();
     const wait = () => {
       if (cancelled) return;
-      if (document.querySelector('[data-testid="print-page"]') || Date.now() - start > 4000) window.print();
-      else requestAnimationFrame(wait);
+      if (document.querySelector('[data-testid="print-page"]') || Date.now() - start > 4000) {
+        const q = new URLSearchParams(params);
+        q.delete('auto');
+        const rest = q.toString();
+        window.history.replaceState(null, '', `#/print${rest ? `?${rest}` : ''}`);
+        window.print();
+      } else requestAnimationFrame(wait);
     };
     void document.fonts.ready.then(wait);
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [auto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pageBg = '#ffffff';
   const orientation = settings.exportOrientation ?? 'landscape';
