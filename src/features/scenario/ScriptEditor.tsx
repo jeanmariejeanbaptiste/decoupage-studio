@@ -95,8 +95,10 @@ function editorLayout(items: ReadonlyArray<{ id: string; type: BlockType; h: num
     margins[title.id] = 0;
     pageOf[title.id] = 0;
   }
-  const lines = (h: number) => Math.max(1, Math.round(h / LINE));
-  const height = (it: { type: BlockType; h: number }) => (it.type === 'pagebreak' ? 0 : lines(it.h) * LINE);
+  // Lignes occupées : arrondi au-dessus (un caractère d'une police de secours peut grandir une ligne de
+  // quelques pixels) ; la position du bloc suivant part de la hauteur réelle, jamais d'une hauteur supposée.
+  const lines = (h: number) => Math.max(1, Math.ceil((h - 0.5) / LINE));
+  const height = (it: { type: BlockType; h: number }) => (it.type === 'pagebreak' ? 0 : it.h);
   const { at, pages } = paginateItems(rest.map((it) => ({ id: it.id, type: pageType(it.type), lines: it.type === 'pagebreak' ? 0 : lines(it.h) })));
   const yOf = (p: { page: number; row: number }) => (p.page + offset) * (PAGE.h + PAGE.gap) + p.row * LINE;
   // Bas du bloc précédent, dans le repère du texte (sans la marge haute de la première page).

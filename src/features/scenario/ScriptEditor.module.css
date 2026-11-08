@@ -31,7 +31,9 @@
 .editor ::selection { background: rgba(17, 19, 24, 0.14); }
 :global(:root[data-theme='encre']) .editor ::selection { background: rgba(242, 243, 245, 0.22); }
 
-.b { position: relative; white-space: pre-wrap; overflow-wrap: break-word; min-height: 16px; }
+.b { position: relative; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 16px; }
+/* Glyphes d'une police de secours : la ligne garde sa hauteur de 16 px. */
+.b, .b * { line-height: 16px; }
 .t_heading { text-transform: uppercase; }
 /* Numéro de séquence dans la marge, aligné à droite à 10 pt du texte, comme à l'impression. */
 .t_heading[data-n]::before {
