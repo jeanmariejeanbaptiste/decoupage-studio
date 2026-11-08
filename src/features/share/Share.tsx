@@ -1,27 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Eye, PenLine, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, Copy, Eye, PenLine, QrCode, Users, X } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { joinSession, kickGuest, leaveSession, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';
 import { useDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
+import { qrPath } from './qr';
 import s from './Share.module.css';
 
 const copy = async (text: string) => {
   await navigator.clipboard.writeText(text).catch(() => undefined);
 };
 
-/** Choix « modifier / lire seulement » : pastille de verre qui glisse d'une option à l'autre. */
+/** Choix « modifier / lire seulement ». */
 function ModeSwitch({ name, value, onChange }: { name: string; value: ShareMode; onChange: (m: ShareMode) => void }) {
   return (
-    <div className={s.modes} role="radiogroup" aria-label="Les invités peuvent" data-mode={value}>
-      <span className={s.thumb} aria-hidden="true" />
-      <label className={value === 'edit' ? s.modeOn : ''}>
+    <div className={s.seg} role="radiogroup" aria-label="Les invités peuvent">
+      <label className={value === 'edit' ? s.on : ''}>
         <input type="radio" name={name} checked={value === 'edit'} onChange={() => onChange('edit')} />
-        <PenLine size={14} strokeWidth={1.4} /> Modifier
+        <PenLine size={14} strokeWidth={1.25} /> Modifier
       </label>
-      <label className={value === 'read' ? s.modeOn : ''}>
+      <label className={value === 'read' ? s.on : ''}>
         <input type="radio" name={name} checked={value === 'read'} onChange={() => onChange('read')} />
-        <Eye size={14} strokeWidth={1.4} /> Lire seulement
+        <Eye size={14} strokeWidth={1.25} /> Lire seulement
       </label>
     </div>
   );
@@ -38,6 +39,45 @@ function KeepSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boo
   );
 }
 
+/** QR code du lien, en plein écran (à montrer à l'équipe), avec le mot de passe en grand. */
+function QrScreen({ link, password, onClose }: { link: string; password: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { size, path } = useMemo(() => qrPath(link), [link]);
+  useEffect(() => {
+    const el = ref.current;
+    let entered = false;
+    // Vrai plein écran quand le navigateur le permet ; sinon, l'écran recouvre la fenêtre.
+    el?.requestFullscreen?.().then(() => (entered = true)).catch(() => undefined);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onFs = () => entered && !document.fullscreenElement && onClose();
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('fullscreenchange', onFs);
+    el?.focus();
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('fullscreenchange', onFs);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    };
+  }, [onClose]);
+  return createPortal(
+    <div ref={ref} className={s.qrScreen} role="dialog" aria-modal="true" aria-label="QR code du partage" tabIndex={-1} data-testid="share-qr-screen">
+      <button type="button" className={s.qrClose} onClick={onClose} aria-label="Fermer">
+        <X size={22} strokeWidth={1.25} />
+      </button>
+      <svg className={s.qrCode} viewBox={`0 0 ${size} ${size}`} shapeRendering="crispEdges" role="img" aria-label={`QR code : ${link}`}>
+        <rect width={size} height={size} fill="#fff" />
+        <path d={path} fill="#000" />
+      </svg>
+      <p className={s.qrPass}>
+        <span>Mot de passe</span>
+        <b data-testid="share-qr-password">{password}</b>
+      </p>
+      <p className={s.qrLink}>{link}</p>
+    </div>,
+    document.body,
+  );
+}
+
 /** Bouton « Partager » de la barre du haut : ouvre, règle et ferme le partage du projet. */
 export function ShareButton() {
   const doc = useDoc();
@@ -46,13 +86,14 @@ export function ShareButton() {
   const [mode, setMode] = useState<ShareMode>('edit');
   const [keep, setKeep] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [qr, setQr] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open || qr) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
     window.addEventListener('mousedown', close);
     return () => window.removeEventListener('mousedown', close);
-  }, [open]);
+  }, [open, qr]);
   if (!doc || st.role === 'guest') return null;
   const hosting = st.role === 'host' && st.status !== 'opening';
   const copyAs = (key: string, text: string) => {
@@ -60,32 +101,23 @@ export function ShareButton() {
     setCopied(key);
     window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1400);
   };
+  const link = st.room ? shareLink(st.room) : '';
   return (
     <div className={s.wrap} ref={ref}>
-      <button type="button" className={[s.trigger, hosting ? s.live : ''].join(' ')} onClick={() => setOpen(!open)} aria-expanded={open} data-testid="share-button">
-        {hosting ? <i className={s.liveDot} aria-hidden="true" /> : <Users size={15} strokeWidth={1.4} />}
+      <button type="button" className={s.trigger} onClick={() => setOpen(!open)} aria-expanded={open} data-testid="share-button">
+        {hosting ? <i className={s.liveDot} aria-hidden="true" /> : <Users size={15} strokeWidth={1.25} />}
         {hosting ? `Partagé${st.guests.length ? ` · ${st.guests.length}` : ''}` : 'Partager'}
       </button>
       {open && (
         <div className={s.panel} role="dialog" aria-label="Partager le projet" data-testid="share-panel">
-          <div className={s.glow} aria-hidden="true" />
-          <div className={s.grain} aria-hidden="true" />
-          <header className={s.head}>
-            <i className={[s.orb, hosting ? s.orbLive : ''].join(' ')} aria-hidden="true" />
-            <div>
-              <p className={s.title}>{hosting ? 'Partage ouvert' : 'Travailler à plusieurs'}</p>
-              <p className={s.kicker}>{hosting ? `${st.guests.length} connecté${st.guests.length > 1 ? 's' : ''}` : 'Un lien, un mot de passe'}</p>
-            </div>
-          </header>
-
           {!hosting ? (
             <>
               <ModeSwitch name="share-mode" value={mode} onChange={setMode} />
               <KeepSwitch checked={keep} onChange={setKeep} />
               {st.status === 'error' && <p className={s.error}>{st.error}</p>}
-              <button type="button" className={s.cta} disabled={st.status === 'opening'} onClick={() => void startHosting({ mode, keep })} data-testid="share-start">
+              <Button variant="primary" className={s.block} disabled={st.status === 'opening'} onClick={() => void startHosting({ mode, keep })} data-testid="share-start">
                 {st.status === 'opening' ? 'Ouverture…' : 'Ouvrir le partage'}
-              </button>
+              </Button>
               <p className={s.note}>Le partage reste ouvert tant que cette page est ouverte.</p>
             </>
           ) : (
@@ -93,8 +125,8 @@ export function ShareButton() {
               <div className={s.secret}>
                 <div className={s.field}>
                   <span>Lien</span>
-                  <code data-testid="share-link">{shareLink(st.room!)}</code>
-                  <button type="button" onClick={() => copyAs('link', shareLink(st.room!))} aria-label="Copier le lien" title="Copier">
+                  <code data-testid="share-link">{link}</code>
+                  <button type="button" onClick={() => copyAs('link', link)} aria-label="Copier le lien" title="Copier">
                     {copied === 'link' ? <Check size={13} /> : <Copy size={13} />}
                   </button>
                 </div>
@@ -106,9 +138,14 @@ export function ShareButton() {
                   </button>
                 </div>
               </div>
-              <button type="button" className={s.ghost} onClick={() => copyAs('both', `${shareLink(st.room!)}\nMot de passe : ${st.password}`)}>
-                {copied === 'both' ? <Check size={14} /> : <Copy size={14} />} {copied === 'both' ? 'Copiés' : 'Copier lien et mot de passe'}
-              </button>
+              <div className={s.actions}>
+                <Button size="sm" icon={copied === 'both' ? <Check size={14} /> : <Copy size={14} strokeWidth={1.25} />} onClick={() => copyAs('both', `${link}\nMot de passe : ${st.password}`)}>
+                  {copied === 'both' ? 'Copiés' : 'Copier lien et mot de passe'}
+                </Button>
+                <Button size="sm" icon={<QrCode size={14} strokeWidth={1.25} />} onClick={() => setQr(true)} data-testid="share-qr">
+                  QR code
+                </Button>
+              </div>
               <ModeSwitch name="share-mode-live" value={st.mode} onChange={(m) => updateShareSettings({ mode: m })} />
               <KeepSwitch checked={st.keep} onChange={(v) => updateShareSettings({ keep: v })} />
               <ul className={s.guests} data-testid="share-guests">
@@ -123,13 +160,14 @@ export function ShareButton() {
                   </li>
                 ))}
               </ul>
-              <button type="button" className={s.stop} onClick={stopHosting} data-testid="share-stop">
+              <Button variant="outline" className={s.block} onClick={stopHosting} data-testid="share-stop">
                 Fermer le partage
-              </button>
+              </Button>
             </>
           )}
         </div>
       )}
+      {qr && hosting && st.password && <QrScreen link={link} password={st.password} onClose={() => setQr(false)} />}
     </div>
   );
 }

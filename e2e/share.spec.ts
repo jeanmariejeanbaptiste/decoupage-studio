@@ -107,3 +107,19 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await expect(guest.getByTestId('home')).toBeVisible();
   await expect(guest.getByTestId('project-list').locator('li')).toHaveCount(0);
 });
+
+test('QR code du partage en plein écran : lien et mot de passe en grand, Échap referme', async ({ browser }) => {
+  const host = await participant(browser);
+  await host.goto('/#/grid?seed=rav3');
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-start').click();
+  const password = await host.getByTestId('share-password').textContent();
+  await host.getByTestId('share-qr').click();
+  const screen = host.getByTestId('share-qr-screen');
+  await expect(screen).toBeVisible();
+  await expect(host.getByTestId('share-qr-password')).toHaveText(password!);
+  await expect(screen.locator('svg[role="img"] path')).toHaveAttribute('d', /^M4 4h/);
+  await host.keyboard.press('Escape');
+  await expect(screen).toHaveCount(0);
+  await host.getByTestId('share-stop').click();
+});
