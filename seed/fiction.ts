@@ -14,6 +14,8 @@ export const FICTION: SeedProject = {
     { name: 'Marc', kind: 'principal', color: '#2E4263', actor: '' },
     { name: 'Guichetier', kind: 'secondaire', color: '#5E7B4C' },
   ],
+  intentionHtml:
+    '<h1>La Consigne</h1><h4>Note d’intention</h4><p>Une gare, une valise, une décision qui ne se dit pas. Le film tient en trois séquences et presque sans paroles : tout passe par les gestes de Léa et par ce qu’elle laisse derrière elle.</p><h2>Point de vue</h2><p>La caméra reste à la hauteur de Léa, <i>jamais au-dessus d’elle</i>. Les plans larges du hall l’isolent dans la foule ; les plans serrés au comptoir la rendent à son hésitation.</p><h2>Lumière et son</h2><ul><li>Lumière naturelle du hall, sans correction : le jour entre par la verrière.</li><li>Nuit sur le parvis : une seule source, les néons de la gare.</li><li>La roue qui grince devient le fil sonore du film.</li></ul><blockquote>« Ce qu’on dépose à la consigne, on finit toujours par le reprendre. »</blockquote>',
   scenario: `Title: La Consigne
 Credit: Scénario de démonstration
 

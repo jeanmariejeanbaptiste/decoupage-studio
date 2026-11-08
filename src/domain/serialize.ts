@@ -1,3 +1,4 @@
+import { richImageKeys } from './richText';
 import { ensureInterview, upgradeInterview } from './interview';
 import { defaultSettings, makeBlock } from './factory';
 import { normalizeScenario } from './fountain';
@@ -52,6 +53,7 @@ export function mediaKeys(doc: ProjectDoc): string[] {
     }
   }
   for (const p of Object.values(doc.floorPlans ?? {})) add(p.bg?.blobKey);
+  for (const k of richImageKeys(doc.intentionHtml)) add(k);
   add(doc.project.settings.audioTrack?.blobKey);
   return [...keys];
 }

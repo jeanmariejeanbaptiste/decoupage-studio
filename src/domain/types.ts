@@ -243,7 +243,10 @@ export interface ProjectDoc {
   customVocabulary: CustomVocabulary;
   manualEquipment: ManualEquipment[];
   scenario?: string;
+  /** Note d'intention en texte brut (comptes de mots, assistant, export texte), tenue à jour par l'éditeur. */
   intention?: string;
+  /** Note d'intention mise en forme (HTML réduit, voir `richText.ts`). */
+  intentionHtml?: string;
   /** Plans au sol, par séquence (§15.2). */
   floorPlans?: Record<ID, import('./floorplan').FloorPlan>;
   /** Plan de travail : jours de tournage et ordre des séquences (§15.3). */

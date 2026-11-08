@@ -1,3 +1,0 @@
-.sheet { display: flex; flex-direction: column; }
-.text { width: 100%; flex: 1; min-height: 240mm; border: 0; outline: none; resize: vertical; background: transparent; font-family: var(--font-ui); font-size: 17px; line-height: 1.7; color: var(--ink); }
-.text::placeholder { color: var(--ink-soft); font-style: italic; }

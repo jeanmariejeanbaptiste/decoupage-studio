@@ -1,3 +1,4 @@
+import { richToText } from '../src/domain/richText';
 import { addCharacter, addShot, addSequence } from '../src/domain/ops';
 import { createProjectDoc, newId } from '../src/domain/factory';
 import { parseRange } from '../src/domain/timecode';
@@ -45,6 +46,8 @@ export interface SeedProject {
   characters: Array<{ name: string; kind: CharacterKind; aliases?: string[]; color?: string; actor?: string }>;
   sequences: SeedSequence[];
   scenario?: string;
+  /** Note d'intention mise en forme (HTML réduit de la note). */
+  intentionHtml?: string;
 }
 
 export function buildSeed(spec: SeedProject): ProjectDoc {
@@ -89,6 +92,10 @@ export function buildSeed(spec: SeedProject): ProjectDoc {
     }
   }
   if (spec.scenario) linkScenario(doc, spec.scenario);
+  if (spec.intentionHtml) {
+    doc.intentionHtml = spec.intentionHtml;
+    doc.intention = richToText(spec.intentionHtml);
+  }
   return doc;
 }
 
