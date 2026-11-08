@@ -230,3 +230,17 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Charte : plus aucune couleur dans les pages de travail (storyboard, dépouillement, plan au sol, sélection, contrôles natifs) ; l'accueil et le panneau de partage gardent leur ambiance d'après le moodboard.
 - Tests : 294 tests unitaires, 83 parcours de bout en bout (Chromium).
 
+## Version 2.5.0 — 2026-11-08 (modèle d'export du scénario, note d'intention, retours)
+- Scénario au gabarit du modèle fourni (« lorem ipsum modèle exports imports », KIT Scenarist) : domain/scriptLayout.ts (Courier Prime 12 pt, A4, 58 lignes, retraits et largeurs mesurés au point, coupures de page : répliques entières, en-tête jamais seul, personnage jamais seul en bas de page). Le modèle complet (17 pages, 700 lignes) est reproduit ligne à ligne depuis le Fountain et depuis le Final Draft (tests sur les fichiers du modèle, src/domain/__fixtures__/kit).
+- Exports du scénario (features/scenario/scriptExport.ts) : PDF en vrai texte (pdf-lib, Courier Prime intégrée), images A4 aux mêmes positions, Word .docx (styles nommés, police intégrée, mêmes pages), Final Draft (.fdx), Fountain. Le document vide est corrigé. Dossier de production : PDF et .fdx en plus.
+- Final Draft (domain/fdx.ts) : import fidèle (types exacts, emphase, page de titre, sauts de page, répliques sans personnage écrites « @ » seul en Fountain) et export.
+- Éditeur du scénario : pages de l'export à l'écran (Courier Prime, même pagination, lignes de 16 px entiers), page de titre identique, ni numérotée ni comptée ; chronomètre position / total ; ⌃1–8 sur Mac (⌥ + chiffre tape « » ’ [ {), Alt+1–8 ailleurs ; import d'un scénario entier : passages liés retrouvés par leur texte ou détachés.
+- Note d'intention (features/intention/RichEditor.tsx, domain/richText.ts) : pages A4, ruban à la Word (styles, police, corps, gras / italique / souligné / barré, indice, exposant, surlignage gris, listes, retraits, alignements, interligne, images, saut de page), barre d'état (page, mots, zoom), annulation propre ; la feuille suit le thème ; exports PDF / images (pages de l'éditeur, papier blanc), Word, texte. HTML réduit et nettoyé (`intentionHtml`), texte brut tenu à jour (`intention`).
+- Plan au sol : projecteur de cinéma (Fresnel vu de dessus), caméra avec objectif et pare-soleil, rails à deux filets, mêmes tracés à l'export (domain/floorSymbols.ts) ; icônes de palette dédiées ; repères derrière l'appareil. « Tracer les murs avec l'assistant » : l'image du plan des locaux est lue par le fournisseur réglé, réponse vérifiée par l'analyseur strict, aperçu à valider.
+- Découpage : « Aperçu » devient une bascule (tableau tel qu'à l'export, ou planches du storyboard) ; l'assistant propose des plans pour une séquence, et dépouille une scène depuis la page Dépouillement.
+- Partage : panneau à la charte, QR code du lien en plein écran avec le mot de passe en grand.
+- Assistant : lien « Obtenir une clé » vers la page du fournisseur choisi.
+- Charte : plan de travail en gris (hachures pour aube et crépuscule), plus de couleurs dans les cartes du storyboard, la frise de la journée et l'aperçu du découpage.
+- Corrigé : pages blanches à l'export des onglets (régression de la 2.4.0).
+- Tests : 323 tests unitaires, 89 parcours de bout en bout (Chromium).
+
