@@ -18,6 +18,9 @@ async function pdfLines(buf: ArrayBuffer): Promise<SourceLine[]> {
       if (!('str' in it) || !it.str.trim()) continue;
       const y = Math.round(it.transform[5] / 2) * 2;
       const x = it.transform[4] as number;
+      // Numéro de page ou de séquence dans la marge de droite, filigrane de version d'essai : hors du texte.
+      if (/^\d{1,3}[A-Z]?\.?$/.test(it.str.trim()) && x > width * 0.72) continue;
+      if (/demonstration version|version de démonstration|printed with/i.test(it.str)) continue;
       const row = rows.get(y) ?? { x0: x, x1: x, parts: [] as Array<{ x: number; s: string }> };
       row.x0 = Math.min(row.x0, x);
       row.x1 = Math.max(row.x1, x + it.width);
