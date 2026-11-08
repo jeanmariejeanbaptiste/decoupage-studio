@@ -1727,7 +1727,7 @@ function Properties({
           <LightSpecsFields key={item.id} item={item} onCommit={(p) => update(p as Partial<FloorItem>)} />
           <label className={s.field}>
             <span>Intensité : {Math.round((item.power ?? 1) * 100)} %</span>
-            <input type="range" min={0.2} max={1.6} step={0.1} value={item.power ?? 1} onChange={(e) => slide({ power: Number(e.target.value) } as Partial<FloorItem>)} {...gestureEnd} aria-label="Puissance" />
+            <input type="range" min={0.2} max={1.6} step={0.1} value={item.power ?? 1} onChange={(e) => slide({ power: Number(e.target.value) } as Partial<FloorItem>)} {...gestureEnd} aria-label="Intensité" />
           </label>
         </>
       )}

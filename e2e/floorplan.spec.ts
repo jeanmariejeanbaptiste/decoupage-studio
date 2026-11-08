@@ -167,15 +167,15 @@ test('plan au sol : palette, raccourcis, clic droit sans effet, vues renommées 
   await page.keyboard.press('l');
   await page.mouse.click(box.x + 250, box.y + 200);
   const props = page.getByTestId('fp-properties');
-  await expect(props).toContainText('Puissance : 100 %');
-  const slider = (await props.getByLabel('Puissance').boundingBox())!;
+  await expect(props).toContainText('Intensité : 100 %');
+  const slider = (await props.getByLabel('Intensité').boundingBox())!;
   await page.mouse.move(slider.x + slider.width * 0.55, slider.y + slider.height / 2);
   await page.mouse.down();
   for (const f of [0.6, 0.7, 0.8, 0.95]) await page.mouse.move(slider.x + slider.width * f, slider.y + slider.height / 2);
   await page.mouse.up();
-  await expect(props).not.toContainText('Puissance : 100 %');
+  await expect(props).not.toContainText('Intensité : 100 %');
   await page.keyboard.press('Control+z');
-  await expect(props).toContainText('Puissance : 100 %');
+  await expect(props).toContainText('Intensité : 100 %');
 });
 
 test('plan au sol : l’assistant trace les murs depuis l’image du plan des locaux (aperçu à valider)', async ({ page }) => {
@@ -212,3 +212,22 @@ test('plan au sol : l’assistant trace les murs depuis l’image du plan des lo
   await page.getByTestId('fp-ai-apply').click();
   await expect(page.getByTestId('fp-wall')).toHaveCount(2);
 });
+
+test('plan au sol : pièce aux dimensions réelles et projecteur chiffré (W, K)', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=fiction');
+  await page.getByTestId('fp-plan-menu').click();
+  await page.getByRole('button', { name: 'Pièce moyenne' }).click();
+  await expect(page.getByTestId('fp-room-size')).toContainText('Superficie 45 m² · volume 135 m³');
+  await page.getByTestId('fp-plan-menu').click();
+  await page.getByRole('button', { name: /^Projecteur/ }).first().click();
+  const svg = page.locator('svg').filter({ has: page.locator('pattern') }).first();
+  const box = (await svg.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.getByLabel('Modèle du projecteur').fill('HMI 1 800 W (M18)');
+  await expect(page.getByTestId('fp-watts')).toHaveValue('1800');
+  await expect(page.getByTestId('fp-kelvin')).toHaveValue('5600');
+  await expect(page.getByTestId('fp-light').last()).toContainText('1,8 kW');
+  await page.goto('/#/equipment');
+  await expect(page.getByText('HMI 1 800 W (M18) (1800 W, 5600 K)')).toBeVisible();
+});
+
