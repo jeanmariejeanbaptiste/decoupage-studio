@@ -12,7 +12,14 @@
 .cone { fill: color-mix(in srgb, var(--rust) 12%, transparent); stroke: var(--rust); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
 .camBody { fill: var(--ink); }
 .sel .camBody, .sel .shoulders, .sel .light { stroke: var(--rust); stroke-width: 1.5; }
-.sel .wall, .sel .rail { stroke: var(--rust); }
+.sel .wall { stroke: var(--rust); }
+/* Symboles (projecteur, caméra) : les mêmes tracés qu'à l'export. */
+.symBody { fill: var(--paper-card); stroke: var(--ink); stroke-width: 1.3; stroke-linejoin: round; }
+.symStroke { fill: none; stroke: var(--ink); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.symSolid { fill: var(--ink); }
+.sel .symBody, .sel .symStroke { stroke-width: 2; }
+.sel .symSolid { stroke: var(--ink); stroke-width: 1.5; }
+.hitArea { fill: transparent; }
 .label { font-family: var(--font-ui); font-size: 12px; fill: var(--ink-soft); text-anchor: middle; pointer-events: none; }
 .actor { fill: var(--navy); stroke: var(--paper-card); stroke-width: 1; }
 .shoulders { fill: color-mix(in srgb, var(--navy) 55%, var(--paper-card)); stroke: var(--navy); stroke-width: 1; }
@@ -21,7 +28,11 @@
 .actorText { font-family: var(--font-ui); font-weight: 600; font-size: 11px; fill: var(--navy); text-anchor: middle; pointer-events: none; }
 .path { stroke: var(--navy); stroke-width: 1.2; stroke-dasharray: 5 4; }
 .wall { stroke: #5f636b; stroke-width: calc(3.5px * var(--fp-k, 1)); stroke-linecap: square; }
-.rail { stroke: var(--ochre); stroke-width: calc(5px * var(--fp-k, 1)); stroke-dasharray: 1.5 5; }
+/* Rails : traverses, puis deux rails fins (un trait d'encre évidé par un trait de papier). */
+.railTies { stroke: var(--ink); stroke-width: calc(12px * var(--fp-k, 1)); stroke-dasharray: calc(1.3px * var(--fp-k, 1)) calc(7px * var(--fp-k, 1)); }
+.rail { stroke: var(--ink); stroke-width: calc(8px * var(--fp-k, 1)); }
+.railGap { stroke: var(--paper-card); stroke-width: calc(6px * var(--fp-k, 1)); }
+.sel .railTies, .sel .rail { stroke: var(--rust); }
 .hit { stroke: transparent; stroke-width: 18; }
 .door { fill: none; stroke: #5f636b; stroke-width: calc(1.5px * var(--fp-k, 1)); }
 .doorGap { stroke: var(--paper-card); stroke-width: calc(9px * var(--fp-k, 1)); }

@@ -286,3 +286,93 @@ export function createSession(s: AiSettings, system: string, tools: readonly Too
   const base = s.provider === 'custom' ? s.baseUrl?.trim() || info.baseUrl! : info.baseUrl!;
   return openAiSession(s.provider, base, key, model, system, tools);
 }
+
+// --- Une question sur une image (vision), sans outils ---------------------------------------------
+
+export interface ImageInput {
+  /** image/png, image/jpeg, image/webp ou image/gif. */
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+  base64: string;
+}
+
+/**
+ * Pose une question sur une image au fournisseur réglé et renvoie le texte de la réponse
+ * (par exemple : relever les murs d'un plan de locaux). Le modèle doit savoir lire les images.
+ */
+export async function askWithImage(s: AiSettings, prompt: string, image: ImageInput, signal?: AbortSignal): Promise<string> {
+  const key = keyOf(s);
+  const model = modelOf(s);
+  if (s.provider === 'anthropic') {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+    try {
+      // Réponse longue possible (un mur par ligne) : flux, réponse complète attendue.
+      const stream = client.messages.stream(
+        {
+          model,
+          max_tokens: 32000,
+          ...(/^claude-(opus|haiku)-5-5/.test(model) ? { output_config: { effort: 'high' as const } } : {}),
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+                { type: 'text', text: prompt },
+              ],
+            },
+          ],
+        },
+        { signal },
+      );
+      const msg = await stream.finalMessage();
+      if (msg.stop_reason === 'refusal') throw new AiError('Le modèle a refusé la demande.');
+      if (msg.stop_reason === 'max_tokens') throw new AiError('Réponse trop longue, interrompue avant la fin.');
+      return msg.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
+    } catch (e) {
+      if (e instanceof Anthropic.APIUserAbortError) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+      if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new AiError('Clé API refusée.');
+      if (e instanceof Anthropic.NotFoundError) throw new AiError(`Modèle introuvable : ${model}.`);
+      if (e instanceof Anthropic.RateLimitError) throw new AiError('Limite de requêtes atteinte : réessayez dans un instant.');
+      if (e instanceof Anthropic.APIConnectionError) throw new AiError('Connexion à l’API impossible.');
+      if (e instanceof Anthropic.APIError) throw new AiError(`Erreur de l’API (${e.status}) : ${e.message}`);
+      throw e;
+    }
+  }
+  if (s.provider === 'gemini') {
+    const json = (await postJson(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      { 'x-goog-api-key': key },
+      { contents: [{ role: 'user', parts: [{ inline_data: { mime_type: image.mediaType, data: image.base64 } }, { text: prompt }] }] },
+      signal,
+    )) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
+    if (json.promptFeedback?.blockReason) throw new AiError('Le modèle a refusé la demande.');
+    const cand = json.candidates?.[0];
+    if (cand?.finishReason === 'MAX_TOKENS') throw new AiError('Réponse trop longue, interrompue avant la fin.');
+    return (cand?.content?.parts ?? []).map((p) => (typeof p.text === 'string' && !p.thought ? p.text : '')).join('');
+  }
+  const info = providerInfo(s.provider);
+  const base = s.provider === 'custom' ? s.baseUrl?.trim() || info.baseUrl! : info.baseUrl!;
+  const headers: Record<string, string> = key ? { authorization: `Bearer ${key}` } : {};
+  if (s.provider === 'openrouter') headers['x-title'] = 'Découpage Studio';
+  const json = (await postJson(
+    `${base.replace(/\/+$/, '')}/chat/completions`,
+    headers,
+    {
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:${image.mediaType};base64,${image.base64}` } },
+          ],
+        },
+      ],
+    },
+    signal,
+  )) as { choices?: Array<{ message?: { content?: string | null }; finish_reason?: string }> };
+  const choice = json.choices?.[0];
+  if (choice?.finish_reason === 'length') throw new AiError('Réponse trop longue, interrompue avant la fin.');
+  if (choice?.finish_reason === 'content_filter') throw new AiError('Le modèle a refusé la demande.');
+  return choice?.message?.content ?? '';
+}

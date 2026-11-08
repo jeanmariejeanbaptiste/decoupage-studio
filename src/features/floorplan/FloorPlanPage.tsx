@@ -1,22 +1,20 @@
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import {
-  Camera,
   Copy,
   Layers,
+  Sparkles,
   Maximize,
   Plus,
   ZoomIn,
   ZoomOut,
   RectangleVertical,
   DoorOpen,
-  Lamp,
   Lightbulb,
   MousePointer2,
   Minus,
   Square,
   Trash2,
-  TrainTrack,
   User,
   Flag,
   Grid2x2,
@@ -60,10 +58,14 @@ import { useDraft } from '../../ui/useDraft';
 import { useUi } from '../../store/uiStore';
 import { putBlob } from '../../store/db';
 import { useBlobUrl } from '../../ui/useBlobUrl';
-import { aiPlanInstructions, parsePlanFile, placePlan, type ParsedPlan } from '../../domain/planImport';
+import { aiPlanInstructions, extractPlanText, parsePlanFile, placePlan, type ParsedPlan } from '../../domain/planImport';
+import { toggleAssistant } from '../assistant/assistant';
+import { askWithImage, isConfigured, loadAiSettings, modelOf, type ImageInput } from '../assistant/providers';
 import { WORLD, type FloorPlan } from '../../domain/floorplan';
 import { Button } from '../../ui/Button';
 import s from './FloorPlanPage.module.css';
+import { CineCameraIcon, FresnelIcon, RailsIcon } from './icons';
+import { CAMERA, FRESNEL, labelBehind, type SymbolShape } from '../../domain/floorSymbols';
 import { allFloorPlans, floorPlanSvg } from '../../domain/exports';
 import { exportSvgPages } from '../export/imageExport';
 import { ExportPanel } from '../export/ExportPanel';
@@ -87,15 +89,15 @@ const TOOL_GROUPS: Array<{ label: string; tools: Array<{ key: Tool; label: strin
   {
     label: 'Plateau',
     tools: [
-      { key: 'camera', label: 'Caméra', icon: <Camera {...TI} />, hotkey: 'C' },
-      { key: 'rail', label: 'Rails', icon: <TrainTrack {...TI} /> },
+      { key: 'camera', label: 'Caméra', icon: <CineCameraIcon />, hotkey: 'C' },
+      { key: 'rail', label: 'Rails', icon: <RailsIcon /> },
       { key: 'actor', label: 'Comédien', icon: <User {...TI} />, hotkey: 'A' },
     ],
   },
   {
     label: 'Lumière',
     tools: [
-      { key: 'light', label: 'Projecteur', icon: <Lamp {...TI} />, hotkey: 'L' },
+      { key: 'light', label: 'Projecteur', icon: <FresnelIcon />, hotkey: 'L' },
       { key: 'practical', label: 'Lampe de jeu', icon: <Lightbulb {...TI} /> },
       { key: 'reflector', label: 'Réflecteur', icon: <RectangleVertical {...TI} /> },
       { key: 'diffuser', label: 'Diffuseur', icon: <Grid2x2 {...TI} /> },
@@ -212,6 +214,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [planMenu, setPlanMenu] = useState(false);
   const planMenuRef = useRef<HTMLDivElement>(null);
+  const [tracing, setTracing] = useState(false);
   const bgInput = useRef<HTMLInputElement>(null);
   const aiInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -859,6 +862,44 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   />
                 </label>
                 <p className={s.menuTitle}>Depuis un plan existant</p>
+                {bg && (
+                  <div className={s.menuRow}>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon={<Sparkles size={14} strokeWidth={1.3} />}
+                      disabled={tracing || !bgUrl}
+                      title="L’assistant relève les murs, portes et fenêtres de l’image de fond ; vous validez l’aperçu avant qu’ils soient posés"
+                      onClick={async () => {
+                        const settings = loadAiSettings();
+                        if (!isConfigured(settings)) {
+                          setPlanMenu(false);
+                          toggleAssistant(true);
+                          return;
+                        }
+                        if (!bgUrl) return;
+                        setTracing(true);
+                        try {
+                          const img = await imageForAi(bgUrl);
+                          const reply = await askWithImage(settings, aiPlanInstructions({ ratio: img.h / img.w, pixels: { w: img.w, h: img.h }, direct: true }), img.input);
+                          const plan = parsePlanFile(extractPlanText(reply));
+                          setGhost({ dx: 0, dy: 0, k: 1 });
+                          setRealScale(false);
+                          setBgEdit(false);
+                          setMdImport({ name: `Assistant · ${modelOf(settings)}`, plan });
+                          setPlanMenu(false);
+                        } catch (err) {
+                          if ((err as Error).name !== 'AbortError') useUi.getState().toast({ message: (err as Error).message || 'Lecture du plan impossible.', tone: 'warn' });
+                        } finally {
+                          setTracing(false);
+                        }
+                      }}
+                      data-testid="fp-ai-trace"
+                    >
+                      {tracing ? 'Lecture du plan…' : 'Tracer les murs avec l’assistant'}
+                    </Button>
+                  </div>
+                )}
                 <div className={s.menuRow}>
                   <Button
                     size="sm"
@@ -1239,17 +1280,14 @@ function ItemShape({
       return (
         <g className={cls} data-testid="fp-camera">
           <polygon points={cone.points.map((p) => `${p.x},${p.y}`).join(' ')} className={s.cone} />
-          <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
-            <rect x={item.x - 16} y={item.y - 11} width={28} height={22} rx={3} className={s.camBody} />
-            <polygon
-              points={`${item.x + 12},${item.y - 6} ${item.x + 22},${item.y - 11} ${item.x + 22},${item.y + 11} ${item.x + 12},${item.y + 6}`}
-              className={s.camBody}
-            />
+          <g transform={`translate(${item.x} ${item.y}) rotate(${item.rot})`} onPointerDown={(e) => onDown(e, item.id)} data-testid="fp-camera-body">
+            <circle r={18} className={s.hitArea} />
+            <Symbol shapes={CAMERA} />
           </g>
-          <text x={item.x} y={item.y + 32} className={s.label}>
+          <BehindLabel x={item.x} y={item.y} rot={item.rot} dist={34}>
             {item.label}
             {cone.focal ? ` · ${cone.focal}mm · ${Math.round(cone.fov)}°` : ''}
-          </text>
+          </BehindLabel>
           {selected && (
             <circle
               {...h}
@@ -1332,13 +1370,16 @@ function ItemShape({
       return (
         <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid={`fp-${item.kind}`}>
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
-          <line
-            x1={item.x}
-            y1={item.y}
-            x2={item.x2}
-            y2={item.y2}
-            className={item.kind === 'wall' ? (item.white ? s.wallWhite : s.wall) : s.rail}
-          />
+          {item.kind === 'wall' ? (
+            <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={item.white ? s.wallWhite : s.wall} />
+          ) : (
+            // Rails : traverses sous deux rails fins.
+            <>
+              <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.railTies} />
+              <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.rail} />
+              <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.railGap} />
+            </>
+          )}
           {selected && <Ends item={item} onDown={onDown} />}
         </g>
       );
@@ -1379,14 +1420,14 @@ function ItemShape({
           </g>
         );
       return (
-        <g className={cls}>
-          <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
-            <rect x={item.x + 8} y={item.y - 9} width={10} height={18} rx={2} className={s.light} />
-            <circle cx={item.x} cy={item.y} r={12} className={s.light} />
+        <g className={cls} data-testid="fp-light">
+          <g transform={`translate(${item.x} ${item.y}) rotate(${item.rot})`} onPointerDown={(e) => onDown(e, item.id)}>
+            <circle r={18} className={s.hitArea} />
+            <Symbol shapes={FRESNEL} />
           </g>
-          <text x={item.x} y={item.y + 28} className={s.label}>
+          <BehindLabel x={item.x} y={item.y} rot={item.rot} dist={30}>
             {item.label}
-          </text>
+          </BehindLabel>
           {selected && (
             <circle {...h} r={7} className={s.handle} onPointerDown={(e) => onDown(e, item.id, 'rotate')} />
           )}
@@ -1394,6 +1435,54 @@ function ItemShape({
       );
     }
   }
+}
+
+/**
+ * Image de fond prête pour l'assistant : redessinée sur fond blanc en PNG (format accepté partout),
+ * 2000 pixels au plus sur le grand côté ; en JPEG si le PNG est trop lourd.
+ */
+async function imageForAi(url: string): Promise<{ input: ImageInput; w: number; h: number }> {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * k));
+  const h = Math.max(1, Math.round(img.naturalHeight * k));
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  let data = c.toDataURL('image/png');
+  let mediaType: ImageInput['mediaType'] = 'image/png';
+  if (data.length > 4_500_000) {
+    data = c.toDataURL('image/jpeg', 0.9);
+    mediaType = 'image/jpeg';
+  }
+  return { input: { mediaType, base64: data.slice(data.indexOf(',') + 1) }, w, h };
+}
+
+/** Repère placé derrière un objet orienté (projecteur, caméra). */
+function BehindLabel({ x, y, rot, dist, children }: { x: number; y: number; rot: number; dist: number; children: React.ReactNode }) {
+  const at = labelBehind(x, y, rot, dist);
+  return (
+    <text x={at.x} y={at.y} className={s.label} style={{ textAnchor: at.anchor }}>
+      {children}
+    </text>
+  );
+}
+
+/** Symbole partagé avec l'export, aux couleurs du thème. */
+function Symbol({ shapes }: { shapes: readonly SymbolShape[] }) {
+  return (
+    <>
+      {shapes.map((sh, i) => (
+        <path key={i} d={sh.d} className={sh.role === 'body' ? s.symBody : sh.role === 'solid' ? s.symSolid : s.symStroke} />
+      ))}
+    </>
+  );
 }
 
 const KIND_LABEL: Record<FloorKind, string> = {

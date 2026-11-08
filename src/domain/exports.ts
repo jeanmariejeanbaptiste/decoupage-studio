@@ -5,6 +5,7 @@ import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
 import { cameraCone, choreography, computeLighting, oneShotPlansOf, planOf, plansOf, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
@@ -154,8 +155,9 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
       case 'camera': {
         const c = cameraCone(doc, i);
         out.push(`<polygon points="${pts(c.points)}" fill="#111318" fill-opacity="0.06" stroke="#111318" stroke-dasharray="4 3"/>`);
-        out.push(`<rect x="${i.x - 14}" y="${i.y - 10}" width="28" height="20" rx="3" fill="#111318" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
-        out.push(`<text x="${i.x}" y="${i.y + 30}" font-size="12" text-anchor="middle" fill="#6b7079">${xml(`${i.label ?? ''}${c.focal ? ` · ${c.focal}mm` : ''}`)}</text>`);
+        out.push(symbolSvg(CAMERA, i.x, i.y, i.rot));
+        const at = labelBehind(i.x, i.y, i.rot, 34);
+        out.push(`<text x="${at.x.toFixed(1)}" y="${at.y.toFixed(1)}" font-size="12" text-anchor="${at.anchor}" fill="#6b7079">${xml(`${i.label ?? ''}${c.focal ? ` · ${c.focal}mm` : ''}`)}</text>`);
         break;
       }
       case 'actor':
@@ -169,7 +171,7 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="${i.kind === 'wall' && i.white ? '#d6d8dd' : '#5f636b'}" stroke-width="${3.5 * k}"/>`);
         break;
       case 'rail':
-        out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="#6b7079" stroke-width="${5 * k}" stroke-dasharray="1.5 5"/>`);
+        out.push(railSvg(i.x, i.y, i.x2, i.y2, k));
         break;
       case 'reflector':
         out.push(`<line x1="${i.x + 3}" y1="${i.y + 4}" x2="${i.x2 + 3}" y2="${i.y2 + 4}" stroke="#000" stroke-opacity="0.35" stroke-width="${8 * k}" stroke-linecap="round"/>`);
@@ -191,7 +193,16 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         out.push(`<rect x="${i.x}" y="${i.y - 4}" width="${i.width}" height="8" fill="#fff" stroke="#5f636b" stroke-width="${1.5 * k}" transform="rotate(${i.rot} ${i.x} ${i.y})"/>`);
         break;
       case 'light':
-        out.push(`<circle cx="${i.x}" cy="${i.y}" r="${i.practical ? 9 : 12}" fill="#fff" stroke="#111318" stroke-width="1.5"/><text x="${i.x}" y="${i.y + 28}" font-size="12" text-anchor="middle" fill="#6b7079">${xml(i.label ?? '')}</text>`);
+        // Projecteur orienté comme à l'écran ; lampe de jeu : ampoule et rayons.
+        out.push(
+          i.practical
+            ? `<circle cx="${i.x}" cy="${i.y}" r="9" fill="#fff" stroke="#111318" stroke-width="1.5"/><path d="${[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r = (a * Math.PI) / 180; return `M ${(i.x + Math.cos(r) * 12).toFixed(1)} ${(i.y + Math.sin(r) * 12).toFixed(1)} L ${(i.x + Math.cos(r) * 17).toFixed(1)} ${(i.y + Math.sin(r) * 17).toFixed(1)}`; }).join(' ')}" stroke="#6b7079" stroke-width="1.6" stroke-linecap="round"/>`
+            : symbolSvg(FRESNEL, i.x, i.y, i.rot),
+        );
+        {
+          const at = i.practical ? { x: i.x, y: i.y + 30, anchor: 'middle' } : labelBehind(i.x, i.y, i.rot, 30);
+          out.push(`<text x="${at.x.toFixed(1)}" y="${at.y.toFixed(1)}" font-size="12" text-anchor="${at.anchor}" fill="#6b7079">${xml(i.label ?? '')}</text>`);
+        }
         break;
     }
   }

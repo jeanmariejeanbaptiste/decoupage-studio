@@ -46,7 +46,7 @@ test('plan au sol : caméra liée à un plan, comédien, mur', async ({ page }) 
   await expect(page.getByTestId('fp-actor').nth(1)).toContainText('Vedette');
   await page.getByTestId('tool-select').click();
   // Déplacer la caméra par glisser puis la retirer au clavier.
-  const cam = page.getByTestId('fp-camera').locator('rect');
+  const cam = page.getByTestId('fp-camera-body');
   const c = (await cam.boundingBox())!;
   await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
   await page.mouse.down();
@@ -176,4 +176,39 @@ test('plan au sol : palette, raccourcis, clic droit sans effet, vues renommées 
   await expect(props).not.toContainText('Puissance : 100 %');
   await page.keyboard.press('Control+z');
   await expect(props).toContainText('Puissance : 100 %');
+});
+
+test('plan au sol : l’assistant trace les murs depuis l’image du plan des locaux (aperçu à valider)', async ({ page }) => {
+  // Fournisseur compatible OpenAI simulé : il reçoit l'image et répond par le plan.
+  await page.addInitScript(() => localStorage.setItem('ds-ai', JSON.stringify({ provider: 'custom', keys: {}, models: { custom: 'vision-test' }, baseUrl: 'https://ia.test/v1' })));
+  let sent: { model?: string; messages?: Array<{ content: Array<{ type: string; text?: string; image_url?: { url: string } }> }> } = {};
+  await page.route('https://ia.test/v1/chat/completions', async (route) => {
+    sent = JSON.parse(route.request().postData() ?? '{}');
+    const plan = ['Voici le plan :', '# PLAN DECOUPAGE-STUDIO v2', 'repere: image', 'grille: 1000x750', 'echelle_cm_par_unite: inconnue', 'murs: 2', 'portes: 0', 'fenetres: 1', '## MURS', 'M001 | 100,100 -> 900,100 | standard', 'M002 | 900,100 -> 900,650 | standard', '## PORTES', '## FENETRES', 'F001 | 900,400 | 80 | 90', '## FIN'].join('\n');
+    await route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ choices: [{ message: { content: plan }, finish_reason: 'stop' }] }) });
+  });
+  await page.goto('/#/floorplan?seed=rav3');
+  // Image de fond : un rectangle tracé à la volée (4:3).
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 400;
+    c.height = 300;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 400, 300);
+    ctx.strokeRect(40, 40, 320, 220);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByTestId('fp-bg-input').setInputFiles({ name: 'locaux.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.getByTestId('fp-background')).toHaveCount(1);
+  await page.getByTestId('fp-plan-menu').click();
+  await page.getByTestId('fp-ai-trace').click();
+  await expect(page.getByTestId('fp-ai-report')).toContainText('2 murs, 0 portes, 1 fenêtres');
+  await expect(page.getByTestId('fp-ai-errors')).toHaveCount(0);
+  const content = sent.messages![0].content;
+  expect(sent.model).toBe('vision-test');
+  expect(content.find((c) => c.type === 'image_url')!.image_url!.url).toMatch(/^data:image\/png;base64,/);
+  expect(content.find((c) => c.type === 'text')!.text).toContain('LIVRAISON : LE PLAN');
+  await page.getByTestId('fp-ai-apply').click();
+  await expect(page.getByTestId('fp-wall')).toHaveCount(2);
 });

@@ -18,6 +18,8 @@ export interface InstructionOptions {
   ratio?: number;
   /** Dimensions en pixels de l'image d'origine (rappelées à l'IA). */
   pixels?: { w: number; h: number };
+  /** Demande faite par l'assistant de l'outil : le plan revient dans la réponse, pas dans un fichier. */
+  direct?: boolean;
 }
 
 /** Hauteur de la grille de l'image pour un format donné. */
@@ -43,9 +45,9 @@ export function aiPlanInstructions(o: InstructionOptions = {}): string {
 - Estime l'échelle à partir des cotes écrites, sinon des portes (80 à 90 cm), sinon du mobilier.
 - grille: <largeur>x<hauteur> donne l'emprise totale en centimètres ; toutes les coordonnées sont dans ces bornes.`;
   return `CONSIGNES MACHINE — IMPORT DE PLAN DANS « DÉCOUPAGE STUDIO »
-Destinataire : une IA. Le fichier que tu produis sera lu par un analyseur automatique STRICT, ligne par ligne, octet par octet. Il n'y a aucun humain pour corriger tes écarts. Une seule ligne non conforme est rejetée et signalée comme erreur ; un en-tête non conforme rejette tout le fichier.
+Destinataire : une IA. ${o.direct ? 'Ta réponse' : 'Le fichier que tu produis'} sera lu${o.direct ? 'e' : ''} par un analyseur automatique STRICT, ligne par ligne, octet par octet. Il n'y a aucun humain pour corriger tes écarts. Une seule ligne non conforme est rejetée et signalée comme erreur ; un en-tête non conforme rejette tout le fichier.
 
-══════════════════════════════════════════════════════════════
+${o.direct ? DIRECT_DELIVERY : `══════════════════════════════════════════════════════════════
 EXIGENCE N° 1, NON NÉGOCIABLE : LIVRER UN FICHIER TÉLÉCHARGEABLE « plan.md »
 ══════════════════════════════════════════════════════════════
 - Ta réponse N'EST PAS un message de discussion. Ta réponse EST un FICHIER.
@@ -54,7 +56,7 @@ EXIGENCE N° 1, NON NÉGOCIABLE : LIVRER UN FICHIER TÉLÉCHARGEABLE « plan.md 
 - INTERDIT : écrire le contenu du plan directement dans le corps de ta réponse. Une interface de discussion interprète « # » et « ## » comme des titres et détruit la syntaxe : le fichier devient illisible pour l'analyseur.
 - Dans le corps de ta réponse, écris seulement une ligne : « Fichier plan.md prêt au téléchargement. », suivie du fichier.
 - REPLI, UNIQUEMENT si tu n'as réellement aucun moyen de créer un fichier : place la totalité du contenu dans UN SEUL bloc de code délimité par \`\`\`text en première ligne et \`\`\` en dernière ligne, sans aucun texte avant ni après, pour que l'utilisateur l'enregistre tel quel sous « plan.md ». Ce repli est une dégradation : n'y recours jamais si un fichier est possible.
-- Le contenu du fichier commence au tout premier caractère par « ${PLAN_HEADER} » et se termine par la ligne « ## FIN ».
+- Le contenu du fichier commence au tout premier caractère par « ${PLAN_HEADER} » et se termine par la ligne « ## FIN ».`}
 
 MISSION
 À partir de l'image de plan de locaux jointe (plan d'architecte, plan d'évacuation, croquis, capture), relève la géométrie des MURS, des PORTES et des FENÊTRES, et rien d'autre.
@@ -106,8 +108,7 @@ VÉRIFICATION AVANT D'ENVOYER (fais-la réellement)
 - Les compteurs correspondent au nombre de lignes de chaque section.
 - Toutes les coordonnées sont des entiers dans les bornes de la grille.
 - Les numéros se suivent sans trou.
-- Le résultat est un FICHIER « plan.md » téléchargeable, pas du texte dans la discussion.
-
+${o.direct ? '' : '- Le résultat est un FICHIER « plan.md » téléchargeable, pas du texte dans la discussion.\n'}
 EXEMPLE CONFORME (valeurs fictives, à remplacer entièrement)
 ${PLAN_HEADER}
 repere: ${image ? 'image' : 'cm'}
@@ -126,8 +127,27 @@ P001 | 220,40 | 36 | 0
 F001 | 400,150 | 60 | 90
 ## FIN
 
-RAPPEL FINAL : produis maintenant le FICHIER TÉLÉCHARGEABLE « plan.md » (outil de création de fichier ou exécution de code). Ne recopie jamais son contenu dans le corps de ta réponse.
+${o.direct ? 'RAPPEL FINAL : réponds maintenant par le plan seul, de la ligne d’en-tête à « ## FIN ».' : 'RAPPEL FINAL : produis maintenant le FICHIER TÉLÉCHARGEABLE « plan.md » (outil de création de fichier ou exécution de code). Ne recopie jamais son contenu dans le corps de ta réponse.'}
 `;
+}
+
+/** Livraison quand l'assistant de l'outil pose la question lui-même : le plan, seul, dans la réponse. */
+const DIRECT_DELIVERY = `══════════════════════════════════════════════════════════════
+LIVRAISON : LE PLAN, ET RIEN D'AUTRE
+══════════════════════════════════════════════════════════════
+- Ta réponse est lue telle quelle par l'analyseur : elle commence au tout premier caractère par « ${PLAN_HEADER} » et se termine par la ligne « ## FIN ».
+- Aucun texte avant ni après, aucun bloc de code, aucun commentaire.`;
+
+/** Le plan dans la réponse d'une IA : de la ligne d'en-tête à « ## FIN » ; ce qui l'entoure est ignoré. */
+export function extractPlanText(reply: string): string {
+  const lines = reply.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
+  const start = lines.findIndex((l) => l.trim() === PLAN_HEADER);
+  if (start < 0) return reply;
+  const end = lines.findIndex((l, i) => i > start && l.trim() === '## FIN');
+  return `${lines
+    .slice(start, end < 0 ? undefined : end + 1)
+    .map((l) => l.trim())
+    .join('\n')}\n`;
 }
 
 export interface PlanIssue {
