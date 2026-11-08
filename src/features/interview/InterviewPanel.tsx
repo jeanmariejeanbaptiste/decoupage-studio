@@ -65,7 +65,8 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const planLabel = (setupId: ID) => {
     const y = subject.setups.find((x) => x.id === setupId);
     const ids = setupShotIds(doc, setupId);
-    const n = ids.length ? `Plan ${doc.project.sequenceIds.indexOf(doc.shots[ids[0]].sequenceId) + 1}.${setupNumber(doc, setupId)}` : 'Annexe';
+    // Hors découpage : « ITW 1 », « ITW 2 »… dans l'ordre des plans de l'intervenant.
+    const n = ids.length ? `Plan ${doc.project.sequenceIds.indexOf(doc.shots[ids[0]].sequenceId) + 1}.${setupNumber(doc, setupId)}` : `ITW ${subject.setups.findIndex((x) => x.id === setupId) + 1}`;
     return y?.name && !/^Cadre \d+$/.test(y.name) ? `${n} · ${y.name}` : n;
   };
   const placedCodes = placedIds.length ? `Plan${placedIds.length > 1 ? 's' : ''} ${placedIds.map((id) => shotCode(doc, id)).join(', ')}` : '';
