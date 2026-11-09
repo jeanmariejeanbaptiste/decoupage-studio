@@ -10,6 +10,7 @@ import { shotCode } from '../../domain/numbering';
 import type { EquipmentCategory, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
+import { ask } from '../../ui/dialogStore';
 import { Hand } from '../../ui/Hand';
 import { goToShot } from '../registry/RegistryPage';
 import s from './EquipmentPage.module.css';
@@ -35,6 +36,16 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const only = picked && cats.includes(picked) ? picked : null;
   const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => fold(shotCode(doc, id)).includes(q)));
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
+  const [newPost, setNewPost] = useState('');
+  /** Nouveau poste ; un nom déjà pris (sans casse ni accents) mène au poste existant. */
+  const addPost = () => {
+    const name = newPost.trim();
+    if (!name) return;
+    const existing = cats.find((c) => fold(c) === fold(name));
+    if (existing) setOnly(existing);
+    else mutateDoc((d) => void (d.equipmentExtra = [...(d.equipmentExtra ?? []), name]));
+    setNewPost('');
+  };
 
   return (
     <div className="page page--wide">
@@ -56,17 +67,6 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
             <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />
             Afficher les plans concernés
           </label>
-          <Button
-            variant="ghost"
-            icon={<Plus size={15} strokeWidth={1.25} />}
-            data-testid="add-equipment-category"
-            onClick={() => {
-              const name = window.prompt('Nom du nouveau poste (ex. Décoration, Régie, Effets spéciaux)')?.trim();
-              if (name) mutateDoc((d) => void (d.equipmentExtra = [...new Set([...(d.equipmentExtra ?? []), name])]));
-            }}
-          >
-            Poste
-          </Button>
           <TabExport
             id="equipment"
             orientation="portrait"
@@ -89,8 +89,8 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                   className="no-print"
                   aria-label={`Supprimer le poste ${c}`}
                   icon={<Trash2 size={12} />}
-                  onClick={() => {
-                    if (lists[c].length && !window.confirm(`Supprimer le poste « ${c} » et son matériel ? (annulable avec ⌘Z)`)) return;
+                  onClick={async () => {
+                    if (lists[c].length && !(await ask({ title: `Supprimer le poste « ${c} » ?`, body: 'Son matériel disparaît avec lui.', confirmLabel: 'Supprimer', danger: true })).ok) return;
                     mutateDoc((d) => {
                       d.equipmentExtra = (d.equipmentExtra ?? []).filter((x) => x !== c);
                       d.manualEquipment = d.manualEquipment.filter((m) => m.category !== c);
@@ -155,6 +155,26 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
             </form>
           </section>
         ))}
+        <form
+          className={[s.newPost, 'no-print'].join(' ')}
+          onSubmit={(e) => {
+            e.preventDefault();
+            addPost();
+          }}
+        >
+          <input
+            value={newPost}
+            onChange={(e) => setNewPost(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return;
+              setNewPost('');
+              e.currentTarget.blur();
+            }}
+            placeholder="Nouveau poste…"
+            aria-label="Nouveau poste"
+            data-testid="add-equipment-category"
+          />
+        </form>
       </div>
     </div>
   );

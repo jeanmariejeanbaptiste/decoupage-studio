@@ -27,4 +27,7 @@
 .add input { flex: 1; font: inherit; font-size: 13px; padding: 5px 10px; border: 1px dashed var(--rule); border-radius: var(--radius); background: transparent; }
 .add input:focus { border-style: solid; border-color: var(--tone); background: var(--paper); }
 .toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-soft); }
+.newPost { break-inside: avoid; margin-bottom: 16px; }
+.newPost input { width: 100%; font: inherit; font-size: 13px; padding: 6px 10px; border: 1px dashed var(--rule); border-radius: var(--radius); background: transparent; color: var(--ink); }
+.newPost input:focus { border-style: solid; border-color: var(--ink-soft); outline: none; background: var(--paper-card); }
 @media print { .grid { columns: 2; } }
