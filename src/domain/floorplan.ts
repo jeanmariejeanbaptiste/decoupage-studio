@@ -20,8 +20,10 @@ export type FloorItem =
       y2: number;
       /** Mur blanc : renvoie un peu de lumière. */
       white?: boolean;
-      /** Mur tracé depuis les dimensions de la pièce (remplacé si elles changent). */
+      /** Mur tracé depuis les dimensions de la pièce (suit les dimensions et se déplace avec elle). */
       room?: boolean;
+      /** Côté de la pièce : nord (haut), est, sud, ouest. */
+      side?: RoomSide;
     }
   | { id: ID; kind: 'door' | 'window'; x: number; y: number; rot: number; width: number }
   | {
@@ -72,12 +74,27 @@ export interface Room {
   h?: number;
 }
 
+export type RoomSide = 'n' | 'e' | 's' | 'w';
+type Wall = Extract<FloorItem, { kind: 'wall' | 'rail' }>;
+
 /** Gabarits de pièce (largeur × longueur × hauteur, en mètres). */
 export const ROOM_PRESETS: ReadonlyArray<{ label: string; room: Room }> = [
-  { label: 'Petite pièce', room: { w: 5, l: 6, h: 2.5 } },
-  { label: 'Pièce moyenne', room: { w: 6, l: 7.5, h: 3 } },
-  { label: 'Grande pièce', room: { w: 8, l: 10, h: 5 } },
+  { label: 'Petite', room: { w: 5, l: 6, h: 2.5 } },
+  { label: 'Moyenne', room: { w: 6, l: 7.5, h: 3 } },
+  { label: 'Grande', room: { w: 8, l: 10, h: 5 } },
 ];
+
+/** Nombre en français, sans zéros inutiles : 7,5 ; 2,25. */
+const frNum = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
+
+/** Dimensions en bref : « 6 × 7,5 × 3 m » (sans hauteur : « 6 × 7,5 m »). */
+export const formatRoom = (r: Room) => `${[r.w, r.l, r.h].filter((x): x is number => !!x).map(frNum).join(' × ')} m`;
+
+/** Gabarit qui correspond exactement à la pièce (aucun : la pièce est personnalisée). */
+export function roomPreset(r: Room | undefined): string | undefined {
+  if (!r) return undefined;
+  return ROOM_PRESETS.find((p) => p.room.w === r.w && p.room.l === r.l && p.room.h === r.h)?.label;
+}
 
 /** Superficie (m²) et volume (m³) d'une pièce. */
 export function roomSize(r: Room): { area: number; volume?: number } {
@@ -85,25 +102,116 @@ export function roomSize(r: Room): { area: number; volume?: number } {
   return { area, volume: r.h ? Math.round(area * r.h * 10) / 10 : undefined };
 }
 
+export const isRoomWall = (i: FloorItem): i is Wall => i.kind === 'wall' && !!i.room;
+
+/** Côté d'un mur de la pièce ; pour un mur tracé avant que le côté soit noté, d'après sa position. */
+function sideOf(w: Wall, walls: readonly Wall[]): RoomSide {
+  if (w.side) return w.side;
+  const xs = walls.flatMap((x) => [x.x, x.x2]);
+  const ys = walls.flatMap((x) => [x.y, x.y2]);
+  if (Math.abs(w.y2 - w.y) <= Math.abs(w.x2 - w.x)) return w.y <= (Math.min(...ys) + Math.max(...ys)) / 2 ? 'n' : 's';
+  return w.x <= (Math.min(...xs) + Math.max(...xs)) / 2 ? 'w' : 'e';
+}
+
+/** Rectangle de la pièce sur le plan (repère du plan, en cm), retrouvé d'après ses murs. */
+export function roomRect(plan: Pick<FloorPlan, 'room' | 'items'>): { x: number; y: number; w: number; l: number } | undefined {
+  const r = plan.room;
+  const walls = plan.items.filter(isRoomWall);
+  if (!r || !walls.length) return undefined;
+  const W = Math.round(r.w * 100);
+  const L = Math.round(r.l * 100);
+  const w = walls[0];
+  const [mx, my] = [Math.min(w.x, w.x2), Math.min(w.y, w.y2)];
+  const o = { n: { x: mx, y: w.y }, s: { x: mx, y: w.y - L }, w: { x: w.x, y: my }, e: { x: w.x - W, y: my } }[sideOf(w, walls)];
+  return { ...o, w: W, l: L };
+}
+
+/** Segment d'un côté de la pièce, dans le sens des aiguilles d'une montre. */
+function sideSegment(side: RoomSide, x: number, y: number, W: number, L: number) {
+  return {
+    n: { x, y, x2: x + W, y2: y },
+    e: { x: x + W, y, x2: x + W, y2: y + L },
+    s: { x: x + W, y: y + L, x2: x, y2: y + L },
+    w: { x, y: y + L, x2: x, y2: y },
+  }[side];
+}
+
 /**
- * Pose (ou remplace) les quatre murs de la pièce aux dimensions données, coin en haut à gauche à
- * l'origine du plan ; sans dimensions, ces murs sont retirés. Les autres murs ne bougent pas.
+ * Pose ou redimensionne la pièce : ses murs suivent les dimensions, son coin en haut à gauche reste
+ * en place (à l'origine du plan pour une nouvelle pièce). Un côté retiré le reste, un mur blanc reste
+ * blanc ; sans dimensions, la pièce et ses murs sont retirés. Les autres éléments ne bougent pas.
  */
 export function setRoom(doc: ProjectDoc, planKey: string, room: Room | undefined): void {
   if (!room && !doc.floorPlans?.[planKey]) return;
   const plan = ensure(doc, planKey);
-  plan.items = plan.items.filter((i) => !(i.kind === 'wall' && i.room));
-  plan.room = room && room.w > 0 && room.l > 0 ? room : undefined;
-  if (!plan.room) return;
-  const W = Math.round(plan.room.w * 100);
-  const L = Math.round(plan.room.l * 100);
-  const corners = [
-    [0, 0, W, 0],
-    [W, 0, W, L],
-    [W, L, 0, L],
-    [0, L, 0, 0],
+  const valid = room && room.w > 0 && room.l > 0 ? { w: room.w, l: room.l, ...(room.h && room.h > 0 ? { h: room.h } : {}) } : undefined;
+  if (!valid) {
+    plan.items = plan.items.filter((i) => !isRoomWall(i));
+    delete plan.room;
+    return;
+  }
+  const at = roomRect(plan) ?? { x: 0, y: 0 };
+  const W = Math.round(valid.w * 100);
+  const L = Math.round(valid.l * 100);
+  const walls = plan.items.filter(isRoomWall);
+  const sides = walls.map((w) => sideOf(w, walls));
+  plan.room = valid;
+  if (!walls.length) {
+    for (const side of ['n', 'e', 's', 'w'] as const) plan.items.push({ id: newId(), kind: 'wall', ...sideSegment(side, at.x, at.y, W, L), room: true, side });
+    return;
+  }
+  walls.forEach((w, k) => Object.assign(w, sideSegment(sides[k], at.x, at.y, W, L), { side: sides[k] }));
+}
+
+/** Éléments à déplacer ensemble : un mur de la pièce entraîne toute la pièce. */
+export function withRoomWalls(items: readonly FloorItem[], ids: readonly ID[]): ID[] {
+  const set = new Set(ids);
+  if (items.some((i) => set.has(i.id) && isRoomWall(i))) for (const i of items) if (isRoomWall(i)) set.add(i.id);
+  return [...set];
+}
+
+/** Cote d'un côté de la pièce : trait parallèle au mur, à l'extérieur, et valeur en mètres. */
+export interface RoomDimension {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  /** Lignes d'attache, du coin de la pièce jusqu'au-delà du trait de cote. */
+  ext: Array<[number, number, number, number]>;
+  label: string;
+  tx: number;
+  ty: number;
+  /** Rotation du texte (degrés) : la longueur se lit de bas en haut. */
+  rot: number;
+}
+
+/** Écart entre le mur et sa cote, dans le repère du plan (cm). */
+export const DIMENSION_GAP = 40;
+
+/** Cotes de la pièce : largeur au-dessus du mur du haut, longueur à gauche du mur de gauche. */
+export function roomDimensions(plan: Pick<FloorPlan, 'room' | 'items'>): RoomDimension[] {
+  const r = roomRect(plan);
+  if (!r || !plan.room) return [];
+  const top = r.y - DIMENSION_GAP;
+  const left = r.x - DIMENSION_GAP;
+  return [
+    {
+      ...{ x1: r.x, y1: top, x2: r.x + r.w, y2: top },
+      ext: [
+        [r.x, r.y - 8, r.x, top - 6],
+        [r.x + r.w, r.y - 8, r.x + r.w, top - 6],
+      ],
+      ...{ label: formatMeters(plan.room.w), tx: r.x + r.w / 2, ty: top - 6, rot: 0 },
+    },
+    {
+      ...{ x1: left, y1: r.y, x2: left, y2: r.y + r.l },
+      ext: [
+        [r.x - 8, r.y, left - 6, r.y],
+        [r.x - 8, r.y + r.l, left - 6, r.y + r.l],
+      ],
+      ...{ label: formatMeters(plan.room.l), tx: left - 6, ty: r.y + r.l / 2, rot: -90 },
+    },
   ];
-  for (const [x, y, x2, y2] of corners) plan.items.push({ id: newId(), kind: 'wall', x, y, x2, y2, room: true });
 }
 
 /** Projecteurs courants : puissance et température par défaut. */
@@ -165,6 +273,7 @@ export function duplicatePlan(doc: ProjectDoc, seqId: ID, key: string): string {
   copy.items = src.items.map((i) => ({ ...JSON.parse(JSON.stringify(i)), id: newId() }) as FloorItem);
   if (src.bg) copy.bg = { ...src.bg };
   if (src.stroke !== undefined) copy.stroke = src.stroke;
+  if (src.room) copy.room = { ...src.room };
   const name = src.name ?? plansOf(doc, seqId).find((p) => p.key === key)?.name;
   if (name) copy.name = `${name} (copie)`;
   return k;
@@ -189,6 +298,7 @@ export function deletePlan(doc: ProjectDoc, key: string): void {
     if (p) {
       p.items = [];
       p.name = undefined;
+      delete p.room;
     }
     return;
   }
@@ -271,8 +381,19 @@ export function updateFloorItem(doc: ProjectDoc, seqId: ID, id: ID, patch: Parti
   if (i >= 0) plan.items[i] = { ...plan.items[i], ...patch } as FloorItem;
 }
 
+/** Déplace un élément ; un mur de la pièce déplace toute la pièce. */
 export function moveFloorItem(doc: ProjectDoc, seqId: ID, id: ID, dx: number, dy: number): void {
-  const item = ensure(doc, seqId).items.find((x) => x.id === id);
+  moveFloorItems(doc, seqId, [id], dx, dy);
+}
+
+/** Déplace plusieurs éléments du même écart (toute la pièce dès qu'un de ses murs en fait partie). */
+export function moveFloorItems(doc: ProjectDoc, seqId: ID, ids: readonly ID[], dx: number, dy: number): void {
+  const plan = ensure(doc, seqId);
+  for (const id of withRoomWalls(plan.items, ids)) moveOne(plan, id, dx, dy);
+}
+
+function moveOne(plan: FloorPlan, id: ID, dx: number, dy: number): void {
+  const item = plan.items.find((x) => x.id === id);
   if (!item) return;
   item.x = clampV(item.x + dx);
   item.y = clampV(item.y + dy);
@@ -283,9 +404,11 @@ export function moveFloorItem(doc: ProjectDoc, seqId: ID, id: ID, dx: number, dy
   if (item.kind === 'actor' && item.to) item.to = clampPoint({ x: item.to.x + dx, y: item.to.y + dy });
 }
 
+/** Retire un élément ; avec le dernier mur de la pièce, la pièce elle-même. */
 export function removeFloorItem(doc: ProjectDoc, seqId: ID, id: ID): void {
   const plan = ensure(doc, seqId);
   plan.items = plan.items.filter((x) => x.id !== id);
+  if (plan.room && !plan.items.some(isRoomWall)) delete plan.room;
 }
 
 /**
