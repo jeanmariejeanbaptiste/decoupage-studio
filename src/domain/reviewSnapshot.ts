@@ -23,8 +23,6 @@ export interface ReviewPublication {
   /** Version du film publiée. */
   publishedVersionId: ID;
   publishedAt: string;
-  /** Derniers retours relevés. */
-  lastSyncAt?: string;
   /** Lien arrêté : le fichier reste, plus personne ne l'ouvre. */
   stopped?: boolean;
   /** Commentaires Drive retirés ici : jamais réimportés. */

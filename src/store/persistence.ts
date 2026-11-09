@@ -176,7 +176,7 @@ export function downloadBlob(blob: Blob, name: string) {
   }, 60_000);
 }
 
-const toBase64 = (blob: Blob) =>
+export const blobToBase64 = (blob: Blob) =>
   new Promise<string>((ok, ko) => {
     const r = new FileReader();
     r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ''));
@@ -189,7 +189,7 @@ export async function collectMedia(doc: ProjectDoc): Promise<Record<string, Medi
   const out: Record<string, MediaEntry> = {};
   for (const key of mediaKeys(doc)) {
     const b = await getBlob(key);
-    if (b) out[key] = { type: b.type || 'application/octet-stream', data: await toBase64(b) };
+    if (b) out[key] = { type: b.type || 'application/octet-stream', data: await blobToBase64(b) };
   }
   return out;
 }
