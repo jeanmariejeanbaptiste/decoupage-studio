@@ -59,6 +59,35 @@ describe('géocodage des adresses', () => {
     again();
   });
 
+  it('service indisponible : nouvel essai une minute plus tard, espacé après un refus 429', async () => {
+    vi.useFakeTimers();
+    const calls: number[] = [];
+    let status = 429;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls.push(Date.now());
+        return { ok: status === 200, status, json: async () => [{ lat: '45.76', lon: '4.83' }] } as Response;
+      }),
+    );
+    const doc = produce(project(), (d) => {
+      updateDay(d, 2, { seqAddresses: {} });
+      setDecorLocation(d, d.sequences[d.project.sequenceIds[0]].decorId!, { address: '2 place Bellecour, Lyon' });
+    });
+    useProjectStore.getState().loadDoc(doc);
+    const stop = watchPlaces(mapPlaces(doc));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(calls).toHaveLength(1);
+    // Rien d'autre pendant la minute d'attente.
+    status = 200;
+    await vi.advanceTimersByTimeAsync(50_000);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(calls).toHaveLength(2);
+    expect(Object.values(useProjectStore.getState().doc!.geocodes ?? {})).toEqual([{ address: '2 place Bellecour, Lyon', lat: 45.76, lon: 4.83 }]);
+    stop();
+  });
+
   it('rien ne part hors ligne', async () => {
     vi.useFakeTimers();
     const fetch = vi.fn();

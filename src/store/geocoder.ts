@@ -13,6 +13,12 @@ export type PlaceState = 'ok' | 'missing' | 'pending' | 'offline' | 'error';
 
 const MIN_GAP = 1000;
 const SETTLE = 800;
+/** Réponse attendue au plus tant ; au-delà, le service est tenu pour indisponible. */
+const TIMEOUT = 12_000;
+/** Service indisponible : nouvel essai de l'adresse après ce délai (ou au retour en ligne). */
+const RETRY = 60_000;
+/** Trop de requêtes (429) : plus rien n'est demandé avant ce délai. */
+const BACKOFF = 30_000;
 const session = new Map<string, GeocodeEntry>();
 const failed = new Set<string>();
 /** Adresses demandées par les cartes affichées (clé → lieu), par carte. */
@@ -49,10 +55,29 @@ async function lookup(query: string): Promise<{ lat: number; lon: number } | nul
   const wait = last + MIN_GAP - Date.now();
   if (wait > 0) await sleep(wait);
   last = Date.now();
-  const res = await fetch(nominatimUrl(query), { headers: { Accept: 'application/json' } });
-  last = Date.now();
-  if (!res.ok) throw new Error(`Nominatim ${res.status}`);
-  return parseNominatim(await res.json());
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
+  try {
+    const res = await fetch(nominatimUrl(query), { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+    // Service saturé : on espace franchement les requêtes suivantes.
+    if (res.status === 429) last = Date.now() + BACKOFF;
+    if (!res.ok) throw new Error(`Nominatim ${res.status}`);
+    return parseNominatim(await res.json());
+  } finally {
+    clearTimeout(timer);
+    last = Math.max(last, Date.now());
+  }
+}
+
+/** Échec d'une adresse : signalé, puis retenté plus tard (jamais en boucle). */
+function fail(key: string): void {
+  failed.add(key);
+  notify();
+  setTimeout(() => {
+    if (!failed.delete(key)) return;
+    notify();
+    void pump();
+  }, RETRY);
 }
 
 async function pump(): Promise<void> {
@@ -74,9 +99,8 @@ async function pump(): Promise<void> {
           if (entry) break;
         }
       } catch {
-        // Réseau ou service indisponible : rien n'est gardé, nouvel essai au retour en ligne.
-        failed.add(place.key);
-        notify();
+        // Réseau ou service indisponible : rien n'est gardé, nouvel essai plus tard ou au retour en ligne.
+        fail(place.key);
         continue;
       }
       // Recherche interrompue (carte masquée, hors ligne) : rien n'est conclu.
