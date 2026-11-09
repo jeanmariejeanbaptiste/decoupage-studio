@@ -17,6 +17,7 @@ import {
   linkAction,
   moveSequence,
   moveShot,
+  moveShotTo,
   unlinkAction, detachAction,
 } from '../../domain/ops';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
@@ -268,7 +269,8 @@ export function moveCurrentSequence(delta: -1 | 1): void {
 }
 
 /** Déplacement par glisser-déposer, avec garde-fou entre séquences (§4.5). */
-export async function dropShot(shotId: ID, toSeqId: ID, toIndex: number): Promise<void> {
+/** Dépose un plan glissé ; `among` : la place est comptée parmi les plans qui restent dans la séquence. */
+export async function dropShot(shotId: ID, toSeqId: ID, toIndex: number, among = false): Promise<void> {
   const d = doc();
   if (!d) return;
   const shot = d.shots[shotId];
@@ -283,7 +285,7 @@ export async function dropShot(shotId: ID, toSeqId: ID, toIndex: number): Promis
     if (!res.ok) return;
     if (res.checked) ui().set({ skipCrossSequenceConfirm: true });
   }
-  const splits = mutateDoc((x) => moveShot(x, shotId, toSeqId, toIndex)) ?? 0;
+  const splits = mutateDoc((x) => (among ? moveShotTo : moveShot)(x, shotId, toSeqId, toIndex)) ?? 0;
   select(shotId);
   if (splits) notifySplit(splits);
 }

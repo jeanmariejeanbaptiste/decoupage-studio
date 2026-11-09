@@ -30,7 +30,7 @@ import { Topbar } from '../features/shell/Topbar';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { useIsMobile } from '../ui/useIsMobile';
 import { lastProjectId, openDoc, openStoredProject, pruneOrphanBlobs, saveToFile, startAutosave } from '../store/persistence';
-import { cloudForget, cloudRestore, preloadGoogle, startCloudPush, useCloud } from '../store/cloud';
+import { cloudForget, cloudRestore, keepSessionAlive, preloadGoogle, startCloudPush, syncAll, useCloud } from '../store/cloud';
 import { setHomeHooks } from '../store/homeHistory';
 import { AccountButton } from '../features/shell/Account';
 import { redo, undo, useDoc, useHistory } from '../store/projectStore';
@@ -94,16 +94,20 @@ export function App() {
     const stop = startAutosave();
     // Synchronisation Google Drive (si configurée) : envoi après chaque enregistrement, suppressions suivies.
     const stopCloud = startCloudPush();
+    const stopSession = keepSessionAlive();
     setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => void cloudRestore(id) });
     if (useCloud.getState().enabled && useCloud.getState().user) void preloadGoogle().catch(() => undefined);
     void boot().finally(() => {
       setBooted(true);
+      // Session Google reprise (jeton encore valide) : les autres appareils sont rattrapés.
+      if (useCloud.getState().connected) void syncAll();
       // Ménage discret : images et sons qui ne servent plus à aucun projet.
       setTimeout(() => void pruneOrphanBlobs().catch(() => undefined), 1500);
     });
     return () => {
       stop();
       stopCloud();
+      stopSession();
     };
   }, []);
 

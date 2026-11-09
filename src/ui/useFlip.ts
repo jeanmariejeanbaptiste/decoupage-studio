@@ -16,7 +16,8 @@ export function useFlip(root: RefObject<HTMLElement>, selector: string, keyAttr:
       const top = n.getBoundingClientRect().top;
       next.set(key, top);
       const prev = last.current.get(key);
-      if (active && prev !== undefined && Math.abs(prev - top) > 1) {
+      // L'élément tenu en main (ou ce qu'il contient) suit la main : il ne glisse pas.
+      if (active && prev !== undefined && Math.abs(prev - top) > 1 && !n.closest('[data-lifted]')) {
         n.animate([{ transform: `translateY(${prev - top}px)` }, { transform: 'translateY(0)' }], { duration: 180, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
       }
     }

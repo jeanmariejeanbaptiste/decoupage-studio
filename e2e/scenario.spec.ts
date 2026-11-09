@@ -71,7 +71,10 @@ test.describe('scénario et liaison', () => {
     const editor = page.getByTestId('script-editor');
     await editor.locator('[data-bid]').last().click();
     await page.keyboard.press('Control+End');
-    await page.keyboard.type('\nINT. CAFÉ DE LA GARE - NUIT\n\nNINA\nBonsoir.');
+    await page.keyboard.type('\nINT. CAFÉ DE LA GARE - NUIT\n');
+    // Personnage : Tab (Entrée sur une ligne en capitales reste un retour à la ligne, sauf nom déjà connu).
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('NINA\nBonsoir.');
     await expect(editor.locator('[data-type="heading"]').last()).toHaveText('INT. CAFÉ DE LA GARE - NUIT');
     await expect(editor.locator('[data-type="character"]').last()).toHaveText('NINA');
     await expect(editor.locator('[data-type="dialogue"]').last()).toHaveText('Bonsoir.');

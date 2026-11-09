@@ -357,9 +357,10 @@ export function cycleType(t: BlockType, dir: 1 | -1 = 1): BlockType {
 /** Entrée : coupe le bloc au curseur ; le nouveau bloc prend le type qui suit d'usage. */
 /**
  * Type reconnu à la validation d'une ligne d'action (Entrée en fin de ligne) : « INT. GARE - JOUR »
- * devient un en-tête, « NINA » un personnage, « FONDU AU NOIR : » une transition.
+ * devient un en-tête, « FONDU AU NOIR : » une transition, et un nom en capitales un personnage
+ * seulement s'il parle déjà dans le scénario (`known`) : Entrée reste sinon un retour à la ligne.
  */
-export function smartType(text: string, type: BlockType): BlockType {
+export function smartType(text: string, type: BlockType, known: (name: string) => boolean = () => false): BlockType {
   const t = text.trim();
   // Une action, ou un nom de personnage proposé d'office après une réplique.
   if ((type !== 'action' && type !== 'character') || !t || t.includes('\n')) return type;
@@ -370,7 +371,7 @@ export function smartType(text: string, type: BlockType): BlockType {
   if (type === 'character') return type;
   // Nom en capitales (extension « (V.O.) » permise), sans ponctuation finale d'une phrase criée.
   const name = t.replace(/\s*\([^)]*\)\s*$/, '');
-  if (name.length <= 38 && !/[.!?…:;,]$/.test(name) && /^[\p{L}\p{N}][\p{L}\p{N} '’.-]*$/u.test(name)) return 'character';
+  if (name.length <= 38 && !/[.!?…:;,]$/.test(name) && /^[\p{L}\p{N}][\p{L}\p{N} '’.-]*$/u.test(name) && known(name)) return 'character';
   return type;
 }
 
@@ -387,7 +388,8 @@ export function splitBlock(doc: ScriptDoc, c: Caret): Edit {
   if (isEmptyBlock(b)) return { doc, caret: c };
   // Ligne validée : en-tête, personnage ou transition reconnus d'après le texte.
   if (c.offset >= b.text.length) {
-    const st = smartType(b.text, b.type);
+    const cues = new Set(doc.blocks.filter((x) => x.type === 'character' && x.id !== b.id).map((x) => upper(x.text.replace(/\(.*?\)/g, '').replace(/\^$/, '').trim())));
+    const st = smartType(b.text, b.type, (name) => cues.has(upper(name.trim())));
     if (st !== b.type) {
       const r = setBlockType(doc, b.id, st);
       doc = r.doc;

@@ -86,9 +86,9 @@ export function SeqHandle({ seqId, label }: { seqId: string; label: string }) {
 }
 
 export function DroppableRow({ shotId, children, className, ...rest }: { shotId: string; children: ReactNode; className?: string } & Record<string, unknown>) {
-  const { setNodeRef, isOver } = useDroppable({ id: rowDropId(shotId) });
+  const { setNodeRef } = useDroppable({ id: rowDropId(shotId) });
   return (
-    <tr ref={setNodeRef} className={[className, isOver ? s.over : ''].join(' ')} {...rest}>
+    <tr ref={setNodeRef} className={className} {...rest}>
       {children}
     </tr>
   );

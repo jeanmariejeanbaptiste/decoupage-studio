@@ -18,6 +18,8 @@ const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 const USER_KEY = 'ds-cloud-user';
 const TOMB_KEY = 'ds-cloud-deleted';
+/** Jeton d'accès (portée drive.appdata, une heure) gardé le temps de sa validité : un rechargement ne déconnecte plus. */
+const TOKEN_KEY = 'ds-cloud-token';
 const PUSH_DELAY = 4000;
 
 interface TokenResponse {
@@ -64,15 +66,35 @@ function storedUser(): CloudUser | null {
   }
 }
 
-export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: false, status: 'idle' }));
-
 let token: string | null = null;
 let expiresAt = 0;
 let client: TokenClient | null = null;
 let gisPromise: Promise<void> | null = null;
 
+function keepToken(): void {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt }));
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* stockage indisponible */
+  }
+}
+(() => {
+  try {
+    const r = JSON.parse(localStorage.getItem(TOKEN_KEY) ?? 'null') as { token?: string; expiresAt?: number } | null;
+    if (r?.token && (r.expiresAt ?? 0) > Date.now() && storedUser()) {
+      token = r.token;
+      expiresAt = r.expiresAt!;
+    }
+  } catch {
+    /* rien à reprendre */
+  }
+})();
+
 const gis = () => (window as unknown as { google?: Gis }).google;
 const valid = () => !!token && Date.now() < expiresAt;
+
+export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: valid(), status: 'idle' }));
 
 /** Charge le script de Google à l'avance : le clic de connexion doit ouvrir la fenêtre sans attendre. */
 export function preloadGoogle(): Promise<void> {
@@ -104,19 +126,65 @@ export function signIn(): void {
     return;
   }
   const user = useCloud.getState().user;
+  // Le clic qui mène ici a pu déjà lancer le renouvellement discret : il suffit.
+  if (renewing) return;
+  silent = false;
+  tokenClient(g).requestAccessToken({ prompt: user ? '' : 'consent', hint: user?.email });
+}
+
+/** Renouvellement en cours sans fenêtre de choix (au premier clic, Google valide d'office l'accord déjà donné). */
+let silent = false;
+let renewing = false;
+
+function tokenClient(g: Gis): TokenClient {
   client ??= g.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: SCOPE,
-    callback: (r) => void onToken(r),
-    error_callback: (e) => fail(e.type === 'popup_closed' ? 'Connexion annulée.' : 'Connexion impossible.'),
+    callback: (r) => {
+      renewing = false;
+      void onToken(r);
+    },
+    error_callback: (e) => {
+      renewing = false;
+      // Un renouvellement discret qui échoue ne dérange pas : « Se reconnecter » reste possible.
+      if (silent) return;
+      fail(e.type === 'popup_closed' ? 'Connexion annulée.' : 'Connexion impossible.');
+    },
   });
-  client.requestAccessToken({ prompt: user ? '' : 'consent', hint: user?.email });
+  return client;
+}
+
+/**
+ * Session tenue le plus longtemps possible : le jeton de Google dure une heure ; à moins de cinq
+ * minutes de la fin (ou après), le premier clic ou la première touche le renouvelle sans rien demander.
+ * (Safari n'ouvre la fenêtre de Google qu'en réponse à un geste.)
+ */
+export function keepSessionAlive(): () => void {
+  const onGesture = () => {
+    const user = useCloud.getState().user;
+    if (!user || renewing || (token && expiresAt - Date.now() > 5 * 60_000)) return;
+    const g = gis();
+    if (!g) {
+      void preloadGoogle().catch(() => undefined);
+      return;
+    }
+    renewing = true;
+    silent = true;
+    tokenClient(g).requestAccessToken({ prompt: '', hint: user.email });
+  };
+  window.addEventListener('click', onGesture, true);
+  window.addEventListener('keydown', onGesture, true);
+  return () => {
+    window.removeEventListener('click', onGesture, true);
+    window.removeEventListener('keydown', onGesture, true);
+  };
 }
 
 async function onToken(r: TokenResponse) {
-  if (r.error || !r.access_token) return fail(r.error_description || 'Connexion refusée.');
+  if (r.error || !r.access_token) return silent ? useCloud.setState({ connected: valid() }) : fail(r.error_description || 'Connexion refusée.');
   token = r.access_token;
   expiresAt = Date.now() + Math.max(60, (r.expires_in ?? 3600) - 60) * 1000;
+  keepToken();
   try {
     const me = (await (await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { authorization: `Bearer ${token}` } })).json()) as { email?: string; name?: string; picture?: string };
     const user: CloudUser = { email: me.email ?? '', name: me.name, picture: me.picture };
@@ -136,6 +204,7 @@ export function signOut(): void {
   const t = token;
   token = null;
   expiresAt = 0;
+  keepToken();
   if (t) gis()?.accounts.oauth2.revoke(t);
   try {
     localStorage.removeItem(USER_KEY);
@@ -161,6 +230,7 @@ async function drive(url: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), authorization: `Bearer ${token}` } });
   if (res.status === 401) {
     token = null;
+    keepToken();
     useCloud.setState({ connected: false });
     throw new Error('Session Google expirée : reconnectez-vous.');
   }

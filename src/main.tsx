@@ -22,15 +22,11 @@ import { useProjectStore } from './store/projectStore';
 // Après une mise en ligne, une page restée ouverte réclame d'anciens modules (export Excel, PDF…)
 // qui n'existent plus : on recharge une fois l'application pour récupérer la nouvelle version.
 window.addEventListener('vite:preloadError', (e) => {
-  if (sessionStorage.getItem('ds-reloaded') === '1') return;
-  e.preventDefault();
-  sessionStorage.setItem('ds-reloaded', '1');
-  window.location.reload();
+  if (recoverStaleChunk((e as Event & { payload?: unknown }).payload ?? new Error('dynamically imported module'))) e.preventDefault();
 });
 window.addEventListener('unhandledrejection', (e) => {
   if (recoverStaleChunk(e.reason)) e.preventDefault();
 });
-window.addEventListener('load', () => setTimeout(() => sessionStorage.removeItem('ds-reloaded'), 10_000));
 
 // Projets gardés durablement par le navigateur (Safari efface sinon les données d'un site inactif).
 void navigator.storage?.persist?.().catch(() => undefined);

@@ -177,6 +177,23 @@ export function moveShot(doc: ProjectDoc, shotId: ID, toSeqId: ID, toIndex: numb
   return splits;
 }
 
+/**
+ * Pose un plan (avec les autres caméras de son cadre d'interview) à la place `at` de la séquence,
+ * comptée parmi les plans qui y restent : 0 = en tête. Jamais entre deux caméras d'un même cadre.
+ */
+export function moveShotTo(doc: ProjectDoc, shotId: ID, toSeqId: ID, at: number): number {
+  const group = interviewGroupOf(doc, shotId);
+  if (group.length <= 1) return moveShot(doc, shotId, toSeqId, at);
+  const to = seqOf(doc, toSeqId);
+  moveGroup(doc, group, toSeqId, to.shotIds.length);
+  const others = to.shotIds.filter((id) => !group.includes(id));
+  let k = Math.max(0, Math.min(at, others.length));
+  while (k > 0 && k < others.length && insideGroup(doc, others, k)) k++;
+  to.shotIds = [...others.slice(0, k), ...group, ...others.slice(k)];
+  normalizeBlocks(doc, toSeqId);
+  return 0;
+}
+
 /** Vrai si une insertion à `at` tomberait entre deux caméras d'un même cadre d'interview. */
 export function insideGroup(doc: ProjectDoc, ids: readonly ID[], at: number): boolean {
   const a = doc.shots[ids[at - 1]]?.interview?.setupId;

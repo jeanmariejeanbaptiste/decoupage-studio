@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
-import { rememberLastProject } from '../store/persistence';
+import { flushSave } from '../store/persistence';
+import { recoverStaleChunk } from './staleChunk';
 
 interface Props {
   children: ReactNode;
@@ -8,8 +9,9 @@ interface Props {
 }
 
 /**
- * Une page qui plante n'emporte plus toute l'application : un message, et le projet n'est plus
- * rouvert d'office au prochain démarrage (on revient à l'accueil au lieu d'une page blanche).
+ * Une page qui plante n'emporte plus toute l'application : un message, la cause en petit (à
+ * transmettre), et « Recharger » rouvre le même projet. Un module disparu après une mise en ligne
+ * recharge l'application d'office.
  */
 export class ErrorBoundary extends Component<Props, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -20,7 +22,7 @@ export class ErrorBoundary extends Component<Props, { error: Error | null }> {
 
   componentDidCatch(error: Error) {
     console.error(error);
-    rememberLastProject(null);
+    recoverStaleChunk(error);
   }
 
   render() {
@@ -34,9 +36,12 @@ export class ErrorBoundary extends Component<Props, { error: Error | null }> {
             <button type="button" className="btn-outline" onClick={this.props.onHome}>
               Accueil
             </button>
-            <button type="button" className="btn-outline" onClick={() => window.location.reload()}>
+            <button type="button" className="btn-outline" onClick={() => void flushSave().finally(() => window.location.reload())}>
               Recharger
             </button>
+          </p>
+          <p style={{ fontSize: 11.5, color: 'var(--ink-soft)', userSelect: 'text', overflowWrap: 'anywhere' }} data-testid="page-error-detail">
+            {this.state.error.message}
           </p>
         </div>
       </div>

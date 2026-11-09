@@ -8,6 +8,8 @@ async function drag(page: Page, from: Locator, to: Locator) {
   await page.mouse.move(a.x + 40, a.y + a.height / 2 + 6, { steps: 3 });
   await page.mouse.move(b.x + b.width / 2, b.y + 20, { steps: 12 });
   await page.mouse.up();
+  // dnd-kit ignore les clics des 50 ms qui suivent un dépôt.
+  await page.waitForTimeout(80);
 }
 
 test('plan de travail : jours, glisser une séquence, suggestion', async ({ page }) => {

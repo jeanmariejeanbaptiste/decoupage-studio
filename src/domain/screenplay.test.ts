@@ -89,8 +89,12 @@ describe('scénario en blocs', () => {
   it('Entrée en fin de ligne d’action : en-tête, personnage et transition reconnus', () => {
     expect(smartType('INT. CAFÉ DE LA GARE - NUIT', 'action')).toBe('heading');
     expect(smartType('ext. toit - aube', 'action')).toBe('heading');
-    expect(smartType('NINA', 'action')).toBe('character');
-    expect(smartType('LÉA (V.O.)', 'action')).toBe('character');
+    // Un nom en capitales devient personnage seulement s'il parle déjà ; sinon, Entrée est un retour à la ligne.
+    const known = (n: string) => ['NINA', 'LÉA'].includes(n);
+    expect(smartType('NINA', 'action', known)).toBe('character');
+    expect(smartType('LÉA (V.O.)', 'action', known)).toBe('character');
+    expect(smartType('NINA', 'action')).toBe('action');
+    expect(smartType('FADE TO FIN', 'action', known)).toBe('action');
     expect(smartType('FONDU AU NOIR :', 'action')).toBe('transition');
     // Phrases criées, intérieurs du langage courant, ou autres types : inchangés.
     expect(smartType('BOUM !', 'action')).toBe('action');
@@ -109,7 +113,10 @@ describe('scénario en blocs', () => {
     expect(e.doc.blocks.map((b) => b.type)).toEqual(['action', 'heading', 'action']);
     // Entrée dans l'action vide : rien ne change.
     expect(splitBlock(e.doc, e.caret).doc).toBe(e.doc);
+    // Un nom inconnu reste une action ; Tab en fait un personnage.
     d = setBlockText(e.doc, e.caret.id, 'NINA');
+    expect(splitBlock(d, { id: e.caret.id, offset: 4 }).doc.blocks.map((b) => b.type)).toEqual(['action', 'heading', 'action', 'action']);
+    d = setBlockType(d, e.caret.id, 'character').doc;
     e = splitBlock(d, { id: e.caret.id, offset: 4 });
     expect(e.doc.blocks.map((b) => b.type)).toEqual(['action', 'heading', 'character', 'dialogue']);
     d = setBlockText(e.doc, e.caret.id, 'Bonsoir.');
