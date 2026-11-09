@@ -35,8 +35,6 @@
 .pickerMenu kbd { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
-.layout:has(.sideWide) { grid-template-columns: minmax(0, 1fr) min(540px, 42%); }
-.sideWide { min-width: 0; }
 .center { min-width: 0; display: flex; justify-content: center; padding-bottom: 40px; }
 .zoom { width: fit-content; }
 .cutSheet { justify-self: center; }
@@ -138,3 +136,10 @@
 
 /* Marque de révision : séquence nouvelle ou modifiée depuis la version d'origine. */
 .rev { font-style: normal; font-weight: 700; margin-right: 2px; color: var(--ink); }
+
+/* Panneau latéral masqué : le texte seul, centré. */
+.solo { grid-template-columns: minmax(0, 1fr); }
+.sideToggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 7px; background: none; color: var(--ink-soft); cursor: pointer; }
+.sideToggle:hover { color: var(--ink); border-color: var(--rule); }
+.sideToggle[aria-pressed='false'] { color: var(--ink); }
+.ghost { visibility: hidden; }

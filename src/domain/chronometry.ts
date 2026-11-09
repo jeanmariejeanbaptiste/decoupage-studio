@@ -104,4 +104,7 @@ export function chronoAt(blocks: readonly SBlock[], c: ScriptChrono, caret: { id
 }
 
 /** Format « m:ss » (minutes non bornées). */
-export const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+export const mmss = (sec: number) => {
+  const t = Math.max(0, Math.round(sec));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+};

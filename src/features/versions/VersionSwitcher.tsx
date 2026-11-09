@@ -54,7 +54,8 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
         <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
       </button>
       {open && (
-        <div className={s.menu} role="menu" aria-label="Versions">
+        // Le menu s'ouvre vers la droite quand il manquerait de place à gauche (barre étroite, bouton à gauche).
+        <div className={s.menu} role="menu" aria-label="Versions" style={(ref.current?.getBoundingClientRect().right ?? 1000) < 340 + 240 ? { left: 0, right: 'auto' } : undefined}>
           <ul>
             {list.map((v) => {
               const on = v.id === current.id;

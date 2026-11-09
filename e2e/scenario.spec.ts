@@ -235,18 +235,37 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await page.getByLabel('Nom du décor').fill('Gare du Nord — Hall');
   await page.getByLabel('Adresse de tournage').click();
   await expect(page.getByTestId('script-editor')).toContainText('INT. GARE DU NORD — HALL');
-  await page.getByTestId('scenario-tab-stats').click();
+  // Statistiques : une vue à part entière, le panneau latéral s'efface.
+  const views = page.getByRole('radiogroup', { name: 'Affichage du scénario' });
+  await views.getByRole('radio', { name: 'Statistiques' }).click();
   const reports = page.getByTestId('script-reports');
+  await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
+  await page.getByTestId('report-summary').click();
   await expect(reports).toContainText('Signes avec / sans espaces');
-  await reports.getByLabel('Rapport', { exact: true }).selectOption('characters');
+  await expect(reports).toContainText('Personnages qui parlent');
+  await page.getByTestId('report-characters').click();
   await expect(reports).toContainText('Séq. muettes');
-  await reports.getByLabel('Rapport', { exact: true }).selectOption('structure');
+  await page.getByTestId('report-structure').click();
   await expect(reports.getByRole('img', { name: 'Structure de l’histoire' })).toBeVisible();
+  // Une séquence du rapport rouvre le texte à sa place.
+  await page.getByTestId('report-scenes').click();
+  await reports.getByRole('button', { name: /GARE DU NORD — HALL/ }).first().click();
+  await expect(views.getByRole('radio', { name: 'Scénario' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('script-editor')).toBeVisible();
   await page.getByTestId('scenario-tab-research').click();
   await page.getByLabel('Logline').fill('Une valise, une décision.');
   await page.getByTestId('research-add-doc').click();
   await page.goto('/#/registry?tab=characters');
   await expect(page.getByText('Alice Martin')).toBeVisible();
+  // Panneau latéral masqué (bouton ou ⌘\), et retenu au rechargement.
+  await page.goto('/#/scenario');
+  await page.getByTestId('scenario-side-toggle').click();
+  await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('script-editor')).toBeVisible();
+  await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
+  await page.keyboard.press('Control+Backslash');
+  await expect(page.getByLabel('Navigation du scénario')).toBeVisible();
 });
 
 test('scénario : aucune ligne ne sort de sa feuille (sauts de page, blocs variés, page réduite)', async ({ page }) => {
@@ -335,9 +354,8 @@ test('scénario : minutage par pages, caractères ou type (réglages) ; graphiqu
   await expect(chrono).toBeVisible();
   await expect(chrono).not.toHaveText(before);
   await expect(chrono).toHaveAttribute('title', /par type de paragraphe/);
-  await page.getByTestId('scenario-tab-stats').click();
-  const reports = page.getByTestId('script-reports');
-  await reports.getByLabel('Rapport', { exact: true }).selectOption('structure');
+  await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Statistiques' }).click();
+  await page.getByTestId('report-structure').click();
   const dl = page.waitForEvent('download');
   await page.getByTestId('report-png').click();
   expect((await dl).suggestedFilename()).toBe('la-consigne-structure-de-l-histoire.png');

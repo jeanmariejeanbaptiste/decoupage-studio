@@ -4,31 +4,52 @@ import type { SBlock } from '../../domain/screenplay';
 import { characterReports, locationReports, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
 import { blockLabel, isEmptyBlock } from '../../domain/screenplay';
 import type { ProjectDoc } from '../../domain/types';
-import { useScriptUi } from './ScriptEditor';
+import { layoutScript } from '../../domain/scriptLayout';
 import s from './ScriptStatsReports.module.css';
 
 import { mmss, printedText } from '../../domain/chronometry';
 
 type Report = 'summary' | 'scenes' | 'decors' | 'characters' | 'dialogues' | 'structure' | 'activity';
-const REPORTS: ReadonlyArray<[Report, string]> = [
-  ['summary', 'Sommaire des statistiques'],
-  ['scenes', 'Rapport des séquences'],
-  ['decors', 'Rapport des décors'],
-  ['characters', 'Rapport des personnages'],
-  ['dialogues', 'Dialogues d’un personnage'],
-  ['structure', 'Structure de l’histoire'],
-  ['activity', 'Activité des personnages'],
+const REPORTS: ReadonlyArray<[Report, string, string]> = [
+  ['summary', 'Sommaire', 'Sommaire des statistiques'],
+  ['scenes', 'Séquences', 'Rapport des séquences'],
+  ['decors', 'Décors', 'Rapport des décors'],
+  ['characters', 'Personnages', 'Rapport des personnages'],
+  ['dialogues', 'Dialogues', 'Dialogues d’un personnage'],
+  ['structure', 'Structure', 'Structure de l’histoire'],
+  ['activity', 'Activité', 'Activité des personnages'],
 ];
 
-/** Rapports du scénario (séquences, décors, personnages, dialogues) et graphiques (structure, activité). */
+const savedReport = (): Report => {
+  try {
+    const r = localStorage.getItem('ds-script-report');
+    return REPORTS.some(([k]) => k === r) ? (r as Report) : 'summary';
+  } catch {
+    return 'summary';
+  }
+};
+
+/**
+ * Statistiques du scénario, page entière : sommaire chiffré, rapports (séquences, décors, personnages,
+ * dialogues) et graphiques (structure, activité). Pages et numéros de page sont ceux de l'impression.
+ */
 export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blocks: readonly SBlock[]; onGo: (id: string) => void }) {
-  const [report, setReport] = useState<Report>('summary');
+  const [report, setReportState] = useState<Report>(savedReport);
+  const setReport = (r: Report) => {
+    setReportState(r);
+    try {
+      localStorage.setItem('ds-script-report', r);
+    } catch {
+      /* choix valable pour la session */
+    }
+  };
   const names = useMemo(() => Object.values(doc.characters).flatMap((c) => [c.name, ...(c.aliases ?? [])]), [doc.characters]);
   const scenes = useMemo(() => sceneReports(blocks, names, doc.project.settings.scriptChrono), [blocks, names, doc.project.settings.scriptChrono]);
-  const outline = useScriptUi((u) => u.outline);
-  const pageOf = useMemo(() => new Map(outline.map((o) => [o.id, o.page])), [outline]);
+  const laid = useMemo(() => layoutScript(blocks), [blocks]);
+  const pages = Math.max(1, laid.pages.length);
+  const pageOf = useMemo(() => new Map([...laid.placement].map(([id, p]) => [id, p.page + 1])), [laid]);
   const box = useRef<HTMLDivElement>(null);
-  const title = REPORTS.find(([k]) => k === report)![1];
+  const title = REPORTS.find(([k]) => k === report)![2];
   const print = async () => {
     const { exportDocumentPages } = await import('../export/imageExport');
     const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} .muted{color:#6b7079} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} .bar td{background:#eef0f3;font-weight:600} svg{width:100%;height:auto} .pad{height:13mm}`;
@@ -41,35 +62,41 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
     const { svgToPng } = await import('./svgPng');
     await svgToPng(svg, `${doc.project.title || 'scenario'}-${title}`);
   };
-  if (!scenes.length) return <p className={s.empty}>Aucune séquence dans le texte.</p>;
   return (
-    <div className={s.wrap} data-testid="script-reports">
-      <div className={s.bar}>
-        <select value={report} onChange={(e) => setReport(e.target.value as Report)} aria-label="Rapport">
-          {REPORTS.map(([k, l]) => (
-            <option key={k} value={k}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <button type="button" className={s.icon} onClick={() => void print()} aria-label="Exporter ce rapport en PDF" title="Exporter en PDF">
-          <Printer size={15} strokeWidth={1.3} />
-        </button>
-        {(report === 'structure' || report === 'activity') && (
-          <button type="button" className={s.icon} onClick={() => void png()} aria-label="Exporter ce graphique en PNG" title="Exporter en PNG" data-testid="report-png">
-            <ImageDown size={15} strokeWidth={1.3} />
+    <div className={s.page} data-testid="script-reports">
+      <nav className={s.nav} role="tablist" aria-label="Rapports">
+        {REPORTS.map(([k, short, long]) => (
+          <button key={k} type="button" role="tab" aria-selected={report === k} className={report === k ? s.navOn : ''} title={long} onClick={() => setReport(k)} data-testid={`report-${k}`}>
+            {short}
           </button>
+        ))}
+      </nav>
+      <section className={s.body}>
+        <div className={s.bar}>
+          <h2>{title}</h2>
+          <button type="button" className={s.icon} onClick={() => void print()} aria-label="Exporter ce rapport en PDF" title="Exporter en PDF" data-view>
+            <Printer size={15} strokeWidth={1.3} />
+          </button>
+          {(report === 'structure' || report === 'activity') && (
+            <button type="button" className={s.icon} onClick={() => void png()} aria-label="Exporter ce graphique en PNG" title="Exporter en PNG" data-testid="report-png" data-view>
+              <ImageDown size={15} strokeWidth={1.3} />
+            </button>
+          )}
+        </div>
+        {!scenes.length ? (
+          <p className={s.empty}>Aucune séquence dans le texte.</p>
+        ) : (
+          <div ref={box}>
+            {report === 'summary' && <SummaryReport scenes={scenes} blocks={blocks} pages={pages} />}
+            {report === 'scenes' && <ScenesReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
+            {report === 'decors' && <DecorsReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
+            {report === 'characters' && <CharactersReport scenes={scenes} />}
+            {report === 'dialogues' && <DialoguesReport scenes={scenes} blocks={blocks} pageOf={pageOf} />}
+            {report === 'structure' && <StructureChart scenes={scenes} />}
+            {report === 'activity' && <ActivityChart scenes={scenes} />}
+          </div>
         )}
-      </div>
-      <div ref={box}>
-        {report === 'summary' && <SummaryReport scenes={scenes} blocks={blocks} />}
-        {report === 'scenes' && <ScenesReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
-        {report === 'decors' && <DecorsReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
-        {report === 'characters' && <CharactersReport scenes={scenes} />}
-        {report === 'dialogues' && <DialoguesReport scenes={scenes} blocks={blocks} pageOf={pageOf} />}
-        {report === 'structure' && <StructureChart scenes={scenes} />}
-        {report === 'activity' && <ActivityChart scenes={scenes} />}
-      </div>
+      </section>
     </div>
   );
 }
@@ -491,8 +518,7 @@ function Pct({ v }: { v: number }) {
 }
 
 /** Sommaire : durée, pages, mots, signes ; texte par type de paragraphe ; moments, lieux, personnages. */
-function SummaryReport({ scenes, blocks }: { scenes: SceneInfo[]; blocks: readonly SBlock[] }) {
-  const pages = useScriptUi((u) => u.pages);
+function SummaryReport({ scenes, blocks, pages }: { scenes: SceneInfo[]; blocks: readonly SBlock[]; pages: number }) {
   // Texte imprimé : sans marques d'emphase ni de surlignage.
   const body = blocks.filter((b) => !isEmptyBlock(b) && b.type !== 'title' && b.type !== 'pagebreak').map((b) => ({ ...b, text: printedText(b.text) }));
   const all = body.map((b) => b.text).join(' ');
@@ -514,6 +540,11 @@ function SummaryReport({ scenes, blocks }: { scenes: SceneInfo[]; blocks: readon
     ['Sans réplique', chars.filter((c) => c.replies === 0).length],
   ];
   const total = scenes.reduce((n, sc) => n + sc.durationSec, 0);
+  const dialogue = scenes.reduce((n, sc) => n + sc.dialogueSec, 0);
+  const replies = scenes.reduce((n, sc) => n + [...sc.replies.values()].reduce((a, k) => a + k, 0), 0);
+  const longest = scenes.reduce((a, sc) => (sc.durationSec > a.durationSec ? sc : a), scenes[0]);
+  const mostPresent = chars.reduce((a, c) => (c.total > a.total ? c : a), chars[0]);
+  const mostTalk = chars.reduce((a, c) => (c.replies > a.replies ? c : a), chars[0]);
   const table = (title: string, head: string, rows: Array<[string, number]>, of: number) => (
     <>
       <p className={s.h}>{title}</p>
@@ -559,6 +590,44 @@ function SummaryReport({ scenes, blocks }: { scenes: SceneInfo[]; blocks: readon
             {all.length.toLocaleString('fr-FR')} / {all.replace(/\s/g, '').length.toLocaleString('fr-FR')}
           </b>
           <span>Signes avec / sans espaces</span>
+        </div>
+      </div>
+      <div className={s.kpis}>
+        <div>
+          <b>{scenes.length}</b>
+          <span>Séquences</span>
+        </div>
+        <div>
+          <b>{mmss(total / scenes.length)}</b>
+          <span>Durée moyenne</span>
+        </div>
+        <div>
+          <b>
+            {mmss(longest.durationSec)} <small>séq. {longest.n}</small>
+          </b>
+          <span>La plus longue</span>
+        </div>
+        <div>
+          <b>{Math.round(total ? (dialogue / total) * 100 : 0)} %</b>
+          <span>Part des dialogues</span>
+        </div>
+        <div>
+          <b>{replies}</b>
+          <span>Répliques</span>
+        </div>
+        <div>
+          <b>
+            {chars.filter((c) => c.replies > 0).length} / {chars.length}
+          </b>
+          <span>Personnages qui parlent</span>
+        </div>
+        <div>
+          <b>{chars[0] ? mostPresent.name : '—'}</b>
+          <span>Le plus présent{chars[0] ? ` (${mostPresent.total} séq.)` : ''}</span>
+        </div>
+        <div>
+          <b>{chars[0] ? mostTalk.name : '—'}</b>
+          <span>Le plus bavard{chars[0] ? ` (${mostTalk.replies} répl.)` : ''}</span>
         </div>
       </div>
       <p className={s.h}>Texte</p>
