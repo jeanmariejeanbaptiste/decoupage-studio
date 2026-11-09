@@ -138,54 +138,57 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     RDV
                     <input type="time" value={d.callTime ?? ''} onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { callTime: e.target.value || undefined }))} aria-label={`Rendez-vous du jour ${d.n}`} />
                   </label>
-                  <span className={s.stats} data-testid={`day-stats-${d.n}`}>
+                  <span className={s.stats} title={dayTotalsText(doc, st)} data-testid={`day-stats-${d.n}`}>
                     {dayTotalsText(doc, st)}
                   </span>
-                  <select
-                    className={s.addBanner}
-                    value=""
-                    aria-label={`Ajouter un bandeau au jour ${d.n}`}
-                    onChange={(e) => e.target.value && mutateDoc((x) => void addBanner(x, d.n, e.target.value as BannerKind))}
-                    data-testid={`add-banner-${d.n}`}
-                  >
-                    <option value="" hidden>
-                      + Bandeau
-                    </option>
-                    {BANNER_KINDS.map((k) => (
-                      <option key={k.kind} value={k.kind}>
-                        {k.label}
+                  {/* Actions groupées : toujours à droite, jamais renvoyées à la ligne par les totaux. */}
+                  <span className={s.dayActions}>
+                    <select
+                      className={s.addBanner}
+                      value=""
+                      aria-label={`Ajouter un bandeau au jour ${d.n}`}
+                      onChange={(e) => e.target.value && mutateDoc((x) => void addBanner(x, d.n, e.target.value as BannerKind))}
+                      data-testid={`add-banner-${d.n}`}
+                    >
+                      <option value="" hidden>
+                        + Bandeau
                       </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    variant={openDays.includes(d.n) ? 'primary' : 'outline'}
-                    icon={<Clock size={13} strokeWidth={1.5} />}
-                    aria-expanded={openDays.includes(d.n)}
-                    onClick={() => setOpenDays(openDays.includes(d.n) ? openDays.filter((x) => x !== d.n) : [...openDays, d.n])}
-                    data-testid={`timeline-toggle-${d.n}`}
-                  >
-                    Emploi du temps
-                  </Button>
-                  <Button
-                    variant="icon"
-                    size="sm"
-                    aria-label={`Supprimer le jour ${d.n}`}
-                    icon={<Trash2 size={13} strokeWidth={1.25} />}
-                    onClick={async () => {
-                      if (dayHasData(doc, d.n)) {
-                        const later = days.some((x) => x.n > d.n);
-                        const r = await ask({
-                          title: `Supprimer le jour ${d.n} ?`,
-                          body: `Ses plans redeviennent non planifiés et sa feuille de service est effacée.${later ? ' Les jours suivants sont renumérotés.' : ''}`,
-                          confirmLabel: 'Supprimer',
-                          danger: true,
-                        });
-                        if (!r.ok) return;
-                      }
-                      mutateDoc((x) => removeDay(x, d.n));
-                    }}
-                  />
+                      {BANNER_KINDS.map((k) => (
+                        <option key={k.kind} value={k.kind}>
+                          {k.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant={openDays.includes(d.n) ? 'primary' : 'outline'}
+                      icon={<Clock size={13} strokeWidth={1.5} />}
+                      aria-expanded={openDays.includes(d.n)}
+                      onClick={() => setOpenDays(openDays.includes(d.n) ? openDays.filter((x) => x !== d.n) : [...openDays, d.n])}
+                      data-testid={`timeline-toggle-${d.n}`}
+                    >
+                      Emploi du temps
+                    </Button>
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      aria-label={`Supprimer le jour ${d.n}`}
+                      icon={<Trash2 size={13} strokeWidth={1.25} />}
+                      onClick={async () => {
+                        if (dayHasData(doc, d.n)) {
+                          const later = days.some((x) => x.n > d.n);
+                          const r = await ask({
+                            title: `Supprimer le jour ${d.n} ?`,
+                            body: `Ses plans redeviennent non planifiés et sa feuille de service est effacée.${later ? ' Les jours suivants sont renumérotés.' : ''}`,
+                            confirmLabel: 'Supprimer',
+                            danger: true,
+                          });
+                          if (!r.ok) return;
+                        }
+                        mutateDoc((x) => removeDay(x, d.n));
+                      }}
+                    />
+                  </span>
                   <DayEvents doc={doc} date={d.date} />
                 </div>
               </Band>

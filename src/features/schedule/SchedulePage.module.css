@@ -16,7 +16,8 @@
 .date input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; border: 0; }
 .date:focus-within { outline: 1px solid var(--focus); outline-offset: 1px; }
 .dateEmpty { color: var(--ink-soft); }
-.stats { margin-left: auto; font-size: 12.5px; color: var(--ink-soft); }
+.stats { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 12.5px; color: var(--ink-soft); }
+.dayActions { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; }
 .strips { display: flex; flex-direction: column; gap: 3px; min-height: 30px; }
 .empty { margin: 4px 0; font-style: italic; color: var(--ink-soft); font-size: 13px; }
 .strip { position: relative; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 2px; }
