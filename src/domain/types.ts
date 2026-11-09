@@ -299,6 +299,8 @@ export interface ProjectDoc {
   clearedScenarios?: import('./versions').ClearedScenario[];
   /** Calendrier : rendez-vous du projet (les jours de tournage viennent du plan de travail). */
   calendar?: import('./calendar').CalendarEvent[];
+  /** Relecture en ligne (Google Drive) : version publiée pour les relecteurs (`reviewSnapshot.ts`). */
+  review?: import('./reviewSnapshot').ReviewPublication;
 }
 
 export const SCHEMA_VERSION = 1;
