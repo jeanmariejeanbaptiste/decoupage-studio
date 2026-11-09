@@ -3,29 +3,43 @@ import { Printer } from 'lucide-react';
 import { breakdownCategories, breakdownLabel, type BreakdownCategory } from '../../domain/breakdown';
 import { breakdownIndex, sequenceCounts, type BreakdownEntry } from '../../domain/breakdownReport';
 import { mmss } from '../../domain/chronometry';
-import { sequenceHeading } from '../../domain/numbering';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import r from '../scenario/ScriptStatsReports.module.css';
+import { entryLabel, entryNumbers, type Entry } from './entries';
 import s from './BreakdownPage.module.css';
 
 type Report = 'items' | 'sequences';
 type ItemSort = 'film' | 'often' | 'long' | 'alpha';
 
-const seqNo = (doc: ProjectDoc, id: ID) => doc.project.sequenceIds.indexOf(id) + 1;
+/** Numéros et libellés du dépouillement (ceux du scénario), par séquence du découpage. */
+interface Numbering {
+  no: (seqId: ID) => number | undefined;
+  label: (seqId: ID) => string;
+}
 
 /**
  * Rapports du dépouillement, sur tout le film : chaque élément et ses séquences (durée à l'écran,
  * jours de tournage), ou chaque séquence et ce qu'elle demande, catégorie par catégorie.
  */
-export function BreakdownReports({ doc, onGo }: { doc: ProjectDoc; onGo: (seqId: ID) => void }) {
+export function BreakdownReports({ doc, entries: scenes, onGo }: { doc: ProjectDoc; entries: readonly Entry[]; onGo: (seqId: ID) => void }) {
   const entries = useMemo(() => breakdownIndex(doc, computeTiming(doc)), [doc]);
+  const numbering = useMemo<Numbering>(() => {
+    const { byKey, bySeq } = entryNumbers(scenes);
+    return {
+      no: (id) => bySeq.get(id),
+      label: (id) => {
+        const e = scenes.find((x) => x.seqId === id);
+        return e ? entryLabel(doc, e, byKey.get(e.key)) : '';
+      },
+    };
+  }, [doc, scenes]);
   const [report, setReport] = useState<Report>('items');
   const [cat, setCat] = useState<BreakdownCategory | ''>('');
   const [sort, setSort] = useState<ItemSort>('film');
   const box = useRef<HTMLDivElement>(null);
   const used = breakdownCategories(doc).filter((c) => entries.some((e) => e.cat === c));
-  const bare = doc.project.sequenceIds.filter((id) => !entries.some((e) => e.seqIds.includes(id))).length;
+  const bare = scenes.filter((sc) => !sc.seqId || !entries.some((e) => e.seqIds.includes(sc.seqId!))).length;
   const title = report === 'items' ? 'Éléments' : 'Séquences';
 
   const print = async () => {
@@ -66,9 +80,9 @@ export function BreakdownReports({ doc, onGo }: { doc: ProjectDoc; onGo: (seqId:
       </div>
       <div ref={box}>
         {report === 'items' ? (
-          <ItemsReport doc={doc} entries={entries} cats={used} cat={cat} setCat={setCat} sort={sort} setSort={setSort} onGo={onGo} />
+          <ItemsReport numbering={numbering} entries={entries} cats={used} cat={cat} setCat={setCat} sort={sort} setSort={setSort} onGo={onGo} />
         ) : (
-          <SequencesReport doc={doc} entries={entries} cats={used} onGo={onGo} />
+          <SequencesReport doc={doc} scenes={scenes} entries={entries} cats={used} onGo={onGo} />
         )}
       </div>
     </div>
@@ -76,7 +90,7 @@ export function BreakdownReports({ doc, onGo }: { doc: ProjectDoc; onGo: (seqId:
 }
 
 function ItemsReport({
-  doc,
+  numbering,
   entries,
   cats,
   cat,
@@ -85,7 +99,7 @@ function ItemsReport({
   setSort,
   onGo,
 }: {
-  doc: ProjectDoc;
+  numbering: Numbering;
   entries: BreakdownEntry[];
   cats: BreakdownCategory[];
   cat: BreakdownCategory | '';
@@ -143,7 +157,7 @@ function ItemsReport({
           </thead>
           <tbody>
             {shown.map((e, i) => (
-              <ItemRow key={`${e.cat}|${e.item}`} doc={doc} e={e} head={grouped && shown[i - 1]?.cat !== e.cat ? breakdownLabel(e.cat) : undefined} withCat={!grouped && !cat} onGo={onGo} />
+              <ItemRow key={`${e.cat}|${e.item}`} numbering={numbering} e={e} head={grouped && shown[i - 1]?.cat !== e.cat ? breakdownLabel(e.cat) : undefined} withCat={!grouped && !cat} onGo={onGo} />
             ))}
           </tbody>
         </table>
@@ -154,7 +168,7 @@ function ItemsReport({
   );
 }
 
-function ItemRow({ doc, e, head, withCat, onGo }: { doc: ProjectDoc; e: BreakdownEntry; head?: string; withCat: boolean; onGo: (seqId: ID) => void }) {
+function ItemRow({ numbering, e, head, withCat, onGo }: { numbering: Numbering; e: BreakdownEntry; head?: string; withCat: boolean; onGo: (seqId: ID) => void }) {
   const cols = withCat ? 6 : 5;
   return (
     <>
@@ -168,11 +182,13 @@ function ItemRow({ doc, e, head, withCat, onGo }: { doc: ProjectDoc; e: Breakdow
         {withCat && <td className={r.muted}>{breakdownLabel(e.cat)}</td>}
         <td>
           <span className={s.seqLinks}>
-            {e.seqIds.map((id) => (
-              <button key={id} type="button" className={r.link} onClick={() => onGo(id)} title={sequenceHeading(doc, id)}>
-                {seqNo(doc, id)}
-              </button>
-            ))}
+            {[...e.seqIds]
+              .sort((a, b) => (numbering.no(a) ?? 0) - (numbering.no(b) ?? 0))
+              .map((id) => (
+                <button key={id} type="button" className={r.link} onClick={() => onGo(id)} title={numbering.label(id)}>
+                  {numbering.no(id)}
+                </button>
+              ))}
           </span>
         </td>
         <td>{e.seqIds.length}</td>
@@ -183,12 +199,11 @@ function ItemRow({ doc, e, head, withCat, onGo }: { doc: ProjectDoc; e: Breakdow
   );
 }
 
-function SequencesReport({ doc, entries, cats, onGo }: { doc: ProjectDoc; entries: BreakdownEntry[]; cats: BreakdownCategory[]; onGo: (seqId: ID) => void }) {
-  const totals = new Map<BreakdownCategory, number>();
-  const rows = doc.project.sequenceIds.map((id) => {
-    const counts = sequenceCounts(entries, id);
-    for (const [c, n] of counts) totals.set(c, (totals.get(c) ?? 0) + n);
-    return { id, counts, total: [...counts.values()].reduce((a, b) => a + b, 0) };
+function SequencesReport({ doc, scenes, entries, cats, onGo }: { doc: ProjectDoc; scenes: readonly Entry[]; entries: BreakdownEntry[]; cats: BreakdownCategory[]; onGo: (seqId: ID) => void }) {
+  const { byKey } = entryNumbers(scenes);
+  const rows = scenes.map((sc) => {
+    const counts = sc.seqId ? sequenceCounts(entries, sc.seqId) : new Map<BreakdownCategory, number>();
+    return { sc, counts, total: [...counts.values()].reduce((a, b) => a + b, 0) };
   });
   return (
     <table className={r.table}>
@@ -204,20 +219,24 @@ function SequencesReport({ doc, entries, cats, onGo }: { doc: ProjectDoc; entrie
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <tr key={row.id} data-testid="breakdown-report-seq">
+        {rows.map(({ sc, counts, total }) => (
+          <tr key={sc.key} data-testid="breakdown-report-seq">
             <td>
-              <button type="button" className={r.link} onClick={() => onGo(row.id)}>
-                {sequenceHeading(doc, row.id)}
-              </button>
+              {sc.seqId ? (
+                <button type="button" className={r.link} onClick={() => onGo(sc.seqId!)}>
+                  {entryLabel(doc, sc, byKey.get(sc.key))}
+                </button>
+              ) : (
+                <span className={r.muted}>{entryLabel(doc, sc, byKey.get(sc.key))}</span>
+              )}
             </td>
             {cats.map((c) => (
-              <td key={c} className={row.counts.get(c) ? '' : r.muted}>
-                {row.counts.get(c) ?? '·'}
+              <td key={c} className={counts.get(c) ? '' : r.muted}>
+                {counts.get(c) ?? '·'}
               </td>
             ))}
             <td>
-              <b>{row.total}</b>
+              <b>{total}</b>
             </td>
           </tr>
         ))}

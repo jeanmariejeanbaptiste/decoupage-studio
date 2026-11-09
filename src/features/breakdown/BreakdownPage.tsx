@@ -10,8 +10,7 @@ import {
   removeBreakdownItem,
   type BreakdownCategory,
 } from '../../domain/breakdown';
-import { matchSequence, parseDialogue, scenesOf, type Scene } from '../../domain/fountain';
-import { sequenceHeading } from '../../domain/numbering';
+import { parseDialogue } from '../../domain/fountain';
 import { createSequenceForScene } from '../../domain/scriptToShot';
 import { marksIn } from '../../domain/tagging';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -27,29 +26,8 @@ import { breakdownDocument } from '../../domain/documents';
 import { paragraphsOf, SceneText, type Paragraph } from './SceneText';
 import { BreakdownReports } from './BreakdownReports';
 import { breakdownIndex, type BreakdownEntry } from '../../domain/breakdownReport';
+import { entriesOf, entryLabel, entryName, entryNumbers, type Entry } from './entries';
 import s from './BreakdownPage.module.css';
-
-/** Une scène à dépouiller : scène du scénario, séquence du découpage, ou les deux. */
-interface Entry {
-  key: string;
-  seqId?: ID;
-  scene?: Scene;
-}
-
-/** Scènes dans l'ordre du scénario (avec leur séquence), puis les séquences sans passage écrit. */
-function entriesOf(doc: ProjectDoc): Entry[] {
-  const scenes = scenesOf(doc.scenario ?? '');
-  const used = new Set<ID>();
-  const out: Entry[] = [];
-  for (const sc of scenes) {
-    const id = matchSequence(doc, sc);
-    const seqId = id && !used.has(id) ? id : undefined;
-    if (seqId) used.add(seqId);
-    out.push({ key: seqId ?? `scene-${sc.start}`, seqId, scene: sc });
-  }
-  for (const id of doc.project.sequenceIds) if (!used.has(id)) out.push({ key: id, seqId: id });
-  return out;
-}
 
 /** Texte d'une séquence sans passage dans le scénario : ses actions et ses répliques du découpage. */
 function sequenceParagraphs(doc: ProjectDoc, seqId: ID): Paragraph[] {
@@ -93,12 +71,6 @@ function suggestionsFor(doc: ProjectDoc, entry: Entry, paragraphs: Paragraph[]):
   return out;
 }
 
-/** Nom d'une scène dans la liste : lieu, ou en-tête de la séquence (vide s'il n'y en a pas). */
-function entryName(doc: ProjectDoc, e: Entry): string {
-  const name = e.seqId ? sequenceHeading(doc, e.seqId).replace(/^\d+,?\s*/, '') : (e.scene?.location ?? '');
-  return name.trim().toLocaleUpperCase('fr');
-}
-
 type View = 'sequence' | 'full' | 'reports';
 const VIEW_KEY = 'ds-breakdown-view';
 const readView = (): View => {
@@ -118,6 +90,7 @@ const readView = (): View => {
 export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const entries = useMemo(() => entriesOf(doc), [doc]);
+  const numbers = useMemo(() => entryNumbers(entries), [entries]);
   const [view, setViewState] = useState<View>(readView);
   const [picked, setPicked] = useState<{ seqId?: ID; sceneStart?: number }>(() => ({ seqId: selectedSequence(doc) }));
   const [hot, setHot] = useState<string | null>(null);
@@ -241,6 +214,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
       {view === 'reports' ? (
         <BreakdownReports
           doc={doc}
+          entries={entries}
           onGo={(seqId) => {
             const e = entries.find((x) => x.seqId === seqId);
             if (!e) return;
@@ -259,7 +233,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
               return (
                 <li key={e.key}>
                   <button type="button" className={on ? s.on : ''} aria-current={on || undefined} onClick={() => goTo(e)} data-testid="breakdown-scene">
-                    <span className={s.num}>{e.seqId ? doc.project.sequenceIds.indexOf(e.seqId) + 1 : '–'}</span>
+                    <span className={s.num}>{numbers.byKey.get(e.key)}</span>
                     {entryName(doc, e) ? <span className={s.name}>{entryName(doc, e)}</span> : <span className={s.unnamed}>Sans en-tête</span>}
                     {n > 0 && <em>{n}</em>}
                   </button>
@@ -273,12 +247,12 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           {view === 'full' ? (
             <div className={[s.sheet, s.sheetFull].join(' ')} ref={flow} data-testid="breakdown-full">
               {entries.map((e) => (
-                <EntryText key={e.key} doc={doc} entry={e} active={e.key === entry.key} full hot={hot} readOnly={readOnly} onTag={(items) => tagIn(e, items)} onUntag={(cat, item) => untagIn(e, cat, item)} onFocus={() => e.key !== entry.key && pick(e)} />
+                <EntryText key={e.key} doc={doc} entry={e} n={numbers.byKey.get(e.key)} active={e.key === entry.key} full hot={hot} readOnly={readOnly} onTag={(items) => tagIn(e, items)} onUntag={(cat, item) => untagIn(e, cat, item)} onFocus={() => e.key !== entry.key && pick(e)} />
               ))}
             </div>
           ) : (
             <div className={s.sheet}>
-              <EntryText doc={doc} entry={entry} active hot={hot} readOnly={readOnly} onTag={(items) => tagIn(entry, items)} onUntag={(cat, item) => untagIn(entry, cat, item)} />
+              <EntryText doc={doc} entry={entry} n={numbers.byKey.get(entry.key)} active hot={hot} readOnly={readOnly} onTag={(items) => tagIn(entry, items)} onUntag={(cat, item) => untagIn(entry, cat, item)} />
             </div>
           )}
         </section>
@@ -286,10 +260,15 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         <aside className={s.sheetSide} aria-label="Fiche de dépouillement">
           {view === 'full' ? (
             <>
-              <p className={s.sideHead}>{entry.seqId ? sequenceHeading(doc, entry.seqId) : entry.scene?.heading.toLocaleUpperCase('fr')}</p>
+              <p className={s.sideHead}>{entryLabel(doc, entry, numbers.byKey.get(entry.key))}</p>
               {!readOnly && <AddAll suggestions={suggestionsFor(doc, entry, paragraphsFor(doc, entry))} onAdd={(items) => tagIn(entry, items)} />}
               <WholeSheet
                 doc={doc}
+                numberOf={(id) => numbers.bySeq.get(id)}
+                labelOf={(id) => {
+                  const e = entries.find((x) => x.seqId === id);
+                  return e ? entryLabel(doc, e, numbers.byKey.get(e.key)) : '';
+                }}
                 current={entry.seqId}
                 readOnly={readOnly}
                 onAdd={(cat, item) => tagIn(entry, [{ cat, item }])}
@@ -326,6 +305,7 @@ function AddAll({ suggestions, onAdd }: { suggestions: Map<string, { cat: Breakd
 function EntryText({
   doc,
   entry,
+  n,
   active,
   full,
   hot,
@@ -336,6 +316,7 @@ function EntryText({
 }: {
   doc: ProjectDoc;
   entry: Entry;
+  n?: number;
   active: boolean;
   full?: boolean;
   hot: string | null;
@@ -347,7 +328,7 @@ function EntryText({
   const paragraphs = useMemo(() => paragraphsFor(doc, entry), [doc, entry]);
   const suggestions = suggestionsFor(doc, entry, paragraphs);
   const seq = entry.seqId ? doc.sequences[entry.seqId] : undefined;
-  const heading = entry.seqId ? sequenceHeading(doc, entry.seqId) : entry.scene?.heading.toLocaleUpperCase('fr');
+  const heading = entryLabel(doc, entry, n);
   return (
     <article className={[s.entry, full && active ? s.entryOn : ''].join(' ')} data-entry={entry.key} onMouseDownCapture={onFocus} onFocusCapture={onFocus} data-testid={full ? 'breakdown-entry' : undefined}>
       {/* Le texte du scénario porte déjà son en-tête ; une séquence sans texte écrit affiche le sien. */}
@@ -370,6 +351,8 @@ function EntryText({
  */
 function WholeSheet({
   doc,
+  numberOf,
+  labelOf,
   current,
   readOnly,
   onAdd,
@@ -378,6 +361,8 @@ function WholeSheet({
   onGo,
 }: {
   doc: ProjectDoc;
+  numberOf: (seqId: ID) => number | undefined;
+  labelOf: (seqId: ID) => string;
   current?: ID;
   readOnly: boolean;
   onAdd: (cat: BreakdownCategory, item: string) => void;
@@ -388,7 +373,6 @@ function WholeSheet({
   const index = useMemo(() => breakdownIndex(doc), [doc]);
   const byCat = new Map<BreakdownCategory, BreakdownEntry[]>();
   for (const e of index) byCat.set(e.cat, [...(byCat.get(e.cat) ?? []), e]);
-  const num = (id: ID) => doc.project.sequenceIds.indexOf(id) + 1;
   return (
     <div className={s.cats} data-testid="breakdown-whole">
       {breakdownCategories(doc).map((cat) => {
@@ -413,11 +397,13 @@ function WholeSheet({
                     <li key={e.item} className={[on ? s.here : '', e.manualSeqIds.length ? '' : s.fromCut].join(' ')} onMouseEnter={() => onHot(e.item)} onMouseLeave={() => onHot(null)} data-testid="whole-item">
                       <span className={s.wName}>{e.item}</span>
                       <span className={s.wSeqs}>
-                        {e.seqIds.map((id) => (
-                          <button key={id} type="button" className={id === current ? s.wNow : ''} onClick={() => onGo(id)} title={sequenceHeading(doc, id)}>
-                            {num(id)}
-                          </button>
-                        ))}
+                        {[...e.seqIds]
+                          .sort((a, b) => (numberOf(a) ?? 0) - (numberOf(b) ?? 0))
+                          .map((id) => (
+                            <button key={id} type="button" className={id === current ? s.wNow : ''} onClick={() => onGo(id)} title={labelOf(id)}>
+                              {numberOf(id)}
+                            </button>
+                          ))}
                       </span>
                       {!readOnly && current && (mine ? (
                         <button type="button" className={s.wAct} aria-label={`Retirer ${e.item} de cette séquence`} onClick={() => onRemove(cat, e.item)}>
