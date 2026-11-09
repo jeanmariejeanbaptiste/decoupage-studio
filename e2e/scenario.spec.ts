@@ -289,3 +289,17 @@ test('scénario : gras, italique, souligné (boutons et raccourcis), affichés e
   await expect(page.getByTestId('script-editor').locator('span[style*="font-weight: 700"]').first()).toBeVisible();
   await expect(page.getByTestId('script-editor').locator('span[style*="italic"]').first()).toBeVisible();
 });
+
+test('scénario : surlignage de révision en couleur, retiré à volonté', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  const ed = page.getByTestId('script-editor');
+  await ed.getByText('valise', { exact: false }).first().dblclick();
+  await page.getByTestId('highlight').click();
+  await page.getByTestId('highlight-jaune').click();
+  const hl = ed.locator('span[class*="hl_jaune"]').first();
+  await expect(hl).toBeVisible();
+  await hl.dblclick();
+  await page.getByTestId('highlight').click();
+  await page.getByTestId('highlight-none').click();
+  await expect(ed.locator('span[class*="hl_"]')).toHaveCount(0);
+});

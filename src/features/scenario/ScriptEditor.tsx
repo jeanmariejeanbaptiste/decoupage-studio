@@ -34,7 +34,7 @@ import {
   type Span,
   TITLE_FIELDS,
 } from '../../domain/screenplay';
-import { SCRIPT_COLUMNS, SCRIPT_PAGE, emphasisRuns, paginateItems, plainText, titlePageLines } from '../../domain/scriptLayout';
+import { SCRIPT_COLUMNS, SCRIPT_PAGE, emphasisRuns, paginateItems, plainText, setHighlight, titlePageLines, type HighlightColor } from '../../domain/scriptLayout';
 import { blockTypeDigit } from '../../domain/shortcuts';
 import { fold } from '../../domain/text';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -156,6 +156,8 @@ export interface ScriptEditorApi {
   editTitle: () => void;
   /** Gras (« ** »), italique (« * ») ou souligné (« _ ») sur la sélection, ou le mot sous le curseur. */
   emphasis: (mark: '**' | '*' | '_') => void;
+  /** Surlignage de révision de la sélection (ou du mot) ; `undefined` le retire. */
+  highlight: (color: HighlightColor | undefined) => void;
 }
 
 // --- Lecture et écriture du DOM ----------------------------------------------------------------
@@ -180,10 +182,10 @@ function readText(el: HTMLElement): string {
 
 function writeText(el: HTMLElement, text: string) {
   // Emphase Fountain affichée en place : marques gardées dans le texte (invisibles), le reste stylé.
-  if (/[*_\\]/.test(text)) {
+  if (/[*_\\]|\[\[/.test(text)) {
     el.textContent = '';
     for (const r of emphasisRuns(text)) {
-      if (!r.mark && !r.bold && !r.italic && !r.underline) {
+      if (!r.mark && !r.bold && !r.italic && !r.underline && !r.highlight) {
         el.appendChild(document.createTextNode(r.text));
         continue;
       }
@@ -194,6 +196,7 @@ function writeText(el: HTMLElement, text: string) {
         if (r.bold) span.style.fontWeight = '700';
         if (r.italic) span.style.fontStyle = 'italic';
         if (r.underline) span.style.textDecoration = 'underline';
+        if (r.highlight) span.className = s[`hl_${r.highlight}`] ?? '';
       }
       el.appendChild(span);
     }
@@ -328,7 +331,7 @@ const Block = memo(function Block({ b, mt, n }: { b: SBlock; mt?: number; n?: nu
     if (!el) return;
     // Texte changé ailleurs, ou emphase tout juste fermée à la frappe : on redessine le bloc.
     const styled = el.querySelector('span') !== null;
-    const wants = /[*_]/.test(b.text) && emphasisRuns(b.text).some((r) => r.mark);
+    const wants = /[*_]|\[\[/.test(b.text) && emphasisRuns(b.text).some((r) => r.mark);
     if (readText(el) !== b.text || styled !== wants) {
       const sel = window.getSelection();
       const caret = sel && sel.rangeCount && el.contains(sel.anchorNode) ? offsetIn(el, sel.anchorNode!, sel.anchorOffset) : null;
@@ -591,6 +594,47 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       if (b.id === to.id) caret = { id: b.id, offset: wrapped ? z - mark.length : z + 2 * mark.length };
     }
     apply({ doc: next, caret });
+  };
+
+  /** Sélection courante, bloc par bloc (le mot sous le curseur si rien n'est sélectionné). */
+  const selectedRanges = (): Array<{ b: SBlock; a: number; z: number; last: boolean }> => {
+    const el = root.current;
+    if (!el) return [];
+    const sel = readSelection(el);
+    if (!sel) return [];
+    const blocks = sdocRef.current.blocks;
+    const ia = blocks.findIndex((b) => b.id === sel.start.id);
+    const ib = blocks.findIndex((b) => b.id === sel.end.id);
+    if (ia < 0 || ib < 0) return [];
+    const [from, to] = ia <= ib ? [sel.start, sel.end] : [sel.end, sel.start];
+    const out: Array<{ b: SBlock; a: number; z: number; last: boolean }> = [];
+    for (let i = Math.min(ia, ib); i <= Math.max(ia, ib); i++) {
+      const b = blocks[i];
+      if (b.type === 'title' || b.type === 'pagebreak') continue;
+      let a = b.id === from.id ? from.offset : 0;
+      let z = b.id === to.id ? to.offset : b.text.length;
+      if (a === z) {
+        while (a > 0 && /[\p{L}\p{N}'’-]/u.test(b.text[a - 1])) a--;
+        while (z < b.text.length && /[\p{L}\p{N}'’-]/u.test(b.text[z])) z++;
+        if (a === z) continue;
+      }
+      out.push({ b, a, z, last: b.id === to.id });
+    }
+    return out;
+  };
+
+  const applyHighlight = (color: HighlightColor | undefined) => {
+    if (readOnly) return;
+    const ranges = selectedRanges();
+    if (!ranges.length) return;
+    let next = sdocRef.current;
+    let caret: Caret | null = null;
+    for (const { b, a, z, last } of ranges) {
+      const r = setHighlight(b.text, a, z, color);
+      next = setBlockText(next, b.id, r.text);
+      if (last) caret = { id: b.id, offset: r.end };
+    }
+    apply({ doc: next, caret: caret ?? { id: ranges[ranges.length - 1].b.id, offset: 0 } });
   };
 
   const doUndo = () => {
@@ -867,6 +911,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       },
       editTitle: () => !readOnly && setTitleOpen(true),
       emphasis: (mark) => toggleEmphasis(mark),
+      highlight: (color) => applyHighlight(color),
     };
   });
 

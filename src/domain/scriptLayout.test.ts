@@ -144,3 +144,20 @@ describe('emphase dans l’éditeur', () => {
     expect(runs.filter((r) => r.mark).length).toBe(6);
   });
 });
+
+describe('surlignage de révision', () => {
+  it('posé, recouvert, retiré ; jamais imprimé', async () => {
+    const { setHighlight, emphasisRuns, plainText } = await import('./scriptLayout');
+    let t = 'Léa traverse le hall.';
+    t = setHighlight(t, 4, 12, 'jaune').text;
+    expect(t).toBe('Léa [[=jaune]]traverse[[=]] le hall.');
+    expect(plainText(t)).toBe('Léa traverse le hall.');
+    expect(emphasisRuns(t).find((r) => r.text === 'traverse')).toMatchObject({ highlight: 'jaune' });
+    // Une autre couleur au milieu d'un passage surligné : le passage est coupé proprement.
+    const inner = t.indexOf('vers');
+    t = setHighlight(t, inner, inner + 4, 'vert').text;
+    expect(t).toBe('Léa [[=jaune]]tra[[=]][[=vert]]vers[[=]][[=jaune]]e[[=]] le hall.');
+    t = setHighlight(t, 0, t.length, undefined).text;
+    expect(t).toBe('Léa traverse le hall.');
+  });
+});

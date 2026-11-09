@@ -115,7 +115,21 @@
 .chrono { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; margin-right: 6px; white-space: nowrap; }
 .chrono b { font-weight: 500; color: var(--ink); }
 
-.marks { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
-.marks button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; border: 0; background: var(--paper-card); color: var(--ink); cursor: pointer; }
-.marks button + button { border-left: 1px solid var(--rule); }
-.marks button:hover { background: var(--hover); }
+.marks { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; }
+.marks > button:first-child { border-radius: 5px 0 0 5px; }
+.hlWrap > button { border-radius: 0 5px 5px 0; }
+.marks > button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; border: 0; background: var(--paper-card); color: var(--ink); cursor: pointer; }
+.marks > button + button { border-left: 1px solid var(--rule); }
+.marks > button:hover, .hlWrap > button:hover { background: var(--hover); }
+
+.hlWrap { position: relative; display: inline-flex; border-left: 1px solid var(--rule); }
+.hlWrap > button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; border: 0; background: var(--paper-card); color: var(--ink); cursor: pointer; }
+.hlMenu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; display: flex; gap: 4px; align-items: center; padding: 6px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-card); box-shadow: var(--shadow); }
+.hlMenu button { width: 20px; height: 20px; border: 1px solid var(--rule); border-radius: 50%; cursor: pointer; padding: 0; }
+.hlMenu .swNone { width: auto; height: 22px; border-radius: 6px; padding: 0 8px; background: none; color: var(--ink); font: inherit; font-size: 12px; }
+.hlMenu .sw_jaune { background: rgba(255, 214, 10, 0.75); }
+.hlMenu .sw_vert { background: rgba(70, 200, 90, 0.7); }
+.hlMenu .sw_bleu { background: rgba(70, 150, 255, 0.7); }
+.hlMenu .sw_rose { background: rgba(255, 90, 160, 0.7); }
+.hlMenu .sw_orange { background: rgba(255, 150, 40, 0.75); }
+.hlMenu .sw_gris { background: rgba(128, 128, 128, 0.7); }

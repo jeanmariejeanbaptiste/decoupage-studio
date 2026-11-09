@@ -1,7 +1,8 @@
 import { useReadOnly } from '../../store/share';
 import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Italic, Underline } from 'lucide-react';
+import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Highlighter, Italic, Underline } from 'lucide-react';
+import { HIGHLIGHTS, type HighlightColor } from '../../domain/scriptLayout';
 import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { BLOCK_LABELS, blockLabel, type BlockType } from '../../domain/screenplay';
@@ -164,6 +165,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
                     {icon}
                   </button>
                 ))}
+                <HighlightPicker onPick={(c) => api.current?.highlight(c)} />
               </span>
               <Button icon={<FileText size={15} strokeWidth={1.25} />} onMouseDown={(e) => e.preventDefault()} onClick={() => api.current?.editTitle()} data-testid="edit-title-page">
                 Page de garde
@@ -467,5 +469,27 @@ function CutView({ doc }: { doc: ProjectDoc }) {
         );
       })}
     </div>
+  );
+}
+
+/** Surlignage de révision : couleurs à l'écran, jamais imprimées (comme le mode révision de KIT). */
+function HighlightPicker({ onPick }: { onPick: (c: HighlightColor | undefined) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className={s.hlWrap}>
+      <button type="button" aria-label="Surligner" title="Surligner (révision, non imprimé)" aria-expanded={open} onMouseDown={(e) => e.preventDefault()} onClick={() => setOpen(!open)} data-testid="highlight">
+        <Highlighter size={15} strokeWidth={1.5} />
+      </button>
+      {open && (
+        <span className={s.hlMenu} role="menu" onMouseDown={(e) => e.preventDefault()}>
+          {HIGHLIGHTS.map((c) => (
+            <button key={c} type="button" role="menuitem" aria-label={`Surligner en ${c}`} title={c} className={s[`sw_${c}`]} onClick={() => (onPick(c), setOpen(false))} data-testid={`highlight-${c}`} />
+          ))}
+          <button type="button" role="menuitem" className={s.swNone} onClick={() => (onPick(undefined), setOpen(false))} data-testid="highlight-none">
+            Aucun
+          </button>
+        </span>
+      )}
+    </span>
   );
 }

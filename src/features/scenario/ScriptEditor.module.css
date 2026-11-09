@@ -136,3 +136,10 @@
 
 /* Marques d'emphase (** * _) : gardées dans le texte, sans place à l'écran comme à l'impression. */
 .mk { font-size: 0; }
+/* Surlignage de révision : couleurs du contenu (choisies par l'auteur), jamais imprimées. */
+.hl_jaune { background: rgba(255, 214, 10, 0.38); }
+.hl_vert { background: rgba(70, 200, 90, 0.3); }
+.hl_bleu { background: rgba(70, 150, 255, 0.3); }
+.hl_rose { background: rgba(255, 90, 160, 0.3); }
+.hl_orange { background: rgba(255, 150, 40, 0.34); }
+.hl_gris { background: rgba(128, 128, 128, 0.3); }

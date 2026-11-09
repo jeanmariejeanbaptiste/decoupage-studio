@@ -108,6 +108,11 @@ export function parseEmphasis(line: string): Run[] {
   const closes = (mark: string, from: number) => line.indexOf(mark, from) > from;
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
+    // Note ou surlignage de révision (« [[…]] ») : jamais imprimé.
+    if (line.startsWith('[[', i) && line.indexOf(']]', i + 2) > 0) {
+      i = line.indexOf(']]', i + 2) + 1;
+      continue;
+    }
     if (c === '\\' && i + 1 < line.length) {
       buf += line[++i];
       continue;
@@ -143,7 +148,13 @@ export function parseEmphasis(line: string): Run[] {
 export interface MarkedRun extends Run {
   /** Marque d'emphase (« ** », « * », « _ », « \\ ») : gardée dans le texte, invisible à l'écran. */
   mark?: boolean;
+  /** Surlignage de révision en cours (« [[=jaune]]…[[=]] »). */
+  highlight?: string;
 }
+
+/** Couleurs de surlignage de révision (écran seulement, jamais imprimées). */
+export const HIGHLIGHTS = ['jaune', 'vert', 'bleu', 'rose', 'orange', 'gris'] as const;
+export type HighlightColor = (typeof HIGHLIGHTS)[number];
 
 /**
  * Comme `parseEmphasis`, mais sans rien perdre : les marques restent, en morceaux à part. Sert à
@@ -151,12 +162,13 @@ export interface MarkedRun extends Run {
  */
 export function emphasisRuns(text: string): MarkedRun[] {
   const out: MarkedRun[] = [];
+  let hl: string | undefined;
   text.split('\n').forEach((line, li) => {
     if (li > 0) out.push({ text: '\n' });
     const state = { bold: false, italic: false, underline: false };
     let buf = '';
     const flush = () => {
-      if (buf) out.push({ text: buf, ...(state.bold ? { bold: true } : {}), ...(state.italic ? { italic: true } : {}), ...(state.underline ? { underline: true } : {}) });
+      if (buf) out.push({ text: buf, ...(state.bold ? { bold: true } : {}), ...(state.italic ? { italic: true } : {}), ...(state.underline ? { underline: true } : {}), ...(hl ? { highlight: hl } : {}) });
       buf = '';
     };
     const mark = (m: string) => {
@@ -166,6 +178,15 @@ export function emphasisRuns(text: string): MarkedRun[] {
     const closes = (m: string, from: number) => line.indexOf(m, from) > from;
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
+      if (line.startsWith('[[', i) && line.indexOf(']]', i + 2) > 0) {
+        const end = line.indexOf(']]', i + 2) + 2;
+        const tok = line.slice(i, end);
+        mark(tok);
+        const m = /^\[\[=([a-z]*)\]\]$/.exec(tok);
+        if (m) hl = m[1] || undefined;
+        i = end - 1;
+        continue;
+      }
       if (c === '\\' && i + 1 < line.length) {
         mark('\\');
         buf += line[++i];
@@ -468,4 +489,22 @@ export function printLines(page: LaidPage): PrintLine[] {
 /** Lignes de la page de titre. */
 export function titlePrintLines(title: Record<string, string>): PrintLine[] {
   return titlePageLines(title).map((l) => ({ x: lineX(l), y: baselineOf(l.row), runs: runsOf(l.text) }));
+}
+
+/**
+ * Surligne (ou désurligne avec `undefined`) les caractères `a` à `z` d'un texte : les surlignages déjà
+ * posés dans l'intervalle sont retirés, puis la nouvelle couleur l'entoure (« [[=jaune]]…[[=]] »).
+ */
+export function setHighlight(text: string, a: number, z: number, color: HighlightColor | undefined): { text: string; end: number } {
+  const strip = (t: string) => t.replace(/\[\[=[a-z]*\]\]/g, '');
+  // Couleur ouverte avant l'intervalle : refermée avant, rouverte après.
+  const before = text.slice(0, a);
+  const opens = [...before.matchAll(/\[\[=([a-z]*)\]\]/g)];
+  const open = opens.length ? opens[opens.length - 1][1] : '';
+  const mid = strip(text.slice(a, z));
+  const head = open ? `${before}[[=]]` : before;
+  const tail = open ? `[[=${open}]]${text.slice(z)}` : text.slice(z);
+  const body = color ? `[[=${color}]]${mid}[[=]]` : mid;
+  const out = (head + body + tail).replace(/\[\[=[a-z]+\]\]\[\[=\]\]/g, '');
+  return { text: out, end: head.length + body.length };
 }
