@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { SBlock } from '../../domain/screenplay';
 import { characterReports, locationReports, matchesName, renameCharacter, renameDecor, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
@@ -8,24 +8,55 @@ import { newId } from '../../domain/factory';
 import { fold } from '../../domain/text';
 import type { Character, Decor, FilmingLocation, ProjectDoc } from '../../domain/types';
 import { decorLocation, setDecorLocation } from '../../domain/locations';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { registerFlush } from '../../store/persistence';
 import s from './ResearchPanels.module.css';
 
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
 /** « LA MÈRE » → « La Mère » (nom d'une fiche créée depuis le texte). */
 const titleCase = (s: string) => s.toLocaleLowerCase('fr').replace(/(^|[\s'’-])(\p{L})/gu, (_, a: string, b: string) => a + b.toLocaleUpperCase('fr'));
 
-/** Champ saisi d'un trait, enregistré en quittant le champ (une seule étape d'annulation). */
+/**
+ * Champ saisi d'un trait, enregistré en quittant le champ (une seule étape d'annulation) — ou avant un
+ * enregistrement, un changement de version, et quand il disparaît sans perdre le focus (panneau masqué
+ * au clavier, page quittée par Précédent) : rien de ce qui est tapé ne se perd.
+ */
 function Field({ label, value, onCommit, multiline, readOnly, placeholder }: { label: string; value: string; onCommit: (v: string) => void; multiline?: boolean; readOnly?: boolean; placeholder?: string }) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  const [draft, setDraftState] = useState(value);
+  const draftRef = useRef(value);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const commitRef = useRef(onCommit);
+  commitRef.current = onCommit;
+  const setDraft = (v: string) => {
+    draftRef.current = v;
+    setDraftState(v);
+  };
+  useEffect(() => {
+    draftRef.current = value;
+    setDraftState(value);
+  }, [value]);
+  const commit = useCallback(() => {
+    if (readOnly || draftRef.current === valueRef.current) return;
+    valueRef.current = draftRef.current;
+    commitRef.current(draftRef.current);
+  }, [readOnly]);
+  useEffect(() => {
+    // Le projet ouvert au montage : un brouillon ne doit jamais aller dans un autre projet.
+    const project = useProjectStore.getState().doc?.project.id;
+    const off = registerFlush(commit);
+    return () => {
+      off();
+      if (useProjectStore.getState().doc?.project.id === project) commit();
+    };
+  }, [commit]);
   const common = {
     value: draft,
     readOnly,
     placeholder: readOnly ? '' : placeholder,
     'aria-label': label,
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
-    onBlur: () => draft !== value && onCommit(draft),
+    onBlur: commit,
   };
   return (
     <label className={s.field}>

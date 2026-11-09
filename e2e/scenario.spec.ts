@@ -410,6 +410,22 @@ test('versions : la V2 part de la V1 ; on passe de l’une à l’autre, le déc
   await expect(page.getByTestId('scenario-outline')).toContainText('QUAI');
 });
 
+test('recherche : ce qui est tapé reste, même panneau masqué au clavier ou page quittée sans clic', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  const research = () => page.evaluate(() => (window as unknown as { __ds: { doc: () => { research?: Record<string, string> } } }).__ds.doc().research ?? {});
+  await page.getByTestId('scenario-tab-research').click();
+  await page.getByLabel('Logline').fill('Une valise, une décision.');
+  await page.keyboard.press('Control+Backslash');
+  await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
+  await expect.poll(async () => (await research()).logline).toBe('Une valise, une décision.');
+  await page.keyboard.press('Control+Backslash');
+  await expect(page.getByLabel('Logline')).toHaveValue('Une valise, une décision.');
+  await page.getByLabel('Genre').fill('Drame');
+  await page.evaluate(() => (location.hash = '#/grid'));
+  await expect(page.locator('[data-testid="shot-row"]').first()).toBeVisible();
+  await expect.poll(async () => (await research()).genre).toBe('Drame');
+});
+
 test('vue Découpage : le panneau suit la version choisie ; les onglets ne bougent pas d’une vue à l’autre', async ({ page }) => {
   await page.goto('/#/scenario?seed=fiction');
   const tabX = async () => (await page.getByTestId('scenario-tab-research').boundingBox())!.x;
