@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './Button';
 import { useDialog } from './dialogStore';
+import { frenchSpacing } from '../domain/text';
 import s from './Modal.module.css';
 
 /** Boîte de confirmation unique de l'application. */
@@ -37,8 +38,8 @@ export function DialogHost() {
           if (e.key === 'Escape') close(false, false);
         }}
       >
-        <h2 id="dlg-title" className={s.title}>{current.title}</h2>
-        {current.body && <p className={s.body}>{current.body}</p>}
+        <h2 id="dlg-title" className={s.title}>{frenchSpacing(current.title)}</h2>
+        {current.body && <p className={s.body}>{frenchSpacing(current.body)}</p>}
         {current.checkbox && (
           <label className={s.check}>
             <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} /> {current.checkbox}

@@ -339,6 +339,21 @@ test('scénario : surlignage de révision en couleur, retiré à volonté', asyn
   await page.getByTestId('highlight').click();
   await page.getByTestId('highlight-none').click();
   await expect(ed.locator('span[class*="hl_"]')).toHaveCount(0);
+  // Le menu se referme au clic dans le texte, et à Échap.
+  await page.getByTestId('highlight').click();
+  await expect(page.getByTestId('highlight-jaune')).toBeVisible();
+  await ed.getByText('valise', { exact: false }).first().click();
+  await expect(page.getByTestId('highlight-jaune')).toHaveCount(0);
+  await page.getByTestId('highlight').click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('highlight-jaune')).toHaveCount(0);
+  // ⌘\ tapé sur un clavier français (⌥⇧/ sur Mac, AltGr+8 sous Windows) masque aussi le panneau.
+  const side = page.getByLabel('Navigation du scénario');
+  await expect(side).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: '\\', ctrlKey: true, altKey: true, bubbles: true })));
+  await expect(side).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: '\\', metaKey: true, altKey: true, shiftKey: true, bubbles: true })));
+  await expect(side).toBeVisible();
 });
 
 test('scénario : minutage par pages, caractères ou type (réglages) ; graphique exporté en PNG', async ({ page }) => {

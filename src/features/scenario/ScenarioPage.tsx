@@ -176,7 +176,9 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   sideRef.current = side;
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key === '\\') {
+      // « \ » se tape avec ⌥⇧/ sur un Mac AZERTY, AltGr+8 sous Windows : ⌥, ⇧ et AltGr sont admis ;
+      // la touche physique « \ » d'un clavier QWERTY aussi, quelle que soit la disposition.
+      if ((e.metaKey || e.ctrlKey) && (e.key === '\\' || e.code === 'Backslash')) {
         e.preventDefault();
         setSide(!sideRef.current);
       }
@@ -239,7 +241,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
       );
       const r = await ask({
         title: `« ${f.name} » : nouvelle version ?`,
-        body: `En ${next}, le découpage et la préparation de ${now} sont repris scène par scène ; ${now} reste consultable. « Remplacer » réécrit ${now}.`,
+        body: `En ${next}, le découpage et la préparation de ${now} sont repris séquence par séquence ; ${now} reste consultable. « Remplacer » réécrit ${now}.`,
         confirmLabel: `Créer la ${next}`,
         altLabel: `Remplacer la ${now}`,
       });
@@ -850,8 +852,21 @@ function CutView({ doc }: { doc: ProjectDoc }) {
 /** Surlignage de révision : couleurs à l'écran, jamais imprimées (comme le mode révision de KIT). */
 function HighlightPicker({ onPick }: { onPick: (c: HighlightColor | undefined) => void }) {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  // Se referme au clic ailleurs (le texte garde la sélection que ce clic y pose) et à Échap.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [open]);
   return (
-    <span className={s.hlWrap}>
+    <span className={s.hlWrap} ref={ref}>
       <button
         type="button"
         aria-label="Surligner"
