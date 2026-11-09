@@ -19,6 +19,7 @@ import {
   isPinned,
   moveTask,
   parseFrDate,
+  phaseDays,
   phaseSpan,
   placePhase,
   placeTask,
@@ -439,7 +440,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                   const sp = phaseSpan(r.phase);
                   return (
                     <div key={id} className={rowCls} style={{ top }} onPointerEnter={() => setHover(id)}>
-                      {sp && <span className={s.summary} style={{ left: dayX(scale, sp.start), width: (daysBetween(sp.start, sp.end) + 1) * scale.dayWidth }} title={`${r.phase.name} · ${formatFrDate(sp.start)} – ${formatFrDate(sp.end)}`} />}
+                      {sp && phaseDays(r.phase) ? <span className={s.summary} style={{ left: dayX(scale, sp.start), width: (daysBetween(sp.start, sp.end) + 1) * scale.dayWidth }} title={`${r.phase.name} · ${formatFrDate(sp.start)} – ${formatFrDate(sp.end)}`} /> : null}
                     </div>
                   );
                 }
@@ -609,7 +610,7 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
           {formatFrDate(sp?.end)}
         </span>
         <span className={s.cDur} role="cell">
-          {sp ? daysBetween(sp.start, sp.end) + 1 : ''}
+          {phaseDays(row.phase) || ''}
         </span>
         <span className={s.cMenu}>{!readOnly && menuBtn}</span>
       </div>

@@ -17,6 +17,7 @@ import {
   moveTask,
   normalizeProduction,
   parseFrDate,
+  phaseDays,
   phaseSpan,
   placePhase,
   placeTask,
@@ -82,6 +83,10 @@ describe('dates du calendrier de production', () => {
     expect(daysBetween('2027-03-27', '2027-03-29')).toBe(2);
     expect(durationDays({ start: '2027-01-04', end: '2027-01-08' })).toBe(5);
     expect(durationDays({ start: '2027-01-04', end: '2027-01-04', milestone: true })).toBe(0);
+    const [prep, suite] = chain().production!.phases;
+    expect(phaseDays(prep)).toBe(12);
+    expect(phaseDays({ ...suite, tasks: suite.tasks.filter((t) => t.milestone) })).toBe(0);
+    expect(phaseDays({ ...suite, tasks: [] })).toBeUndefined();
   });
 });
 

@@ -106,6 +106,13 @@ export function phaseSpan(phase: ProductionPhase): Span | undefined {
   return { start, end };
 }
 
+/** Durée d'une phase en jours (de son premier à son dernier jour) ; zéro si elle n'a que des jalons. */
+export function phaseDays(phase: ProductionPhase): number | undefined {
+  const sp = phaseSpan(phase);
+  if (!sp) return undefined;
+  return phase.tasks.every((t) => t.milestone) ? 0 : daysBetween(sp.start, sp.end) + 1;
+}
+
 /** Étendue de tout le calendrier. */
 export function planSpan(plan: Production | undefined): Span | undefined {
   const spans = (plan?.phases ?? []).map(phaseSpan).filter((x): x is Span => !!x);

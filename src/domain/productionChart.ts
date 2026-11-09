@@ -1,5 +1,5 @@
 import { addDays, addMonths, isoWeek, startOfMonth, weekday } from './calendar';
-import { daysBetween, durationDays, formatFrDate, isLate, phaseSpan, planSpan, type Production, type ProductionPhase, type ProductionTask } from './production';
+import { daysBetween, durationDays, formatFrDate, isLate, phaseDays, phaseSpan, planSpan, type Production, type ProductionPhase, type ProductionTask } from './production';
 import type { ID } from './types';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -217,7 +217,10 @@ export function productionSvgPages(plan: Production, today: string, opts: { widt
         if (sp) {
           out.push(`<text x="${col.start}" y="${cy}" fill="#111318" font-weight="600">${formatFrDate(sp.start)}</text>`);
           out.push(`<text x="${col.end}" y="${cy}" fill="#111318" font-weight="600">${formatFrDate(sp.end)}</text>`);
-          out.push(`<text x="${col.dur}" y="${cy}" fill="#111318" font-weight="600" text-anchor="end">${daysBetween(sp.start, sp.end) + 1}</text>`);
+          out.push(`<text x="${col.dur}" y="${cy}" fill="#111318" font-weight="600" text-anchor="end">${phaseDays(r.phase) || ''}</text>`);
+        }
+        // Accolade de la phase (pas pour une phase faite seulement de jalons).
+        if (sp && phaseDays(r.phase)) {
           const x = chartX + dayX(scale, sp.start);
           const w = (daysBetween(sp.start, sp.end) + 1) * dayWidth;
           out.push(`<path d="M${x},${y + 6} H${x + w} V${y + 13} L${x + w - 3},${y + 10} H${x + 3} L${x},${y + 13} Z" fill="#111318"/>`);
@@ -225,7 +228,7 @@ export function productionSvgPages(plan: Production, today: string, opts: { widt
         return;
       }
       const t = r.task;
-      const name = `${t.done ? '✓ ' : ''}${t.name}`;
+      const name = t.name;
       out.push(`<text x="${col.name + 10}" y="${cy}" fill="${t.done ? '#6b7079' : '#111318'}"${t.done ? ' text-decoration="line-through"' : ''}>${esc(name.length > 46 ? `${name.slice(0, 45)}…` : name)}</text>`);
       out.push(`<text x="${col.start}" y="${cy}" fill="#111318">${formatFrDate(t.start)}</text>`);
       if (!t.milestone) {
