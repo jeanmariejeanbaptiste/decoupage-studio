@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { ProjectDoc, ProjectFormat } from '../domain/types';
+import { sharedMediaOwners } from '../domain/serialize';
 
 export interface StoredProject {
   id: string;
@@ -57,7 +58,15 @@ export async function loadProject(id: string): Promise<ProjectDoc | undefined> {
 export async function deleteProject(id: string): Promise<void> {
   await db.transaction('rw', db.projects, db.blobs, async () => {
     await db.projects.delete(id);
-    await db.blobs.where('projectId').equals(id).delete();
+    // Une copie (fichier ouvert en copie, partage) peut garder les clés de l'original : ses médias
+    // changent de propriétaire au lieu d'être effacés.
+    const keys = (await db.blobs.where('projectId').equals(id).primaryKeys()) as string[];
+    if (!keys.length) return;
+    const others = (await db.projects.toArray()).map((p) => p.doc);
+    const owners = sharedMediaOwners(keys, others);
+    for (const [key, projectId] of owners) await db.blobs.update(key, { projectId });
+    const dead = keys.filter((k) => !owners.has(k));
+    if (dead.length) await db.blobs.bulkDelete(dead);
   });
 }
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { checkInvariants } from './ops';
-import { exportBase, fileNameFor, parseProjectFile, ProjectFileError, projectCopy, serializeDoc } from './serialize';
+import { exportBase, fileNameFor, parseProjectFile, ProjectFileError, projectCopy, serializeDoc, sharedMediaOwners } from './serialize';
 
 describe('fichier .decoupage', () => {
   it('ouvert comme copie : nouvel identifiant, sans le fichier de relecture de l’original', () => {
@@ -81,5 +81,15 @@ describe('médias intégrés au fichier', () => {
     expect(mediaOfFile(text)['p:1'].type).toBe('image/png');
     expect(parseProjectFile(text).project.id).toBe(doc.project.id);
     expect(mediaOfFile(serializeDoc(doc))).toEqual({});
+  });
+});
+
+describe('médias partagés entre projets', () => {
+  it('confie au projet qui les utilise encore les médias d’un projet supprimé', () => {
+    const copy = projectCopy(buildFiction(), 'copie');
+    const shotId = Object.keys(copy.shots)[0];
+    copy.shots[shotId].storyboard = { blobKey: 'orig:image' };
+    const owners = sharedMediaOwners(['orig:image', 'orig:seule'], [copy]);
+    expect([...owners]).toEqual([['orig:image', 'copie']]);
   });
 });
