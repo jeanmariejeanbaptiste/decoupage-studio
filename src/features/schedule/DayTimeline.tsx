@@ -266,7 +266,11 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
             {active.startsWith('tseq:') ? (
               sequenceHeading(doc, active.slice(5))
             ) : (
-              <ShotCard doc={doc} id={active.slice(6)} />
+              // « tshot:<plan> » ou « tpart:<plan>:<n> » (reprise n).
+              <>
+                <ShotCard doc={doc} id={active.split(':')[1]} />
+                {active.startsWith('tpart:') && <em className={s.partTag}>reprise {active.split(':')[2]}</em>}
+              </>
             )}
           </div>
         ) : null}
