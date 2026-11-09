@@ -168,6 +168,11 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   return doc;
 }
 
+/** Début des noms de fichiers exportés : titre nettoyé et version (« rav3-v3 »), sans extension. */
+export function exportBase(doc: ProjectDoc): string {
+  return fileNameFor(doc).slice(0, -FILE_EXTENSION.length);
+}
+
 export function fileNameFor(doc: ProjectDoc): string {
   const base = `${doc.project.title || 'projet'} ${doc.project.version ?? ''}`
     .trim()

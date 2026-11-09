@@ -27,6 +27,7 @@ import { breakdownIndex, type BreakdownEntry } from '../../domain/breakdownRepor
 import { entriesOf, entryLabel, entryName, entryNumbers, type Entry } from './entries';
 import { useRevisionMarks } from '../versions/useRevisionMarks';
 import s from './BreakdownPage.module.css';
+import { exportBase } from '../../domain/serialize';
 
 /** Texte d'une séquence sans passage dans le scénario : ses actions et ses répliques du découpage. */
 function sequenceParagraphs(doc: ProjectDoc, seqId: ID): Paragraph[] {
@@ -173,7 +174,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
     else pick(target);
   };
   const untagIn = (target: Entry, cat: BreakdownCategory, item: string) => target.seqId && mutateDoc((d) => removeBreakdownItem(d, target.seqId!, cat, item));
-  const title = doc.project.title || 'projet';
+  const title = exportBase(doc);
 
   return (
     <div className={['page page--wide', s.page].join(' ')}>

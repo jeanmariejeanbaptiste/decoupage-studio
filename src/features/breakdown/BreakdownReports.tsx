@@ -8,6 +8,7 @@ import type { ID, ProjectDoc } from '../../domain/types';
 import r from '../scenario/ScriptStatsReports.module.css';
 import { entryLabel, entryNumbers, type Entry } from './entries';
 import s from './BreakdownPage.module.css';
+import { exportBase } from '../../domain/serialize';
 
 type Report = 'items' | 'sequences';
 type ItemSort = 'film' | 'often' | 'long' | 'alpha';
@@ -46,7 +47,7 @@ export function BreakdownReports({ doc, entries: scenes, onGo }: { doc: ProjectD
     const { exportDocumentPages } = await import('../export/imageExport');
     const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd;vertical-align:top} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} button{border:0;background:none;padding:0;font:inherit;color:inherit} select{display:none} .pad{height:13mm}`;
     const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${doc.project.title} — Dépouillement, ${title.toLowerCase()}</h1>${box.current?.innerHTML ?? ''}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
-    await exportDocumentPages(html, `${doc.project.title || 'projet'}-depouillement-${title}`, { format: 'pdf', orientation: report === 'sequences' ? 'landscape' : 'portrait', numbers: true });
+    await exportDocumentPages(html, `${exportBase(doc)}-depouillement-${title}`, { format: 'pdf', orientation: report === 'sequences' ? 'landscape' : 'portrait', numbers: true });
   };
 
   return (

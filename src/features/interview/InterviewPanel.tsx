@@ -8,7 +8,7 @@ import { newId } from '../../domain/factory';
 import { addInterviewee, addSetup, ensureInterview, moveQuestion, maxSetupNumber, placeSetup, questionsFor, setSetupNumber, setupNumber, removeInterviewee, removeSetup, setupShotIds, type Interviewee, type InterviewSetup } from '../../domain/interview';
 import { shotCode } from '../../domain/numbering';
 import { useUi } from '../../store/uiStore';
-import { fileNameFor } from '../../domain/serialize';
+import { exportBase } from '../../domain/serialize';
 import { ExportPanel } from '../export/ExportPanel';
 import { exportDocumentPages } from '../export/imageExport';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -406,7 +406,7 @@ const orientationOf = (doc: ProjectDoc) => doc.project.settings.exportPrefs?.int
 
 /** Export de la fiche d'interview (annexe du découpage) : PDF ou images, en paysage ou en portrait. */
 export function InterviewExport({ doc }: { doc: ProjectDoc }) {
-  const base = fileNameFor(doc).replace(/\.decoupage$/, '');
+  const base = exportBase(doc);
   return (
     <ExportPanel
       doc={doc}

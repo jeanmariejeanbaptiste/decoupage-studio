@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Braces, Download, Eye, FolderArchive, FileSpreadshe
 import { navigate } from '../../app/router';
 import { ALL_COLUMNS, COLUMN_DEFS, moveColumn, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
-import { fileNameFor, serializeDoc } from '../../domain/serialize';
+import { serializeDoc, exportBase } from '../../domain/serialize';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { downloadBlob, openFromFile, pickFile } from '../../store/persistence';
 import { mutateDoc } from '../../store/projectStore';
@@ -17,7 +17,7 @@ const ALL: ColumnKey[] = [...ALL_COLUMNS];
 export function ExportPage({ doc }: { doc: ProjectDoc }) {
   const settings = doc.project.settings;
   const [csvText, setCsvText] = useState<string | null>(null);
-  const base = fileNameFor(doc).replace(/\.decoupage$/, '');
+  const base = exportBase(doc);
   const toast = useUi((u) => u.toast);
 
   const xlsx = async () => {

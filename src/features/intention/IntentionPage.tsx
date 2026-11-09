@@ -6,6 +6,7 @@ import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
 import { ExportPanel } from '../export/ExportPanel';
 import { RichEditor } from './RichEditor';
+import { exportBase } from '../../domain/serialize';
 
 /** Note d'intention : un document mis en forme, sur des pages A4, enregistré dans le projet. */
 export function IntentionPage({ doc }: { doc: ProjectDoc }) {
@@ -23,7 +24,7 @@ export function IntentionPage({ doc }: { doc: ProjectDoc }) {
       }),
     [],
   );
-  const base = `${doc.project.title || 'projet'}-note-d-intention`;
+  const base = `${exportBase(doc)}-note-d-intention`;
   const exportButton = (
     <span className="no-print">
       <ExportPanel

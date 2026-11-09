@@ -3,7 +3,7 @@ import { recoverStaleChunk } from '../../ui/staleChunk';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
-import { fileNameFor } from '../../domain/serialize';
+import { exportBase } from '../../domain/serialize';
 import { useUi } from '../../store/uiStore';
 import { ExportTable } from '../export/ExportTable';
 import { exportDocumentPages, exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
@@ -27,7 +27,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
   const [sbImaging, setSbImaging] = useState<PageExportOptions | null>(null);
   const nSeq = doc.project.sequenceIds.length;
   const nShots = doc.project.sequenceIds.reduce((n, id) => n + (doc.sequences[id]?.shotIds.length ?? 0), 0);
-  const base = fileNameFor(doc).replace(/\.decoupage$/, '');
+  const base = exportBase(doc);
 
   // Tableau : rendu d'export monté hors écran le temps de la capture.
   const imageRef = useRef<HTMLDivElement>(null);

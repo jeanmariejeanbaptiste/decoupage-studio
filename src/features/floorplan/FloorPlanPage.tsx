@@ -78,6 +78,7 @@ import { ExportPanel } from '../export/ExportPanel';
 import { downloadWord } from '../export/docExport';
 import { downloadBlob } from '../../store/persistence';
 import { floorPlansDocument } from '../../domain/documents';
+import { exportBase } from '../../domain/serialize';
 
 type Tool = 'select' | FloorKind | 'practical';
 /** Outils rangés par famille : décor, équipe et machinerie, lumière. */
@@ -672,7 +673,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       onExport={async ({ format, orientation, numbers }) => {
         try {
           const all = allFloorPlans(doc);
-          const base = `${doc.project.title || 'projet'}-plans-au-sol`;
+          const base = `${exportBase(doc)}-plans-au-sol`;
           if (format === 'pdf' || format === 'images') {
             const svgs = all.length ? all.map((p) => p.svg) : [floorPlanSvg(doc, planKey, sequenceHeading(doc, seqId))];
             return await exportSvgPages(svgs, `${base}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });

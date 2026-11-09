@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { checkInvariants } from './ops';
-import { fileNameFor, parseProjectFile, ProjectFileError, serializeDoc } from './serialize';
+import { exportBase, fileNameFor, parseProjectFile, ProjectFileError, serializeDoc } from './serialize';
 
 describe('fichier .decoupage', () => {
   it.each([['RAV3', buildRav3], ['fiction', buildFiction]])('aller-retour sans perte (%s)', (_n, build) => {
@@ -49,6 +49,8 @@ describe('fichier .decoupage', () => {
     const d = buildFiction();
     d.project.title = 'Été / Hiver';
     expect(fileNameFor(d)).toBe('ete-hiver-v1.decoupage');
+    // Fichiers exportés : même nom, sans l'extension du projet.
+    expect(exportBase(d)).toBe('ete-hiver-v1');
     d.project.title = '';
     d.project.version = '';
     expect(fileNameFor(d)).toBe('projet.decoupage');

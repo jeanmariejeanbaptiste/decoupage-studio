@@ -33,6 +33,7 @@ import { callSheetCsv } from '../../domain/exports';
 import { callSheetDocument } from '../../domain/documents';
 import { characterNumbers } from '../../domain/registry';
 import { decorLocation } from '../../domain/locations';
+import { exportBase } from '../../domain/serialize';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',
@@ -108,10 +109,10 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           </label>
           <TabExport id="callsheet" orientation="portrait"
             doc={() => callSheetDocument(doc, day.n)}
-            fileBase={`${doc.project.title || 'projet'}-feuille-de-service-J${day.n}`}
+            fileBase={`${exportBase(doc)}-feuille-de-service-J${day.n}`}
             file={{
               label: 'CSV',
-              name: `${doc.project.title || 'projet'}-feuille-de-service-J${day.n}.csv`,
+              name: `${exportBase(doc)}-feuille-de-service-J${day.n}.csv`,
               content: () => callSheetCsv(doc, day.n),
             }}
           />

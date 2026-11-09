@@ -24,6 +24,7 @@ import { usePrintMedia } from '../../ui/usePrintMedia';
 import { deleteShotById, dropShot } from '../grid/actions';
 import { goToShot } from '../registry/RegistryPage';
 import s from './StoryboardPage.module.css';
+import { exportBase } from '../../domain/serialize';
 
 
 /** Planches du storyboard rendues hors écran le temps d'un export (PDF ou images A4). */
@@ -34,7 +35,7 @@ export function StoryboardImaging({ doc, imaging, onDone }: { doc: ProjectDoc; i
   const imagesRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!imagesRef.current) return;
-    const base = `${doc.project.title || 'projet'}-storyboard-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
+    const base = `${exportBase(doc)}-storyboard-A4-${imaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`;
     const root = imagesRef.current;
     const expected = allShots.reduce((n, id) => n + (doc.shots[id] ? imageCount(doc.shots[id]) : 0), 0);
     void waitForPages(root, '[data-testid="storyboard-sheet"]')

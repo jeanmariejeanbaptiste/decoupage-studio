@@ -93,7 +93,7 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   await page.getByTestId('show-shots').check();
   await expect(page.getByTestId('equipment-Machinerie')).not.toContainText(/\+\d/);
   await expect(page.getByTestId('equipment-Machinerie')).toContainText('7.11');
-  expect((await tabExport(page, 'Word')).suggestedFilename()).toBe('RAV3-materiel.doc');
+  expect((await tabExport(page, 'Word')).suggestedFilename()).toBe('rav3-v3-materiel.doc');
   await page.goto('/#/schedule');
   await page.getByTestId('suggest-schedule').click();
   await page.getByTestId('timeline-toggle-1').click();
