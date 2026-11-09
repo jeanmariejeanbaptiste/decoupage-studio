@@ -11,11 +11,16 @@ export interface EquipmentItem {
 export interface EquipmentLine extends EquipmentItem {
   shotIds: ID[];
   manual: boolean;
+  /** Saisi au dépouillement (Machinerie, Lumière, Son) : plans de ses séquences ; se retire des deux côtés. */
+  fromBreakdown?: boolean;
   /** Projecteurs d'un même modèle sur un plan au sol : nombre le plus élevé d'une séquence. */
   count?: number;
 }
 
 export const EQUIPMENT_CATEGORIES: readonly EquipmentCategory[] = ['Image', 'Machinerie', 'Lumière', 'Son'];
+
+/** Catégories du dépouillement qui sont aussi des postes du matériel. */
+export const BREAKDOWN_POSTS = { machinerie: 'Machinerie', lumiere: 'Lumière', son: 'Son' } as const;
 
 /** Postes du projet : les quatre de base, puis ceux ajoutés. */
 export function equipmentCategories(doc: ProjectDoc): EquipmentCategory[] {
@@ -136,6 +141,24 @@ export function aggregateEquipment(doc: ProjectDoc): Record<EquipmentCategory, E
       byKey.set(lineKey, line);
     }
   }
+  // Machinerie, lumière et son saisis au dépouillement : une seule liste pour le chef de poste, avec
+  // les plans de leurs séquences. Un libellé déjà déduit ailleurs (même poste) y gagne ces plans.
+  for (const seqId of doc.project.sequenceIds) {
+    const seq = doc.sequences[seqId];
+    const b = doc.breakdown?.[seqId];
+    if (!seq || !b) continue;
+    const shots = seq.shotIds.filter((id) => doc.shots[id] && doc.shots[id].status !== 'abandonné');
+    for (const [cat, category] of Object.entries(BREAKDOWN_POSTS)) {
+      for (const raw of b[cat] ?? []) {
+        const label = raw.trim();
+        if (!label) continue;
+        const same = [...byKey.values()].find((l) => l.category === category && fold(l.label) === fold(label));
+        const line = same ?? { key: `breakdown:${category}:${fold(label)}`, category, label, shotIds: [], manual: false, fromBreakdown: true };
+        for (const id of shots) if (!line.shotIds.includes(id)) line.shotIds.push(id);
+        byKey.set(line.key, line);
+      }
+    }
+  }
   for (const m of doc.manualEquipment) {
     byKey.set(`manual-${m.id}`, { key: `manual-${m.id}`, category: m.category, label: m.label, shotIds: [...m.shotIds], manual: true });
   }
@@ -143,4 +166,14 @@ export function aggregateEquipment(doc: ProjectDoc): Record<EquipmentCategory, E
   for (const line of byKey.values()) (out[line.category] ??= []).push(line);
   for (const c of Object.keys(out)) out[c].sort((a, b) => a.label.localeCompare(b.label, 'fr', { numeric: true }));
   return out;
+}
+
+/** Retire du dépouillement de toutes les séquences un élément de machinerie, lumière ou son. */
+export function removeBreakdownEquipment(doc: ProjectDoc, category: EquipmentCategory, label: string): void {
+  const cat = (Object.keys(BREAKDOWN_POSTS) as Array<keyof typeof BREAKDOWN_POSTS>).find((k) => BREAKDOWN_POSTS[k] === category);
+  if (!cat) return;
+  for (const b of Object.values(doc.breakdown ?? {})) {
+    const list = b?.[cat];
+    if (list) b[cat] = list.filter((x) => fold(x) !== fold(label));
+  }
 }

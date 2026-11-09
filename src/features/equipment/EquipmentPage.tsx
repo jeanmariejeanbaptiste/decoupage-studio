@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Download, Plus, Trash2 } from 'lucide-react';
 import { TabExport } from '../export/TabExport';
 import { equipmentDocument } from '../../domain/documents';
-import { aggregateEquipment, equipmentCategories } from '../../domain/equipment';
+import { aggregateEquipment, equipmentCategories, removeBreakdownEquipment } from '../../domain/equipment';
 import { newId } from '../../domain/factory';
 import { shotCode } from '../../domain/numbering';
 import type { EquipmentCategory, ProjectDoc } from '../../domain/types';
@@ -111,7 +111,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                   <li key={l.key}>
                     <span className={s.label}>
                       {l.label}
-                      {l.manual && <span className={s.manual}>ajout</span>}
+                      {(l.manual || l.fromBreakdown) && <span className={s.manual}>ajout</span>}
                     </span>
                     <span className={s.nb}>{l.shotIds.length ? `${l.shotIds.length} plan${l.shotIds.length > 1 ? 's' : ''}` : ''}</span>
                     {showShots && (
@@ -123,14 +123,20 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                       ))}
                     </span>
                     )}
-                    {l.manual && (
+                    {(l.manual || l.fromBreakdown) && (
                       <Button
                         variant="icon"
                         size="sm"
                         className="no-print"
                         aria-label={`Retirer ${l.label}`}
                         icon={<Trash2 size={12} />}
-                        onClick={() => mutateDoc((d) => void (d.manualEquipment = d.manualEquipment.filter((m) => `manual-${m.id}` !== l.key)))}
+                        onClick={() =>
+                          mutateDoc((d) => {
+                            // Saisi au dépouillement : il en sort aussi (une seule liste).
+                            if (l.fromBreakdown) removeBreakdownEquipment(d, l.category, l.label);
+                            else d.manualEquipment = d.manualEquipment.filter((m) => `manual-${m.id}` !== l.key);
+                          })
+                        }
                       />
                     )}
                   </li>

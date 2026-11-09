@@ -152,13 +152,16 @@ export function derivedBreakdown(doc: ProjectDoc, seqId: ID): Partial<Record<Bre
   const chars = sequenceCharacterIds(doc, seqId).map((id) => doc.characters[id]).filter(Boolean);
   const shotIds = new Set(doc.sequences[seqId]?.shotIds ?? []);
   const eq = aggregateEquipment(doc);
-  const pick = (c: 'Machinerie' | 'Lumière' | 'Son') => eq[c].filter((l) => !l.manual && l.shotIds.some((id) => shotIds.has(id))).map((l) => l.label);
+  // Déduit des plans, ou ajouté aux listes de matériel pour des plans de la séquence ; pas ce qui vient
+  // déjà du dépouillement (compté une fois).
+  const own = (cat: BreakdownCategory) => new Set((doc.breakdown?.[seqId]?.[cat] ?? []).map(fold));
+  const pick = (c: 'Machinerie' | 'Lumière' | 'Son', cat: BreakdownCategory) => eq[c].filter((l) => !l.fromBreakdown && !own(cat).has(fold(l.label)) && l.shotIds.some((id) => shotIds.has(id))).map((l) => l.label);
   return {
     personnages: chars.filter((c) => c.kind !== 'figurant' && c.kind !== 'silhouette').map((c) => c.name),
     figurants: chars.filter((c) => c.kind === 'figurant' || c.kind === 'silhouette').map((c) => c.name),
-    machinerie: pick('Machinerie'),
-    lumiere: pick('Lumière'),
-    son: pick('Son'),
+    machinerie: pick('Machinerie', 'machinerie'),
+    lumiere: pick('Lumière', 'lumiere'),
+    son: pick('Son', 'son'),
   };
 }
 
