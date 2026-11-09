@@ -216,6 +216,7 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
     return Object.values(d.floorPlans).flatMap((p) => p.items.filter((i) => i.kind === 'camera').map((i) => i.label));
   });
   expect(camLabels).toEqual(['CAM A', 'CAM A']);
+  await expect(page.getByTestId('fp-shot').first().getByRole('button', { name: 'CAM A' })).toHaveCount(1);
   // Annexe technique du plan-séquence, en PDF généré par l'outil.
   await page.goto('/#/grid');
   const dl = page.waitForEvent('download', { timeout: 30_000 });

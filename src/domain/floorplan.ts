@@ -398,7 +398,7 @@ export function cameraCone(
 
 /** Caméras des plans au sol liées à un plan. */
 export function camerasForShot(doc: ProjectDoc, shotId: ID): string[] {
-  return shotCameras(doc, shotId).map((c) => c.label);
+  return [...new Set(shotCameras(doc, shotId).map((c) => c.label))];
 }
 
 /** Caméras liées à un plan du découpage, avec la vue où elles sont posées. */

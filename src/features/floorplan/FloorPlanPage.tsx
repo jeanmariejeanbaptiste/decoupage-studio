@@ -1286,6 +1286,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             <ul className={s.shotList}>
               {seq.shotIds.map((id) => {
                 const cams = shotCameras(doc, id);
+                // Plan-séquence : une même caméra posée à plusieurs temps n'a qu'une puce.
+                const same = (a: (typeof cams)[number], b: (typeof cams)[number]) => a.planKey === b.planKey && a.label === b.label;
+                const chips = cams.filter((c, k) => cams.findIndex((x) => same(x, c)) === k);
                 const sh = doc.shots[id];
                 const code = shotCode(doc, id);
                 const meta = [sh.value, formatFocal(sh.focal, isZoom(sh.movement))].filter(Boolean).join(' · ');
@@ -1313,11 +1316,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                       {meta && <small>{meta}</small>}
                     </span>
                     <span className={s.shotCams}>
-                      {cams.map((c) => (
+                      {chips.map((c) => (
                         <button
                           key={c.id}
                           type="button"
-                          className={[s.camChip, c.id === selected ? s.camChipOn : ''].join(' ')}
+                          className={[s.camChip, cams.some((x) => same(x, c) && x.id === selected) ? s.camChipOn : ''].join(' ')}
                           onClick={() => {
                             if (c.planKey !== planKey) pickView(c.planKey === seqId ? undefined : c.planKey);
                             setMulti([]);
