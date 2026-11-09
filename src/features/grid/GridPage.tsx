@@ -6,7 +6,7 @@ import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
-import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, COLUMN_DEFS, columnMenuLabel, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -58,16 +58,21 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   const createFirst = useRef<HTMLButtonElement>(null);
   // Un seul bouton Lier / Délier : « Délier » quand la sélection touche une action déjà liée.
   const sel = useUi((u) => u.selection);
-  const linked = useMemo(() => {
-    if (!sel) return false;
+  // Les caméras d'un cadre d'interview partagent l'action de la fiche : ni Lier ni Délier pour elles.
+  const selIds = useMemo(() => {
+    if (!sel) return [];
     const [a, b] = [sel.anchor.row, sel.focus.row].sort((x, y) => x - y);
-    const ids = model.rows.slice(a, b + 1).map((r) => r.shotId);
-    return ids.some((id) => {
-      const shot = doc.shots[id];
-      return shot && Object.values(doc.shots).some((o) => o.id !== id && o.actionBlockId === shot.actionBlockId);
-    });
+    return [...new Set(model.rows.slice(a, b + 1).map((r) => r.shotId))].filter((id) => doc.shots[id] && !doc.shots[id].interview);
   }, [sel, model, doc]);
-  const multi = !!sel && sel.anchor.row !== sel.focus.row;
+  const linked = useMemo(
+    () =>
+      selIds.some((id) => {
+        const shot = doc.shots[id];
+        return Object.values(doc.shots).some((o) => o.id !== id && o.actionBlockId === shot.actionBlockId);
+      }),
+    [selIds, doc],
+  );
+  const multi = selIds.length > 1;
 
   // Après la création de la première séquence, la grille prend le focus.
   const hadRows = useRef(model.rows.length > 0);
@@ -327,7 +332,7 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
           <p className={s.menuTitle}>Colonnes de la grille</p>
           {listed.map((c) => {
             const on = cols.includes(c);
-            const label = COLUMN_DEFS[c].label.charAt(0) + COLUMN_DEFS[c].label.slice(1).toLowerCase();
+            const label = columnMenuLabel(c);
             const i = shownCols.indexOf(c);
             const canUp = on && isMovableColumn(c) && i > 0 && isMovableColumn(shownCols[i - 1]);
             const canDown = on && isMovableColumn(c) && i < shownCols.length - 1 && isMovableColumn(shownCols[i + 1]);

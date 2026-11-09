@@ -290,10 +290,17 @@ export async function dropShot(shotId: ID, toSeqId: ID, toIndex: number, among =
   if (splits) notifySplit(splits);
 }
 
+/** Plans sélectionnés hors caméras d'interview (leur action commune suit la fiche, elle ne se lie ni ne se délie). */
+function linkableIds(d: ProjectDoc): ID[] {
+  return selectedShotIds().filter((id) => !d.shots[id]?.interview);
+}
+
 export function linkSelection(): void {
   const d = doc();
-  const ids = selectedShotIds();
   if (!d) return;
+  const all = selectedShotIds();
+  const ids = linkableIds(d);
+  if (all.length && !ids.length) return;
   if (ids.length < 2 || !consecutiveRun(d, ids)) {
     ui().toast({ message: 'Sélectionnez au moins deux plans consécutifs d’une même séquence.', tone: 'warn' });
     return;
@@ -303,7 +310,8 @@ export function linkSelection(): void {
 
 /** « Délier » : une action entièrement sélectionnée est déliée ; sinon seuls les plans sélectionnés s'en détachent. */
 export function unlinkSelection(): void {
-  const ids = selectedShotIds();
+  const d = doc();
+  const ids = d ? linkableIds(d) : [];
   if (ids.length === 0) return;
   mutateDoc((x) => {
     const picked = new Set(ids);

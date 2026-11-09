@@ -118,5 +118,18 @@ export function applyFormat(doc: ProjectDoc, format: ProjectFormat): void {
     if (format === 'institutionnel') doc.project.settings[key] = cols.filter((c) => c !== 'tc');
     else if (!cols.includes('tc')) doc.project.settings[key] = [...cols, 'tc'];
   }
+  // Hors institutionnel, plus de fiche d'interview à l'écran : ses plans deviennent des plans ordinaires
+  // (valeurs et action commune gardées), la fiche reste intacte en annexe.
+  // Les versions rangées suivent (sinon leurs plans redeviendraient verrouillés en y revenant).
+  if (format !== 'institutionnel') {
+    // L'image de chaque caméra, passée au storyboard du plan, revient aussi dans la fiche.
+    const cams = new Map((doc.interview?.subjects ?? []).flatMap((x) => (x.setups ?? []).flatMap((y) => y.cameras.map((c) => [c.id, c] as const))));
+    for (const sh of Object.values(doc.shots)) {
+      const cam = sh.interview && cams.get(sh.interview.cameraId);
+      if (cam && sh.storyboard?.blobKey) cam.frame = sh.storyboard.blobKey;
+    }
+    for (const shots of [doc.shots, ...(doc.versions ?? []).map((v) => v.slice?.shots ?? {})]) for (const sh of Object.values(shots)) if (sh.interview) sh.interview = undefined;
+    for (const subject of doc.interview?.subjects ?? []) for (const setup of subject.setups ?? []) if (setup.sequenceId) setup.sequenceId = undefined;
+  }
   normalizeTiming(doc);
 }

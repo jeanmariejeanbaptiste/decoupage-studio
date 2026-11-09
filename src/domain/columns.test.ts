@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { syncExportColumn } from './columns';
+import { columnMenuLabel, syncExportColumn } from './columns';
 import type { ColumnKey } from './types';
 
 describe('colonnes exportées suivant la grille', () => {
@@ -42,4 +42,10 @@ describe('format et minutage liés', () => {
     applyFormat(doc, 'fiction');
     expect(doc.project.settings.tcMode).toBe('duree');
   });
+});
+
+it('libellés des menus de colonnes : casse de phrase, sigles gardés', () => {
+  expect(columnMenuLabel('sequence')).toBe('Séquence');
+  expect(columnMenuLabel('tc')).toBe('TC MIN');
+  expect(columnMenuLabel('movement')).toBe('Mouvement de caméra');
 });

@@ -22,7 +22,8 @@ interface Props {
   id: string;
   /** Préfixe des testid (par défaut, la clé). */
   testId?: string;
-  title: string;
+  /** Titre du panneau ; absent, le panneau n'en affiche pas (le bouton dit déjà « Exporter »). */
+  title?: string;
   defaultOrientation?: Orientation;
   /** Formats en plus de PDF et Images A4 (Excel, CSV, Word…). */
   extra?: Array<{ key: string; label: string; hint: string }>;
@@ -36,8 +37,8 @@ interface Props {
   disabled?: boolean;
   onExport: (choice: ExportChoice) => void | Promise<void>;
   children?: ReactNode;
-  /** Options discrètes valables pour tous les formats. */
-  options?: ReactNode;
+  /** Options après celles des formats paginés ; une fonction les choisit selon le format. */
+  options?: ReactNode | ((format: string) => ReactNode);
   /** Choix de ce qu'on exporte (découpage, storyboard…), en tête du panneau. */
   contents?: { value: string; options: ReadonlyArray<readonly [string, string]>; onChange: (v: string) => void };
 }
@@ -153,11 +154,11 @@ export function ExportPanel({
         <div
           className={[s.panel, alignLeft ? s.left : ''].join(' ')}
           role="dialog"
-          aria-label={title}
+          aria-label={title ?? 'Exporter'}
           onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
           data-testid={`${testId}-export-panel`}
         >
-          <p className={s.title}>{title}</p>
+          {title && <p className={s.title}>{title}</p>}
           {contents && seg('content', 'Contenu', contents.options, contents.value, contents.onChange)}
           {seg(
             'fmt',
@@ -200,7 +201,7 @@ export function ExportPanel({
               {children}
             </>
           )}
-          {options}
+          {typeof options === 'function' ? options(format) : options}
           <Button
             variant="primary"
             onClick={async () => {

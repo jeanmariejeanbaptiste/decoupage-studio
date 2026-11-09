@@ -76,11 +76,11 @@ test('exports individuels par onglet', async ({ page }) => {
   await page.getByTestId('tab-export').click();
   await page.getByTestId('tab-export-panel').getByText(/^CSV/).click();
   await page.getByTestId('tab-export-go').click();
-  expect((await dl).suggestedFilename()).toBe('RAV3-characters.csv');
+  expect((await dl).suggestedFilename()).toBe('rav3-v3-characters.csv');
   await page.goto('/#/floorplan');
   const dl2 = page.waitForEvent('download');
   await page.getByTestId('floorplan-export').click();
   await page.getByTestId('floorplan-export-panel').getByText('SVG').click();
   await page.getByTestId('floorplan-export-go').click();
-  expect((await dl2).suggestedFilename()).toBe('RAV3-plans-au-sol.zip');
+  expect((await dl2).suggestedFilename()).toBe('rav3-v3-plans-au-sol.zip');
 });

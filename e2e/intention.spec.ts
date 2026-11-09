@@ -39,5 +39,5 @@ test('note d’intention : pages A4, mise en forme type Word, saut de page, annu
   const dl = page.waitForEvent('download', { timeout: 30_000 });
   await page.getByTestId('tab-export').click();
   await page.getByTestId('tab-export-go').click();
-  expect((await dl).suggestedFilename()).toBe('La Consigne-note-d-intention-A4.pdf');
+  expect((await dl).suggestedFilename()).toBe('la-consigne-v1-note-d-intention-A4.pdf');
 });

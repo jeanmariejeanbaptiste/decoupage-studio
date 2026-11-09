@@ -22,6 +22,7 @@ import s from './RegistryPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { registryDocument } from '../../domain/documents';
 import { charactersCsv, decorsCsv, sequencesCsv, shotsCsv } from '../../domain/exports';
+import { exportBase } from '../../domain/serialize';
 
 type Tab = 'sequences' | 'characters' | 'decors' | 'shots';
 const TABS: Array<{ key: Tab; label: string }> = [
@@ -91,10 +92,10 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
       <header className="page-head">
         <TabExport id="registry" orientation="landscape"
           doc={() => registryDocument(doc)}
-          fileBase={`${doc.project.title || 'projet'}-registre`}
+          fileBase={`${exportBase(doc)}-registre`}
           file={{
             label: 'CSV de l’onglet',
-            name: `${doc.project.title || 'projet'}-${tab}.csv`,
+            name: `${exportBase(doc)}-${tab}.csv`,
             content: () => ({ sequences: sequencesCsv, characters: charactersCsv, decors: decorsCsv, shots: shotsCsv })[tab](doc),
           }}
         />

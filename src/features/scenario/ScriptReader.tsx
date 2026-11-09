@@ -90,6 +90,8 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
   const blocks: ReactNode[] = [];
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i];
+    // Page de garde (« Title: », « Credit: »…) : elle a son propre éditeur, le lecteur ne la montre pas.
+    if (el.type === 'title') continue;
     if (el.type === 'character') {
       const group: ScriptElement[] = [el];
       while (elements[i + 1] && (elements[i + 1].type === 'dialogue' || elements[i + 1].type === 'parenthetical')) group.push(elements[++i]);
@@ -171,7 +173,7 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
 
   return (
     <div ref={root} className={[s.reader, className].join(' ')} data-testid="script-reader">
-      {elements.length === 0 && <p className={s.muted}>Le scénario est vide.</p>}
+      {blocks.length === 0 && <p className={s.muted}>Le scénario est vide.</p>}
       {blocks}
       {sel && (
         <button

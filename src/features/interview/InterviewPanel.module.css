@@ -22,14 +22,18 @@
 .warn { margin: 0; font-size: 12px; color: var(--ink); font-weight: 500; }
 .ghost { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
 .ghost:hover { color: var(--ink); }
-.cams { display: flex; flex-direction: column; gap: 8px; }
+.cams { display: flex; flex-direction: column; gap: 8px; container-type: inline-size; }
 .cam { display: grid; grid-template-columns: auto 1fr 1.4fr 0.8fr 28px; gap: 6px; align-items: end; }
 .cam > .frame, .cam > .films { grid-column: 2 / 5; }
-@media (max-width: 600px) {
-  .cam { grid-template-columns: 30px 1fr 76px 28px; grid-template-areas: 'n v f x' '. a a a'; }
+/* Carte étroite (trois ou deux colonnes, téléphone) : l’axe passe sur sa propre ligne. */
+@container (max-width: 520px) {
+  .cam { grid-template-columns: auto 1fr 84px 28px; grid-template-areas: 'n v f x' '. a a a'; }
   .cam > :nth-child(1) { grid-area: n; } .cam > :nth-child(2) { grid-area: v; } .cam > :nth-child(3) { grid-area: a; }
   .cam > :nth-child(4) { grid-area: f; } .cam > :nth-child(5) { grid-area: x; } .cam > .frame, .cam > .films { grid-area: auto; grid-column: 2 / -1; }
 }
+.field > .unit { position: relative; display: block; font-size: inherit; font-weight: inherit; color: inherit; }
+.unit input { padding-right: 32px; }
+.unit > span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--ink-soft); pointer-events: none; }
 .camName { align-self: center; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 999px; font-variant-numeric: tabular-nums; background: var(--ink); color: var(--paper-card); font-weight: 700; font-size: 13px; }
 .iconBtn { display: inline-flex; padding: 6px; border: 0; border-radius: 8px; background: none; color: var(--ink-soft); cursor: pointer; }
 .questions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }

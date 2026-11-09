@@ -13,6 +13,7 @@ import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { goToShot } from '../registry/RegistryPage';
 import s from './EquipmentPage.module.css';
+import { exportBase } from '../../domain/serialize';
 
 
 const LEAD: Record<string, string> = {
@@ -39,7 +40,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
     const lines = ['Poste;Matériel;Plans;Ajout manuel'];
     for (const c of equipmentCategories(doc))
       for (const l of lists[c]) lines.push([c, l.label, l.shotIds.map((id) => shotCode(doc, id)).join(' '), l.manual ? 'oui' : ''].map((v) => `"${v.replace(/"/g, '""')}"`).join(';'));
-    downloadBlob(new Blob([`\uFEFF${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8' }), `${doc.project.title || 'projet'}-materiel.csv`);
+    downloadBlob(new Blob([`\uFEFF${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8' }), `${exportBase(doc)}-materiel.csv`);
   };
 
   return (
@@ -73,7 +74,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
           >
             Poste
           </Button>
-          <TabExport id="equipment" orientation="portrait" doc={() => equipmentDocument(doc, showShots)} fileBase={`${doc.project.title || 'projet'}-materiel`} />
+          <TabExport id="equipment" orientation="portrait" doc={() => equipmentDocument(doc, showShots)} fileBase={`${exportBase(doc)}-materiel`} />
           <Button variant="ghost" icon={<Download size={15} strokeWidth={1.25} />} onClick={csv}>
             CSV
           </Button>

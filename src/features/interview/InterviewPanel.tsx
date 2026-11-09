@@ -5,10 +5,10 @@ import { ArrowDown, ArrowUp, Check, ImagePlus, Plus, Trash2, X } from 'lucide-re
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { getBlob, putBlob } from '../../store/db';
 import { newId } from '../../domain/factory';
-import { addInterviewee, addSetup, ensureInterview, moveQuestion, maxSetupNumber, placeSetup, questionsFor, setSetupNumber, setupNumber, removeInterviewee, removeSetup, setupShotIds, type Interviewee, type InterviewSetup } from '../../domain/interview';
+import { addInterviewee, addSetup, cameraFrameKey, cameraShotId, ensureInterview, moveQuestion, maxSetupNumber, nextCameraName, placeSetup, questionsFor, setCameraFrame, setSetupNumber, setupNumber, setupRef, removeInterviewee, removeSetup, setupShotIds, type Interviewee, type InterviewSetup } from '../../domain/interview';
 import { shotCode } from '../../domain/numbering';
 import { useUi } from '../../store/uiStore';
-import { fileNameFor } from '../../domain/serialize';
+import { exportBase } from '../../domain/serialize';
 import { ExportPanel } from '../export/ExportPanel';
 import { exportDocumentPages } from '../export/imageExport';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -61,12 +61,11 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   const placedSeq = placedIds.length ? doc.shots[placedIds[0]].sequenceId : undefined;
   const placedNumber = placedIds.length ? setupNumber(doc, setup.id) : undefined;
   const maxNumber = placedSeq ? maxSetupNumber(doc, setup.id, placedSeq) : 1;
-  // Un plan d'interview se nomme par son numéro dans le découpage (« Plan 1.1 ») et par son nom.
+  // Un plan d'interview se nomme par son numéro dans le découpage (« Plan 1.1 », hors découpage
+  // « ITW 1 ») et par son nom.
   const planLabel = (setupId: ID) => {
     const y = subject.setups.find((x) => x.id === setupId);
-    const ids = setupShotIds(doc, setupId);
-    // Hors découpage : « ITW 1 », « ITW 2 »… dans l'ordre des plans de l'intervenant.
-    const n = ids.length ? `Plan ${doc.project.sequenceIds.indexOf(doc.shots[ids[0]].sequenceId) + 1}.${setupNumber(doc, setupId)}` : `ITW ${subject.setups.findIndex((x) => x.id === setupId) + 1}`;
+    const n = setupRef(doc, subject, setupId);
     return y?.name && !/^Cadre \d+$/.test(y.name) ? `${n} · ${y.name}` : n;
   };
   const placedCodes = placedIds.length ? `Plan${placedIds.length > 1 ? 's' : ''} ${placedIds.map((id) => shotCode(doc, id)).join(', ')}` : '';
@@ -212,10 +211,13 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             <div className={s.cams}>
               {setup.cameras.map((c, k) => (
                 <div key={c.id} className={s.cam}>
-                  <span className={s.camName} title={`Caméra ${c.name}`}>{placedNumber !== undefined && placedSeq ? `${doc.project.sequenceIds.indexOf(placedSeq) + 1}.${placedNumber}${c.name}` : c.name}</span>
+                  <span className={s.camName} title={`Caméra ${c.name}`}>{(() => {
+                    const id = cameraShotId(doc, setup.id, c.id);
+                    return id ? shotCode(doc, id) : c.name;
+                  })()}</span>
                   <Field label="Valeur" value={c.value} onCommit={(v) => editSetup((x) => void (x.cameras[k].value = v))} readOnly={readOnly} suggest={VALUE_WORDS} />
                   <Field label="Axe" value={c.angle} onCommit={(v) => editSetup((x) => void (x.cameras[k].angle = v))} readOnly={readOnly} suggest={ANGLE_WORDS} tokens />
-                  <Field label="Focale (mm)" value={c.focal} onCommit={(v) => editSetup((x) => void (x.cameras[k].focal = v))} readOnly={readOnly} numeric suggest={FOCAL_WORDS} />
+                  <Field label="Focale" unit="mm" value={c.focal} onCommit={(v) => editSetup((x) => void (x.cameras[k].focal = v))} readOnly={readOnly} numeric suggest={FOCAL_WORDS} />
                   {!readOnly && setup.cameras.length > 1 && (
                     <button type="button" className={s.iconBtn} aria-label={`Retirer la caméra ${c.name}`} onClick={() => editSetup((x) => void x.cameras.splice(k, 1))}>
                       <X size={13} />
@@ -234,7 +236,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
                       })}
                     </div>
                   )}
-                  <CameraFrame projectId={doc.project.id} blobKey={c.frame} readOnly={readOnly} label={`Image de la caméra ${c.name}`} onChange={(key) => editSetup((x) => void (x.cameras[k].frame = key))} />
+                  <CameraFrame projectId={doc.project.id} blobKey={cameraFrameKey(doc, setup.id, c)} readOnly={readOnly} label={`Image de la caméra ${c.name}`} onChange={(key) => mutateDoc((d) => setCameraFrame(d, setup.id, c.id, key))} />
                 </div>
               ))}
             </div>
@@ -242,7 +244,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
               <button
                 type="button"
                 className={s.ghost}
-                onClick={() => editSetup((x) => void x.cameras.push({ id: newId(), name: cameraName(x.cameras.length), value: 'Large', angle: 'Face', focal: '24' }))}
+                onClick={() => editSetup((x) => void x.cameras.push({ id: newId(), name: nextCameraName(x.cameras), value: 'Large', angle: 'Face', focal: '24' }))}
               >
                 <Plus size={13} /> Caméra
               </button>
@@ -337,11 +339,6 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-/** A, B… Z, puis AA, AB… */
-function cameraName(i: number): string {
-  return (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + (i % 26));
-}
-
 /** Champ saisi d'un trait, enregistré en quittant le champ (une seule étape d'annulation). */
 function Field({
   label,
@@ -353,6 +350,7 @@ function Field({
   numeric,
   suggest,
   tokens,
+  unit,
 }: {
   label: string;
   value: string;
@@ -364,6 +362,8 @@ function Field({
   /** Suggestions du vocabulaire, comme dans le tableau ; `tokens` : complète le dernier terme d'une liste. */
   suggest?: readonly string[];
   tokens?: boolean;
+  /** Unité affichée dans le champ (« mm »). */
+  unit?: string;
 }) {
   const listId = useId();
   const [draft, setDraft] = useState(value);
@@ -386,7 +386,16 @@ function Field({
   return (
     <label className={s.field}>
       {label && <span>{label}</span>}
-      {multiline ? <textarea rows={Math.max(1, Math.ceil(draft.length / 60))} {...common} /> : <input {...common} inputMode={numeric ? 'decimal' : undefined} list={suggest && !readOnly ? listId : undefined} />}
+      {multiline ? (
+        <textarea rows={Math.max(1, Math.ceil(draft.length / 60))} {...common} />
+      ) : unit ? (
+        <span className={s.unit}>
+          <input {...common} inputMode={numeric ? 'decimal' : undefined} list={suggest && !readOnly ? listId : undefined} />
+          <span aria-hidden>{unit}</span>
+        </span>
+      ) : (
+        <input {...common} inputMode={numeric ? 'decimal' : undefined} list={suggest && !readOnly ? listId : undefined} />
+      )}
       {suggest && !readOnly && (
         <datalist id={listId}>
           {(() => {
@@ -406,7 +415,7 @@ const orientationOf = (doc: ProjectDoc) => doc.project.settings.exportPrefs?.int
 
 /** Export de la fiche d'interview (annexe du découpage) : PDF ou images, en paysage ou en portrait. */
 export function InterviewExport({ doc }: { doc: ProjectDoc }) {
-  const base = fileNameFor(doc).replace(/\.decoupage$/, '');
+  const base = exportBase(doc);
   return (
     <ExportPanel
       doc={doc}

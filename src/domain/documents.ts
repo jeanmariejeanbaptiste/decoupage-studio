@@ -18,7 +18,7 @@ import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
 import type { ProjectDoc } from './types';
 import { isZoom, valueRank } from './vocabulary';
-import { questionsFor, setupShotIds, type InterviewQuestion } from './interview';
+import { cameraFrameKey, questionsFor, setupRef, setupShotIds, type InterviewQuestion } from './interview';
 
 export const esc = (s: string | number | undefined | null) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -370,8 +370,8 @@ export function interviewDocument(doc: ProjectDoc, orientation: 'portrait' | 'la
           const where = placed.length ? `${sequenceHeading(doc, doc.shots[placed[0]].sequenceId)} · plan${placed.length > 1 ? 's' : ''} ${placed.map((id) => shotCode(doc, id)).join(', ')}` : '';
           const cams = st.cameras.map((c) => `<tr><td class="code">Caméra ${esc(c.name)}</td><td>${esc(c.value)}</td><td>${esc(c.angle)}</td><td>${esc(c.focal ? `${c.focal} mm` : '')}</td><td>${esc(c.note ?? '')}</td></tr>`).join('');
           // Storyboard du cadre : une image par caméra, sous le dispositif.
-          const frames = st.cameras.filter((c) => c.frame);
-          const board = frames.length ? `<div class="itw-frames">${frames.map((c) => `<figure><img data-blob="${esc(c.frame!)}" alt=""><figcaption>${esc(c.name)} · ${esc(c.value)}</figcaption></figure>`).join('')}</div>` : '';
+          const frames = st.cameras.map((c) => ({ c, key: cameraFrameKey(doc, st.id, c) })).filter((f) => f.key);
+          const board = frames.length ? `<div class="itw-frames">${frames.map(({ c, key }) => `<figure><img data-blob="${esc(key!)}" alt=""><figcaption>${esc(c.name)} · ${esc(c.value)}</figcaption></figure>`).join('')}</div>` : '';
           const setupHtml = `<table><thead><tr><th>Caméra</th><th>Valeur</th><th>Axe</th><th>Focale</th><th>Note</th></tr></thead><tbody>${cams}</tbody></table>
 <p>${esc(EYELINE[st.eyeline] ?? '')}</p>
 <div class="grid">
@@ -381,10 +381,12 @@ export function interviewDocument(doc: ProjectDoc, orientation: 'portrait' | 'la
 <div><h3>Son</h3><p>${esc(st.sound) || '—'}</p></div>
 </div>${board}`;
           const qs = qRows(itw ? questionsFor(itw, s.id, st.id) : []);
-          const title = `<h3>${esc(st.name)}${where ? ` <span class="muted" style="font-weight:400">— ${esc(where)}</span>` : ''}</h3>`;
+          // Même repère que la fiche à l'écran : le nom du cadre, sinon « Plan 2.9 » ou « ITW 1 ».
+          const name = st.name.trim() || setupRef(doc, s, st.id);
+          const title = `<h3>${esc(name)}${where ? ` <span class="muted" style="font-weight:400">— ${esc(where)}</span>` : ''}</h3>`;
           return landscape
             ? `${title}<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:0 9mm;align-items:start"><div>${setupHtml}</div><div>${qs}</div></div>`
-            : `${title}${setupHtml}<h3>Questions · ${esc(st.name)}</h3>${qs}`;
+            : `${title}${setupHtml}<h3>Questions · ${esc(name)}</h3>${qs}`;
         })
         .join('');
       return `<section class="plan">

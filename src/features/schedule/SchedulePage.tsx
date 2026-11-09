@@ -18,6 +18,7 @@ import s from './SchedulePage.module.css';
 import { TabExport } from '../export/TabExport';
 import { scheduleCsv } from '../../domain/exports';
 import { scheduleDocument } from '../../domain/documents';
+import { exportBase } from '../../domain/serialize';
 
 const TONE: Record<StripTone, string> = {
   'int-day': s.tIntDay,
@@ -71,7 +72,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
     <div className="page page--wide">
       <header className="page-head">
         <div className={s.toolbar}>
-          <TabExport id="schedule" orientation="portrait" doc={() => scheduleDocument(doc)} fileBase={`${doc.project.title || 'projet'}-plan-de-travail`} file={{ label: 'CSV', name: `${doc.project.title || 'projet'}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
+          <TabExport id="schedule" orientation="portrait" doc={() => scheduleDocument(doc)} fileBase={`${exportBase(doc)}-plan-de-travail`} file={{ label: 'CSV', name: `${exportBase(doc)}-plan-de-travail.csv`, content: () => scheduleCsv(doc) }} />
           <label className={s.cap} data-edit>
             <span>plans / jour</span>
             <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value) || 1))} aria-label="Plans par jour au maximum" />

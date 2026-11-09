@@ -39,6 +39,16 @@ export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
  * Colonnes retirées du découpage : Personnages et Durée doublonnent Sujet et TC ; Lumière et
  * Machinerie n'ont pas leur place dans un découpage technique. Les données restent dans le projet.
  */
+/** Libellé d'une colonne dans les menus : « SÉQUENCE » → « Séquence », mais « TC MIN » reste tel quel. */
+export function columnMenuLabel(c: ColumnKey): string {
+  const l = COLUMN_DEFS[c].label;
+  if (l !== l.toUpperCase()) return l;
+  return l
+    .split(' ')
+    .map((w, i) => (w.length <= 3 ? w : (i ? w.charAt(0).toLowerCase() : w.charAt(0)) + w.slice(1).toLowerCase()))
+    .join(' ');
+}
+
 export const RETIRED_COLUMNS: readonly ColumnKey[] = ['characters', 'light', 'grip', 'shotDuration'];
 
 /** Retire les colonnes abandonnées d'une liste enregistrée. */
