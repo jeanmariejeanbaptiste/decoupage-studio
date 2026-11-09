@@ -32,7 +32,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const cats = equipmentCategories(doc);
   // Poste retiré entre-temps (ici ou par un autre participant) : retour à tous les postes.
   const only = picked && cats.includes(picked) ? picked : null;
-  const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => shotCode(doc, id).includes(q)));
+  const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => fold(shotCode(doc, id)).includes(q)));
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
 
   const csv = () => {
