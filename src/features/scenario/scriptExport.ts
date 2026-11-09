@@ -152,7 +152,7 @@ const STYLE_ID: Partial<Record<BlockType, string>> = {
   transition: 'Transition',
   centered: 'Centre',
 };
-const STYLE_NAME: Record<string, string> = { Sequence: 'Séquence', Action: 'Action', Personnage: 'Personnage', Didascalie: 'Didascalie', Replique: 'Réplique', Transition: 'Transition', Centre: 'Centré', Titre: 'Page de titre' };
+const STYLE_NAME: Record<string, string> = { Sequence: 'Séquence', Action: 'Action', Personnage: 'Personnage', Didascalie: 'Didascalie', Replique: 'Réplique', Transition: 'Transition', Centre: 'Centré', Titre: 'Page de garde' };
 
 function styleXml(id: string, t: BlockType | 'titre'): string {
   const { cw, right, lineH } = SCRIPT_PAGE;

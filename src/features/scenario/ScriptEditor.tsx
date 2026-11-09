@@ -362,23 +362,11 @@ const Block = memo(function Block({ b, mt, n, reg }: { b: SBlock; mt?: number; n
   return <div ref={setRef} data-bid={b.id} data-type={b.type} data-n={n} data-empty={isEmptyBlock(b) || undefined} className={[s.b, s[`t_${b.type}`]].join(' ')} style={mt === undefined ? undefined : { marginTop: mt }} />;
 });
 
-/** Page de titre : celle de l'export, ligne pour ligne ; non modifiable dans le texte (un clic ouvre ses champs). */
-const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit, reg }: { b: SBlock; mt?: number; paged: boolean; onEdit?: () => void; reg: Register }) {
-  const setRef = useCallback((el: HTMLDivElement | null) => reg(b.id, el), [b.id, reg]);
-  const f = parseTitlePage(b.text);
-  const lines = titlePageLines({ ...f, Title: f.Title || 'Sans titre' }, false);
+/** Lignes de la page de garde, à leur rang (celles de l'export : `titlePageLines`). */
+function TitleLines({ fields, paged }: { fields: Record<string, string>; paged: boolean }) {
+  const lines = titlePageLines({ ...fields, Title: fields.Title || 'Sans titre' }, false);
   return (
-    <div
-      ref={setRef}
-      data-bid={b.id}
-      data-type="title"
-      contentEditable={false}
-      className={[s.b, s.t_title, onEdit ? s.titleEditable : ''].join(' ')}
-      style={{ marginTop: mt, height: paged ? SCRIPT_PAGE.lines * LINE : undefined }}
-      onClick={onEdit}
-      title={onEdit ? 'Modifier la page de titre' : undefined}
-      data-testid="title-page"
-    >
+    <>
       {lines.map((l, i) => (
         <span
           key={i}
@@ -388,9 +376,33 @@ const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit, reg }: { b: 
           {plainText(l.text)}
         </span>
       ))}
+    </>
+  );
+}
+
+/** Page de garde : celle de l'export, ligne pour ligne ; non modifiable dans le texte (un clic ouvre ses champs). */
+const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit, reg }: { b: SBlock; mt?: number; paged: boolean; onEdit?: () => void; reg: Register }) {
+  const setRef = useCallback((el: HTMLDivElement | null) => reg(b.id, el), [b.id, reg]);
+  const f = parseTitlePage(b.text);
+  return (
+    <div
+      ref={setRef}
+      data-bid={b.id}
+      data-type="title"
+      contentEditable={false}
+      className={[s.b, s.t_title, onEdit ? s.titleEditable : ''].join(' ')}
+      style={{ marginTop: mt, height: paged ? SCRIPT_PAGE.lines * LINE : undefined }}
+      onClick={onEdit}
+      title={onEdit ? 'Modifier la page de garde' : undefined}
+      data-testid="title-page"
+    >
+      <TitleLines fields={f} paged={paged} />
     </div>
   );
 });
+
+/** Largeur de l'aperçu de la page de garde (colonne du dialogue). */
+const TITLE_PREVIEW_W = 260;
 
 function TitleDialog({ initial, onSave, onClose }: { initial: Record<string, string>; onSave: (f: Record<string, string>) => void; onClose: () => void }) {
   const [f, setF] = useState<Record<string, string>>(() => Object.fromEntries(TITLE_FIELDS.map(([k]) => [k, initial[k] ?? ''])));
@@ -426,16 +438,22 @@ function TitleDialog({ initial, onSave, onClose }: { initial: Record<string, str
               </label>
             ))}
           </div>
-          {/* La page telle qu'à l'impression : titre et crédits au centre, contact en bas à gauche, date en bas à droite. */}
-          <div className={s.tdSheet} aria-hidden="true">
-            <div className={s.tdCenter}>
-              <p className={s.tdTitle}>{(f.Title || 'Sans titre').toLocaleUpperCase('fr')}</p>
-              {f.Credit && <p>{f.Credit}</p>}
-              {f.Author && <p>{f.Author}</p>}
-              {f.Source && <p>{f.Source}</p>}
+          {/* La page telle qu'à l'impression : les mêmes lignes que la page de garde du texte, réduites. */}
+          <div className={s.tdSheet} aria-hidden="true" data-testid="title-preview">
+            <div
+              className={s.tdPage}
+              style={{
+                ['--pt' as string]: `${PT}px`,
+                width: PAGE.w,
+                height: PAGE.h,
+                padding: `${PAGE.top}px ${PAGE.right}px 0 ${PAGE.left}px`,
+                transform: `scale(${TITLE_PREVIEW_W / PAGE.w})`,
+              }}
+            >
+              <div className={s.t_title} style={{ height: SCRIPT_PAGE.lines * LINE }}>
+                <TitleLines fields={f} paged />
+              </div>
             </div>
-            <p className={s.tdContact}>{f.Contact}</p>
-            <p className={s.tdDate}>{f['Draft date']}</p>
           </div>
         </div>
         <div className={m.actions}>
