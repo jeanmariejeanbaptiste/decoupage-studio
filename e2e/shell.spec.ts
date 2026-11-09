@@ -96,6 +96,31 @@ test('paramètres : rien n’est appliqué avant « Enregistrer », « Annuler �
   expect(await doc()).toBe('{seq}{letter}');
 });
 
+test('paramètres : un brouillon de minutage cède au format changé dans le menu du projet ; Annuler remet la durée de la piste', async ({ page }) => {
+  await page.goto('/#/settings?seed=fiction&section=minutage');
+  const settings = () => page.evaluate(() => {
+    const d = (window as unknown as { __ds: { doc: () => { project: { format: string; settings: { tcMode: string } } } } }).__ds.doc();
+    return [d.project.format, d.project.settings.tcMode];
+  });
+  const mode = page.getByRole('radiogroup', { name: 'Mode de TC' });
+  await mode.getByText('Cumulatif').click();
+  await mode.getByText('Durée de chaque plan').click();
+  await page.getByTestId('project-menu').click();
+  await page.getByTestId('project-panel').getByText('Clip', { exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings-save')).toBeDisabled();
+  await page.getByRole('button', { name: /Découpage technique/ }).click();
+  await expect(page.getByTestId('track-bar')).toBeVisible();
+  expect(await settings()).toEqual(['clip', 'piste']);
+
+  await page.goto('/#/settings?seed=rav3&section=minutage');
+  const track = page.getByLabel('Durée de la piste');
+  const before = await track.inputValue();
+  await track.fill('9:59');
+  await page.getByTestId('settings-cancel').click();
+  await expect(track).toHaveValue(before);
+});
+
 test('états vides et lien d’évitement', async ({ page }) => {
   await page.goto('/#/');
   await expect(page.getByText('Aucun projet pour l’instant')).toBeVisible();
