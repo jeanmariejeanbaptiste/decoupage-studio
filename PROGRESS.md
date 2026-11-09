@@ -264,3 +264,11 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Thème sombre : contrôles natifs sombres (`color-scheme`).
 - Tests : 368 tests unitaires, 94 parcours de bout en bout (Chromium).
 - Suite possible : réordonner les séquences dans un jour, horaire par plan, lieu de tournage commun à plusieurs décors.
+
+## Version 2.8.0 — 2026-11-09 (versions, relecture, dépouillement)
+- Versions du film communes au scénario et au découpage (sélecteur dans les deux pages) : une nouvelle version copie la courante avec les mêmes identifiants ; ce qui reste garde plans, dépouillement, plans au sol, jours de tournage ; rien n'est effacé tant qu'une autre version s'en sert. Les autres pages suivent la version courante.
+- Nouveau texte importé (nouvelle version ou remplacement) : chaque scène retrouve sa séquence (similarité lieu / texte / personnages, alignement dans l'ordre puis scènes déplacées) ; scènes neuves insérées à leur place si le découpage suivait le scénario ; scènes retirées gardées au découpage ; numéros d'en-tête ignorés ; marques de révision (*) dans le sommaire et le dépouillement.
+- Relecture : partage « Commenter » ; l'invité commente un passage du scénario ou une cellule / séquence de l'aperçu du découpage ; l'auteur lit, répond, règle ou retire depuis le menu des versions (compteur discret).
+- Dépouillement : vue « Scénario entier » avec la liste du film, rapports (éléments et séquences, PDF), numéros du scénario partout ; page de garde reconnue par indices ; filigrane Fade In retiré.
+- Divers : glisser des plans en liste triable, Entrée sans transformer une ligne en personnage, page d'erreur qui rouvre le projet, session Google gardée.
+- Tests : 387 unitaires, 101 parcours de bout en bout.

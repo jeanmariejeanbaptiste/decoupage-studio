@@ -28,12 +28,14 @@ Vite 5 + React 18 + TypeScript strict · Zustand + immer + zundo · Dexie (Index
 - Ne pas appliquer bêtement une demande : penser aux interdépendances (format ↔ minutage ↔ colonnes ↔ modèles ↔ exports), être force de proposition, s'auto-relire et corriger avant de livrer.
 - Publier = pousser sur `main` (GitHub Pages). Tester avant (tsc, lint, vitest, e2e concernés). Les tags git ne passent pas (403), c'est accepté.
 
-## Architecture récente (v2.7.0)
+## Architecture récente (v2.8.0)
 - Coquille : `features/shell` (Topbar + ProjectMenu, Sidebar groupée et réductible, SettingsPage en brouillon, Account pour Google).
 - Scénario : `domain/screenplay.ts` (blocs typés ↔ Fountain, « @ » seul = réplique sans personnage), `domain/scriptLayout.ts` (gabarit du modèle KIT : Courier Prime, 58 lignes, pagination ; sert l'éditeur et tous les exports, tests ligne à ligne sur `src/domain/__fixtures__/kit`), `domain/fdx.ts` (Final Draft), `features/scenario/ScriptEditor.tsx` (pages de l'export à l'écran, lignes de 16 px), `scriptExport.ts` (PDF texte pdf-lib, images, .docx). `ScriptReader` reste le lecteur du panneau du découpage.
 - Note d'intention : `domain/richText.ts` (HTML réduit et nettoyé), `features/intention/RichEditor.tsx` (pages A4, ruban, barre d'état, annulation propre), `noteExport.ts` ; `intentionHtml` + `intention` (texte brut tenu à jour).
 - Minutage du scénario : `domain/chronometry.ts` (pages / caractères / type, réglage `scriptChrono`) ; marques d'emphase et surlignage `[[=couleur]]` dans `scriptLayout.ts`, jamais imprimés.
 - Production : `domain/schedule.ts` (jours, bandes, bandeaux, cascade), `domain/registry.ts` (numéros, 1er jour), `domain/locations.ts` (lieux de tournage).
+- Versions du film (V1, V2…) : `domain/versions.ts` (la courante vit dans le doc ; les autres figées dans `doc.versions[].slice` : scénario, séquences, plans, actions ; même identifiants, la préparation est commune), `domain/sceneAlign.ts` (rapprochement des scènes : lieu, texte en triplets, personnages, ordre), `domain/revision.ts` (nouveau texte → découpage suivi), `features/versions` (sélecteur dans Scénario et Découpage, marques de révision). Ne jamais effacer la préparation d'une séquence ou d'un plan qu'une autre version garde (`keptElsewhere` dans ops).
+- Relecture : `domain/comments.ts` (commentaires par version, ancres scénario / cellule / séquence), `features/comments` (bulle, fenêtre ouverte depuis le menu des versions, marques de l'aperçu) ; partage en mode « Commenter » (`store/share.ts`, seuls les commentaires passent).
 - Dépouillement : `domain/tagging.ts` + `features/breakdown/SceneText.tsx`.
 - Découpage : `GridPage` porte les vues Tableau / Storyboard et la bascule Aperçu (tableau ou planches) ; `grid/CutExport.tsx` = export unique.
 - Plan au sol : `domain/floorSymbols.ts` (projecteur, caméra, rails : mêmes tracés écran / export), `features/floorplan/icons.tsx`.

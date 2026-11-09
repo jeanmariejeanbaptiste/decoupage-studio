@@ -5,6 +5,8 @@ import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
+import { CommentPopover } from '../features/comments/CommentPopover';
+import { CommentsPanel } from '../features/comments/CommentsPanel';
 import { runChecks } from '../domain/lint';
 import { computeTiming } from '../domain/timing';
 import { buildFiction } from '../../seed/fiction';
@@ -235,6 +237,8 @@ export function App() {
         {doc && !readOnly && route !== 'home' && <AssistantPanel />}
       </div>
       <Toasts />
+      <CommentPopover />
+      <CommentsPanel />
       <DialogHost />
       <ContextMenuHost />
       <CommandPalette />

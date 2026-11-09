@@ -1,7 +1,9 @@
-import { useReadOnly } from '../../store/share';
+import { useCanComment, useReadOnly, useShare } from '../../store/share';
+import { commentsOf } from '../../domain/comments';
+import { clearFocus, openComment, useCommentsUi } from '../comments/commentsUi';
 import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Highlighter, Italic, Underline } from 'lucide-react';
+import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Highlighter, Italic, MessageSquarePlus, Underline } from 'lucide-react';
 import { HIGHLIGHTS, type HighlightColor } from '../../domain/scriptLayout';
 import { chronoAt, chronoOf, mmss, type ScriptChrono } from '../../domain/chronometry';
 import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
@@ -67,6 +69,37 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const activeType = useScriptUi((u) => u.activeType);
   const selection = useScriptUi((u) => u.selection);
   const toast = useUi((u) => u.toast);
+
+  // Relecture : passages commentés de la version courante (ouverts), et la bulle à ouvrir.
+  // Le bouton « Commenter » est pour les relecteurs invités ; l'auteur répond depuis les passages marqués.
+  const mayComment = useCanComment();
+  const isGuest = useShare((st) => st.role === 'guest');
+  const canComment = mayComment && isGuest;
+  const scriptComments = useMemo(
+    () => commentsOf(doc).flatMap((c) => (c.anchor.kind === 'script' && !c.resolved ? [{ id: c.id, start: c.anchor.start, end: c.anchor.end }] : [])),
+    [doc],
+  );
+  const openScriptComment = (id: string, rect: DOMRect) => {
+    const c = doc.comments?.find((x) => x.id === id);
+    if (c) openComment(c.anchor, rect.left, rect.bottom);
+  };
+  const focus = useCommentsUi((u) => u.focus);
+  useEffect(() => {
+    if (focus?.kind !== 'script') return;
+    const t = setTimeout(() => {
+      const rect = api.current?.revealSource(focus.start, focus.end);
+      clearFocus();
+      if (rect) openComment(focus, rect.left, rect.bottom);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [focus]);
+  const commentSelection = () => {
+    const sel = useScriptUi.getState().selection;
+    const src = useProjectStore.getState().doc?.scenario ?? '';
+    if (!sel) return;
+    const rect = api.current?.selectionRect();
+    openComment({ kind: 'script', start: sel.start, end: sel.end, quote: src.slice(sel.start, sel.end).replace(/\s+/g, ' ').trim() }, rect?.left ?? 200, rect?.bottom ?? 200);
+  };
 
   // Passages déjà liés au découpage : surlignés dans le texte.
   const anchors = useMemo(
@@ -205,6 +238,20 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               </Button>
             </>
           )}
+          {canComment && view === 'script' && (
+            <Button
+              icon={<MessageSquarePlus size={15} strokeWidth={1.25} />}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={commentSelection}
+              disabled={!selection}
+              title="Commenter le passage sélectionné"
+              data-comment-trigger
+              data-view
+              data-testid="comment-selection"
+            >
+              Commenter
+            </Button>
+          )}
           <div className={s.seg} role="radiogroup" aria-label="Affichage du scénario">
             {(
               [
@@ -275,6 +322,8 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
                 onCaretAnchor={setCaretAnchor}
                 apiRef={api}
                 paged={!phone}
+                comments={scriptComments}
+                onComment={openScriptComment}
               />
               </div>
             </div>
@@ -366,7 +415,7 @@ function Outline({ doc, onPick }: { doc: ProjectDoc; onPick: (id: string) => voi
       <ol className={s.outline} data-testid="scenario-outline">
         {outline.map((o, i) => (
           <li key={o.id}>
-            <button type="button" className={o.id === active ? s.current : ''} aria-current={o.id === active || undefined} onClick={() => onPick(o.id)}>
+            <button type="button" className={o.id === active ? s.current : ''} aria-current={o.id === active || undefined} onClick={() => onPick(o.id)} data-view>
               <span className={s.n}>
                 {marks?.get(i) && (
                   <i className={s.rev} title={marks.get(i) === 'new' ? `Nouvelle depuis ${from}` : `Modifiée depuis ${from}`} data-testid="revision-mark">

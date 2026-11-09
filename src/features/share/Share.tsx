@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Eye, PenLine, QrCode, Users, X } from 'lucide-react';
+import { Check, Copy, Eye, MessageSquare, PenLine, QrCode, Users, X } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { joinSession, kickGuest, leaveSession, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';
 import { useDoc } from '../../store/projectStore';
@@ -12,13 +12,17 @@ const copy = async (text: string) => {
   await navigator.clipboard.writeText(text).catch(() => undefined);
 };
 
-/** Choix « modifier / lire seulement ». */
+/** Choix « modifier / relire (commenter) / lire seulement ». */
 function ModeSwitch({ name, value, onChange }: { name: string; value: ShareMode; onChange: (m: ShareMode) => void }) {
   return (
     <div className={s.seg} role="radiogroup" aria-label="Les invités peuvent">
       <label className={value === 'edit' ? s.on : ''}>
         <input type="radio" name={name} checked={value === 'edit'} onChange={() => onChange('edit')} />
         <PenLine size={14} strokeWidth={1.25} /> Modifier
+      </label>
+      <label className={value === 'review' ? s.on : ''}>
+        <input type="radio" name={name} checked={value === 'review'} onChange={() => onChange('review')} />
+        <MessageSquare size={14} strokeWidth={1.25} /> Commenter
       </label>
       <label className={value === 'read' ? s.on : ''}>
         <input type="radio" name={name} checked={value === 'read'} onChange={() => onChange('read')} />
@@ -227,7 +231,7 @@ export function GuestBanner() {
   return (
     <div className={s.banner} role="status" data-testid="guest-banner">
       <span>
-        Projet partagé par <b>{st.hostName}</b> · {st.mode === 'read' ? 'lecture seule' : 'modification'}
+        Projet partagé par <b>{st.hostName}</b> · {st.mode === 'read' ? 'lecture seule' : st.mode === 'review' ? 'relecture' : 'modification'}
         {st.guests.length > 1 ? ` · ${st.guests.length} personnes connectées` : ''}
         {st.keep ? '' : ' · rien n’est enregistré sur cet ordinateur'}
       </span>

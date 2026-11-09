@@ -293,6 +293,8 @@ export interface ProjectDoc {
   /** Versions du film (V1, V2…), voir `versions.ts` ; la courante vit dans le projet lui-même. */
   versions?: import('./versions').ProjectVersion[];
   activeVersionId?: ID;
+  /** Commentaires de relecture (scénario, découpage), par version (`comments.ts`). */
+  comments?: import('./comments').ReviewComment[];
 }
 
 export const SCHEMA_VERSION = 1;

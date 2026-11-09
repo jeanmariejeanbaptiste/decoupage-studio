@@ -158,6 +158,8 @@ export interface ScriptEditorApi {
   selectionRect: () => DOMRect | null;
   /** Ouvre la page de titre (créée si besoin). */
   editTitle: () => void;
+  /** Montre un passage (positions dans la source) et renvoie sa place à l'écran. */
+  revealSource: (start: number, end: number) => DOMRect | null;
   /** Gras (« ** »), italique (« * ») ou souligné (« _ ») sur la sélection, ou le mot sous le curseur. */
   emphasis: (mark: '**' | '*' | '_') => void;
   /** Surlignage de révision de la sélection (ou du mot) ; `undefined` le retire. */
@@ -475,11 +477,14 @@ interface Props {
   onCaretAnchor?: (id: ID | null) => void;
   apiRef?: React.MutableRefObject<ScriptEditorApi | null>;
   paged?: boolean;
+  /** Passages commentés (relecture) ; un clic dessus ouvre leur bulle. */
+  comments?: ReadonlyArray<{ id: ID; start: number; end: number }>;
+  onComment?: (id: ID, rect: DOMRect) => void;
 }
 
 type Snapshot = { doc: ScriptDoc; caret: Caret | null };
 
-export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAnchor, apiRef, paged = true }: Props) {
+export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAnchor, apiRef, paged = true, comments, onComment }: Props) {
   const external = doc.scenario ?? '';
   const [sdoc, setSdoc] = useState<ScriptDoc>(() => withOneBlock(blocksFromSource(external)));
   const sdocRef = useRef(sdoc);
@@ -893,11 +898,28 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const hotRanges = anchors.filter((a) => a.id === hot).map(toRange).filter((r): r is Range => !!r);
     reg.set('ds-linked', new HighlightCtor(...all));
     reg.set('ds-linked-hot', new HighlightCtor(...hotRanges));
+    reg.set('ds-comment', new HighlightCtor(...(comments ?? []).map((c) => toRange({ start: c.start, end: Math.max(c.end, c.start + 1) })).filter((r): r is Range => !!r)));
     return () => {
       reg.delete('ds-linked');
       reg.delete('ds-linked-hot');
+      reg.delete('ds-comment');
     };
-  }, [anchors, hot, ser, sdoc.blocks, layout]);
+  }, [anchors, hot, ser, sdoc.blocks, layout, comments]);
+
+  // Clic sur un passage commenté (sans sélection) : sa bulle s'ouvre.
+  const onCommentClick = () => {
+    const el = root.current;
+    if (!el || !comments?.length || !onComment) return;
+    const sel = readSelection(el);
+    if (!sel || !sel.collapsed) return;
+    const pos = caretToSource(sdocRef.current.blocks, serRef.current.spans, sel.start);
+    if (pos === null) return;
+    const hit = comments.find((c) => pos >= c.start && pos <= Math.max(c.end, c.start + 1));
+    if (!hit) return;
+    const sl = window.getSelection();
+    const rect = sl?.rangeCount ? sl.getRangeAt(0).getBoundingClientRect() : el.getBoundingClientRect();
+    onComment(hit.id, rect);
+  };
 
   // --- API pour la barre d'outils ---
   useEffect(() => {
@@ -917,6 +939,15 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         return sl && sl.rangeCount ? sl.getRangeAt(0).getBoundingClientRect() : null;
       },
       editTitle: () => !readOnly && setTitleOpen(true),
+      revealSource: (start, end) => {
+        const el = root.current;
+        const x = sourceToCaret(sdocRef.current.blocks, serRef.current.spans, start);
+        const y = sourceToCaret(sdocRef.current.blocks, serRef.current.spans, Math.max(start, end));
+        const r = el && x && y ? domRange(el, x, y) : null;
+        if (!r) return null;
+        (r.startContainer.parentElement ?? el)?.scrollIntoView({ block: 'center' });
+        return r.getBoundingClientRect();
+      },
       emphasis: (mark) => toggleEmphasis(mark),
       highlight: (color) => applyHighlight(color),
     };
@@ -1056,6 +1087,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         onCut={(e) => onCopy(e, true)}
         onBlur={flush}
         onDrop={(e) => e.preventDefault()}
+        onMouseUp={onCommentClick}
       >
         {sdoc.blocks.map((b) =>
           b.type === 'title' ? (

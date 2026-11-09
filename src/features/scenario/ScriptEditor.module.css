@@ -127,6 +127,9 @@
 /* Passages liés au découpage, surlignés sans modifier le texte. */
 :global(::highlight(ds-linked)) { background-color: rgba(17, 19, 24, 0.07); }
 :global(::highlight(ds-linked-hot)) { background-color: rgba(17, 19, 24, 0.18); }
+/* Passages commentés (relecture) : soulignés d'un trait plein, sans couleur. */
+:global(::highlight(ds-comment)) { text-decoration: underline 2px; text-decoration-color: rgba(17, 19, 24, 0.7); text-underline-offset: 3px; background-color: rgba(17, 19, 24, 0.05); }
+:global(:root[data-theme='encre'] ::highlight(ds-comment)) { text-decoration-color: rgba(242, 243, 245, 0.75); background-color: rgba(242, 243, 245, 0.06); }
 :global(:root[data-theme='encre'] ::highlight(ds-linked)) { background-color: rgba(242, 243, 245, 0.1); }
 :global(:root[data-theme='encre'] ::highlight(ds-linked-hot)) { background-color: rgba(242, 243, 245, 0.24); }
 

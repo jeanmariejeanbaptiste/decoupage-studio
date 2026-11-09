@@ -8,6 +8,7 @@ import { blockSeconds, chronoOf, stripMarks, type ScriptChrono } from './chronom
 import { NOT_PRINTED } from './scriptLayout';
 import { fold } from './text';
 import type { ProjectDoc } from './types';
+import { shiftCommentAnchors } from './comments';
 
 const upper = (s: string) => s.toLocaleUpperCase('fr');
 /** Nom d'un personnage tel qu'au-dessus de sa réplique, sans extension « (OFF) » ni « ^ ». */
@@ -235,6 +236,7 @@ function shiftAnchors(doc: ProjectDoc, shift: (p: number) => number): void {
     const a = o.scenarioAnchor;
     if (a) o.scenarioAnchor = { start: shift(a.start), end: shift(a.end) };
   }
+  shiftCommentAnchors(doc, (p) => shift(p));
 }
 
 /** Renomme un personnage partout : scénario (répliques et mentions), fiche, plans et actions du découpage. */

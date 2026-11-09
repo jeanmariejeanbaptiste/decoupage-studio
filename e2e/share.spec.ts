@@ -123,3 +123,74 @@ test('QR code du partage en plein écran : lien et mot de passe en grand, Échap
   await expect(screen).toHaveCount(0);
   await host.getByTestId('share-stop').click();
 });
+
+test('relecture : l’invité commente le découpage et le scénario ; l’auteur lit, répond et retire depuis le menu des versions', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const host = await participant(browser);
+  await host.goto('/#/grid?seed=fiction');
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-panel').getByText('Commenter').click();
+  await host.getByTestId('share-start').click();
+  const link = await host.getByTestId('share-link').textContent();
+  const password = await host.getByTestId('share-password').textContent();
+  await host.getByTestId('share-button').click();
+  await expect(host.getByTestId('share-panel')).toHaveCount(0);
+
+  const guest = await participant(browser);
+  await guest.goto(link!);
+  await guest.getByLabel('Votre nom').fill('Nina');
+  await guest.getByLabel('Mot de passe').fill(password!);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('guest-banner')).toContainText('relecture');
+  // Le découpage en aperçu ; un clic sur une cellule ouvre la bulle.
+  await guest.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await guest.getByTestId('comment-text').fill('Plutôt un plan large ici ?');
+  await guest.getByTestId('comment-send').click();
+  await expect(guest.getByTestId('comment-popover').getByTestId('comment')).toContainText('Plutôt un plan large');
+  await guest.keyboard.press('Escape');
+  await expect(guest.locator('td[data-commented]')).toHaveCount(1);
+  // Scénario : un mot sélectionné, commenté.
+  await guest.getByRole('button', { name: /^Scénario$/ }).first().click();
+  await guest.evaluate(() => {
+    // Sélection du mot « valise » dans le texte (comme à la souris).
+    const ed = document.querySelector('[data-testid="script-editor"]')!;
+    const walker = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const i = n.textContent!.indexOf('valise');
+      if (i < 0) continue;
+      const r = document.createRange();
+      r.setStart(n, i);
+      r.setEnd(n, i + 'valise'.length);
+      const sl = window.getSelection()!;
+      sl.removeAllRanges();
+      sl.addRange(r);
+      return;
+    }
+  });
+  await guest.getByTestId('comment-selection').click();
+  await guest.getByTestId('comment-text').fill('Quelle valise ? On la voit avant ?');
+  await guest.getByTestId('comment-send').click();
+  await expect(guest.getByTestId('comment-popover')).toContainText('Quelle valise');
+
+  // L'auteur : le menu des versions compte les commentaires ; la fenêtre les liste.
+  await host.getByTestId('version-switcher').click();
+  await expect(host.getByTestId('version-comments')).toContainText('2');
+  await host.getByTestId('version-comments').click();
+  const panel = host.getByTestId('comments-panel');
+  await expect(panel.getByTestId('comment')).toHaveCount(2);
+  await expect(panel).toContainText('Nina');
+  await panel.getByTestId('comment').filter({ hasText: 'plan large' }).getByTestId('comment-reply').fill('Oui, on change.');
+  await host.keyboard.press('Enter');
+  // La réponse arrive chez l'invité (bulle du découpage).
+  await guest.getByRole('button', { name: /Découpage technique/ }).click();
+  await guest.locator('td[data-commented]').first().click();
+  await expect(guest.getByTestId('comment-popover')).toContainText('Oui, on change.');
+  await guest.keyboard.press('Escape');
+  // L'auteur retire le commentaire : la marque disparaît chez l'invité.
+  await panel.getByTestId('comment').filter({ hasText: 'plan large' }).getByTestId('comment-delete').click();
+  await expect(panel.getByTestId('comment')).toHaveCount(1);
+  await expect(guest.locator('td[data-commented]')).toHaveCount(0);
+  // « Voir » mène au passage du scénario, bulle ouverte.
+  await panel.getByRole('button', { name: /Scénario · « valise/ }).click();
+  await expect(host.getByTestId('comment-popover')).toContainText('Quelle valise');
+});

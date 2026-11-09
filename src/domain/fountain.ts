@@ -4,6 +4,7 @@
  */
 import { addCharacter, addSequence } from './ops';
 import { setSequenceDecorByName } from './registry';
+import { shiftCommentAnchors } from './comments';
 import { fold } from './text';
 import { diffRange, offsetMapper, shiftOffset } from './textDiff';
 import type { Effect, ID, IntExt, ProjectDoc } from './types';
@@ -320,6 +321,7 @@ export function shiftAnchors(doc: ProjectDoc, before: string, after: string): vo
   };
   for (const b of Object.values(doc.blocks)) if (b.scenarioAnchor) move(b.scenarioAnchor);
   for (const s of Object.values(doc.sequences)) if (s.scenarioAnchor) move(s.scenarioAnchor);
+  shiftCommentAnchors(doc, map);
 }
 
 /**

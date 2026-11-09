@@ -15,7 +15,8 @@ import { useUi } from './uiStore';
  * modifications circulent, champ par champ ; l'hôte les relaie aux autres invités.
  */
 
-export type ShareMode = 'read' | 'edit';
+/** Lecture seule, relecture (commentaires seulement) ou modification. */
+export type ShareMode = 'read' | 'review' | 'edit';
 
 export interface Guest {
   id: string;
@@ -164,7 +165,11 @@ function requestBlob(key: string): Promise<Blob | undefined> {
 }
 
 function installGuards() {
-  setMutationGuard(() => !(useShare.getState().role === 'guest' && useShare.getState().mode === 'read'));
+  setMutationGuard(() => {
+    const st = useShare.getState();
+    if (st.role !== 'guest' || st.mode === 'edit') return true;
+    return st.mode === 'review' && commentWriting;
+  });
   setPersistGuard(() => !(useShare.getState().role === 'guest' && !useShare.getState().keep));
   setRemoteBlobSource(requestBlob);
   watchLocalChanges();
@@ -211,10 +216,13 @@ export async function startHosting(opts: { mode: ShareMode; keep: boolean }): Pr
           return;
         }
         if (!entry.ok) return;
-        if (m.t === 'ops' && useShare.getState().mode === 'edit') {
-          applyRemote(m.ops);
+        const mode = useShare.getState().mode;
+        // Relecture : seuls les commentaires viennent des invités.
+        const ops = m.t === 'ops' ? (mode === 'edit' ? m.ops : mode === 'review' ? m.ops.filter((o) => o.p[0] === 'comments') : []) : [];
+        if (m.t === 'ops' && ops.length) {
+          applyRemote(ops);
           // Relais aux autres invités.
-          for (const [id, c] of conns) if (id !== conn.peer && c.ok) send(c.conn, m);
+          for (const [id, c] of conns) if (id !== conn.peer && c.ok) send(c.conn, { t: 'ops', ops });
         } else if (m.t === 'blob?') void answerBlob(conn, m.key);
         else if (m.t === 'blob') receiveBlob(m);
       });
@@ -356,6 +364,21 @@ export function leaveSession(unload = true) {
 }
 
 /** Invité en lecture seule : l'interface ne montre que ce qui sert à regarder. */
-export const useReadOnly = () => useShare((s) => s.role === 'guest' && s.mode === 'read');
+export const useReadOnly = () => useShare((s) => s.role === 'guest' && s.mode !== 'edit');
+/** Peut commenter : l'auteur, et les invités en relecture ou en modification. */
+export const useCanComment = () => useShare((s) => s.role !== 'guest' || s.mode !== 'read');
+/** Invité en relecture : l'écran se présente en aperçu, prêt à commenter. */
+export const useReviewing = () => useShare((s) => s.role === 'guest' && s.mode === 'review');
+
+let commentWriting = false;
+/** Écrit un commentaire : seule modification permise à un invité en relecture. */
+export function asComment(fn: () => void): void {
+  commentWriting = true;
+  try {
+    fn();
+  } finally {
+    commentWriting = false;
+  }
+}
 /** L'invité peut-il emporter le projet (exports, enregistrement) ? */
 export const useCanCopy = () => useShare((s) => s.role !== 'guest' || s.keep);

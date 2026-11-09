@@ -9,6 +9,7 @@
  * - scènes déplacées : les séquences reprennent l'ordre du scénario, sans bouger les autres.
  * Les passages liés aux plans sont retrouvés d'abord dans leur scène, puis dans tout le texte.
  */
+import { relinkComments } from './comments';
 import { matchSequence } from './fountain';
 import { addSequence } from './ops';
 import { setSequenceDecorByName } from './registry';
@@ -128,6 +129,7 @@ export function reviseScenario(doc: ProjectDoc, after: string): RevisionReport {
       report.relinked++;
     }
   }
+  relinkComments(doc, before, after);
   doc.scenario = after;
   return report;
 }

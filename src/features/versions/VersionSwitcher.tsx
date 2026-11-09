@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, MessageSquare, Pencil, Plus, X } from 'lucide-react';
+import { commentsOf } from '../../domain/comments';
+import { openCommentsPanel } from '../comments/commentsUi';
 import { activeVersion, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
@@ -33,6 +35,9 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
       window.removeEventListener('keydown', esc);
     };
   }, [open]);
+
+  // Invité : la version partagée s'affiche, sans menu.
+  if (readOnly) return <span className={s.trigger} data-testid="version-switcher">{current.name}</span>;
 
   const go = (id: string) => {
     flushEditors();
@@ -86,6 +91,27 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
                       </span>
                     </button>
                   )}
+                  {(() => {
+                    // Commentaires de la version : un compteur discret, seulement s'il y en a.
+                    const n = doc.comments?.length ? commentsOf(doc, v.id || undefined).filter((c) => !c.resolved).length : 0;
+                    const total = doc.comments?.length ? commentsOf(doc, v.id || undefined).length : 0;
+                    return total > 0 && !readOnly ? (
+                      <button
+                        type="button"
+                        className={s.notes}
+                        onClick={() => {
+                          setOpen(false);
+                          openCommentsPanel(v.id);
+                        }}
+                        aria-label={`Commentaires de ${v.name}`}
+                        title={`${n} à traiter, ${total} en tout`}
+                        data-testid="version-comments"
+                      >
+                        <MessageSquare size={12} strokeWidth={1.4} />
+                        {n || ''}
+                      </button>
+                    ) : null;
+                  })()}
                   {!readOnly && editing !== v.id && (
                     <span className={s.acts}>
                       <button type="button" aria-label={`Renommer ${v.name}`} onClick={() => setEditing(v.id)}>

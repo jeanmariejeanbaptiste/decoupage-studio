@@ -13,6 +13,7 @@ import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
+import { CutComments } from '../comments/CutComments';
 import { linkSelection, newSequenceAfter, rowOfShot, unlinkSelection } from './actions';
 import { CutExport } from './CutExport';
 import { VersionSwitcher } from '../versions/VersionSwitcher';
@@ -271,7 +272,9 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
       ) : printView ? (
         <div className={[s.printPreview, 'paper-light'].join(' ')}>
           {/* Aperçu : les pages A4 de l'export (paysage par défaut), sur papier quel que soit le thème. */}
-          <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} />
+          <CutComments doc={storeDoc}>
+            <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} />
+          </CutComments>
         </div>
       ) : isMobile ? (
         // Téléphone : mêmes outils (colonnes, aperçu, export, lier), mais un plan à la fois.

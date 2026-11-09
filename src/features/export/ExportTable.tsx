@@ -149,7 +149,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   const body = (seqIdx: number, rows: MergeRow[], merges: MergeMap, last: boolean, key: string, cs: ColumnKey[] = cols) => {
     const seq = sequences[seqIdx];
     return (
-      <tbody key={key} className={s.seq}>
+      <tbody key={key} className={s.seq} data-seq={seq.id}>
         {rows.map((row, i) => {
           const lines = row.lines;
           const beatCell = (c: ColumnKey, k: number) => {
@@ -168,7 +168,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
           };
           return (
             <Fragment key={row.shotId}>
-              <tr className={[lines ? s.oneShot : '', row.group ? s.itwRow : ''].join(' ') || undefined}>
+              <tr className={[lines ? s.oneShot : '', row.group ? s.itwRow : ''].join(' ') || undefined} data-shot={row.shotId}>
                 {cs.map((c) => {
                   if (lines && BEAT_COLUMNS.includes(c)) return beatCell(c, 0);
                   const span = merges.get(c)?.find((m) => m.startRow === i);
@@ -191,7 +191,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
         })}
         {seq.rows.length === 0 && (
           <tr>
-            <td className={s.c_sequence}>{`${seqIdx + 1}, ${doc.sequences[seq.id]?.label.toUpperCase() ?? ''}`}</td>
+            <td className={s.c_sequence} data-col="sequence">{`${seqIdx + 1}, ${doc.sequences[seq.id]?.label.toUpperCase() ?? ''}`}</td>
             {cs.slice(1).map((c) => (
               <Fragment key={c}>
                 <td />
