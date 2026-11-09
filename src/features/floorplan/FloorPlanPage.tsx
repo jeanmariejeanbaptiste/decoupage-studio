@@ -26,7 +26,13 @@ import {
   choreography,
   oneShotPlansOf,
   cameraCone,
-  camerasForShot,
+  decorSummary,
+  FLOOR_KIND_LABEL,
+  formatMeters,
+  itemLength,
+  placeCameraForShot,
+  planInventory,
+  shotCameras,
   deletePlan,
   duplicatePlan,
   DEFAULT_RANGE,
@@ -689,6 +695,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     setMulti([]);
   };
   const stroke = planOf(doc, planKey).stroke ?? 1;
+  const inventory = planInventory(doc, items);
+  const decor = decorSummary(items);
 
   return (
     <div className={['page page--wide', s.page].join(' ')}>
@@ -841,8 +849,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                     <input type="range" min={0.05} max={1} step={0.05} value={bg.opacity} onChange={(e) => gestureMutate((d) => void (d.floorPlans![planKey].bg!.opacity = Number(e.target.value)))} {...gestureEnd} aria-label="Opacité du fond" />
                   </label>
                 )}
-                <p className={s.menuTitle}>Pièce</p>
-                <RoomFields key={planKey} room={planOf(doc, planKey).room} onCommit={(r) => mutateDoc((d) => setRoom(d, planKey, r))} />
                 <p className={s.menuTitle}>Traits</p>
                 <label className={s.menuRange} title="Épaisseur des traits : murs, rails, portes, fenêtres, réflecteurs, diffuseurs, drapeaux">
                   <span>Épaisseur</span>
@@ -1223,36 +1229,136 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           </div>
         </div>
 
-        <aside className={['card', s.panel].join(' ')} aria-label="Propriétés">
-          {sel && (
-            <Properties
-              doc={doc}
-              seqId={seqId}
-              planKey={planKey}
-              item={sel}
-              beats={nBeats}
-              onDelete={() => setSelected(null)}
-            />
+        <aside className={['card', s.panel].join(' ')} aria-label="Panneau du plan au sol" data-testid="fp-panel">
+          {multi.length > 1 ? (
+            <section className={s.section} data-testid="fp-multi">
+              <h2 className={s.h2}>{multi.length} éléments</h2>
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<Trash2 size={13} />}
+                onClick={() => {
+                  mutate((d) => multi.forEach((id) => removeFloorItem(d, planKey, id)));
+                  setMulti([]);
+                }}
+              >
+                Retirer
+              </Button>
+            </section>
+          ) : (
+            sel && (
+              <section className={s.section}>
+                <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} beats={nBeats} onDelete={() => setSelected(null)} />
+              </section>
+            )
           )}
-          <div className={sel ? s.coverage : undefined}>
-            <h2 className={s.h2}>Plans du découpage</h2>
-            <p className={s.note}>
-              {seq.shotIds.filter((id) => camerasForShot(doc, id).length > 0).length} / {seq.shotIds.length} avec caméra
-            </p>
+          <section className={s.section} data-testid="fp-shots">
+            <h2 className={s.sectionHead}>
+              Plans du découpage
+              <span>
+                {seq.shotIds.filter((id) => shotCameras(doc, id).length > 0).length} / {seq.shotIds.length} avec caméra
+              </span>
+            </h2>
             <ul className={s.shotList}>
               {seq.shotIds.map((id) => {
-                const cams = camerasForShot(doc, id);
+                const cams = shotCameras(doc, id);
                 const sh = doc.shots[id];
+                const code = shotCode(doc, id);
+                const meta = [sh.value, formatFocal(sh.focal, isZoom(sh.movement))].filter(Boolean).join(' · ');
+                const camSel = sel?.kind === 'camera' ? sel : undefined;
                 return (
                   <li key={id} data-testid="fp-shot" className={cams.length ? undefined : s.unassigned}>
-                    <b>{shotCode(doc, id)}</b> {sh.subject} · {sh.value} ·{' '}
-                    {formatFocal(sh.focal, isZoom(sh.movement))}
-                    {cams.length > 0 ? <em>{cams.join(', ')}</em> : <em className={s.none}>non assigné</em>}
+                    {camSel && (
+                      <input
+                        type="checkbox"
+                        checked={camSel.shotIds.includes(id)}
+                        onChange={(e) =>
+                          mutate((d) =>
+                            updateFloorItem(d, planKey, camSel.id, {
+                              shotIds: e.target.checked ? [...camSel.shotIds, id] : camSel.shotIds.filter((x) => x !== id),
+                            } as Partial<FloorItem>),
+                          )
+                        }
+                        aria-label={`Plan ${code} couvert par ${camSel.label ?? 'CAM'}`}
+                      />
+                    )}
+                    <b>{code}</b>
+                    {sh.storyboard?.blobKey && <ShotThumb blobKey={sh.storyboard.blobKey} />}
+                    <span className={s.shotText}>
+                      {sh.subject && <span>{sh.subject}</span>}
+                      {meta && <small>{meta}</small>}
+                    </span>
+                    <span className={s.shotCams}>
+                      {cams.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={[s.camChip, c.id === selected ? s.camChipOn : ''].join(' ')}
+                          onClick={() => {
+                            if (c.planKey !== planKey) pickView(c.planKey === seqId ? undefined : c.planKey);
+                            setMulti([]);
+                            setSelected(c.id);
+                          }}
+                          title={c.planKey === planKey ? undefined : [...plans, ...psPlans].find((p) => p.key === c.planKey)?.name}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                      {!cams.length && !camSel && (
+                        <button
+                          type="button"
+                          className={s.place}
+                          onClick={() => {
+                            const at = { x: view.x + view.w / 2, y: view.y + view.h / 2 };
+                            const nid = mutateDoc((d) => placeCameraForShot(d, planKey, id, at));
+                            setMulti([]);
+                            if (nid) setSelected(nid);
+                            svgRef.current?.focus({ preventScroll: true });
+                          }}
+                          aria-label={`Placer une caméra pour le plan ${code}`}
+                          data-testid="fp-place-camera"
+                        >
+                          <CineCameraIcon />
+                          Placer
+                        </button>
+                      )}
+                    </span>
                   </li>
                 );
               })}
             </ul>
-          </div>
+          </section>
+          {(inventory.length > 0 || decor) && (
+            <section className={s.section} data-testid="fp-items">
+              <h2 className={s.sectionHead}>Sur le plan</h2>
+              <ul className={s.itemList}>
+                {inventory.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      className={r.id === selected || multi.includes(r.id) ? s.itemOn : undefined}
+                      aria-pressed={r.id === selected}
+                      onClick={() => {
+                        setMulti([]);
+                        setSelected(r.id);
+                        svgRef.current?.focus({ preventScroll: true });
+                      }}
+                      data-testid="fp-item"
+                    >
+                      <span className={s.itemIcon}>{KIND_ICON[r.practical ? 'practical' : r.kind]}</span>
+                      <span className={s.itemName}>{r.name}</span>
+                      <span className={s.itemDetail}>{r.detail}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {decor && <p className={s.decor}>{decor}</p>}
+            </section>
+          )}
+          <section className={[s.section, s.roomSection].join(' ')}>
+            <h2 className={s.sectionHead}>Pièce</h2>
+            <RoomFields key={planKey} room={planOf(doc, planKey).room} onCommit={(r) => mutateDoc((d) => setRoom(d, planKey, r))} />
+          </section>
         </aside>
       </div>
     </div>
@@ -1498,18 +1604,16 @@ function Symbol({ shapes }: { shapes: readonly SymbolShape[] }) {
   );
 }
 
-const KIND_LABEL: Record<FloorKind, string> = {
-  camera: 'Caméra',
-  actor: 'Comédien',
-  wall: 'Mur',
-  rail: 'Rails',
-  door: 'Porte',
-  window: 'Fenêtre',
-  light: 'Projecteur',
-  reflector: 'Réflecteur',
-  diffuser: 'Diffuseur',
-  flag: 'Drapeau (négatif)',
-};
+/** Vignette du storyboard d'un plan (rien sans image). */
+function ShotThumb({ blobKey }: { blobKey: string }) {
+  const url = useBlobUrl(blobKey);
+  return url ? <img className={s.thumb} src={url} alt="" /> : null;
+}
+
+/** Icône de chaque sorte d'élément (celles de la palette). */
+const KIND_ICON: Record<FloorKind | 'practical', JSX.Element> = Object.fromEntries(
+  TOOL_GROUPS.flatMap((g) => g.tools).filter((t) => t.key !== 'select').map((t) => [t.key, t.icon]),
+) as Record<FloorKind | 'practical', JSX.Element>;
 
 /** Repère d'un élément : appliqué après une pause ou en quittant le champ (une étape d'annulation). */
 function LabelField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
@@ -1583,10 +1687,14 @@ function Properties({
   const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, planKey, item.id, patch));
   // Curseurs : un geste entier = une seule étape d'annulation.
   const slide = (patch: Partial<FloorItem>) => gestureMutate((d) => updateFloorItem(d, planKey, item.id, patch));
-  const seq = doc.sequences[seqId];
   return (
     <div className={s.props} data-testid="fp-properties">
-      <h2 className={s.h2}>{item.kind === 'light' && item.practical ? 'Lampe de jeu' : KIND_LABEL[item.kind]}</h2>
+      <h2 className={s.h2}>{item.kind === 'light' && item.practical ? 'Lampe de jeu' : FLOOR_KIND_LABEL[item.kind]}</h2>
+      {'x2' in item && (
+        <p className={s.note} data-testid="fp-length">
+          Longueur {formatMeters(itemLength(item))}
+        </p>
+      )}
       {item.kind === 'wall' && (
         <label className={s.check}>
           <input type="checkbox" checked={!!item.white} onChange={(e) => update({ white: e.target.checked } as Partial<FloorItem>)} />
@@ -1624,26 +1732,6 @@ function Properties({
                 : '60° (aucun plan lié)';
             })()}
           </p>
-          <fieldset className={s.links}>
-            <legend>Plans couverts</legend>
-            {seq.shotIds.map((id) => (
-              <label key={id}>
-                <input
-                  type="checkbox"
-                  checked={item.shotIds.includes(id)}
-                  onChange={(e) =>
-                    update({
-                      shotIds: e.target.checked
-                        ? [...item.shotIds, id]
-                        : item.shotIds.filter((x) => x !== id),
-                    } as Partial<FloorItem>)
-                  }
-                />
-                <b>{shotCode(doc, id)}</b> {doc.shots[id].value} ·{' '}
-                {formatFocal(doc.shots[id].focal, isZoom(doc.shots[id].movement)) || '—'}
-              </label>
-            ))}
-          </fieldset>
         </>
       )}
       {item.kind === 'actor' && (
@@ -1792,11 +1880,11 @@ function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | unde
         {field('Longueur', l, setL)}
         {field('Hauteur', h, setH)}
       </div>
-      <div className={s.menuRow}>
+      <div className={s.presets}>
         {ROOM_PRESETS.map((p) => (
-          <Button key={p.label} size="sm" variant="ghost" onClick={() => apply(p.room)} title={`${p.room.w} × ${p.room.l} × ${p.room.h} m`}>
+          <button key={p.label} type="button" className={s.camChip} onClick={() => apply(p.room)} title={`${p.room.w} × ${p.room.l} × ${p.room.h} m`}>
             {p.label}
-          </Button>
+          </button>
         ))}
       </div>
       {size && (

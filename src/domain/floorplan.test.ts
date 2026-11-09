@@ -195,3 +195,40 @@ describe('dupliquer une vue', () => {
     expect(views[1].name).toBe('Vue 1 (copie)');
   });
 });
+
+describe('panneau du plan au sol : plans couverts, inventaire, décor', () => {
+  it('pose une caméra pour un plan, retrouve ses caméras et dresse l’inventaire de la vue', async () => {
+    const { addPlan, decorSummary, formatMeters, itemLength, placeCameraForShot, planInventory, setRoom, shotCameras } = await import('./floorplan');
+    const doc = buildRav3();
+    const seqId = doc.project.sequenceIds[0];
+    const [s1, s2] = doc.sequences[seqId].shotIds;
+    let cam = '';
+    let view2 = '';
+    const next = produce(doc, (d) => {
+      cam = placeCameraForShot(d, seqId, s1, { x: 203, y: 118 });
+      view2 = addPlan(d, seqId);
+      placeCameraForShot(d, view2, s1, { x: 0, y: 0 });
+      const l = addFloorItem(d, seqId, 'light', { x: 0, y: 0 });
+      updateFloorItem(d, seqId, l, { model: 'Fresnel 2 kW', watts: 2000, kelvin: 3200 } as Partial<FloorItem>);
+      addFloorItem(d, seqId, 'reflector', { x: 0, y: 0 }, { x: 0, y: 120 });
+      addFloorItem(d, seqId, 'actor', { x: 100, y: 100 });
+      addFloorItem(d, seqId, 'door', { x: 0, y: 0 });
+      setRoom(d, seqId, { w: 5, l: 6 });
+    });
+    const items = planOf(next, seqId).items;
+    expect(items.find((i) => i.id === cam)).toMatchObject({ kind: 'camera', x: 200, y: 120, shotIds: [s1], label: 'CAM A' });
+    expect(shotCameras(next, s1)).toEqual([
+      { planKey: seqId, id: cam, label: 'CAM A' },
+      expect.objectContaining({ planKey: view2, label: 'CAM A' }),
+    ]);
+    expect(shotCameras(next, s2)).toEqual([]);
+    const inv = planInventory(next, items);
+    expect(inv.map((r) => r.kind)).toEqual(['camera', 'actor', 'light', 'reflector']);
+    expect(inv[0]).toMatchObject({ name: 'CAM A', detail: expect.stringMatching(/^1\.1 · \d+mm$/) });
+    expect(inv[2]).toMatchObject({ name: 'L1', detail: expect.stringMatching(/^Fresnel 2 kW · 2 kW · 3.200 K$/) });
+    expect(inv[3]).toMatchObject({ name: 'R1', detail: 'Réflecteur · 1,2 m' });
+    expect(decorSummary(items)).toBe('4 murs · 1 porte');
+    expect(decorSummary([])).toBe('');
+    expect(formatMeters(itemLength({ x: 0, y: 0, x2: 300, y2: 400 }))).toBe('5 m');
+  });
+});

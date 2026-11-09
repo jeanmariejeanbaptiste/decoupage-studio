@@ -45,16 +45,10 @@
 .shotList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
 .shotList li { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--rule); }
 .shotList b { color: var(--rust); }
-.shotList em { margin-left: auto; font-family: var(--font-ui); color: var(--navy); font-size: 12.5px; font-style: normal; }
-.shotList em.none { color: var(--ink-soft); }
 .props { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink-soft); width: 100%; }
 .field input, .field select { font: inherit; font-size: 13.5px; color: var(--ink); padding: 4px 7px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); }
 .note { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
-.links { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; width: 100%; }
-.links legend { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 4px; }
-.links label { display: flex; gap: 6px; align-items: baseline; }
-.links b { color: var(--rust); }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .panel { position: static; } }
 .reflector { stroke: #ffffff; stroke-width: calc(3.5px * var(--fp-k, 1)); stroke-linecap: round; }
 .reflectorEdge { stroke: #1f1d1a; stroke-width: calc(7px * var(--fp-k, 1)); stroke-linecap: round; filter: drop-shadow(3px 4px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.3)); }
@@ -71,8 +65,6 @@
 .quick { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
 .quick button { border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 1px 9px; font-size: 12.5px; }
 .quick .quickOn { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
-.coverage { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--rule); }
-.unassigned { opacity: 0.75; }
 
 .exports { display: flex; gap: 8px; align-items: center; }
 
@@ -203,3 +195,44 @@
 .roomSize { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .roomClear { border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
 .specs { font-size: 0.82em; fill: var(--ink-soft); font-weight: 400; }
+
+/* Panneau latéral : pleine hauteur, sections empilées (sélection, plans du découpage, éléments, pièce). */
+.layout { grid-template-columns: minmax(0, 1fr) 312px; }
+.panel { padding: 0; display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h) - 96px); min-height: 380px; max-height: none; overflow-y: auto; }
+.section { padding: 14px 16px; }
+.section + .section { border-top: 1px solid var(--rule); }
+.roomSection { margin-top: auto; }
+.sectionHead { margin: 0 0 6px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.sectionHead span { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+.shotList { gap: 0; }
+.shotList li { flex-wrap: nowrap; align-items: center; gap: 8px; padding: 6px 0; }
+.shotList li:last-child { border-bottom: 0; }
+.shotList b { min-width: 26px; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.shotList input { margin: 0; }
+.shotText { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.shotText > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shotText small { font-size: 11.5px; color: var(--ink-soft); }
+.shotCams { flex: none; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 120px; }
+.camChip { border: 1px solid var(--rule); background: var(--paper-card); border-radius: 10px; padding: 1px 8px; font: inherit; font-size: 11.5px; color: var(--ink); white-space: nowrap; cursor: pointer; }
+.camChip:hover { border-color: var(--ink-soft); }
+.camChipOn { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.place { display: inline-flex; align-items: center; gap: 4px; border: 1px dashed var(--rule); background: none; border-radius: var(--radius); padding: 2px 8px 2px 6px; font: inherit; font-size: 12px; color: var(--ink-soft); white-space: nowrap; cursor: pointer; }
+.place:hover { border-style: solid; border-color: var(--ink-soft); color: var(--ink); }
+.place svg { width: 15px; height: 15px; }
+.unassigned b, .unassigned .shotText > span { color: var(--ink-soft); }
+.itemList { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.itemList button { width: 100%; display: grid; grid-template-columns: 16px auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 8px; border: 0; border-radius: var(--radius); background: none; font: inherit; font-size: 12.5px; color: var(--ink); text-align: left; cursor: pointer; }
+.itemList button:hover { background: var(--hover); }
+.itemList .itemOn { background: var(--selected); }
+.itemIcon { display: inline-flex; color: var(--ink-soft); }
+.itemIcon svg { width: 15px; height: 15px; }
+.itemName { font-weight: 500; white-space: nowrap; }
+.itemDetail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ink-soft); }
+.presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.presets button { padding: 2px 3px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.thumb { flex: none; width: 44px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 3px; border: 1px solid var(--rule); }
+.decor { margin: 6px 0 0; font-size: 12px; color: var(--ink-soft); }
+@media (max-width: 1100px) {
+  .panel { height: auto; min-height: 0; overflow: visible; }
+  .roomSection { margin-top: 0; }
+}
