@@ -303,3 +303,24 @@ test('scénario : surlignage de révision en couleur, retiré à volonté', asyn
   await page.getByTestId('highlight-none').click();
   await expect(ed.locator('span[class*="hl_"]')).toHaveCount(0);
 });
+
+test('scénario : minutage par pages, caractères ou type (réglages) ; graphique exporté en PNG', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  const chrono = page.getByTestId('scenario-chrono');
+  await expect(chrono).toContainText(/\/ 0:\d\d/);
+  const before = (await chrono.textContent()) ?? '';
+  await page.goto('/#/settings?seed=fiction&section=scenario');
+  await page.getByRole('radiogroup', { name: 'Minutage du scénario' }).getByText('Par type de paragraphe').click();
+  await expect(page.getByLabel('Action : par 50 caractères (s)')).toHaveValue('1.5');
+  await page.getByTestId('settings-save').click();
+  await page.getByRole('button', { name: /Scénario/ }).first().click();
+  await expect(chrono).toBeVisible();
+  await expect(chrono).not.toHaveText(before);
+  await expect(chrono).toHaveAttribute('title', /par type de paragraphe/);
+  await page.getByTestId('scenario-tab-stats').click();
+  const reports = page.getByTestId('script-reports');
+  await reports.getByLabel('Rapport', { exact: true }).selectOption('structure');
+  const dl = page.waitForEvent('download');
+  await page.getByTestId('report-png').click();
+  expect((await dl).suggestedFilename()).toBe('la-consigne-structure-de-l-histoire.png');
+});

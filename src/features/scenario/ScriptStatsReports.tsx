@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { ImageDown, Printer } from 'lucide-react';
 import type { SBlock } from '../../domain/screenplay';
 import { characterReports, locationReports, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
 import { blockLabel, isEmptyBlock } from '../../domain/screenplay';
@@ -7,7 +7,7 @@ import type { ProjectDoc } from '../../domain/types';
 import { useScriptUi } from './ScriptEditor';
 import s from './ScriptStatsReports.module.css';
 
-const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+import { mmss, printedText } from '../../domain/chronometry';
 
 type Report = 'summary' | 'scenes' | 'decors' | 'characters' | 'dialogues' | 'structure' | 'activity';
 const REPORTS: ReadonlyArray<[Report, string]> = [
@@ -24,7 +24,7 @@ const REPORTS: ReadonlyArray<[Report, string]> = [
 export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blocks: readonly SBlock[]; onGo: (id: string) => void }) {
   const [report, setReport] = useState<Report>('summary');
   const names = useMemo(() => Object.values(doc.characters).flatMap((c) => [c.name, ...(c.aliases ?? [])]), [doc.characters]);
-  const scenes = useMemo(() => sceneReports(blocks, names), [blocks, names]);
+  const scenes = useMemo(() => sceneReports(blocks, names, doc.project.settings.scriptChrono), [blocks, names, doc.project.settings.scriptChrono]);
   const outline = useScriptUi((u) => u.outline);
   const pageOf = useMemo(() => new Map(outline.map((o) => [o.id, o.page])), [outline]);
   const box = useRef<HTMLDivElement>(null);
@@ -34,6 +34,12 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
     const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} .muted{color:#6b7079} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} .bar td{background:#eef0f3;font-weight:600} svg{width:100%;height:auto} .pad{height:13mm}`;
     const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${doc.project.title} — ${title}</h1>${box.current?.innerHTML ?? ''}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
     await exportDocumentPages(html, `${doc.project.title || 'scenario'}-${title}`, { format: 'pdf', orientation: 'portrait', numbers: true });
+  };
+  const png = async () => {
+    const svg = box.current?.querySelector<SVGSVGElement>('svg[role="img"]');
+    if (!svg) return;
+    const { svgToPng } = await import('./svgPng');
+    await svgToPng(svg, `${doc.project.title || 'scenario'}-${title}`);
   };
   if (!scenes.length) return <p className={s.empty}>Aucune séquence dans le texte.</p>;
   return (
@@ -49,6 +55,11 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
         <button type="button" className={s.icon} onClick={() => void print()} aria-label="Exporter ce rapport en PDF" title="Exporter en PDF">
           <Printer size={15} strokeWidth={1.3} />
         </button>
+        {(report === 'structure' || report === 'activity') && (
+          <button type="button" className={s.icon} onClick={() => void png()} aria-label="Exporter ce graphique en PNG" title="Exporter en PNG" data-testid="report-png">
+            <ImageDown size={15} strokeWidth={1.3} />
+          </button>
+        )}
       </div>
       <div ref={box}>
         {report === 'summary' && <SummaryReport scenes={scenes} blocks={blocks} />}
@@ -482,7 +493,8 @@ function Pct({ v }: { v: number }) {
 /** Sommaire : durée, pages, mots, signes ; texte par type de paragraphe ; moments, lieux, personnages. */
 function SummaryReport({ scenes, blocks }: { scenes: SceneInfo[]; blocks: readonly SBlock[] }) {
   const pages = useScriptUi((u) => u.pages);
-  const body = blocks.filter((b) => !isEmptyBlock(b) && b.type !== 'title');
+  // Texte imprimé : sans marques d'emphase ni de surlignage.
+  const body = blocks.filter((b) => !isEmptyBlock(b) && b.type !== 'title' && b.type !== 'pagebreak').map((b) => ({ ...b, text: printedText(b.text) }));
   const all = body.map((b) => b.text).join(' ');
   const words = wordsOf(all);
   const types = [...new Set(body.map((b) => b.type))].map((t) => {

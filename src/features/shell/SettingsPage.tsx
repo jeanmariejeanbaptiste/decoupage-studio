@@ -4,6 +4,7 @@ import { SENSOR_CROP } from '../../domain/focal';
 import { isMusicalFormat, newId } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
+import { chronoOf, type ScriptChrono, type TypeRate } from '../../domain/chronometry';
 import type { ProjectDoc, ProjectSettings, Sensor, ShotCodeFormat, VocabEntry } from '../../domain/types';
 import { vocabularyFor, type VocabKind } from '../../domain/vocabulary';
 import { mutateDoc } from '../../store/projectStore';
@@ -20,6 +21,7 @@ import { navigate, useLocation } from '../../app/router';
 
 const SECTIONS = [
   ['minutage', 'Minutage'],
+  ['scenario', 'Scénario'],
   ['camera', 'Caméra'],
   ['decoupage', 'Découpage'],
   ['vocabulaire', 'Vocabulaire'],
@@ -250,6 +252,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
         <CurrentSection.Provider value={current}>
           <div className={s.body}>
             <TimingSection doc={doc} />
+            <ScriptTimingSection />
             <CameraSection />
             <CuttingSection />
             <VocabularySection />
@@ -348,6 +351,52 @@ function TimingSection({ doc }: { doc: ProjectDoc }) {
           <span>en action · {formatTc(dialogue.sec)} en dialogue</span>
         </p>
       </Row>
+    </Section>
+  );
+}
+
+/** Minutage du scénario : les trois méthodes de KIT Scenarist (chronomètre, rapports et statistiques). */
+function ScriptTimingSection() {
+  const { st, patch } = useSettings();
+  const c = chronoOf(st.scriptChrono);
+  const set = (p: Partial<ScriptChrono>) => patch({ scriptChrono: { ...st.scriptChrono, ...p } });
+  const rate = (key: 'heading' | 'action' | 'dialogue', label: string) => (
+    <>
+      <Num label={`${label} : par paragraphe (s)`} value={c[key].paragraph} min={0} onChange={(v) => set({ [key]: { ...c[key], paragraph: v } as TypeRate })} />
+      <Num label={`${label} : par 50 caractères (s)`} value={c[key].per50} min={0} onChange={(v) => set({ [key]: { ...c[key], per50: v } as TypeRate })} />
+    </>
+  );
+  return (
+    <Section id="scenario" title="Scénario">
+      <Row label="Minutage">
+        <Radio
+          name="Minutage du scénario"
+          value={c.method}
+          onChange={(v) => set({ method: v })}
+          options={[
+            ['pages', 'Par pages'],
+            ['characters', 'Par caractères'],
+            ['configurable', 'Par type de paragraphe'],
+          ]}
+        />
+      </Row>
+      {c.method === 'pages' && <Num label="Secondes par page" value={c.pageSec} min={1} onChange={(v) => set({ pageSec: v })} />}
+      {c.method === 'characters' && (
+        <>
+          <Num label="Caractères" value={c.chars} min={1} onChange={(v) => set({ chars: v })} />
+          <Num label="Valent (s)" value={c.charsSec} min={1} onChange={(v) => set({ charsSec: v })} />
+          <Row label="Espaces">
+            <Radio name="Espaces" value={c.spaces ? 'oui' : 'non'} onChange={(v) => set({ spaces: v === 'oui' })} options={[['non', 'Non comptées'], ['oui', 'Comptées']]} />
+          </Row>
+        </>
+      )}
+      {c.method === 'configurable' && (
+        <>
+          {rate('heading', 'En-tête')}
+          {rate('action', 'Action')}
+          {rate('dialogue', 'Réplique')}
+        </>
+      )}
     </Section>
   );
 }

@@ -3,6 +3,7 @@ import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Highlighter, Italic, Underline } from 'lucide-react';
 import { HIGHLIGHTS, type HighlightColor } from '../../domain/scriptLayout';
+import { chronoAt, chronoOf, mmss, type ScriptChrono } from '../../domain/chronometry';
 import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { BLOCK_LABELS, blockLabel, type BlockType } from '../../domain/screenplay';
@@ -211,7 +212,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           </div>
         </div>
         <div className={s.tools}>
-          {view === 'script' && !phone && <Chrono />}
+          {view === 'script' && !phone && <Chrono settings={doc.project.settings.scriptChrono} />}
           {!readOnly && (
             <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile} title="Final Draft, Fountain, PDF, Word, Markdown ou texte">
               Importer
@@ -424,13 +425,19 @@ function ShotsPanel({ doc, readOnly, hot, onHover, onFlush }: { doc: ProjectDoc;
   );
 }
 
-const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+const METHOD_HINT: Record<ScriptChrono['method'], string> = { pages: 'par pages', characters: 'par caractères', configurable: 'par type de paragraphe' };
 
-/** Chronomètre : durée estimée à la position du curseur, puis au total (1 page ≈ 1 minute). */
-function Chrono() {
-  const chrono = useScriptUi((u) => u.chrono);
+/** Chronomètre : durée estimée à la position du curseur, puis au total, selon la méthode du projet. */
+function Chrono({ settings }: { settings?: Partial<ScriptChrono> }) {
+  const c = useMemo(() => chronoOf(settings), [settings]);
+  const paged = useScriptUi((u) => u.chrono);
+  const blocks = useScriptUi((u) => u.blocks);
+  const caret = useScriptUi((u) => u.caret);
+  const counted = useMemo(() => (c.method === 'pages' ? null : chronoAt(blocks, c, caret)), [blocks, caret, c]);
+  const k = c.pageSec / 60;
+  const chrono = counted ?? { at: paged.at === null ? null : Math.round(paged.at * k), total: Math.round(paged.total * k) };
   return (
-    <span className={s.chrono} title="Durée estimée, à raison d’une page par minute : position du curseur / total" data-testid="scenario-chrono">
+    <span className={s.chrono} title={`Durée estimée ${METHOD_HINT[c.method]} : position du curseur / total`} data-testid="scenario-chrono">
       <span>{chrono.at !== null ? mmss(chrono.at) : '–'}</span> / <b>{mmss(chrono.total)}</b>
     </span>
   );

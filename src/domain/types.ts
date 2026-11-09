@@ -50,6 +50,8 @@ export interface ProjectSettings {
   /** Mode de TC choisi explicitement dans les réglages (sinon les anciens projets passent en durée). */
   tcModeChosen?: boolean;
   tcGranularity: 'sequence' | 'action';
+  /** Minutage du scénario (méthodes de KIT) ; absent = une page par minute. */
+  scriptChrono?: Partial<import('./chronometry').ScriptChrono>;
   dialogueWordsPerSecond: number;
   actionWordsPerSecond: number;
   minActionSeconds: number;

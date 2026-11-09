@@ -125,8 +125,10 @@ export interface OutlineItem {
 }
 
 interface ScriptUi {
-  /** Durée estimée (1 page ≈ 1 minute), en secondes : position du curseur et total. */
+  /** Durée mesurée sur les pages (60 s la page), en secondes : position du curseur et total. */
   chrono: { at: number | null; total: number };
+  /** Bloc et position du curseur (minutage par caractères ou par type). */
+  caret: { id: string; offset: number } | null;
   activeType: BlockType | null;
   /** Sélection dans la source (pour « Créer un plan »). */
   selection: { start: number; end: number } | null;
@@ -136,7 +138,7 @@ interface ScriptUi {
   blocks: readonly SBlock[];
 }
 
-export const useScriptUi = create<ScriptUi>(() => ({ chrono: { at: null, total: 0 }, activeType: null, selection: null, outline: [], pages: 1, activeHeading: null, blocks: [] }));
+export const useScriptUi = create<ScriptUi>(() => ({ chrono: { at: null, total: 0 }, caret: null, activeType: null, selection: null, outline: [], pages: 1, activeHeading: null, blocks: [] }));
 
 /** Secondes de scénario à une hauteur donnée de la pile de pages (1 page imprimée ≈ 1 minute). */
 function secondsAt(y: number, offset: number): number {
@@ -816,6 +818,8 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const bel = el.querySelector<HTMLElement>(`[data-bid="${sel.end.id}"]`);
     const b = blockOf(sel.end.id);
     setActive(bel && b ? { id: b.id, offset: sel.end.offset, top: bel.offsetTop, left: bel.offsetLeft, height: bel.offsetHeight } : null);
+    const caret = b ? { id: b.id, offset: sel.end.offset } : null;
+    if (JSON.stringify(useScriptUi.getState().caret) !== JSON.stringify(caret)) useScriptUi.setState({ caret });
     const { spans } = serRef.current;
     const a = caretToSource(sdocRef.current.blocks, spans, sel.start);
     const z = caretToSource(sdocRef.current.blocks, spans, sel.end);

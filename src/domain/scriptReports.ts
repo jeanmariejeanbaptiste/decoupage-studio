@@ -1,10 +1,11 @@
 /**
  * Rapports du scénario (personnages, décors, présence), tirés du texte : répliques, séquences
  * parlantes et muettes, première apparition, répliques d'un rôle (« sides »), durée cumulée d'un décor.
- * Durée : une page (58 lignes) par minute, comme le chronomètre de l'éditeur.
+ * Durée : selon la méthode de minutage du projet (par défaut une page de 58 lignes par minute).
  */
 import { isEmptyBlock, type SBlock } from './screenplay';
-import { blankLinesBefore, blockLines, NOT_PRINTED, SCRIPT_PAGE } from './scriptLayout';
+import { blockSeconds, chronoOf, stripMarks, type ScriptChrono } from './chronometry';
+import { NOT_PRINTED } from './scriptLayout';
 import { fold } from './text';
 import type { ProjectDoc } from './types';
 
@@ -42,7 +43,9 @@ export function parseHeading(text: string): { intExt: string; location: string; 
 }
 
 /** Séquences du scénario, avec durée, répliques et présence des personnages. */
-export function sceneReports(blocks: readonly SBlock[], knownNames: readonly string[] = []): SceneInfo[] {
+export function sceneReports(source: readonly SBlock[], knownNames: readonly string[] = [], chrono?: Partial<ScriptChrono>): SceneInfo[] {
+  const blocks = printed(source);
+  const secs = blockSeconds(blocks, chronoOf(chrono));
   const scenes: SceneInfo[] = [];
   const speakers = new Set<string>(knownNames.map(upper));
   for (const b of blocks) if (b.type === 'character' && !isEmptyBlock(b)) speakers.add(speakerName(b.text));
@@ -50,18 +53,16 @@ export function sceneReports(blocks: readonly SBlock[], knownNames: readonly str
   const names = [...speakers].filter(Boolean).sort((a, b) => b.length - a.length);
   let cur: SceneInfo | null = null;
   let speaker: string | null = null;
-  let prev: SBlock['type'] | undefined;
-  let lines = 0;
-  let actionLines = 0;
-  let dialogueLines = 0;
-  const sec = (n: number) => Math.round((n / SCRIPT_PAGE.lines) * 60);
+  let total = 0;
+  let action = 0;
+  let dialogue = 0;
   const close = () => {
     if (!cur) return;
-    cur.durationSec = sec(lines);
-    cur.actionSec = sec(actionLines);
-    cur.dialogueSec = sec(dialogueLines);
+    cur.durationSec = Math.round(total);
+    cur.actionSec = Math.round(action);
+    cur.dialogueSec = Math.round(dialogue);
   };
-  for (const b of blocks) {
+  for (const [i, b] of blocks.entries()) {
     if (isEmptyBlock(b) || b.type === 'title' || NOT_PRINTED.has(b.type)) continue;
     if (b.type === 'heading') {
       close();
@@ -69,16 +70,13 @@ export function sceneReports(blocks: readonly SBlock[], knownNames: readonly str
       cur = { n: scenes.length + 1, id: b.id, heading: upper(b.text).trim(), ...p, durationSec: 0, actionSec: 0, dialogueSec: 0, replies: new Map(), present: new Set() };
       scenes.push(cur);
       speaker = null;
-      lines = 0;
-      actionLines = 0;
-      dialogueLines = 0;
-      prev = undefined;
+      total = 0;
+      action = 0;
+      dialogue = 0;
     }
-    const n = blockLines(b).length;
-    lines += n + (prev ? blankLinesBefore(prev, b.type) : 0);
-    if (b.type === 'action') actionLines += n;
-    if (b.type === 'dialogue' || b.type === 'parenthetical' || b.type === 'character') dialogueLines += n;
-    prev = b.type;
+    total += secs[i];
+    if (b.type === 'action') action += secs[i];
+    if (b.type === 'dialogue' || b.type === 'parenthetical' || b.type === 'character') dialogue += secs[i];
     if (!cur || b.type === 'heading') continue;
     if (b.type === 'character') {
       speaker = speakerName(b.text);
@@ -95,6 +93,9 @@ export function sceneReports(blocks: readonly SBlock[], knownNames: readonly str
   close();
   return scenes;
 }
+
+/** Blocs tels qu'imprimés : sans marques d'emphase ni de surlignage. */
+const printed = (blocks: readonly SBlock[]): readonly SBlock[] => blocks.map((b) => (/[*_[]/.test(b.text) ? { ...b, text: stripMarks(b.text) } : b));
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -148,7 +149,8 @@ export function locationReports(scenes: readonly SceneInfo[]): LocationReport[] 
 }
 
 /** Répliques d'un rôle, séquence par séquence (à remettre au comédien). */
-export function sidesOf(blocks: readonly SBlock[], name: string): Array<{ n: number; heading: string; lines: Array<{ paren?: string; text: string }> }> {
+export function sidesOf(source: readonly SBlock[], name: string): Array<{ n: number; heading: string; lines: Array<{ paren?: string; text: string }> }> {
+  const blocks = printed(source);
   const out: Array<{ n: number; heading: string; lines: Array<{ paren?: string; text: string }> }> = [];
   let n = 0;
   let heading = '';

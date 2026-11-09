@@ -36,7 +36,7 @@ function Field({ label, value, onCommit, multiline, readOnly, placeholder }: { l
 
 function useScenes(doc: ProjectDoc, blocks: readonly SBlock[]): SceneInfo[] {
   const names = useMemo(() => Object.values(doc.characters).flatMap((c) => [c.name, ...(c.aliases ?? [])]), [doc.characters]);
-  return useMemo(() => sceneReports(blocks, names), [blocks, names]);
+  return useMemo(() => sceneReports(blocks, names, doc.project.settings.scriptChrono), [blocks, names, doc.project.settings.scriptChrono]);
 }
 
 const findCharacter = (doc: ProjectDoc, name: string): Character | undefined =>
