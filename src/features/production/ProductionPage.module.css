@@ -79,7 +79,9 @@
 .scale { position: sticky; top: 0; z-index: 4; height: var(--head); background: var(--paper-card); border-bottom: 1px solid var(--rule); }
 .scaleRow { position: relative; height: 18px; }
 .scaleRow:last-of-type { height: 21px; }
-.month, .week { overflow: hidden; }
+.week { overflow: hidden; }
+/* Année et mois restent lisibles au bord gauche tant que leur période est à l’écran. */
+.month b { position: sticky; left: 5px; font-weight: 400; }
 .year, .month, .week { position: absolute; top: 0; bottom: 0; white-space: nowrap; font-size: 11.5px; line-height: 18px; }
 .year { padding-left: 6px; color: var(--ink); }
 .year b { position: sticky; left: 6px; font-weight: 600; }

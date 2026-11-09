@@ -395,7 +395,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
               <div className={s.scaleRow}>
                 {scale.months.map((m) => (
                   <span key={m.key} className={s.month} style={{ left: m.x, width: m.w }}>
-                    {m.label}
+                    <b>{m.label}</b>
                   </span>
                 ))}
               </div>
