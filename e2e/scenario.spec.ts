@@ -42,8 +42,8 @@ async function selectText(page: Page, needle: string) {
 test.describe('scénario et liaison', () => {
   test('clic droit → créer un plan avec cette action, ou la commenter', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    // L'onglet Plans n'existe qu'en vue Découpage.
-    await expect(page.getByTestId('scenario-tab-shots')).toHaveCount(0);
+    // L'onglet Plans ne sert qu'en vue Découpage (ailleurs, il garde sa place sans se montrer).
+    await expect(page.getByTestId('scenario-tab-shots')).toBeHidden();
     const count = () => page.evaluate(() => Object.values((window as unknown as { __ds: { doc: () => { shots: Record<string, { subject: string }> } } }).__ds.doc().shots).length);
     const before = await count();
     await selectText(page, 'Marc attend sous la pluie');
@@ -369,7 +369,9 @@ test('scénario : la page de garde restée dans le texte est reconnue et en sort
   await page.getByRole('button', { name: 'Écrire ou importer un scénario' }).click();
   const ed = page.getByTestId('script-editor');
   await ed.locator('[data-bid]').first().click();
-  // Tab : de l'en-tête vide à l'action.
+  // Tab : de l'en-tête vide à l'action (une fois fermées les suggestions d'en-tête, que Tab accepterait).
+  await expect(page.getByRole('listbox', { name: 'Suggestions' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Tab');
   await page.keyboard.type('VOX\nÉcrit par Jean-Marie Jean-Baptiste\nFADE IN:\nINT. ENTREPRISE - JOUR\nFlora entre.');
   await page.getByTestId('edit-title-page').click();
@@ -406,6 +408,40 @@ test('versions : la V2 part de la V1 ; on passe de l’une à l’autre, le déc
   await page.getByTestId('version-item').filter({ hasText: 'V2' }).getByRole('menuitemradio').click();
   await page.getByRole('button', { name: /^Scénario$/ }).first().click();
   await expect(page.getByTestId('scenario-outline')).toContainText('QUAI');
+});
+
+test('vue Découpage : le panneau suit la version choisie ; les onglets ne bougent pas d’une vue à l’autre', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  const tabX = async () => (await page.getByTestId('scenario-tab-research').boundingBox())!.x;
+  const x0 = await tabX();
+  const switcher = page.getByTestId('version-switcher');
+  await switcher.click();
+  await page.getByTestId('version-new').click();
+  await expect(switcher).toHaveText('V2');
+  await page.getByTestId('script-editor').locator('[data-bid]').last().click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('\nINT. CAFÉ DU PORT - NUIT\nUn café fume.');
+  const outline = page.getByTestId('scenario-outline');
+  await expect(outline).toContainText('CAFÉ DU PORT');
+  const views = page.getByRole('radiogroup', { name: 'Affichage du scénario' });
+  await views.getByRole('radio', { name: 'Découpage' }).click();
+  expect(await tabX()).toBe(x0);
+  await expect(outline).toContainText('CAFÉ DU PORT');
+  await switcher.click();
+  await page.getByTestId('version-item').filter({ hasText: 'V1' }).getByRole('menuitemradio').click();
+  await expect(switcher).toHaveText('V1');
+  await expect(outline).not.toContainText('CAFÉ DU PORT');
+  await expect(outline.locator('li')).toHaveCount(3);
+  await page.getByTestId('scenario-tab-characters').click();
+  await expect(page.getByTestId('scenario-characters')).toBeVisible();
+  // Sans texte, la vue Découpage liste les séquences du découpage, et non « aucune séquence ».
+  await page.goto('/#/scenario?seed=rav3');
+  await views.getByRole('radio', { name: 'Découpage' }).click();
+  await page.getByTestId('scenario-tab-scenes').click();
+  await expect(page.getByText('Aucune séquence pour l’instant.')).toHaveCount(0);
+  const n = await page.locator('[data-cut-seq]').count();
+  expect(n).toBeGreaterThan(0);
+  await expect(outline.locator('li')).toHaveCount(n);
 });
 
 test('versions : un nouveau texte importé devient la V2, chaque scène retrouve sa séquence', async ({ page }) => {

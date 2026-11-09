@@ -22,7 +22,7 @@ import {
   MessageSquarePlus,
   Underline,
 } from 'lucide-react';
-import { HIGHLIGHTS, type HighlightColor } from '../../domain/scriptLayout';
+import { HIGHLIGHTS, scriptOutline, type HighlightColor, type OutlineItem } from '../../domain/scriptLayout';
 import { chronoOf, chronoTimeline, mmss, type ScriptChrono } from '../../domain/chronometry';
 import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
 import { reviseScenario, revisionSummary, type RevisionReport } from '../../domain/revision';
@@ -276,7 +276,18 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const title = doc.project.title || 'scenario';
   const current = () => useProjectStore.getState().doc ?? doc;
 
-  const sideBlocks = useScriptUi((u) => u.blocks);
+  // Texte du panneau et des rapports : celui de l'éditeur quand il est ouvert ; sinon (Découpage,
+  // Statistiques) le texte enregistré, qui suit les changements de version.
+  const editorBlocks = useScriptUi((u) => u.blocks);
+  const editorOutline = useScriptUi((u) => u.outline);
+  const editorPages = useScriptUi((u) => u.pages);
+  const savedBlocks = useMemo(
+    () => (view === 'script' ? null : blocksFromSource(doc.scenario ?? '').blocks),
+    [view, doc.scenario],
+  );
+  const sideBlocks = savedBlocks ?? editorBlocks;
+  const savedOutline = useMemo(() => (savedBlocks ? scriptOutline(savedBlocks) : null), [savedBlocks]);
+  const outline = savedOutline ?? { items: editorOutline, pages: editorPages };
   // Aller à une séquence depuis un panneau ou un rapport. Hors de l'éditeur, les blocs n'ont plus les mêmes
   // identifiants une fois le texte rouvert : la séquence est retrouvée par son numéro.
   const goTo = (id: string, from: readonly SBlock[] = sideBlocks) => {
@@ -291,10 +302,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     if (n !== undefined) setTimeout(() => tryGo(0), 50);
   };
   // Statistiques : calculées sur le texte enregistré (pages et numéros de l'impression).
-  const statsBlocks = useMemo(
-    () => (view === 'stats' ? blocksFromSource(doc.scenario ?? '').blocks : []),
-    [view, doc.scenario],
-  );
+  const statsBlocks = savedBlocks ?? [];
   return (
     <div className={['page page--wide', s.page].join(' ')}>
       <header className={s.toolbar}>
@@ -430,7 +438,8 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
         <div className={[s.layout, side ? '' : s.solo].join(' ')}>
           <div className={s.center} ref={center}>
             {view === 'cut' ? (
-              <div className={['a4-sheet', s.cutSheet].join(' ')}>
+              // Même largeur que la page du scénario (réduite comme elle) : rien ne bouge d'une vue à l'autre.
+              <div className={['a4-sheet', s.cutSheet].join(' ')} style={phone ? undefined : { width: PAGE.w * zoom }}>
                 <CutView doc={doc} />
               </div>
             ) : (
@@ -493,7 +502,8 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
           {side && (
             <aside className={s.side} aria-label="Navigation du scénario">
               <div className={s.tabs} role="tablist">
-                {TABS.filter(([t]) => t !== 'shots' || view === 'cut').map(([t, label, Icon]) => (
+                {/* « Plans » garde sa place hors de la vue Découpage (invisible) : les onglets ne bougent pas. */}
+                {TABS.map(([t, label, Icon]) => (
                   <button
                     key={t}
                     type="button"
@@ -501,7 +511,9 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
                     aria-selected={tab === t}
                     aria-label={label}
                     title={label}
-                    className={tab === t ? s.tabOn : ''}
+                    className={[tab === t ? s.tabOn : '', t === 'shots' && view !== 'cut' ? s.ghost : ''].join(' ')}
+                    aria-hidden={t === 'shots' && view !== 'cut' ? true : undefined}
+                    tabIndex={t === 'shots' && view !== 'cut' ? -1 : undefined}
                     onClick={() => setTab(t)}
                     data-testid={`scenario-tab-${t}`}
                   >
@@ -510,7 +522,12 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
                   </button>
                 ))}
               </div>
-              {tab === 'scenes' && <Outline doc={doc} onPick={goTo} />}
+              {tab === 'scenes' &&
+                (view === 'cut' && !outline.items.length && doc.project.sequenceIds.length ? (
+                  <CutOutline doc={doc} />
+                ) : (
+                  <Outline doc={doc} items={outline.items} pages={outline.pages} onPick={goTo} />
+                ))}
               {tab === 'characters' && (
                 <CharactersPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />
               )}
@@ -585,14 +602,22 @@ function TypePicker({ type, onPick }: { type: BlockType | null; onPick: (t: Bloc
 }
 
 /** Sommaire : une ligne par séquence, avec sa page ; un clic y mène. */
-function Outline({ doc, onPick }: { doc: ProjectDoc; onPick: (id: string) => void }) {
-  const outline = useScriptUi((u) => u.outline);
+function Outline({
+  doc,
+  items: outline,
+  pages,
+  onPick,
+}: {
+  doc: ProjectDoc;
+  items: readonly OutlineItem[];
+  pages: number;
+  onPick: (id: string) => void;
+}) {
   const marks = useRevisionMarks(doc);
   const from = marks
     ? doc.versions?.find((v) => v.id === doc.versions?.find((x) => x.id === doc.activeVersionId)?.from)?.name
     : undefined;
   const active = useScriptUi((u) => u.activeHeading);
-  const pages = useScriptUi((u) => u.pages);
   if (!outline.length) return <p className={s.muted}>Aucune séquence pour l’instant.</p>;
   return (
     <>
@@ -623,6 +648,41 @@ function Outline({ doc, onPick }: { doc: ProjectDoc; onPick: (id: string) => voi
               </span>
               <span className={s.h}>{o.text || 'Sans titre'}</span>
               <span className={s.p}>{o.page}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+}
+
+/** Titre d'une séquence du découpage, tel que la vue Découpage l'affiche. */
+const cutHeading = (doc: ProjectDoc, seqId: ID) => {
+  const seq = doc.sequences[seqId];
+  return [seq?.intExt, seq?.label, seq?.effect].filter(Boolean).join(' – ');
+};
+
+/** Vue Découpage d'un projet sans texte : le sommaire est celui du découpage ; un clic y mène. */
+function CutOutline({ doc }: { doc: ProjectDoc }) {
+  const ids = doc.project.sequenceIds;
+  return (
+    <>
+      <p className={s.count}>
+        {ids.length} séquence{ids.length > 1 ? 's' : ''}
+      </p>
+      <ol className={s.outline} data-testid="scenario-outline">
+        {ids.map((id, i) => (
+          <li key={id}>
+            <button
+              type="button"
+              onClick={() =>
+                document.querySelector(`[data-cut-seq="${id}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+              }
+              data-view
+            >
+              <span className={s.n}>{i + 1}</span>
+              <span className={s.h}>{cutHeading(doc, id).toLocaleUpperCase('fr') || 'Sans titre'}</span>
+              <span className={s.p} />
             </button>
           </li>
         ))}
@@ -755,10 +815,9 @@ function CutView({ doc }: { doc: ProjectDoc }) {
       {doc.project.sequenceIds.map((seqId) => {
         const seq = doc.sequences[seqId];
         return (
-          <section key={seqId}>
+          <section key={seqId} data-cut-seq={seqId}>
             <h3>
-              {doc.project.sequenceIds.indexOf(seqId) + 1}.{' '}
-              {[seq?.intExt, seq?.label, seq?.effect].filter(Boolean).join(' – ')}
+              {doc.project.sequenceIds.indexOf(seqId) + 1}. {cutHeading(doc, seqId)}
             </h3>
             {(seq?.actionBlockIds ?? []).map((bId) => {
               const b = doc.blocks[bId];
