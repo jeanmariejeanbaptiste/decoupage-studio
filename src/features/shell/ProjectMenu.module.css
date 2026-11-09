@@ -46,8 +46,6 @@
   min-width: 0;
 }
 .field input:focus { border-color: var(--ink-soft); outline: none; }
-.pair { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
-
 .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; width: fit-content; max-width: 100%; }
 .seg label { display: inline-flex; align-items: center; padding: 5px 9px; cursor: pointer; font-size: 12.5px; border-right: 1px solid var(--rule); }
 .seg label:last-child { border-right: 0; }
@@ -61,5 +59,4 @@
 
 @media (max-width: 700px) {
   .version { display: none; }
-  .pair { grid-template-columns: 1fr; }
 }

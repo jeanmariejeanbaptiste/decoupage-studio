@@ -62,6 +62,12 @@ test('menu du projet : titre et format modifiables en haut de l’écran (la ver
   const panel = page.getByTestId('project-panel');
   await panel.getByLabel('Titre').fill('La Consigne (montage)');
   await expect(panel.getByLabel('Version')).toHaveCount(0);
+  // Les trois formats sont visibles en entier, sans défilement caché.
+  const seg = panel.getByRole('radiogroup', { name: 'Format' });
+  expect(await seg.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+  const segBox = (await seg.boundingBox())!;
+  const instBox = (await seg.getByText('Institutionnel', { exact: true }).boundingBox())!;
+  expect(instBox.x + instBox.width).toBeLessThanOrEqual(segBox.x + segBox.width + 1);
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
   await expect(page.getByTestId('project-menu')).toContainText('La Consigne (montage)');
