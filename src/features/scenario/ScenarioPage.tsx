@@ -4,7 +4,7 @@ import { MarkLayer } from '../comments/MarkLayer';
 import { clearFocus, openComment, useCommentsUi } from '../comments/commentsUi';
 import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Highlighter, Italic, MessageSquarePlus, Underline } from 'lucide-react';
+import { BarChart3, BookOpen, Bold, ChevronDown, Clapperboard, ListOrdered, MapPin, Users, FilePlus2, FileText, FileUp, Highlighter, Italic, MessageSquarePlus, Underline } from 'lucide-react';
 import { HIGHLIGHTS, type HighlightColor } from '../../domain/scriptLayout';
 import { chronoAt, chronoOf, mmss, type ScriptChrono } from '../../domain/chronometry';
 import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
@@ -31,13 +31,14 @@ import { ScriptStatsReports } from './ScriptStatsReports';
 import s from './ScenarioPage.module.css';
 
 type Tab = 'scenes' | 'characters' | 'decors' | 'research' | 'shots' | 'stats';
-const TABS: ReadonlyArray<[Tab, string]> = [
-  ['scenes', 'Séquences'],
-  ['characters', 'Personnages'],
-  ['decors', 'Décors'],
-  ['research', 'Recherche'],
-  ['shots', 'Plans'],
-  ['stats', 'Statistiques'],
+/** Onglets du panneau : une icône chacun, le nom pour l'onglet ouvert (une seule ligne, toujours). */
+const TABS: ReadonlyArray<[Tab, string, typeof ListOrdered]> = [
+  ['scenes', 'Séquences', ListOrdered],
+  ['characters', 'Personnages', Users],
+  ['decors', 'Décors', MapPin],
+  ['research', 'Recherche', BookOpen],
+  ['shots', 'Plans', Clapperboard],
+  ['stats', 'Statistiques', BarChart3],
 ];
 
 const savedTab = (): Tab => {
@@ -342,9 +343,10 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
 
         <aside className={[s.side, tab === 'stats' ? s.sideWide : ''].join(' ')} aria-label="Navigation du scénario">
           <div className={s.tabs} role="tablist">
-            {TABS.map(([t, label]) => (
-              <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? s.tabOn : ''} onClick={() => setTab(t)} data-testid={`scenario-tab-${t}`}>
-                {label}
+            {TABS.map(([t, label, Icon]) => (
+              <button key={t} type="button" role="tab" aria-selected={tab === t} aria-label={label} title={label} className={tab === t ? s.tabOn : ''} onClick={() => setTab(t)} data-testid={`scenario-tab-${t}`}>
+                <Icon size={15} strokeWidth={1.4} aria-hidden="true" />
+                {tab === t && <span>{label}</span>}
               </button>
             ))}
           </div>
