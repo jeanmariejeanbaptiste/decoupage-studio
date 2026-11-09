@@ -272,3 +272,10 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Dépouillement : vue « Scénario entier » avec la liste du film, rapports (éléments et séquences, PDF), numéros du scénario partout ; page de garde reconnue par indices ; filigrane Fade In retiré.
 - Divers : glisser des plans en liste triable, Entrée sans transformer une ligne en personnage, page d'erreur qui rouvre le projet, session Google gardée.
 - Tests : 387 unitaires, 101 parcours de bout en bout.
+
+## Carte des lieux — 2026-11-09
+- Plan de travail : carte Leaflet masquable (réglage retenu), tuiles OpenStreetMap en gris, repères numérotés par jour, jour choisi en avant, infobulle décor et adresse, liste avec état de la recherche et lien d'itinéraire ; rendez-vous du calendrier sous chaque jour daté.
+- Géocodage Nominatim : une requête par seconde au plus, seulement carte affichée et en ligne, résultat gardé dans le projet (hors annulation), délai, nouvel essai et pause après refus.
+- Feuille de service : carte réduite des lieux du jour à l'écran ; export avec lien d'itinéraire par lieu, cliquable dans le PDF et le Word.
+- Tests : 498 unitaires, 131 parcours de bout en bout (1 capture sur demande ignorée).
+- Proposé : carte imprimée dans l'export de la feuille de service (image composée des tuiles).
