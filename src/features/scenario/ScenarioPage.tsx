@@ -1,5 +1,6 @@
 import { useCanComment, useReadOnly, useShare } from '../../store/share';
-import { commentsOf } from '../../domain/comments';
+import { shownComments } from '../../domain/comments';
+import { MarkLayer } from '../comments/MarkLayer';
 import { clearFocus, openComment, useCommentsUi } from '../comments/commentsUi';
 import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -71,17 +72,15 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const toast = useUi((u) => u.toast);
 
   // Relecture : passages commentés de la version courante (ouverts), et la bulle à ouvrir.
-  // Le bouton « Commenter » est pour les relecteurs invités ; l'auteur répond depuis les passages marqués.
-  const mayComment = useCanComment();
+  // Commenter : un bouton pour les relecteurs invités ; l'auteur commente au clic droit sur une sélection.
+  const canComment = useCanComment();
   const isGuest = useShare((st) => st.role === 'guest');
-  const canComment = mayComment && isGuest;
-  const scriptComments = useMemo(
-    () => commentsOf(doc).flatMap((c) => (c.anchor.kind === 'script' && !c.resolved ? [{ id: c.id, start: c.anchor.start, end: c.anchor.end }] : [])),
-    [doc],
-  );
+  // Passages commentés : ceux de la version, et ceux des versions précédentes retrouvés dans le texte.
+  const shown = useMemo(() => shownComments(doc).filter((x) => x.anchor.kind === 'script' && !x.c.resolved), [doc]);
+  const scriptComments = useMemo(() => shown.map((x) => ({ id: x.c.id, start: (x.anchor as { start: number }).start, end: (x.anchor as { end: number }).end })), [shown]);
   const openScriptComment = (id: string, rect: DOMRect) => {
-    const c = doc.comments?.find((x) => x.id === id);
-    if (c) openComment(c.anchor, rect.left, rect.bottom);
+    const x = shown.find((y) => y.c.id === id);
+    if (x) openComment(x.anchor, rect.left, rect.bottom);
   };
   const focus = useCommentsUi((u) => u.focus);
   useEffect(() => {
@@ -238,13 +237,14 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               </Button>
             </>
           )}
-          {canComment && view === 'script' && (
+          {canComment && isGuest && view === 'script' && (
             <Button
               icon={<MessageSquarePlus size={15} strokeWidth={1.25} />}
               onMouseDown={(e) => e.preventDefault()}
               onClick={commentSelection}
               disabled={!selection}
               title="Commenter le passage sélectionné"
+              aria-label="Commenter le passage sélectionné"
               data-comment-trigger
               data-view
               data-testid="comment-selection"
@@ -306,13 +306,23 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
                 if (e.button === 2) hadSelection.current = !!useScriptUi.getState().selection;
               }}
               onContextMenu={(e) => {
-                // Clic droit sur une sélection : le passage devient un plan.
+                // Clic droit sur une sélection : en faire un plan, ou la commenter.
                 if (readOnly || !useScriptUi.getState().selection || !hadSelection.current) return;
                 e.preventDefault();
-                createShot({ x: e.clientX, y: e.clientY });
+                const at = { x: e.clientX, y: e.clientY };
+                useUi.getState().set({
+                  menu: {
+                    ...at,
+                    items: [
+                      { label: 'Créer un plan', action: () => createShot(at) },
+                      { label: 'Commenter', action: () => commentSelection() },
+                    ],
+                  },
+                });
               }}
             >
-              <div ref={zoomInner} style={phone || zoom === 1 ? undefined : { width: PAGE.w, transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+              <div ref={zoomInner} style={phone || zoom === 1 ? { position: 'relative' } : { position: 'relative', width: PAGE.w, transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+              <MarkLayer surface="script" />
               <ScriptEditor
                 key={doc.project.id}
                 doc={doc}

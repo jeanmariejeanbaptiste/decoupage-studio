@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { CommentPopover } from '../features/comments/CommentPopover';
 import { CommentsPanel } from '../features/comments/CommentsPanel';
+import { SketchPad } from '../features/comments/SketchPad';
 import { runChecks } from '../domain/lint';
 import { computeTiming } from '../domain/timing';
 import { buildFiction } from '../../seed/fiction';
@@ -239,6 +240,7 @@ export function App() {
       <Toasts />
       <CommentPopover />
       <CommentsPanel />
+      <SketchPad />
       <DialogHost />
       <ContextMenuHost />
       <CommandPalette />

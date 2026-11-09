@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { cutComments, type CommentAnchor } from '../../domain/comments';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
-import { useCanComment, useShare } from '../../store/share';
+import { useCanComment } from '../../store/share';
+import { MarkLayer } from './MarkLayer';
 import { clearFocus, openComment, sameAnchor, useCommentsUi } from './commentsUi';
 
 /** Endroit du découpage sous un élément de l'aperçu : la séquence, ou la cellule d'un plan. */
@@ -24,13 +25,12 @@ function cellOf(root: HTMLElement, a: CommentAnchor): HTMLElement | null {
 }
 
 /**
- * Relecture de l'aperçu du découpage : les cellules commentées portent une marque ; un clic ouvre leur
- * bulle (un relecteur commente n'importe quelle cellule, l'auteur ouvre celles qui sont commentées).
+ * Relecture de l'aperçu du découpage : les cellules commentées portent une marque ; un clic sur une
+ * cellule ouvre sa bulle (lire, répondre, commenter) ; les tracés des commentaires s'y superposent.
  */
 export function CutComments({ doc, children }: { doc: ProjectDoc; children: ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
   const canComment = useCanComment();
-  const guest = useShare((s) => s.role === 'guest');
   const focus = useCommentsUi((u) => u.focus);
   const marks = cutComments(doc);
 
@@ -83,17 +83,20 @@ export function CutComments({ doc, children }: { doc: ProjectDoc; children: Reac
   return (
     <div
       ref={root}
+      style={{ position: 'relative' }}
       data-comment-trigger
       onClick={(e) => {
         const hit = anchorAt(e.target as Element);
         if (!hit) return;
         const commented = [...marks.values()].some((l) => sameAnchor(l[0].anchor, hit.anchor));
-        if (!commented && !(canComment && guest)) return;
+        if (!commented && !canComment) return;
+        if (useCommentsUi.getState().drawing) return;
         const r = hit.cell.getBoundingClientRect();
         openComment(hit.anchor, r.left, r.bottom);
       }}
     >
       {children}
+      <MarkLayer surface="cut" />
     </div>
   );
 }

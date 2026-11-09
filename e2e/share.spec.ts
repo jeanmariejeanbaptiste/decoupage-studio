@@ -151,6 +151,7 @@ test('relecture : l’invité commente le découpage et le scénario ; l’auteu
   await expect(guest.locator('td[data-commented]')).toHaveCount(1);
   // Scénario : un mot sélectionné, commenté.
   await guest.getByRole('button', { name: /^Scénario$/ }).first().click();
+  await expect(guest.getByTestId('script-editor')).toContainText('valise');
   await guest.evaluate(() => {
     // Sélection du mot « valise » dans le texte (comme à la souris).
     const ed = document.querySelector('[data-testid="script-editor"]')!;

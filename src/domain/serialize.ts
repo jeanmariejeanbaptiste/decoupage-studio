@@ -3,6 +3,7 @@ import { ensureInterview, syncInterviewShots, upgradeInterview } from './intervi
 import { defaultSettings, makeBlock } from './factory';
 import { normalizeScenario } from './fountain';
 import { storedShots } from './versions';
+import { commentAttachments } from './comments';
 import { migrateDecorLocations } from './locations';
 import { activeColumns } from './columns';
 import { normalizeTiming } from './factory';
@@ -59,6 +60,7 @@ export function mediaKeys(doc: ProjectDoc): string[] {
   for (const k of richImageKeys(doc.intentionHtml)) add(k);
   for (const subj of doc.interview?.subjects ?? []) for (const st of subj.setups ?? []) for (const c of st.cameras) add(c.frame);
   add(doc.project.settings.audioTrack?.blobKey);
+  for (const k of commentAttachments(doc)) add(k);
   return [...keys];
 }
 

@@ -1,7 +1,8 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
-import { addComment, commentsOf, cutComments, deleteComment, replyComment, setResolved } from './comments';
+import { addComment, commentsOf, cutComments, deleteComment, replyComment, setResolved, shownComments } from './comments';
+import { mediaKeys } from './serialize';
 import { shiftAnchors } from './fountain';
 import { reviseScenario } from './revision';
 import { createVersion } from './versions';
@@ -40,5 +41,30 @@ describe('commentaires de relecture', () => {
     const v2 = produce(doc, (d) => void createVersion(d));
     expect(commentsOf(v2)).toHaveLength(0);
     expect(commentsOf(v2, v2.versions![0].id)).toHaveLength(1);
+  });
+
+  it('en V2, les commentaires encore ouverts de la V1 se retrouvent à leur place ; la réponse porte sa version', () => {
+    const base = buildFiction();
+    const shotId = base.sequences[base.project.sequenceIds[0]].shotIds[0];
+    const src = base.scenario!;
+    const at = src.indexOf('valise cabossée');
+    let a = '';
+    const v2 = produce(base, (d) => {
+      a = addComment(d, { kind: 'shot', shotId, col: 'value' }, 'Nina', 'Plan large ?', { attachments: ['p:schema'], marks: { surface: 'cut', paths: ['M0 0 L10 10'] } })!;
+      addComment(d, { kind: 'script', start: at, end: at + 15, quote: 'valise cabossée' }, 'Nina', 'Quelle valise ?');
+      createVersion(d);
+      const s = d.scenario!;
+      d.scenario = `INT. TRAIN - JOUR\n\nUn contrôleur passe.\n\n${s}`;
+      replyComment(d, a, 'Moi', 'En V2, c’est un plan large.', ['p:croquis']);
+    });
+    const shown = shownComments(v2);
+    expect(shown.map((x) => x.from)).toEqual([v2.versions![0].id, v2.versions![0].id]);
+    const script = shown.find((x) => x.anchor.kind === 'script')!;
+    expect(script.anchor.kind === 'script' && v2.scenario!.slice(script.anchor.start, script.anchor.end)).toBe('valise cabossée');
+    expect(cutComments(v2).get(`${shotId}:value`)?.[0].from).toBe(v2.versions![0].id);
+    const reply = v2.comments!.find((c) => c.id === a)!.replies[0];
+    expect(reply.versionId).toBe(v2.activeVersionId);
+    // Les fichiers joints ne partent jamais au ménage.
+    expect(mediaKeys(v2)).toEqual(expect.arrayContaining(['p:schema', 'p:croquis']));
   });
 });

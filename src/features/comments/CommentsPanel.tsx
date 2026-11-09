@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { COLUMN_DEFS } from '../../domain/columns';
-import { commentsOf, type ReviewComment } from '../../domain/comments';
+import { commentsOf, shownComments, type ReviewComment } from '../../domain/comments';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ProjectDoc } from '../../domain/types';
 import { switchVersion } from '../../domain/versions';
@@ -30,11 +30,16 @@ export function CommentsPanel() {
   if (panel === null || !doc) return null;
   const versionId = panel || doc.activeVersionId;
   const version = doc.versions?.find((v) => v.id === versionId);
-  const list = commentsOf(doc, versionId);
+  // Version courante : ses commentaires, puis ceux des versions précédentes encore ouverts qui s'y retrouvent.
+  const carried = versionId === doc.activeVersionId ? shownComments(doc).filter((x) => x.from) : [];
+  const fromOf = new Map(carried.map((x) => [x.c.id, doc.versions?.find((v) => v.id === x.from)?.name]));
+  const list = [...commentsOf(doc, versionId), ...carried.map((x) => x.c)];
   const shown = all ? list : list.filter((c) => !c.resolved);
   const go = (c: ReviewComment) => {
     flushEditors();
     if (versionId && versionId !== doc.activeVersionId) mutateDoc((d) => switchVersion(d, versionId));
+    const shown = carried.find((x) => x.c.id === c.id);
+    if (shown) c = { ...c, anchor: shown.anchor };
     if (c.anchor.kind === 'script') navigate('scenario');
     else {
       useUi.getState().set({ printView: true, editing: null });
@@ -66,7 +71,7 @@ export function CommentsPanel() {
                 <button type="button" className={s.place} onClick={() => go(c)} title="Voir à sa place">
                   {placeOf(doc, c)}
                 </button>
-                <CommentThread c={c} />
+                <CommentThread c={c} from={fromOf.get(c.id)} />
               </li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, MessageSquare, Pencil, Plus, X } from 'lucide-react';
-import { commentsOf } from '../../domain/comments';
+import { commentsOf, shownComments } from '../../domain/comments';
 import { openCommentsPanel } from '../comments/commentsUi';
 import { activeVersion, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
@@ -93,8 +93,11 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
                   )}
                   {(() => {
                     // Commentaires de la version : un compteur discret, seulement s'il y en a.
-                    const n = doc.comments?.length ? commentsOf(doc, v.id || undefined).filter((c) => !c.resolved).length : 0;
-                    const total = doc.comments?.length ? commentsOf(doc, v.id || undefined).length : 0;
+                    // Version courante : les commentaires repris des précédentes comptent aussi.
+                    const own = doc.comments?.length ? commentsOf(doc, v.id || undefined) : [];
+                    const carried = on && doc.comments?.length ? shownComments(doc).filter((x) => x.from).map((x) => x.c) : [];
+                    const n = [...own, ...carried].filter((c) => !c.resolved).length;
+                    const total = own.length + carried.length;
                     return total > 0 && !readOnly ? (
                       <button
                         type="button"

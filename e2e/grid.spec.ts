@@ -113,3 +113,43 @@ test('coller depuis un tableur à cheval sur deux séquences : les lignes suiven
   await expect(page.locator(`[data-cell="${inFirst}:subject"]`)).toHaveText('Collé B');
   await expect(page.locator(`[data-cell="${inFirst + 1}:subject"]`)).toHaveText('Collé C');
 });
+
+test('relecture par l’auteur : schéma, tracé sur la page ; en V2, le commentaire de V1 reste et reçoit sa réponse', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByRole('button', { name: /Aperçu/ }).click();
+  const cell = page.locator('tr[data-shot] td[data-col="value"]').first();
+  await cell.click();
+  await page.getByTestId('comment-text').fill('Plan large ?');
+  // Un schéma dessiné à main levée.
+  await page.getByTestId('comment-popover').getByTestId('comment-sketch').click();
+  const pad = page.getByTestId('sketch-pad').locator('canvas');
+  const b = (await pad.boundingBox())!;
+  await page.mouse.move(b.x + 40, b.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 200, b.y + 120, { steps: 6 });
+  await page.mouse.up();
+  await page.getByTestId('sketch-done').click();
+  await expect(page.getByTestId('comment-popover').getByTestId('comment-attachments').locator('img')).toHaveCount(1);
+  // Un tracé autour de la cellule, sur la page.
+  await page.getByTestId('comment-draw').click();
+  const c = (await cell.boundingBox())!;
+  await page.mouse.move(c.x - 6, c.y - 6);
+  await page.mouse.down();
+  await page.mouse.move(c.x + c.width + 6, c.y - 6, { steps: 4 });
+  await page.mouse.move(c.x + c.width + 6, c.y + c.height + 6, { steps: 4 });
+  await page.mouse.up();
+  await page.getByTestId('marks-done').click();
+  await page.getByTestId('comment-send').click();
+  await expect(page.getByTestId('comment-popover').getByTestId('comment')).toContainText('1 tracé sur la page');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('marks-cut').locator('path')).toHaveCount(1);
+  // V2 : le commentaire de V1 est là, marqué V1 ; la réponse dit « en V2 ».
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-new').click();
+  await page.locator('td[data-commented]').first().click();
+  const pop = page.getByTestId('comment-popover');
+  await expect(pop.getByTestId('comment')).toContainText('V1');
+  await pop.getByTestId('comment-reply').fill('Changé en plan large.');
+  await page.keyboard.press('Enter');
+  await expect(pop.getByTestId('comment-reply-item')).toContainText('en V2');
+});
