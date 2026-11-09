@@ -40,3 +40,9 @@
 .keyWide { grid-column: span 5; }
 .num { font-weight: 600; font-variant-numeric: tabular-nums; }
 @media print { .key input { border: 0; padding: 0; } }
+/* Horaire déduit du déroulé (rendez-vous + durées prévues). */
+.computed { color: var(--ink-soft); }
+.bannerRow td { border-bottom-style: dashed; color: var(--ink-soft); }
+.bannerRow strong { color: var(--ink); font-weight: 600; }
+.locName { display: block; font-weight: 600; }
+.locLine { display: block; font-size: 12px; color: var(--ink-soft); }

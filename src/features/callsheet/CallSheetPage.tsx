@@ -5,7 +5,9 @@ import { aggregateEquipment, equipmentCategories } from '../../domain/equipment'
 import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import {
+  bannerLabel,
   callSheetStrips,
+  dayAgenda,
   dayItinerary,
   dayStats,
   scheduleDays,
@@ -24,7 +26,9 @@ import { Hand } from '../../ui/Hand';
 import s from './CallSheetPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { callSheetCsv } from '../../domain/exports';
-import { callSheetDocument, characterNumbers } from '../../domain/documents';
+import { callSheetDocument } from '../../domain/documents';
+import { characterNumbers } from '../../domain/registry';
+import { decorLocation } from '../../domain/locations';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',
@@ -59,6 +63,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const strips = callSheetStrips(doc, day.n);
   const stats = dayStats(doc, timing, day.n, strips);
   const itinerary = dayItinerary(doc, day.n);
+  const agenda = dayAgenda(doc, day.n, strips);
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
@@ -127,7 +132,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
 
         <section className={s.block}>
           <h3>Lieux et horaires</h3>
-          {itinerary.length > 0 && itinerary.every((stop) => !stop.start) && (
+          {itinerary.length > 0 && agenda.every((it) => !it.start) && (
             <p className={[s.muted, 'no-print'].join(' ')} data-testid="timeline-hint">
               Aucun horaire ·{' '}
               <button type="button" className={s.link} onClick={() => navigate('schedule')}>
@@ -142,22 +147,37 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               <thead>
                 <tr>
                   <th>Horaire</th>
-                  <th>Lieu</th>
-                  <th>Adresse</th>
+                  <th>Décor</th>
+                  <th>Lieu de tournage</th>
                   <th>Séquence</th>
                 </tr>
               </thead>
               <tbody>
-                {itinerary.map((stop, i) => {
+                {agenda.map((it) => {
+                  if (it.type === 'banner') {
+                    return (
+                      <tr key={it.banner.id} className={s.bannerRow} data-testid="itinerary-banner">
+                        <td className={s.code}>{it.start ? `${it.start} – ${it.end}` : '—'}</td>
+                        <td colSpan={3}>
+                          <strong>{bannerLabel(it.banner)}</strong>
+                          {it.banner.label ? ` · ${it.banner.label}` : ''} <span className={s.muted}>{it.banner.minutes} min</span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const stop = itinerary.find((x) => x.seqIds[0] === it.strip.seqId);
+                  if (!stop) return null;
                   const decor = stop.decorId ? doc.decors[stop.decorId] : undefined;
+                  const loc = decorLocation(decor);
                   return (
-                    <tr key={i}>
-                      <td className={s.code}>{stop.start ? `${stop.start} – ${stop.end}` : '—'}</td>
+                    <tr key={it.strip.seqId}>
+                      <td className={[s.code, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? `${stop.start} – ${stop.end}` : '—'}</td>
                       <td>
                         <strong>{decor?.name ?? 'Décor non renseigné'}</strong>{' '}
                         {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
                       </td>
                       <td>
+                        {loc.name && <strong className={s.locName}>{loc.name}</strong>}
                         <input
                           className={s.address}
                           value={stop.address}
@@ -171,6 +191,8 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                             set({ seqAddresses: next });
                           }}
                         />
+                        {loc.access && <span className={s.locLine}>Accès : {loc.access}</span>}
+                        {loc.contact && <span className={s.locLine}>Contact : {loc.contact}</span>}
                       </td>
                       <td>{stop.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')}</td>
                     </tr>

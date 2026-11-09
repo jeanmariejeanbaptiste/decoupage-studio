@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { buildFiction } from '../../seed/fiction';
-import { callSheetDocument, characterNumbers } from './documents';
+import { callSheetDocument } from './documents';
+import { characterNumbers } from './registry';
 import { updateDay } from './schedule';
 
 describe('feuille de service au format professionnel', () => {

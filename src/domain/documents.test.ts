@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { breakdownDocument, callSheetDocument, equipmentDocument, floorPlansDocument, intentionDocument, registryDocument, scheduleDocument } from './documents';
 import { addFloorItem } from './floorplan';
-import { placeSequence, placeShot, stripsByTime, suggestSchedule } from './schedule';
+import { addBanner, placeSequence, placeShot, stripsByTime, suggestSchedule, updateBanner, updateDay } from './schedule';
+import { callSheetCsv, scheduleCsv } from './exports';
 
 describe('documents imprimables', () => {
   const doc = produce(buildFiction(), (d) => {
@@ -32,5 +33,35 @@ describe('documents imprimables', () => {
     expect(equipmentDocument(doc, false).html).not.toContain('Plans concernés');
     expect(intentionDocument(doc).html).toContain('Un film &lt;sobre&gt;.');
     expect(floorPlansDocument(doc).html).toContain('<svg');
+  });
+  it('plan de travail : en-tête « jour n sur N », totaux et bandes en gris (sauf économie d’encre)', () => {
+    const n = doc.schedule!.days.length;
+    const html = scheduleDocument(doc).html;
+    expect(html).toContain(`Jour 1 sur ${n}`);
+    expect(html).toMatch(/\d+ séq\. · \d+ plans? · /);
+    const toned = produce(doc, (d) => {
+      const seq = d.sequences[d.project.sequenceIds[0]];
+      seq.intExt = 'EXT';
+      seq.effect = 'NUIT';
+    });
+    expect(scheduleDocument(toned).html).toContain('class="tone-ext-night"');
+    const saver = produce(toned, (d) => void (d.project.settings.exportInkSaver = true));
+    expect(scheduleDocument(saver).html).not.toContain('class="tone-');
+  });
+  it('bandeaux et horaires en cascade dans le plan de travail, la feuille de service et les CSV', () => {
+    const next = produce(doc, (d) => {
+      updateDay(d, 1, { callTime: '08:00' });
+      const meal = addBanner(d, 1, 'repas');
+      updateBanner(d, 1, meal, { label: 'cantine' });
+    });
+    const sched = scheduleDocument(next).html;
+    expect(sched).toContain('<tr class="banner">');
+    expect(sched).toContain('<b>Repas</b> · cantine · 60 min');
+    // Feuille de service : seules les séquences placées comptent ; le repas suit la dernière (14:00–14:30).
+    const sheet = callSheetDocument(next, 1).html;
+    expect(sheet).toContain('<th>Repas</th><td class="time">14:30</td>');
+    expect(sheet).toContain('<th>Fin prévue</th><td class="time">15:30</td>');
+    expect(scheduleCsv(next)).toContain('Repas · cantine');
+    expect(callSheetCsv(next, 1)).toContain('60 min');
   });
 });

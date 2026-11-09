@@ -37,3 +37,8 @@
 
 .chipX { border: 0; background: none; padding: 0 0 0 4px; color: var(--ink-soft); cursor: pointer; font-size: 12px; line-height: 1; }
 .chipX:hover { color: var(--ink); }
+
+/* Fiche sans séquence : ligne estompée, mention « inutilisé ». */
+.unused td { color: var(--ink-soft); }
+.unusedTag { font-size: 12px; font-style: italic; color: var(--ink-soft); }
+.num { font-variant-numeric: tabular-nums; font-weight: 600; }

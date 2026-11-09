@@ -1,6 +1,9 @@
 import { sequenceCharacterIds } from './characters';
+import { newId } from './factory';
+import { decorLocation } from './locations';
 import { shotDurationSec } from './rows';
 import { fold } from './text';
+import { formatTc } from './timecode';
 import type { Timing } from './timing';
 import type { ID, ProjectDoc } from './types';
 
@@ -37,7 +40,34 @@ export interface ShootingDay {
   hospital?: string;
   /** Convocation détaillée par personnage (la convocation simple reste dans `calls`). */
   callDetails?: Record<ID, { pickup?: string; makeup?: string; costume?: string; onSet?: string }>;
+  /** Bandeaux sans séquence (installation, trajet, repas, pause), dans l'ordre de la journée. */
+  banners?: DayBanner[];
+  /** Durée prévue d'une séquence ce jour-là, en minutes (sinon déduite de ses plans). */
+  durations?: Record<ID, number>;
 }
+
+export type BannerKind = 'installation' | 'trajet' | 'repas' | 'pause';
+
+export interface DayBanner {
+  id: ID;
+  kind: BannerKind;
+  /** Précision libre (« vers le lycée », « cantine »…). */
+  label?: string;
+  /** Début imposé (« HH:MM ») ; sinon le bandeau s'enchaîne après ce qui le précède. */
+  start?: string;
+  minutes: number;
+  /** Séquence après laquelle il se place ce jour-là ; absent = en tête de journée. */
+  after?: ID;
+}
+
+export const BANNER_KINDS: ReadonlyArray<{ kind: BannerKind; label: string; minutes: number }> = [
+  { kind: 'installation', label: 'Installation', minutes: 60 },
+  { kind: 'trajet', label: 'Trajet', minutes: 30 },
+  { kind: 'repas', label: 'Repas', minutes: 60 },
+  { kind: 'pause', label: 'Pause', minutes: 15 },
+];
+
+export const bannerLabel = (b: Pick<DayBanner, 'kind'>) => BANNER_KINDS.find((k) => k.kind === b.kind)?.label ?? b.kind;
 
 export interface Schedule {
   days: ShootingDay[];
@@ -103,11 +133,14 @@ export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay
   else sch.days.push({ n, ...patch });
 }
 
-/** Supprime un jour : ses plans redeviennent non planifiés. */
+/** Supprime un jour : ses plans redeviennent non planifiés, les jours suivants sont renumérotés (« jour n sur N » sans trou). */
 export function removeDay(doc: ProjectDoc, n: number): void {
   const sch = ensureSchedule(doc);
   sch.days = sch.days.filter((d) => d.n !== n);
   for (const s of Object.values(doc.shots)) if (s.shootingDay === n) s.shootingDay = undefined;
+  const rank = new Map(scheduleDays(doc).map((d, i) => [d.n, i + 1]));
+  for (const d of sch.days) d.n = rank.get(d.n) ?? d.n;
+  for (const s of Object.values(doc.shots)) if (s.shootingDay !== undefined) s.shootingDay = rank.get(s.shootingDay) ?? s.shootingDay;
 }
 
 export function assignShots(doc: ProjectDoc, shotIds: readonly ID[], day: number | undefined): void {
@@ -206,6 +239,42 @@ export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
     for (const id of Object.keys(d.parts ?? {})) if (!doc.shots[id]) delete d.parts![id];
   }
   return day;
+}
+
+// --- En-têtes de journée et codage des bandes -------------------------------------------------
+
+const longDateFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+/** Date longue (« lundi 16 novembre 2026 »), vide si la date est inconnue ou invalide. */
+export function longDate(date?: string): string {
+  if (!date) return '';
+  const t = new Date(`${date}T12:00`);
+  return Number.isNaN(t.getTime()) ? '' : longDateFmt.format(t);
+}
+
+/** En-tête d'une journée : « Jour 2 sur 5 · lundi 16 novembre 2026 · RDV 07:00 ». */
+export function dayTitle(day: ShootingDay, total: number): string {
+  return [`Jour ${day.n}${total ? ` sur ${total}` : ''}`, longDate(day.date), day.callTime && `RDV ${day.callTime}`].filter(Boolean).join(' · ');
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
+
+/** Totaux d'une journée : séquences, plans, durée d'écran, décors, comédiens (figurants à part). */
+export function dayTotalsText(doc: ProjectDoc, st: DayStats): string {
+  const cast = st.characterIds.filter((id) => doc.characters[id] && doc.characters[id].kind !== 'figurant').length;
+  return [`${st.sequenceIds.length} séq.`, plural(st.shots, 'plan'), `${formatTc(st.screenSec)} d’écran`, plural(st.decorIds.length, 'décor'), plural(cast, 'comédien')].join(' · ');
+}
+
+/**
+ * Codage des bandes (charte noir et blanc) : du plus clair au plus soutenu, INT jour, EXT jour,
+ * INT nuit, EXT nuit ; aube et crépuscule hachurés. Une séquence INT/EXT se range avec les extérieurs.
+ */
+export type StripTone = 'int-day' | 'ext-day' | 'int-night' | 'ext-night' | 'int-twilight' | 'ext-twilight';
+
+export function stripTone(seq: { intExt?: string; effect?: string } | undefined): StripTone {
+  const ext = seq?.intExt === 'EXT' || seq?.intExt === 'INT/EXT' ? 'ext' : 'int';
+  const light = seq?.effect === 'NUIT' ? 'night' : seq?.effect === 'AUBE' || seq?.effect === 'CRÉPUSCULE' ? 'twilight' : 'day';
+  return `${ext}-${light}`;
 }
 
 export interface DayStats {
@@ -407,11 +476,152 @@ export function stripRange(
   };
 }
 
+// --- Bandeaux et horaires en cascade ---------------------------------------------------------
+
+/** Créneau saisi librement (« 10:30–11:00 », « 10h30 - 11h ») ; indéfini s'il ne se lit pas. */
+export function parseSlot(text: string | undefined): { start: string; end: string } | undefined {
+  const m = /(\d{1,2})\s*[:h]\s*(\d{2})?\s*[–—-]\s*(\d{1,2})\s*[:h]?\s*(\d{2})?/.exec(text ?? '');
+  if (!m) return undefined;
+  const a = Number(m[1]) * 60 + Number(m[2] ?? 0);
+  let b = Number(m[3]) * 60 + Number(m[4] ?? 0);
+  if (b <= a) b += 24 * 60;
+  return { start: fromMin(a), end: fromMin(b) };
+}
+
+/** Plans non abandonnés d'une séquence. */
+const liveShots = (doc: ProjectDoc, seqId: ID) => (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id] && doc.shots[id].status !== 'abandonné');
+
+/**
+ * Durée prévue d'une bande, en minutes : celle saisie pour ce jour, sinon la part du créneau de la
+ * séquence (institutionnel), sinon une demi-heure par plan.
+ */
+export function stripMinutes(doc: ProjectDoc, day: number, strip: Strip): number {
+  const set = doc.schedule?.days.find((x) => x.n === day)?.durations?.[strip.seqId];
+  return set && set > 0 ? set : estimatedStripMinutes(doc, strip);
+}
+
+/** Durée estimée d'une bande, sans tenir compte de la durée saisie pour le jour. */
+export function estimatedStripMinutes(doc: ProjectDoc, strip: Strip): number {
+  const slot = parseSlot(doc.sequences[strip.seqId]?.slot);
+  if (slot) {
+    const share = strip.shotIds.length / Math.max(1, liveShots(doc, strip.seqId).length);
+    return Math.max(SLOT_MIN, Math.round(((toMin(slot.end) - toMin(slot.start)) * share) / 5) * 5);
+  }
+  return Math.max(SLOT_MIN, strip.shotIds.length * DEFAULT_SHOT_MIN);
+}
+
+export type AgendaItem =
+  | { type: 'strip'; strip: Strip; start?: string; end?: string; computed: boolean }
+  | { type: 'banner'; banner: DayBanner; start?: string; end?: string; computed: boolean };
+
+/**
+ * Déroulé d'une journée : bandes de séquences et bandeaux, dans l'ordre, avec leurs horaires. Un
+ * horaire saisi (créneaux de l'emploi du temps, créneau de la séquence, début d'un bandeau) fait foi ;
+ * le reste s'enchaîne à partir du rendez-vous, selon les durées prévues (`computed`).
+ */
+export function dayAgenda(doc: ProjectDoc, day: number, strips: Strip[] = stripsByTime(doc, day)): AgendaItem[] {
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  const banners = d?.banners ?? [];
+  const seqIds = new Set(strips.map((x) => x.seqId));
+  const items: AgendaItem[] = banners.filter((b) => !b.after).map((banner) => ({ type: 'banner', banner, computed: false }));
+  for (const strip of strips) {
+    items.push({ type: 'strip', strip, computed: false });
+    for (const banner of banners) if (banner.after === strip.seqId) items.push({ type: 'banner', banner, computed: false });
+  }
+  // Bandeau dont la séquence a quitté la journée : il reste, en fin de journée.
+  for (const banner of banners) if (banner.after && !seqIds.has(banner.after)) items.push({ type: 'banner', banner, computed: false });
+
+  let cursor = d?.callTime ? toMin(d.callTime) : undefined;
+  for (const it of items) {
+    let start: number | undefined;
+    let end: number | undefined;
+    if (it.type === 'strip') {
+      const seqSlot = parseSlot(doc.sequences[it.strip.seqId]?.slot);
+      const whole = it.strip.shotIds.length >= liveShots(doc, it.strip.seqId).length;
+      const fixed = stripRange(doc, day, it.strip) ?? (seqSlot && whole ? seqSlot : undefined);
+      if (fixed) [start, end] = [toMin(fixed.start), toMin(fixed.end)];
+      else if (cursor !== undefined) [start, end] = [cursor, cursor + stripMinutes(doc, day, it.strip)];
+      it.computed = !fixed && start !== undefined;
+    } else {
+      start = it.banner.start ? toMin(it.banner.start) : cursor;
+      if (start !== undefined) end = start + Math.max(0, it.banner.minutes);
+      it.computed = !it.banner.start && start !== undefined;
+    }
+    if (start === undefined || end === undefined) continue;
+    it.start = fromMin(start);
+    it.end = fromMin(end);
+    cursor = Math.max(cursor ?? end, end);
+  }
+  return items;
+}
+
+/** Fin prévue de la journée d'après son déroulé (indéfinie sans horaire). */
+export function agendaEnd(items: readonly AgendaItem[]): string | undefined {
+  const ends = items.map((i) => i.end).filter((x): x is string => !!x);
+  return ends.length ? fromMin(Math.max(...ends.map(toMin))) : undefined;
+}
+
+export function addBanner(doc: ProjectDoc, day: number, kind: BannerKind): ID {
+  const d = dayOf(doc, day);
+  const last = [...dayAgenda(doc, day)].reverse().find((i) => i.type === 'strip');
+  const id = newId();
+  const minutes = BANNER_KINDS.find((k) => k.kind === kind)?.minutes ?? 30;
+  (d.banners ??= []).push({ id, kind, minutes, ...(last?.type === 'strip' ? { after: last.strip.seqId } : {}) });
+  return id;
+}
+
+export function updateBanner(doc: ProjectDoc, day: number, id: ID, patch: Partial<Omit<DayBanner, 'id'>>): void {
+  const b = doc.schedule?.days.find((x) => x.n === day)?.banners?.find((x) => x.id === id);
+  if (!b) return;
+  Object.assign(b, patch);
+  for (const k of ['label', 'start', 'after'] as const) if (!b[k]) delete b[k];
+}
+
+export function removeBanner(doc: ProjectDoc, day: number, id: ID): void {
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  if (d?.banners) d.banners = d.banners.filter((b) => b.id !== id);
+}
+
+/** Avance (−1) ou recule (+1) un bandeau d'un cran dans le déroulé de la journée. */
+export function moveBanner(doc: ProjectDoc, day: number, id: ID, dir: -1 | 1): void {
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  if (!d?.banners) return;
+  const items = dayAgenda(doc, day);
+  const i = items.findIndex((x) => x.type === 'banner' && x.banner.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= items.length) return;
+  [items[i], items[j]] = [items[j], items[i]];
+  // Chaque bandeau se rattache à la séquence qui le précède désormais ; l'ordre des bandeaux suit.
+  let after: ID | undefined;
+  const order: ID[] = [];
+  for (const it of items) {
+    if (it.type === 'strip') after = it.strip.seqId;
+    else {
+      const b = d.banners.find((x) => x.id === it.banner.id)!;
+      if (after) b.after = after;
+      else delete b.after;
+      order.push(b.id);
+    }
+  }
+  d.banners.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+}
+
+/** Durée prévue d'une séquence ce jour-là (vide = estimation par les plans). */
+export function setStripMinutes(doc: ProjectDoc, day: number, seqId: ID, minutes: number | undefined): void {
+  const d = dayOf(doc, day);
+  const next = { ...(d.durations ?? {}) };
+  if (minutes && minutes > 0) next[seqId] = Math.round(minutes);
+  else delete next[seqId];
+  d.durations = Object.keys(next).length ? next : undefined;
+}
+
 export interface ItineraryStop {
   decorId?: ID;
   address: string;
   start?: string;
   end?: string;
+  /** Horaire déduit du déroulé (rendez-vous et durées), pas saisi dans l'emploi du temps. */
+  computed?: boolean;
   seqIds: ID[];
 }
 
@@ -419,14 +629,15 @@ export interface ItineraryStop {
  *  (adresse du jour pour la séquence, sinon du décor ce jour-là, sinon celle du Registre). */
 export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
   const d = doc.schedule?.days.find((x) => x.n === day);
-  return callSheetStrips(doc, day).map((strip) => {
+  return dayAgenda(doc, day, callSheetStrips(doc, day)).flatMap((it) => {
+    if (it.type !== 'strip') return [];
+    const strip = it.strip;
     const decorId = doc.sequences[strip.seqId]?.decorId;
-    const r = stripRange(doc, day, strip);
     const address =
       d?.seqAddresses?.[strip.seqId] ??
-      (decorId ? (d?.addresses?.[decorId] ?? doc.decors[decorId]?.address) : undefined) ??
+      (decorId ? (d?.addresses?.[decorId] ?? decorLocation(doc.decors[decorId]).address) : undefined) ??
       '';
-    return { decorId, address, start: r?.start, end: r?.end, seqIds: [strip.seqId] };
+    return [{ decorId, address, start: it.start, end: it.end, ...(it.computed ? { computed: true } : {}), seqIds: [strip.seqId] }];
   });
 }
 

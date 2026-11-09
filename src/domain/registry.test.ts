@@ -1,7 +1,8 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { addDecor, characterStats, decorStats, deleteCharacter, deleteDecor, sequenceProgress, setSequenceDecorByName } from './registry';
+import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, numberedCast, sequenceProgress, setSequenceDecorByName, usageDayLabel } from './registry';
+import { assignShots, updateDay } from './schedule';
 import { computeTiming } from './timing';
 
 describe('registre', () => {
@@ -47,5 +48,41 @@ describe('registre', () => {
     });
     expect(removed.sequences[s1].decorId).toBeUndefined();
     expect(Object.values(removed.shots).some((s) => s.characterIds.includes(byName('Candice')))).toBe(false);
+  });
+});
+
+describe('registre : colonnes calculées depuis le plan de travail', () => {
+  const doc = buildRav3();
+  const byName = (n: string) => Object.values(doc.characters).find((c) => c.name === n)!.id;
+
+  it('numéros des personnages : principaux d’abord, puis par nombre de séquences', () => {
+    const nums = characterNumbers(doc);
+    const principals = Object.values(doc.characters).filter((c) => c.kind === 'principal');
+    expect(Math.max(...principals.map((c) => nums.get(c.id)!))).toBe(principals.length);
+    expect([...nums.values()].sort((a, b) => a - b)).toEqual(Object.keys(doc.characters).map((_, i) => i + 1));
+    const cast = numberedCast(doc, [byName('Maquilleuse'), byName('Candice')], nums);
+    expect(cast).toBe(`${nums.get(byName('Candice'))} Candice, ${nums.get(byName('Maquilleuse'))} Maquilleuse`);
+  });
+
+  it('premier jour, nombre de jours et de séquences ; rien de planifié = aucun jour', () => {
+    const [a, , , d] = doc.project.sequenceIds;
+    expect(characterUsage(doc).get(byName('Candice'))!.days).toEqual([]);
+    const next = produce(doc, (x) => {
+      assignShots(x, x.sequences[d].shotIds, 3);
+      assignShots(x, x.sequences[a].shotIds, 2);
+      updateDay(x, 2, { date: '2026-11-16' });
+    });
+    const cu = characterUsage(next);
+    expect(cu.get(byName('Admiratrice'))!.days[0]).toBe(2);
+    for (const u of cu.values()) expect(u.days).toEqual([...u.days].sort((x, y) => x - y));
+    const loge = next.sequences[d].decorId!;
+    const du = decorUsage(next);
+    expect(du.get(loge)).toEqual({ days: [3], sequenceIds: [d] });
+    expect(usageDayLabel(next, du.get(loge))).toBe('J3');
+    expect(usageDayLabel(next, du.get(next.sequences[a].decorId!))).toBe('J2 · 16 nov.');
+    expect(usageDayLabel(next, undefined)).toBe('');
+    const empty = produce(next, (x) => void addDecor(x, { name: 'Grenier' }));
+    const grenier = Object.values(empty.decors).find((x) => x.name === 'Grenier')!.id;
+    expect(decorUsage(empty).get(grenier)).toEqual({ days: [], sequenceIds: [] });
   });
 });

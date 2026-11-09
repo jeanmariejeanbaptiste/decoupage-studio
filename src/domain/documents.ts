@@ -10,8 +10,9 @@ import { oneShotPlanKey, planOf } from './floorplan';
 import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
-import { characterStats, decorStats } from './registry';
-import { callSheetStrips, dayEquipment, dayStats, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripRange, stripsByTime } from './schedule';
+import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
+import { agendaEnd, bannerLabel, callSheetStrips, dayAgenda, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
+import { decorLocation } from './locations';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -51,7 +52,11 @@ tr { break-inside: avoid; }
 .cs-depts { grid-template-columns: repeat(3, 1fr); }
 .itw-frames { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6pt; margin-top: 6pt; } .itw-frames figure { margin: 0; break-inside: avoid; } .itw-frames img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: .6pt solid #d6d8dd; display: block; } .itw-frames figcaption { font-size: 8pt; color: #6b7079; margin-top: 2pt; }
 .day { break-inside: avoid; margin-bottom: 10pt; }
-.tone-ext { background: #f1f1f1; } .tone-night { background: #e0e0e0; } .tone-extnight { background: #d0d0d0; } .tone-twilight { background: repeating-linear-gradient(135deg, #e6e6e6 0 4px, #ffffff 4px 8px); }
+.tone-ext-day { background: #eeeeef; } .tone-int-night { background: #dcdddf; } .tone-ext-night { background: #c8c9cc; }
+.tone-int-twilight { background: repeating-linear-gradient(135deg, #e1e2e4 0 4px, #ffffff 4px 8px); } .tone-ext-twilight { background: repeating-linear-gradient(135deg, #d7d8da 0 4px, #eeeeef 4px 8px); }
+.day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10pt; border-bottom: 1.2pt solid #111318; padding-bottom: 3pt; margin: 14pt 0 4pt; break-after: avoid; }
+tr.banner td { border-bottom: .6pt dashed #b9bbc0; color: #6b7079; font-style: italic; } tr.banner b { color: #111318; font-style: normal; font-weight: 600; }
+.day-head h2 { margin: 0; } .day-head .totals { color: #6b7079; font-size: 8.5pt; text-align: right; }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
 .plan svg { width: 100%; height: auto; border: .6pt solid #d6d8dd; }
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
@@ -106,45 +111,39 @@ export function equipmentDocument(doc: ProjectDoc, showShots: boolean): DocPage 
   return shell(doc, 'Étape 7', 'Listes de matériel', body);
 }
 
+/** Classe de la bande imprimée (mêmes paliers de gris qu'à l'écran) ; aucune en économie d'encre. */
 function tone(doc: ProjectDoc, seqId: string): string {
-  const s = doc.sequences[seqId];
-  if (s?.effect === 'AUBE' || s?.effect === 'CRÉPUSCULE') return 'tone-twilight';
-  if (s?.effect === 'NUIT') return s.intExt === 'EXT' ? 'tone-extnight' : 'tone-night';
-  return s?.intExt === 'EXT' ? 'tone-ext' : '';
+  if (doc.project.settings.exportInkSaver) return '';
+  const t = stripTone(doc.sequences[seqId]);
+  return t === 'int-day' ? '' : `tone-${t}`;
 }
 
 const slotText = (slot?: { start?: string; end?: string }) => (slot?.start || slot?.end ? `${slot.start ?? '…'} – ${slot.end ?? '…'}` : '');
 
+/** Ligne d'un bandeau (installation, trajet, repas, pause) dans un tableau horaire. */
+const bannerRow = (it: Extract<AgendaItem, { type: 'banner' }>, span: number) =>
+  `<tr class="banner"><td class="time">${esc(slotText(it))}</td><td colspan="${span}"><b>${esc(bannerLabel(it.banner))}</b>${it.banner.label ? ` · ${esc(it.banner.label)}` : ''} · ${it.banner.minutes} min</td></tr>`;
+
 export function scheduleDocument(doc: ProjectDoc): DocPage {
   const t = computeTiming(doc);
   const days = scheduleDays(doc);
+  const nums = characterNumbers(doc);
   const body = days.length
     ? days
         .map((d) => {
           const st = dayStats(doc, t, d.n);
-          const strips = stripsByTime(doc, d.n);
-          return `<section class="day"><h2>Jour ${d.n}${d.date ? ` — ${esc(new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}` : ''}${
-            d.callTime ? ` <span class="time">RDV ${esc(d.callTime)}</span>` : ''
-          }</h2><table><thead><tr><th>Horaire</th><th>Séq.</th><th>INT/EXT</th><th>Décor</th><th>Personnages</th><th>Plans</th></tr></thead><tbody>${strips
-            .map((s) => {
+          return `<section class="day"><div class="day-head"><h2>${esc(dayTitle(d, days.length))}</h2><span class="totals">${esc(dayTotalsText(doc, st))}</span></div><table><thead><tr><th>Horaire</th><th>Séq.</th><th>INT/EXT</th><th>Décor</th><th>Personnages</th><th>Plans</th></tr></thead><tbody>${dayAgenda(doc, d.n)
+            .map((it) => {
+              if (it.type === 'banner') return bannerRow(it, 5);
+              const s = it.strip;
               const seq = doc.sequences[s.seqId];
-              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(stripRange(doc, d.n, s)))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(stripCharacterIds(doc, s).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td></tr>`;
+              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(it))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(numberedCast(doc, stripCharacterIds(doc, s), nums))}</td><td>${s.shotIds.length}</td></tr>`;
             })
-            .join('')}</tbody></table><p class="muted">${st.shots} plan${st.shots > 1 ? 's' : ''} · ${formatTc(st.screenSec)} d’écran · ${st.decorIds.length} décor${st.decorIds.length > 1 ? 's' : ''}</p></section>`;
+            .join('')}</tbody></table></section>`;
         })
         .join('')
     : '<p class="muted">Aucun jour de tournage.</p>';
   return shell(doc, 'Étape 8', 'Plan de travail', body, true);
-}
-
-/** Numéro de chaque personnage : principaux d'abord, puis par nombre de séquences (repris partout). */
-export function characterNumbers(doc: ProjectDoc): Map<string, number> {
-  const stats = characterStats(doc);
-  const rank = (k: string) => (k === 'principal' ? 0 : k === 'secondaire' ? 1 : 2);
-  const list = Object.values(doc.characters).sort(
-    (a, b) => rank(a.kind) - rank(b.kind) || (stats.get(b.id)?.sequenceIds.length ?? 0) - (stats.get(a.id)?.sequenceIds.length ?? 0) || a.name.localeCompare(b.name, 'fr'),
-  );
-  return new Map(list.map((c, i) => [c.id, i + 1]));
 }
 
 /**
@@ -161,7 +160,10 @@ export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
   const nums = characterNumbers(doc);
   const date = d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Date à préciser';
   const cell = (label: string, value?: string) => (value ? `<tr><th>${esc(label)}</th><td class="time">${esc(value)}</td></tr>` : '');
-  const events = [cell('Rendez-vous', d?.callTime), cell('Prêt à tourner', d?.pat), cell('Repas', d?.meal), cell('Fin prévue', d?.wrap ?? d?.dayEnd)].join('');
+  const agenda = dayAgenda(doc, day, strips);
+  // Repas et fin prévue : saisis sur la feuille, sinon déduits du déroulé (bandeau « Repas », dernière bande).
+  const mealBanner = agenda.find((x) => x.type === 'banner' && x.banner.kind === 'repas' && x.start);
+  const events = [cell('Rendez-vous', d?.callTime), cell('Prêt à tourner', d?.pat), cell('Repas', d?.meal ?? mealBanner?.start), cell('Fin prévue', d?.wrap ?? agendaEnd(agenda) ?? d?.dayEnd)].join('');
   const sun = [d?.sunrise && `Lever ${d.sunrise}`, d?.sunset && `coucher ${d.sunset}`].filter(Boolean).join(' · ');
   const head = `<div class="cs-head">
 <div><p class="cs-prod">${esc(doc.project.title)}</p><p class="muted">${esc(doc.project.version)}</p>
@@ -172,16 +174,21 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
 <h3>Hôpital le plus proche</h3><p>${esc(d?.hospital || '—')}</p></div>
 </div>`;
 
-  const seqRows = strips
-    .map((strip) => {
+  const seqRows = agenda
+    .map((it) => {
+      if (it.type === 'banner') return bannerRow(it, 5);
+      const strip = it.strip;
       const seq = doc.sequences[strip.seqId];
-      const r = stripRange(doc, day, strip);
+      const r = it.start ? it : undefined;
       const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
       const heading = [[seq?.intExt, decor?.name ?? seq?.label].filter(Boolean).join('. '), seq?.effect].filter(Boolean).join(' — ');
       const cast = sequenceCharacterIds(doc, strip.seqId).map((id) => nums.get(id)).filter((n): n is number => !!n).sort((a, b) => a - b);
       const dur = strip.shotIds.reduce((n, id) => n + (doc.shots[id] ? (timing.blocks.get(doc.shots[id].actionBlockId)?.durationSec ?? 0) / Math.max(1, strip.shotIds.length) : 0), 0);
-      const address = d?.seqAddresses?.[strip.seqId] ?? (seq?.decorId ? d?.addresses?.[seq.decorId] : undefined) ?? decor?.address ?? '';
-      return `<tr><td class="time">${r ? `${r.start} – ${r.end}` : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${seq?.summary ? `<br><span class="muted">${esc(seq.summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${esc(address)}</td></tr>`;
+      const loc = decorLocation(decor);
+      // Lieu de tournage : nom, adresse (celle du jour d'abord), accès et contact.
+      const address = d?.seqAddresses?.[strip.seqId] ?? (seq?.decorId ? d?.addresses?.[seq.decorId] : undefined) ?? loc.address ?? '';
+      const place = [loc.name && `<b>${esc(loc.name)}</b>`, esc(address), loc.access && `<span class="muted">Accès : ${esc(loc.access)}</span>`, loc.contact && `<span class="muted">Contact : ${esc(loc.contact)}</span>`].filter(Boolean).join('<br>');
+      return `<tr><td class="time">${r ? `${r.start} – ${r.end}` : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${seq?.summary ? `<br><span class="muted">${esc(seq.summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
     })
     .join('');
   const scenes = `<h3>Séquences</h3><table><thead><tr><th>Horaire</th><th>Séq.</th><th>Description</th><th>Personnages</th><th>Plans · durée</th><th>Lieu de tournage</th></tr></thead><tbody>${seqRows || '<tr><td colspan="6" class="muted">Aucune séquence ce jour.</td></tr>'}</tbody></table>`;
@@ -244,6 +251,10 @@ export function registryDocument(doc: ProjectDoc): DocPage {
   const t = computeTiming(doc);
   const cs = characterStats(doc);
   const ds = decorStats(doc, t);
+  const nums = characterNumbers(doc);
+  const cu = characterUsage(doc);
+  const du = decorUsage(doc);
+  const unused = '<span class="muted">inutilisé</span>';
   const n = (ids: string[]) => ids.map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(', ');
   const body = `<h2>Séquences</h2><table><thead><tr><th>N°</th><th>Libellé</th><th>Décor</th><th>INT/EXT · effet</th><th>Personnages</th><th>Plans</th><th>Estimée</th><th>Calculée</th><th>Écart</th></tr></thead><tbody>${doc.project.sequenceIds
     .map((id, i) => {
@@ -252,12 +263,21 @@ export function registryDocument(doc: ProjectDoc): DocPage {
       return `<tr><td class="code">${i + 1}</td><td>${esc(s.label)}</td><td>${esc(s.decorId ? doc.decors[s.decorId]?.name : '')}</td><td>${esc([s.intExt, s.effect].filter(Boolean).join(' · '))}</td><td>${esc(sequenceCharacterIds(doc, id).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td><td class="time">${s.estimatedSec !== undefined ? formatTc(s.estimatedSec) : '—'}</td><td class="time">${formatTc(st?.durationSec ?? 0)}</td><td class="time">${st?.gap ? esc(formatGap(st.gap)) : '—'}</td></tr>`;
     })
     .join('')}</tbody></table>
-<h2>Personnages</h2><table><thead><tr><th>Nom</th><th>Type</th><th>Comédien·ne</th><th>Séquences</th><th>Plans</th></tr></thead><tbody>${Object.values(doc.characters)
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-    .map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.kind)}</td><td>${esc(c.actor || '—')}</td><td>${n(cs.get(c.id)?.sequenceIds ?? [])}</td><td>${cs.get(c.id)?.shotIds.length ?? 0}</td></tr>`)
+<h2>Personnages</h2><table><thead><tr><th>N°</th><th>Nom</th><th>Type</th><th>Comédien·ne</th><th>Séquences</th><th>Plans</th><th>1er jour</th><th>Jours</th></tr></thead><tbody>${Object.values(doc.characters)
+    .sort((a, b) => (nums.get(a.id) ?? 0) - (nums.get(b.id) ?? 0))
+    .map((c) => {
+      const u = cu.get(c.id);
+      return `<tr><td class="code">${nums.get(c.id) ?? ''}</td><td>${esc(c.name)}</td><td>${esc(c.kind)}</td><td>${esc(c.actor || '—')}</td><td>${u?.sequenceIds.length ? n(u.sequenceIds) : unused}</td><td>${cs.get(c.id)?.shotIds.length ?? 0}</td><td class="time">${esc(usageDayLabel(doc, u) || '—')}</td><td>${u?.days.length || '—'}</td></tr>`;
+    })
     .join('')}</tbody></table>
-<h2>Décors</h2><table><thead><tr><th>Décor</th><th>INT/EXT</th><th>Adresse</th><th>Séquences</th><th>Durée</th></tr></thead><tbody>${Object.values(doc.decors)
-    .map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(d.intExt)}</td><td>${esc(d.address || '—')}</td><td>${n(ds.get(d.id)?.sequenceIds ?? [])}</td><td class="time">${formatTc(ds.get(d.id)?.totalSec ?? 0)}</td></tr>`)
+<h2>Décors</h2><table><thead><tr><th>Décor</th><th>INT/EXT</th><th>Lieu de tournage</th><th>Séquences</th><th>Durée</th><th>1er jour</th><th>Jours</th></tr></thead><tbody>${Object.values(doc.decors)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    .map((d) => {
+      const u = du.get(d.id);
+      const loc = decorLocation(d);
+      const place = [loc.name && `<b>${esc(loc.name)}</b>`, esc(loc.address), loc.access && `<span class="muted">Accès : ${esc(loc.access)}</span>`, loc.contact && `<span class="muted">Contact : ${esc(loc.contact)}</span>`].filter(Boolean).join('<br>');
+      return `<tr><td>${esc(d.name)}</td><td>${esc(d.intExt)}</td><td>${place || '—'}</td><td>${u?.sequenceIds.length ? n(u.sequenceIds) : unused}</td><td class="time">${formatTc(ds.get(d.id)?.totalSec ?? 0)}</td><td class="time">${esc(usageDayLabel(doc, u) || '—')}</td><td>${u?.days.length || '—'}</td></tr>`;
+    })
     .join('')}</tbody></table>`;
   return shell(doc, 'Base du projet', 'Registre', body, true);
 }

@@ -6,7 +6,8 @@ import { addCharacter } from '../../domain/ops';
 import { addDecor } from '../../domain/registry';
 import { newId } from '../../domain/factory';
 import { fold } from '../../domain/text';
-import type { Character, Decor, ProjectDoc } from '../../domain/types';
+import type { Character, Decor, FilmingLocation, ProjectDoc } from '../../domain/types';
+import { decorLocation, setDecorLocation } from '../../domain/locations';
 import { mutateDoc } from '../../store/projectStore';
 import s from './ResearchPanels.module.css';
 
@@ -156,6 +157,11 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
       const dec = findDecor(d, name) ?? d.decors[addDecor(d, { name, intExt: intExt === 'EXT' ? 'EXT' : intExt === 'INT/EXT' ? 'INT/EXT' : 'INT' })];
       Object.assign(dec, patch);
     });
+  const editLocation = (name: string, intExt: string, patch: Partial<FilmingLocation>) =>
+    mutateDoc((d) => {
+      const dec = findDecor(d, name) ?? d.decors[addDecor(d, { name, intExt: intExt === 'EXT' ? 'EXT' : intExt === 'INT/EXT' ? 'INT/EXT' : 'INT' })];
+      setDecorLocation(d, dec.id, patch);
+    });
   return (
     <div className={s.panel} data-testid="scenario-decors">
       <ul className={s.list}>
@@ -191,7 +197,7 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
                       </button>
                     ))}
                   </p>
-                  <Field label="Adresse de tournage" value={fiche?.address ?? ''} readOnly={readOnly} onCommit={(v) => edit(l.location, l.intExt[0] ?? '', { address: v.trim() || undefined })} />
+                  <Field label="Adresse de tournage" value={decorLocation(fiche).address ?? ''} readOnly={readOnly} onCommit={(v) => editLocation(l.location, l.intExt[0] ?? '', { address: v })} />
                   <Field label="Description" multiline value={fiche?.notes ?? ''} readOnly={readOnly} placeholder="Surface, disposition, ambiance sonore, évolution, accessoires…" onCommit={(v) => edit(l.location, l.intExt[0] ?? '', { notes: v.trim() || undefined })} />
                 </div>
               )}

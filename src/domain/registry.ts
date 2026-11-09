@@ -1,6 +1,7 @@
 import { sequenceCharacterIds } from './characters';
 import { newId } from './factory';
 import { remapCharacter, refreshRecognition } from './ops';
+import { scheduleDays, stripCharacterIds, stripsByDay, type Strip } from './schedule';
 import type { Timing } from './timing';
 import type { Decor, ID, ProjectDoc } from './types';
 
@@ -20,6 +21,76 @@ export function characterStats(doc: ProjectDoc): Map<ID, CharacterStats> {
     }
   }
   return out;
+}
+
+/** Numéro de chaque personnage : principaux d'abord, puis par nombre de séquences (repris partout). */
+export function characterNumbers(doc: ProjectDoc): Map<ID, number> {
+  const stats = characterStats(doc);
+  const rank = (k: string) => (k === 'principal' ? 0 : k === 'secondaire' ? 1 : 2);
+  const list = Object.values(doc.characters).sort(
+    (a, b) => rank(a.kind) - rank(b.kind) || (stats.get(b.id)?.sequenceIds.length ?? 0) - (stats.get(a.id)?.sequenceIds.length ?? 0) || a.name.localeCompare(b.name, 'fr'),
+  );
+  return new Map(list.map((c, i) => [c.id, i + 1]));
+}
+
+/** Distribution numérotée, dans l'ordre des numéros : « 1 Léa, 3 Paul ». */
+export function numberedCast(doc: ProjectDoc, ids: readonly ID[], nums: Map<ID, number> = characterNumbers(doc)): string {
+  return ids
+    .filter((id) => doc.characters[id])
+    .sort((a, b) => (nums.get(a) ?? 999) - (nums.get(b) ?? 999))
+    .map((id) => `${nums.get(id) ?? ''} ${doc.characters[id].name}`.trim())
+    .join(', ');
+}
+
+/** Présence au plan de travail : jours de tournage (triés) et séquences du scénario. */
+export interface ScheduleUsage {
+  days: number[];
+  sequenceIds: ID[];
+}
+
+function usage(doc: ProjectDoc, ids: readonly ID[], sequenceIds: (id: ID) => ID[], present: (strip: Strip) => ID[]): Map<ID, ScheduleUsage> {
+  const out = new Map<ID, ScheduleUsage>(ids.map((id) => [id, { days: [], sequenceIds: sequenceIds(id) }]));
+  for (const [day, strips] of stripsByDay(doc)) {
+    if (day <= 0) continue;
+    for (const strip of strips)
+      for (const id of present(strip)) {
+        const u = out.get(id);
+        if (u && !u.days.includes(day)) u.days.push(day);
+      }
+  }
+  for (const u of out.values()) u.days.sort((a, b) => a - b);
+  return out;
+}
+
+/** Personnages : jours de tournage où ils sont dans une bande, et séquences où ils apparaissent. */
+export function characterUsage(doc: ProjectDoc): Map<ID, ScheduleUsage> {
+  const stats = characterStats(doc);
+  return usage(doc, Object.keys(doc.characters), (id) => stats.get(id)?.sequenceIds ?? [], (strip) => stripCharacterIds(doc, strip));
+}
+
+/** Décors : jours de tournage et séquences qui s'y passent. */
+export function decorUsage(doc: ProjectDoc): Map<ID, ScheduleUsage> {
+  const ids = Object.keys(doc.decors);
+  return usage(
+    doc,
+    ids,
+    (id) => doc.project.sequenceIds.filter((s) => doc.sequences[s]?.decorId === id),
+    (strip) => {
+      const d = doc.sequences[strip.seqId]?.decorId;
+      return d ? [d] : [];
+    },
+  );
+}
+
+const shortDate = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+
+/** Premier jour de tournage, « J2 · 16 nov. » (date si elle est connue) ; vide s'il n'est pas planifié. */
+export function usageDayLabel(doc: ProjectDoc, u: ScheduleUsage | undefined): string {
+  const n = u?.days[0];
+  if (n === undefined) return '';
+  const date = scheduleDays(doc).find((d) => d.n === n)?.date;
+  const t = date ? new Date(`${date}T12:00`) : undefined;
+  return t && !Number.isNaN(t.getTime()) ? `J${n} · ${shortDate.format(t)}` : `J${n}`;
 }
 
 /** Séquences d'un décor et durée totale à y tourner (§7). */
