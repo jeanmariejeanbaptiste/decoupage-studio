@@ -21,6 +21,7 @@ import { FloorPlanPage } from '../features/floorplan/FloorPlanPage';
 import { SchedulePage } from '../features/schedule/SchedulePage';
 import { CallSheetPage } from '../features/callsheet/CallSheetPage';
 import { CalendarPage } from '../features/calendar/CalendarPage';
+import { ProductionPage } from '../features/production/ProductionPage';
 import { BreakdownPage } from '../features/breakdown/BreakdownPage';
 import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
@@ -288,6 +289,7 @@ function Page({ route }: { route: Route }) {
   if (route === 'schedule') return <SchedulePage doc={doc} />;
   if (route === 'callsheet') return <CallSheetPage doc={doc} />;
   if (route === 'calendar') return <CalendarPage doc={doc} />;
+  if (route === 'production') return <ProductionPage doc={doc} />;
   if (route === 'breakdown') return <BreakdownPage doc={doc} />;
   if (route === 'equipment') return <EquipmentPage doc={doc} />;
   return (
