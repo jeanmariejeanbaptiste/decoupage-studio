@@ -1,5 +1,5 @@
 import { useCanCopy, useDriveReview, useReadOnly } from '../../store/share';
-import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
+import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Milestone, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
@@ -17,6 +17,7 @@ const STEP_ICONS: Partial<Record<Route, ReactNode>> = {
   schedule: <ChartNoAxesGantt {...ICON} />,
   callsheet: <ClipboardList {...ICON} />,
   calendar: <CalendarDays {...ICON} />,
+  production: <Milestone {...ICON} />,
 };
 
 interface Props {

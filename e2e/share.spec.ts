@@ -72,7 +72,9 @@ test('partager un projet : lien et mot de passe, modifications en direct, lectur
 
 test('invité en lecture seule : aucune commande d’édition, découpage en aperçu', async ({ browser }) => {
   const host = await participant(browser);
-  await host.goto('/#/grid?seed=rav3');
+  await host.goto('/#/production?seed=rav3');
+  await host.getByTestId('production-template').click();
+  await host.evaluate(() => void (window.location.hash = '#/grid'));
   await host.getByTestId('share-button').click();
   await host.getByText('Lire seulement').click();
   await host.getByTestId('share-start').click();
@@ -119,6 +121,25 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await guest.evaluate(() => void (window.location.hash = '#/registry'));
   await expect(guest.getByRole('button', { name: 'Libellé', exact: true })).toBeVisible();
   await expect(guest.getByTitle('Ouvrir dans la grille').first()).toBeVisible();
+  // Calendrier de production : frise et zoom consultables, rien de modifiable.
+  await guest.evaluate(() => void (window.location.hash = '#/production'));
+  await expect(guest.getByTestId('gantt-bar').first()).toBeVisible();
+  await expect(guest.getByTestId('row-menu')).toHaveCount(0);
+  await expect(guest.getByTestId('phase-add')).toBeHidden();
+  await expect(guest.getByLabel(/^Début : /)).toHaveCount(0);
+  await expect(guest.getByRole('checkbox').first()).toBeDisabled();
+  await guest.getByTestId('zoom-in').click();
+  await expect(guest.getByTestId('zoom-label')).toHaveText('Semaines');
+  await guest.getByRole('button', { name: 'Replier Préparation' }).click();
+  await expect(guest.getByTestId('task-row')).toHaveCount(11);
+  const before = await guest.getByTestId('task-row').first().textContent();
+  const bar = guest.getByTestId('gantt-bar').first();
+  const box = (await bar.boundingBox())!;
+  await guest.mouse.move(box.x + 4, box.y + 4);
+  await guest.mouse.down();
+  await guest.mouse.move(box.x + 200, box.y + 4, { steps: 4 });
+  await guest.mouse.up();
+  await expect(guest.getByTestId('task-row').first()).toHaveText(before!);
   // Fermeture sans copie permise : retour à l'accueil, rien de conservé.
   await host.getByTestId('share-stop').click();
   await expect(guest.getByTestId('home')).toBeVisible();

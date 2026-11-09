@@ -303,6 +303,8 @@ export interface ProjectDoc {
   calendar?: import('./calendar').CalendarEvent[];
   /** Relecture en ligne (Google Drive) : version publiée pour les relecteurs (`reviewSnapshot.ts`). */
   review?: import('./reviewSnapshot').ReviewPublication;
+  /** Calendrier de production : phases, étapes et jalons du film (`production.ts`), communs à toutes les versions. */
+  production?: import('./production').Production;
 }
 
 export const SCHEMA_VERSION = 1;

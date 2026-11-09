@@ -65,7 +65,7 @@ test('calendrier : les jours datés du plan de travail y figurent et y mènent',
   await page.goto('/#/schedule?seed=rav3');
   await page.getByTestId('suggest-schedule').click();
   await page.getByLabel('Date du jour 1').fill(today);
-  await page.getByRole('button', { name: 'Calendrier' }).click();
+  await page.getByRole('button', { name: 'Calendrier', exact: true }).click();
   const pill = page.getByTestId(`day-${today}`).getByTestId('calendar-item');
   await expect(pill).toContainText('Jour 1');
   await pill.click();

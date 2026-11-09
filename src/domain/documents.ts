@@ -19,6 +19,8 @@ import { renderTokens } from './tokens';
 import type { ProjectDoc } from './types';
 import { isZoom, valueRank } from './vocabulary';
 import { cameraFrameKey, questionsFor, setupRef, setupShotIds, type InterviewQuestion } from './interview';
+import { productionSvgPages } from './productionChart';
+import { todayIso } from './calendar';
 
 export const esc = (s: string | number | undefined | null) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -59,6 +61,7 @@ tr.banner td { border-bottom: .6pt dashed #b9bbc0; color: #6b7079; font-style: i
 .day-head h2 { margin: 0; } .day-head .totals { color: #6b7079; font-size: 8.5pt; text-align: right; }
 .plan { break-inside: avoid; break-after: page; } .plan:last-child { break-after: auto; }
 .plan svg { width: 100%; height: auto; border: .6pt solid #d6d8dd; }
+.plan.gantt svg { border: 0; }
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
 p.text { white-space: pre-wrap; line-height: 1.6; font-size: 11pt; }
 `;
@@ -397,4 +400,11 @@ ${s.notes ? `<h3>Notes</h3><p class="text">${esc(s.notes)}</p>` : ''}
     })
     .join('');
   return shell(doc, '', 'Interview', body || '<p class="muted">Aucun intervenant.</p>', landscape);
+}
+
+/** Calendrier de production (A4 paysage) : tableau des étapes et frise, une page par paquet de lignes. */
+export function productionDocument(doc: ProjectDoc, today = todayIso()): DocPage {
+  const pages = doc.production ? productionSvgPages(doc.production, today) : [];
+  const body = pages.length ? pages.map((svg) => `<div class="plan gantt">${svg}</div>`).join('') : '<p class="muted">Aucune étape.</p>';
+  return shell(doc, '', 'Calendrier de production', body, true);
 }

@@ -10,7 +10,7 @@ interface Props {
   doc: () => DocPage;
   fileBase?: string;
   /** Données brutes (CSV, texte…), secondaires. */
-  file?: { label: string; name: string; content: () => string | Promise<Blob>; type?: string };
+  file?: { label: string; name: string; content: () => string | Promise<Blob>; type?: string; hint?: string };
   /** Clé des réglages mémorisés (propre à chaque page) et préfixe des testid. */
   id?: string;
   /** Orientation par défaut du document (paysage pour les tableaux larges). */
@@ -22,7 +22,7 @@ export function TabExport({ doc, fileBase = 'document', file, id = 'tab', orient
   const project = useDoc();
   if (!project) return null;
   const extra = [{ key: 'word', label: 'Word', hint: 'Document Word (.doc) modifiable.' }];
-  if (file) extra.push({ key: 'file', label: file.label, hint: 'Données brutes, pour un tableur ou un autre outil.' });
+  if (file) extra.push({ key: 'file', label: file.label, hint: file.hint ?? 'Données brutes, pour un tableur ou un autre outil.' });
   return (
     <span className="no-print">
       <ExportPanel

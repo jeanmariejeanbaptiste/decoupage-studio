@@ -104,6 +104,8 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
   };
   const open = (it: CalendarItem) => {
     if (it.source === 'shooting') return navigate('schedule', { day: String(it.day) });
+    // Étapes du calendrier de production : lecture seule ici, modifiables là-bas.
+    if (it.source === 'production') return navigate('production', { task: it.taskId! });
     const e = doc.calendar?.find((x) => x.id === it.eventId);
     if (e && !readOnly) setEditing({ id: e.id, fields: eventFields(e) });
   };
@@ -187,18 +189,23 @@ const stop = (fn: () => void) => (e: MouseEvent) => {
 };
 
 /** Élément compact : journée entière en pastille, rendez-vous en ligne « titre … 14:00 ». */
-function Chip({ it, onOpen }: { it: CalendarItem; onOpen: (it: CalendarItem) => void }) {
+function Chip({ it, onOpen, date }: { it: CalendarItem; onOpen: (it: CalendarItem) => void; date?: string }) {
+  // Étape de production sur plusieurs jours : nommée le premier jour et chaque lundi, filet seul ailleurs.
+  const span = it.source === 'production' && !it.milestone && !!date;
+  const cont = span && date !== it.date && weekday(date) !== 0;
+  const goes = span && date !== it.endDate && weekday(date) !== 6;
   const label = it.allDay ? it.title : `${it.title}, ${it.start}`;
   return (
     <button
       type="button"
-      className={[it.allDay ? s.pill : s.line, it.source === 'shooting' ? s.shoot : ''].join(' ')}
+      className={[it.allDay ? s.pill : s.line, it.source === 'shooting' ? s.shoot : '', it.source === 'production' ? s.prod : '', it.milestone ? s.milestone : '', cont ? s.contL : '', goes ? s.contR : ''].join(' ')}
+      aria-label={cont ? it.title : undefined}
       data-kind={it.kind}
-      title={[it.allDay && it.start ? `${it.title} · RDV ${it.start}` : label, it.note].filter(Boolean).join('\n')}
+      title={[it.allDay && it.start ? `${it.title} · RDV ${it.start}` : label, it.group, it.note].filter(Boolean).join('\n')}
       onClick={stop(() => onOpen(it))}
       data-testid="calendar-item"
     >
-      <span className={s.chipTitle}>{it.title}</span>
+      <span className={s.chipTitle}>{cont ? '' : it.title}</span>
       {it.start && <span className={s.chipTime}>{it.start}</span>}
     </button>
   );
@@ -252,7 +259,7 @@ function MonthView({ anchor, today, items, onCreate, onOpen, onDay }: ViewProps)
                 </button>
                 <div className={s.chips}>
                   {shown.map((it) => (
-                    <Chip key={it.key} it={it} onOpen={onOpen} />
+                    <Chip key={it.key} it={it} onOpen={onOpen} date={date} />
                   ))}
                   {shown.length < list.length && (
                     <button type="button" className={s.more} onClick={stop(() => onDay(date))}>
@@ -312,7 +319,7 @@ function TimeGrid({ dates, today, now, items, onCreate, onOpen, onDay }: ViewPro
             {itemsOn(items, date)
               .filter((it) => it.allDay)
               .map((it) => (
-                <Chip key={it.key} it={it} onOpen={onOpen} />
+                <Chip key={it.key} it={it} onOpen={onOpen} date={date} />
               ))}
           </div>
         ))}
@@ -364,7 +371,8 @@ function TimeGrid({ dates, today, now, items, onCreate, onOpen, onDay }: ViewPro
 
 function YearView({ anchor, today, items, onDay, onMonth }: ViewProps & { onMonth: (date: string) => void }) {
   const year = anchor.slice(0, 4);
-  const busy = useMemo(() => busyDates(items, `${year}-01-01`, `${year}-12-31`), [items, year]);
+  // Les étapes de production durent des semaines : seuls leurs jalons marquent un jour.
+  const busy = useMemo(() => busyDates(items.filter((it) => it.source !== 'production' || it.milestone), `${year}-01-01`, `${year}-12-31`), [items, year]);
   return (
     <div className={s.year} data-testid="calendar-year">
       {yearMonths(anchor).map((m) => (

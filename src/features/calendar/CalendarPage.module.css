@@ -76,6 +76,14 @@
 .pill.shoot { background: var(--ink); color: var(--paper); }
 .pill.shoot:hover { filter: brightness(1.15); }
 .pill.shoot .chipTime { color: inherit; opacity: 0.7; }
+/* Étapes du calendrier de production : pastilles au trait, en lecture seule ; jalons marqués d'un losange. */
+.pill.prod { background: none; border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); line-height: 16px; color: var(--ink-soft); }
+/* Étape qui se poursuit d'un jour à l'autre : bords ouverts du côté de la suite. */
+.pill.contL { border-left-color: transparent; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.pill.contR { border-right-color: transparent; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.pill.prod:hover { background: var(--hover); color: var(--ink); }
+.pill.milestone { color: var(--ink); }
+.milestone::before { content: ''; flex: none; width: 6px; height: 6px; margin: 0 -1px 0 1px; background: var(--ink); transform: rotate(45deg); }
 .line { position: relative; padding-left: 9px; }
 .line::before { content: ''; position: absolute; left: 2px; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--ink-soft); }
 .line[data-kind='tournage']::before { background: var(--ink); }

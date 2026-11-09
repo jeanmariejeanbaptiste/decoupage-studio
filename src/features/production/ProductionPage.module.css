@@ -1,0 +1,142 @@
+/* Calendrier de production : pleine hauteur ; tableau à gauche, frise à droite, défilement commun. */
+.page { display: flex; flex-direction: column; height: 100%; min-height: 480px; padding: 10px 20px 16px; }
+
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.barStart, .barEnd { display: flex; align-items: center; gap: 8px; }
+.zoom { display: inline-flex; align-items: center; gap: 0; padding: 1px; border: 1px solid var(--rule); border-radius: 7px; }
+.zoomLabel { min-width: 84px; text-align: center; font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.todayBtn { border-color: var(--rule) !important; }
+
+.emptyActions { display: flex; justify-content: center; gap: 8px; }
+
+.gantt {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 430px minmax(0, 1fr);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-card);
+  overflow: hidden;
+}
+.dragging, .dragging * { user-select: none; }
+
+/* --- Tableau ------------------------------------------------------------------------------- */
+.table { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--rule); }
+.thead, .row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px 40px 26px; align-items: center; }
+.thead { flex: none; height: var(--head); align-items: end; padding-bottom: 6px; border-bottom: 1px solid var(--rule); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.thead .cName { padding-left: 34px; }
+.tbody { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-bottom: 16px; }
+.tbody::-webkit-scrollbar { display: none; }
+.row { position: relative; height: var(--rh); border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent); font-size: 13px; }
+.phaseRow { background: var(--kraft); font-weight: 600; }
+.taskRow .cName { padding-left: 14px; }
+.hover { background: var(--hover); }
+.phaseRow.hover { background: color-mix(in srgb, var(--ink) 6%, var(--kraft)); }
+.focus { box-shadow: inset 2px 0 0 var(--ink); background: var(--selected); }
+.lifted { opacity: 0.4; }
+.cName { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 0 4px 0 2px; }
+.cDate, .cDur { padding: 0 2px; font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+.cDur { text-align: right; }
+.cMenu { display: flex; justify-content: center; }
+.name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.isDone .name { text-decoration: line-through; color: var(--ink-soft); }
+.nameInput { flex: 1; min-width: 0; height: 24px; padding: 0 5px; border: 1px solid var(--ink); border-radius: 3px; background: var(--paper); color: var(--ink); font: inherit; outline: none; }
+
+.grip { flex: none; display: inline-grid; place-items: center; width: 14px; height: 22px; color: var(--ink-soft); cursor: grab; touch-action: none; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.row:hover .grip { opacity: 0.8; }
+.grip:active { cursor: grabbing; }
+.chevron { flex: none; display: inline-grid; place-items: center; width: 18px; height: 22px; padding: 0; border: 0; background: none; color: var(--ink); border-radius: 3px; }
+.chevron:hover { background: var(--hover); }
+
+.check { position: relative; flex: none; display: inline-grid; place-items: center; width: 18px; height: 22px; cursor: pointer; }
+.check input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.box { display: inline-grid; place-items: center; width: 13px; height: 13px; border: 1px solid color-mix(in srgb, var(--ink) 45%, transparent); border-radius: 3px; color: var(--paper); }
+.isDone .box { background: var(--ink); border-color: var(--ink); }
+.check input:focus-visible + .box { outline: 1px solid var(--focus); outline-offset: 2px; }
+
+.diamond { flex: none; width: 8px; height: 8px; margin: 0 4px 0 2px; background: var(--ink); transform: rotate(45deg); }
+.diamondSmall { flex: none; width: 6px; height: 6px; margin-right: 6px; background: var(--ink); transform: rotate(45deg); }
+.linked { flex: none; display: inline-grid; place-items: center; color: var(--ink-soft); margin-left: 2px; }
+
+.cellInput { width: 100%; height: 24px; padding: 0 4px; border: 1px solid transparent; border-radius: 3px; background: none; color: var(--ink); font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cellInput:hover { border-color: var(--rule); }
+.cellInput:focus { border-color: var(--ink); background: var(--paper); outline: none; }
+.num { text-align: right; }
+.dateText { display: block; padding: 0 6px; }
+.thead .cDate, .thead .cDur { padding: 0 8px; }
+.phaseRow .cDate, .phaseRow .cDur { padding: 0 7px; }
+.isDone .cellInput, .isDone .dateText { color: var(--ink-soft); }
+
+.menuBtn { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--ink-soft); opacity: 0; }
+.row:hover .menuBtn, .menuBtn:focus-visible, .menuBtn[aria-expanded='true'] { opacity: 1; }
+.menuBtn:hover { background: var(--hover); color: var(--ink); }
+.dropLine { position: absolute; left: 0; right: 0; height: 2px; background: var(--ink); pointer-events: none; z-index: 3; }
+
+/* --- Frise --------------------------------------------------------------------------------- */
+.chart { position: relative; min-width: 0; min-height: 0; overflow: auto; }
+.chartInner { position: relative; min-height: 100%; }
+.scale { position: sticky; top: 0; z-index: 4; height: var(--head); background: var(--paper-card); border-bottom: 1px solid var(--rule); }
+.scaleRow { position: relative; height: 18px; }
+.scaleRow:last-of-type { height: 21px; }
+.week { overflow: hidden; }
+/* Année et mois restent lisibles au bord gauche tant que leur période est à l’écran. */
+.month b { position: sticky; left: 5px; font-weight: 400; }
+.year, .month, .week { position: absolute; top: 0; bottom: 0; white-space: nowrap; font-size: 11.5px; line-height: 18px; }
+.year { padding-left: 6px; color: var(--ink); }
+.year b { position: sticky; left: 6px; font-weight: 600; }
+.month { padding-left: 5px; border-left: 1px solid var(--rule); color: var(--ink); }
+.week { text-align: center; border-left: 1px solid color-mix(in srgb, var(--rule) 70%, transparent); color: var(--ink-soft); font-size: 10.5px; line-height: 21px; font-variant-numeric: tabular-nums; }
+.todayMark { position: absolute; bottom: -4px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--ink); z-index: 1; }
+
+.chartBody { position: relative; }
+.grid { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.weekend { fill: var(--kraft); }
+.phaseBand { fill: var(--kraft); }
+.weekLine { stroke: color-mix(in srgb, var(--rule) 70%, transparent); stroke-width: 1; }
+.monthLine { stroke: var(--rule); stroke-width: 1; }
+.todayLine { stroke: var(--ink); stroke-width: 1; }
+.link { fill: none; stroke: color-mix(in srgb, var(--ink) 45%, transparent); stroke-width: 1; }
+.late { stroke-dasharray: 3 3; stroke: var(--ink); }
+.arrowHead { fill: color-mix(in srgb, var(--ink) 55%, transparent); }
+
+.chartRow { position: absolute; left: 0; right: 0; height: var(--rh); border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
+.chartRow.hover { background: var(--hover); }
+.chartRow.focus { background: var(--selected); box-shadow: none; }
+
+.taskBar { position: absolute; top: 8px; height: 16px; border-radius: 3px; touch-action: none; z-index: 1; }
+.movable { cursor: grab; }
+.movable:active { cursor: grabbing; }
+.taskBar.done { opacity: 0.4; }
+.taskBar.active { box-shadow: 0 0 0 1px var(--ink), 0 4px 10px rgba(0, 0, 0, 0.14); }
+.pinned { background-image: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--paper-card) 35%, transparent) 4px 6px); }
+.handle { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.handleStart { left: -2px; }
+.handleEnd { right: -2px; }
+.milestone { position: absolute; top: 10px; width: 12px; height: 12px; margin-left: -6px; background: var(--ink); transform: rotate(45deg); touch-action: none; z-index: 1; border-radius: 1px; }
+.milestone.done { opacity: 0.45; }
+.summary { position: absolute; top: 12px; height: 6px; background: var(--ink); border-radius: 1px; }
+.summary::before, .summary::after { content: ''; position: absolute; top: 5px; border-top: 5px solid var(--ink); border-left: 4px solid transparent; border-right: 4px solid transparent; }
+.summary::before { left: 0; border-left: 0; }
+.summary::after { right: 0; border-right: 0; }
+.barLabel { position: absolute; top: 0; line-height: var(--rh); font-size: 12px; color: var(--ink-soft); white-space: nowrap; pointer-events: none; }
+.doneLabel { text-decoration: line-through; }
+
+/* --- Menu d'une ligne ---------------------------------------------------------------------- */
+.menu { position: fixed; z-index: 160; min-width: 210px; max-width: 300px; padding: 4px; background: var(--paper-card); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16); }
+.menu button { display: flex; align-items: center; width: 100%; text-align: left; border: 0; background: none; padding: 6px 10px; border-radius: 3px; font-size: 13.5px; color: var(--ink); }
+.menu button:hover, .menu button:focus-visible { background: var(--selected); outline: none; }
+.menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--rule); }
+.menuHead { margin: 4px 10px 4px; font-size: 12.5px; font-weight: 600; }
+.menuGroup { margin: 6px 10px 2px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.menuScroll { max-height: min(380px, 60vh); overflow-y: auto; }
+.tick { flex: none; display: inline-grid; place-items: center; width: 16px; margin-right: 6px; }
+.menuLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .page { padding: 8px 10px 12px; }
+  .gantt { grid-template-columns: minmax(200px, 46%) minmax(0, 1fr); }
+  .thead, .row { grid-template-columns: minmax(0, 1fr) 28px; }
+  .cDate, .cDur { display: none; }
+  .zoomLabel { min-width: 64px; }
+}
