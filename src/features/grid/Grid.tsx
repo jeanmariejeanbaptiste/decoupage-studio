@@ -90,7 +90,7 @@ export function Grid({ doc, model, animate = false }: Props) {
     const sid = model.rows[pos.row].shotId;
     // Plan d'interview : il se règle dans sa fiche (seul le libellé de la séquence s'édite ici).
     const link = doc.shots[sid]?.interview;
-    if (link && pos.col !== 'sequence') {
+    if (link && pos.col !== 'sequence' && doc.project.format === 'institutionnel') {
       openInterviewFiche(link.subjectId, link.setupId);
       return;
     }

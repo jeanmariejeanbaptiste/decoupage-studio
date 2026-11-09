@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createProjectDoc } from './factory';
+import { applyFormat, createProjectDoc } from './factory';
 import { addInterviewee, addSetup, ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
 import { addSequence, addShot, addShotAfter, checkInvariants, deleteShot, duplicateShot, moveShot } from './ops';
 import { shotCode, shotNumberLabel } from './numbering';
@@ -191,5 +191,23 @@ describe('interview : préparation gardée, liens et libellés', () => {
     expect(doc.shots[copy].actionBlockId).not.toBe(doc.shots[ca].actionBlockId);
     expect(order(doc, seq)).toEqual(['1', '2', '3A', '3B', '4']);
     expect(checkInvariants(doc)).toEqual([]);
+  });
+
+  it('quitter l’institutionnel : les plans d’interview deviennent des plans ordinaires', () => {
+    const { doc, seq, setup } = project();
+    placeSetup(doc, setup.id, seq);
+    syncInterviewShots(doc);
+    const ids = setupShotIds(doc, setup.id);
+    doc.shots[ids[1]].storyboard = { blobKey: 'cadre-b' };
+    applyFormat(doc, 'fiction');
+    syncInterviewShots(doc);
+    expect(ids.map((id) => doc.shots[id].interview)).toEqual([undefined, undefined]);
+    expect(order(doc, seq)).toEqual(['1', '2', '3', '4']);
+    expect(ids.map((id) => doc.shots[id].value)).toEqual(['Rapproché', 'Gros plan']);
+    expect(doc.shots[ids[1]].actionBlockId).toBe(doc.shots[ids[0]].actionBlockId);
+    expect(setCellText(doc, ids[0], 'value', 'Large')).toBe(true);
+    expect(setup.sequenceId).toBeUndefined();
+    expect(setup.cameras[1].frame).toBe('cadre-b');
+    expect(doc.interview!.subjects[0].setups).toHaveLength(1);
   });
 });
