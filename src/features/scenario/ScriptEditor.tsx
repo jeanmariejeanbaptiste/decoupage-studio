@@ -36,7 +36,7 @@ import {
   TITLE_FIELDS,
 } from '../../domain/screenplay';
 import { titleFromBlocks } from '../../domain/scenarioImport';
-import { SCRIPT_COLUMNS, SCRIPT_PAGE, emphasisRuns, paginateItems, plainText, setHighlight, titlePageLines, type HighlightColor } from '../../domain/scriptLayout';
+import { SCRIPT_COLUMNS, SCRIPT_PAGE, emphasisRuns, paginateItems, plainText, scriptOutline, setHighlight, titlePageLines, type HighlightColor, type OutlineItem } from '../../domain/scriptLayout';
 import { blockTypeDigit } from '../../domain/shortcuts';
 import { fold } from '../../domain/text';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -119,17 +119,10 @@ function editorLayout(items: ReadonlyArray<{ id: string; type: BlockType; h: num
 
 // --- État partagé avec la barre d'outils et le panneau latéral -------------------------------
 
-export interface OutlineItem {
-  id: string;
-  n: number;
-  text: string;
-  page: number;
-}
+export type { OutlineItem };
 
 interface ScriptUi {
-  /** Durée mesurée sur les pages (60 s la page), en secondes : position du curseur et total. */
-  chrono: { at: number | null; total: number };
-  /** Bloc et position du curseur (minutage par caractères ou par type). */
+  /** Bloc et position du curseur (minutage). */
   caret: { id: string; offset: number } | null;
   activeType: BlockType | null;
   /** Sélection dans la source (pour « Créer un plan »). */
@@ -140,14 +133,7 @@ interface ScriptUi {
   blocks: readonly SBlock[];
 }
 
-export const useScriptUi = create<ScriptUi>(() => ({ chrono: { at: null, total: 0 }, caret: null, activeType: null, selection: null, outline: [], pages: 1, activeHeading: null, blocks: [] }));
-
-/** Secondes de scénario à une hauteur donnée de la pile de pages (1 page imprimée ≈ 1 minute). */
-function secondsAt(y: number, offset: number): number {
-  const sheet = Math.floor(y / (PAGE.h + PAGE.gap));
-  const row = Math.max(0, Math.min(SCRIPT_PAGE.lines, (y - sheet * (PAGE.h + PAGE.gap) - PAGE.top) / LINE));
-  return Math.max(0, Math.round((sheet - offset + row / SCRIPT_PAGE.lines) * 60));
-}
+export const useScriptUi = create<ScriptUi>(() => ({ caret: null, activeType: null, selection: null, outline: [], pages: 1, activeHeading: null, blocks: [] }));
 
 export interface ScriptEditorApi {
   flush: () => void;
@@ -376,23 +362,11 @@ const Block = memo(function Block({ b, mt, n, reg }: { b: SBlock; mt?: number; n
   return <div ref={setRef} data-bid={b.id} data-type={b.type} data-n={n} data-empty={isEmptyBlock(b) || undefined} className={[s.b, s[`t_${b.type}`]].join(' ')} style={mt === undefined ? undefined : { marginTop: mt }} />;
 });
 
-/** Page de titre : celle de l'export, ligne pour ligne ; non modifiable dans le texte (un clic ouvre ses champs). */
-const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit, reg }: { b: SBlock; mt?: number; paged: boolean; onEdit?: () => void; reg: Register }) {
-  const setRef = useCallback((el: HTMLDivElement | null) => reg(b.id, el), [b.id, reg]);
-  const f = parseTitlePage(b.text);
-  const lines = titlePageLines({ ...f, Title: f.Title || 'Sans titre' }, false);
+/** Lignes de la page de garde, à leur rang (celles de l'export : `titlePageLines`). */
+function TitleLines({ fields, paged }: { fields: Record<string, string>; paged: boolean }) {
+  const lines = titlePageLines({ ...fields, Title: fields.Title || 'Sans titre' }, false);
   return (
-    <div
-      ref={setRef}
-      data-bid={b.id}
-      data-type="title"
-      contentEditable={false}
-      className={[s.b, s.t_title, onEdit ? s.titleEditable : ''].join(' ')}
-      style={{ marginTop: mt, height: paged ? SCRIPT_PAGE.lines * LINE : undefined }}
-      onClick={onEdit}
-      title={onEdit ? 'Modifier la page de titre' : undefined}
-      data-testid="title-page"
-    >
+    <>
       {lines.map((l, i) => (
         <span
           key={i}
@@ -402,9 +376,33 @@ const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit, reg }: { b: 
           {plainText(l.text)}
         </span>
       ))}
+    </>
+  );
+}
+
+/** Page de garde : celle de l'export, ligne pour ligne ; non modifiable dans le texte (un clic ouvre ses champs). */
+const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit, reg }: { b: SBlock; mt?: number; paged: boolean; onEdit?: () => void; reg: Register }) {
+  const setRef = useCallback((el: HTMLDivElement | null) => reg(b.id, el), [b.id, reg]);
+  const f = parseTitlePage(b.text);
+  return (
+    <div
+      ref={setRef}
+      data-bid={b.id}
+      data-type="title"
+      contentEditable={false}
+      className={[s.b, s.t_title, onEdit ? s.titleEditable : ''].join(' ')}
+      style={{ marginTop: mt, height: paged ? SCRIPT_PAGE.lines * LINE : undefined }}
+      onClick={onEdit}
+      title={onEdit ? 'Modifier la page de garde' : undefined}
+      data-testid="title-page"
+    >
+      <TitleLines fields={f} paged={paged} />
     </div>
   );
 });
+
+/** Largeur de l'aperçu de la page de garde (colonne du dialogue). */
+const TITLE_PREVIEW_W = 260;
 
 function TitleDialog({ initial, onSave, onClose }: { initial: Record<string, string>; onSave: (f: Record<string, string>) => void; onClose: () => void }) {
   const [f, setF] = useState<Record<string, string>>(() => Object.fromEntries(TITLE_FIELDS.map(([k]) => [k, initial[k] ?? ''])));
@@ -440,16 +438,22 @@ function TitleDialog({ initial, onSave, onClose }: { initial: Record<string, str
               </label>
             ))}
           </div>
-          {/* La page telle qu'à l'impression : titre et crédits au centre, contact en bas à gauche, date en bas à droite. */}
-          <div className={s.tdSheet} aria-hidden="true">
-            <div className={s.tdCenter}>
-              <p className={s.tdTitle}>{(f.Title || 'Sans titre').toLocaleUpperCase('fr')}</p>
-              {f.Credit && <p>{f.Credit}</p>}
-              {f.Author && <p>{f.Author}</p>}
-              {f.Source && <p>{f.Source}</p>}
+          {/* La page telle qu'à l'impression : les mêmes lignes que la page de garde du texte, réduites. */}
+          <div className={s.tdSheet} aria-hidden="true" data-testid="title-preview">
+            <div
+              className={s.tdPage}
+              style={{
+                ['--pt' as string]: `${PT}px`,
+                width: PAGE.w,
+                height: PAGE.h,
+                padding: `${PAGE.top}px ${PAGE.right}px 0 ${PAGE.left}px`,
+                transform: `scale(${TITLE_PREVIEW_W / PAGE.w})`,
+              }}
+            >
+              <div className={s.t_title} style={{ height: SCRIPT_PAGE.lines * LINE }}>
+                <TitleLines fields={f} paged />
+              </div>
             </div>
-            <p className={s.tdContact}>{f.Contact}</p>
-            <p className={s.tdDate}>{f['Draft date']}</p>
           </div>
         </div>
         <div className={m.actions}>
@@ -883,13 +887,6 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const next = editorLayout(items);
     const same = next.pages === layout.pages && next.offset === layout.offset && items.every((it) => Math.abs((next.margins[it.id] ?? 0) - (layout.margins[it.id] ?? 0)) < 0.5);
     if (!same) setLayout(next);
-    else {
-      // Durée totale : jusqu'au bas du dernier bloc.
-      const last = el.lastElementChild as HTMLElement | null;
-      const total = last ? secondsAt(last.offsetTop + last.offsetHeight, layout.offset) : 0;
-      const prev = useScriptUi.getState().chrono;
-      if (prev.total !== total) useScriptUi.setState({ chrono: { ...prev, total } });
-    }
   });
 
   // --- Suivi de la sélection : type du bloc courant, passage lié, sélection pour « Créer un plan » ---
@@ -909,21 +906,11 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const range = !sel.collapsed && a !== null && z !== null && z > a ? { start: a, end: z } : null;
     const prev = useScriptUi.getState();
     if (prev.activeType !== (b?.type ?? null) || JSON.stringify(prev.selection) !== JSON.stringify(range)) useScriptUi.setState({ activeType: b?.type ?? null, selection: range });
-    // Position du curseur dans la durée estimée (pages de l'éditeur, zoom compris).
-    if (paged) {
-      const sl = window.getSelection();
-      const caretRect = sl?.rangeCount ? sl.getRangeAt(0).getBoundingClientRect() : null;
-      const box = el.getBoundingClientRect();
-      const k = box.width / (el.offsetWidth || 1) || 1;
-      const y = caretRect && caretRect.height ? (caretRect.top - box.top) / k : (bel?.offsetTop ?? 0);
-      const at = secondsAt(y, layout.offset);
-      if (prev.chrono.at !== at) useScriptUi.setState({ chrono: { ...useScriptUi.getState().chrono, at } });
-    }
     if (onCaretAnchor) {
       const pos = a ?? -1;
       onCaretAnchor(anchors.find((x) => pos >= x.start && pos <= x.end)?.id ?? null);
     }
-  }, [anchors, onCaretAnchor, paged, layout.offset]);
+  }, [anchors, onCaretAnchor]);
 
   useEffect(() => {
     let raf = 0;
@@ -941,10 +928,11 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   // Plan, sommaire et nombre de pages : partagés avec la barre d'outils et le panneau.
   const numbers = useMemo(() => headingNumbers(sdoc.blocks), [sdoc.blocks]);
   useEffect(() => {
-    // Numéros de page de l'impression : la page de titre ne compte pas.
-    const outline: OutlineItem[] = sdoc.blocks.filter((b) => b.type === 'heading' && numbers.has(b.id)).map((b) => ({ id: b.id, n: numbers.get(b.id)!, text: b.text.toLocaleUpperCase('fr'), page: Math.max(1, (layout.pageOf[b.id] ?? 0) + 1 - layout.offset) }));
-    useScriptUi.setState({ outline, pages: Math.max(1, layout.pages - layout.offset), blocks: sdoc.blocks });
-  }, [sdoc.blocks, numbers, layout]);
+    // Pages et numéros de page de l'impression (sans les notes, qui ne s'impriment pas), comme l'export
+    // et les statistiques ; la page de titre ne compte pas.
+    const { items, pages } = scriptOutline(sdoc.blocks);
+    useScriptUi.setState({ outline: items, pages, blocks: sdoc.blocks });
+  }, [sdoc.blocks]);
   useEffect(() => {
     const blocks = sdoc.blocks;
     const i = active ? blocks.findIndex((b) => b.id === active.id) : -1;

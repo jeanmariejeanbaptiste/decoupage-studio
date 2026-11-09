@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canon, capitalizeFirst, countWords, fold, mergeKey } from './text';
+import { canon, capitalizeFirst, countWords, fold, frenchSpacing, mergeKey } from './text';
 import { addToken, parseTokens, removeTokenAt, renderTokens, tokensKey } from './tokens';
 
 describe('texte', () => {
@@ -48,5 +48,13 @@ describe('jetons', () => {
     expect(addToken(['Face'], 'Plongée')).toEqual(['Face', 'Plongée']);
     expect(addToken(['Face'], '  ')).toEqual(['Face']);
     expect(removeTokenAt(['a', 'b', 'c'], 1)).toEqual(['a', 'c']);
+  });
+});
+
+describe('typographie française', () => {
+  it('espaces insécables avant la ponctuation haute et dans les guillemets', () => {
+    expect(frenchSpacing('« long.fountain » : nouvelle version ?')).toBe('« long.fountain » : nouvelle version ?');
+    expect(frenchSpacing('Abandonner ce dessin ?')).toBe('Abandonner ce dessin ?');
+    expect(frenchSpacing('10:30 et https://a.b')).toBe('10:30 et https://a.b');
   });
 });

@@ -105,19 +105,29 @@ async function docxLines(buf: ArrayBuffer): Promise<SourceLine[]> {
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   const out: SourceLine[] = [];
   let gap = true;
+  // Pages : une de plus après une fin de section (la page de garde exportée par l'outil en est une),
+  // avant un paragraphe « saut de page avant », ou à un saut de page posé dans le texte. Elles aident
+  // à reconnaître la page de garde, comme pour un PDF.
+  let page = 1;
+  let any = false;
   for (const p of Array.from(doc.getElementsByTagNameNS(W, 'p'))) {
+    const ppr = pPrOf(p);
+    if (any && child(ppr, 'pageBreakBefore') && attr(child(ppr, 'pageBreakBefore'), 'val') !== 'false') page++;
     let text = '';
     for (const n of Array.from(p.getElementsByTagNameNS(W, '*'))) {
       if (n.localName === 't') text += n.textContent ?? '';
       // Tabulation ou retour posés dans le texte (pas les taquets de tabulation du paragraphe).
       else if (n.localName === 'tab' && n.parentElement?.localName === 'r') text += ' ';
-      else if ((n.localName === 'br' || n.localName === 'cr') && n.parentElement?.localName === 'r') text += '\n';
+      else if ((n.localName === 'br' || n.localName === 'cr') && n.parentElement?.localName === 'r') text += attr(n, 'type') === 'page' ? '\n\f' : '\n';
     }
-    if (!text.trim()) {
+    const endsSection = !!child(ppr, 'sectPr');
+    if (!text.replace(/\f/g, '').trim()) {
       gap = true;
+      if (/\f/.test(text) && any) page++;
+      if (endsSection && any) page++;
       continue;
     }
-    const ppr = pPrOf(p);
+    any = true;
     const style = resolve(attr(child(ppr, 'pStyle'), 'val'));
     const ind = child(ppr, 'ind');
     const directLeft = attr(ind, 'left') ?? attr(ind, 'start');
@@ -126,16 +136,20 @@ async function docxLines(buf: ArrayBuffer): Promise<SourceLine[]> {
     const before = Number(attr(child(ppr, 'spacing'), 'before') ?? style.before ?? 0) || 0;
     const named = byName(style.name);
     // Un retour à la ligne forcé dans le paragraphe (Maj + Entrée) sépare deux lignes du même bloc.
-    text.split('\n').forEach((line, k) => {
+    text.split('\n').forEach((raw, k) => {
+      if (raw.startsWith('\f')) page++;
+      const line = raw.replace(/\f/g, '');
       if (!line.trim()) return;
       out.push({
         text: line.trim(),
         center: k === 0 && (jc === 'center' || (jc === null && !!style.center)),
         x0: named.x0 ?? Math.min(0.7, left / 9600),
         gapBefore: k === 0 && (gap || before >= 180),
+        page,
       });
     });
     gap = false;
+    if (endsSection) page++;
   }
   return out;
 }

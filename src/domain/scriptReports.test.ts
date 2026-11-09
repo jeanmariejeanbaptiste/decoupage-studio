@@ -76,4 +76,34 @@ describe('renommer dans le projet', () => {
     renameDecor(doc, 'GARE — HALL', 'Gare du Nord — Hall');
     expect(doc.scenario).toContain('GARE DU NORD — HALL');
   });
+
+  it('dans une version : l’ancien nom reste un alias, la V1 figée retrouve la même fiche, sans doublon', async () => {
+    const { renameCharacter, renameDecor, matchesName } = await import('./scriptReports');
+    const { createVersion, switchVersion, ensureVersions } = await import('./versions');
+    const { setSequenceDecorByName } = await import('./registry');
+    const { buildFiction } = await import('../../seed/fiction');
+    const doc = buildFiction();
+    const lea = Object.values(doc.characters).find((c) => c.name === 'Léa')!;
+    lea.actor = 'Ana Girardot';
+    const v1 = ensureVersions(doc)[0].id;
+    createVersion(doc);
+    renameCharacter(doc, 'LÉA', 'Léonie');
+    expect(lea).toMatchObject({ name: 'Léonie', aliases: ['Léa'] });
+    const decor = Object.values(doc.decors)[0];
+    const oldDecor = decor.name;
+    renameDecor(doc, oldDecor, 'Hangar');
+    expect(decor.aliases).toEqual([oldDecor]);
+    switchVersion(doc, v1);
+    // La V1 n'est pas réécrite : elle garde LÉA, qui désigne toujours la même fiche.
+    expect(doc.scenario).toContain('LÉA');
+    expect(Object.values(doc.characters).filter((c) => matchesName(c, 'LÉA'))).toEqual([lea]);
+    expect(Object.values(doc.decors).filter((d) => matchesName(d, oldDecor))).toEqual([decor]);
+    const seq = doc.project.sequenceIds[0];
+    setSequenceDecorByName(doc, seq, oldDecor);
+    expect(doc.sequences[seq].decorId).toBe(decor.id);
+    // Revenir au nom d'origine retire l'alias devenu le nom.
+    renameCharacter(doc, 'Léonie', 'Léa');
+    expect(lea.name).toBe('Léa');
+    expect(lea.aliases).toEqual(['Léonie']);
+  });
 });

@@ -35,6 +35,19 @@ export function countWords(s: string | undefined): number {
   return s.replace(/\[Rép[^\]]*\]\.?/g, ' ').split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
 }
 
+/**
+ * Typographie française à l'écran : espace insécable avant « : », espace fine insécable avant « ? ! ; »
+ * et à l'intérieur des guillemets. Un signe ne se retrouve jamais seul en début de ligne.
+ */
+export function frenchSpacing(s: string): string {
+  const sp = '[ \\u00a0\\u202f]+';
+  return s
+    .replace(new RegExp(`${sp}([?!;])`, 'g'), '\u202f$1')
+    .replace(new RegExp(`${sp}:`, 'g'), '\u00a0:')
+    .replace(new RegExp(`«${sp}`, 'g'), '«\u202f')
+    .replace(new RegExp(`${sp}»`, 'g'), '\u202f»');
+}
+
 export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -139,6 +139,8 @@ export function setSequenceDecorByName(doc: ProjectDoc, seqId: ID, name: string)
     seq.decorId = undefined;
     return;
   }
-  const existing = Object.values(doc.decors).find((d) => d.name.toLowerCase() === n.toLowerCase());
+  const same = (x: string) => x.toLowerCase() === n.toLowerCase();
+  // Par son nom, sinon par un ancien nom (décor renommé dans une autre version).
+  const existing = Object.values(doc.decors).find((d) => same(d.name)) ?? Object.values(doc.decors).find((d) => (d.aliases ?? []).some(same));
   seq.decorId = existing?.id ?? addDecor(doc, { name: n, intExt: seq.intExt });
 }

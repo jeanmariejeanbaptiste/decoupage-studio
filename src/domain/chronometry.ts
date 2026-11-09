@@ -7,7 +7,7 @@
  * Notes, parties et résumés ne sont jamais minutés.
  */
 import { isEmptyBlock, type BlockType, type SBlock } from './screenplay';
-import { blankLinesBefore, blockLines, NOT_PRINTED, parseEmphasis, SCRIPT_PAGE } from './scriptLayout';
+import { blankLinesBefore, blockLines, layoutScript, NOT_PRINTED, parseEmphasis, SCRIPT_PAGE } from './scriptLayout';
 
 export type ChronoMethod = 'pages' | 'characters' | 'configurable';
 
@@ -88,19 +88,94 @@ export function blockSeconds(blocks: readonly SBlock[], c: ScriptChrono): number
   });
 }
 
-/** Durée jusqu'à un point du texte (bloc et position dans son texte), et durée totale. */
-export function chronoAt(blocks: readonly SBlock[], c: ScriptChrono, caret: { id: string; offset: number } | null): { at: number | null; total: number } {
-  const secs = blockSeconds(blocks, c);
-  let total = 0;
-  let at: number | null = null;
-  blocks.forEach((b, i) => {
-    if (caret && b.id === caret.id) {
-      const len = b.text.length || 1;
-      at = total + secs[i] * Math.min(1, Math.max(0, caret.offset / len));
+/**
+ * Minutage du scénario, bloc par bloc, sur une seule source : celle de l'impression. Par pages, chaque
+ * bloc commence là où l'impression le place (`layoutScript`) : les blancs de bas de page et les sauts
+ * de page comptent, les notes, parties et résumés non. Les secondes ne sont jamais arrondies ici.
+ */
+export interface ChronoTimeline {
+  /** Secondes au début de chaque bloc (mêmes indices que `blocks`). */
+  start: number[];
+  /** Part de chaque bloc : jusqu'au début du bloc minuté suivant (ou jusqu'à la fin). */
+  secs: number[];
+  total: number;
+  /** Secondes à une position du texte (`null` sans curseur ou si le bloc n'existe pas). */
+  at: (caret: { id: string; offset: number } | null) => number | null;
+}
+
+export function chronoTimeline(blocks: readonly SBlock[], c: ScriptChrono): ChronoTimeline {
+  const index = new Map(blocks.map((b, i) => [b.id, i]));
+  if (c.method !== 'pages') {
+    const secs = blockSeconds(blocks, c);
+    const start: number[] = [];
+    let t = 0;
+    for (const x of secs) {
+      start.push(t);
+      t += x;
     }
-    total += secs[i];
-  });
-  return { at: at === null ? null : Math.round(at), total: Math.round(total) };
+    return {
+      start,
+      secs,
+      total: t,
+      at: (caret) => {
+        const i = caret ? index.get(caret.id) : undefined;
+        if (!caret || i === undefined) return null;
+        const len = blocks[i].text.length || 1;
+        return start[i] + secs[i] * Math.min(1, Math.max(0, caret.offset / len));
+      },
+    };
+  }
+  const { pages } = layoutScript(blocks);
+  const pos = (page: number, row: number) => (page + row / SCRIPT_PAGE.lines) * c.pageSec;
+  // Lignes placées de chaque bloc, dans l'ordre.
+  const lines = new Map<string, Array<{ page: number; row: number; text: string }>>();
+  let total = 0;
+  pages.forEach((p, k) =>
+    p.lines.forEach((l) => {
+      const list = lines.get(l.blockId) ?? [];
+      list.push({ page: k, row: l.row, text: l.text });
+      lines.set(l.blockId, list);
+      total = Math.max(total, pos(k, l.row + 1));
+    }),
+  );
+  const start: number[] = new Array<number>(blocks.length);
+  const secs: number[] = new Array<number>(blocks.length).fill(0);
+  let next = total;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const own = lines.get(blocks[i].id);
+    if (own) {
+      start[i] = pos(own[0].page, own[0].row);
+      secs[i] = next - start[i];
+      next = start[i];
+    } else start[i] = next;
+  }
+  return {
+    start,
+    secs,
+    total,
+    at: (caret) => {
+      const i = caret ? index.get(caret.id) : undefined;
+      if (!caret || i === undefined) return null;
+      const own = lines.get(caret.id);
+      if (!own) return start[i];
+      // Ligne imprimée qui contient le curseur (les coupures tombent sur des espaces).
+      let k = 0;
+      let seen = 0;
+      for (let j = 0; j < own.length - 1; j++) {
+        seen += own[j].text.length + 1;
+        if (caret.offset >= seen) k = j + 1;
+        else break;
+      }
+      return pos(own[k].page, own[k].row);
+    },
+  };
+}
+
+/** Durée jusqu'à un point du texte (bloc et position dans son texte), et durée totale, arrondies à la seconde. */
+export function chronoAt(blocks: readonly SBlock[], c: ScriptChrono, caret: { id: string; offset: number } | null): { at: number | null; total: number } {
+  const t = chronoTimeline(blocks, c);
+  const at = t.at(caret);
+  return { at: at === null ? null : Math.round(at), total: Math.round(t.total) };
 }
 
 /** Format « m:ss » (minutes non bornées). */

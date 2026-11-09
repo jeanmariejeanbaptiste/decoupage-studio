@@ -377,8 +377,46 @@ export function paginateItems(items: readonly PageItem[]): { at: Map<string, Pla
   return { at, pages: row === 0 && page > 0 ? page : page + 1 };
 }
 
-/** Mise en page complète du scénario imprimé (les notes, parties et résumés ne s'impriment pas). */
+/** Dernières mises en page, par liste de blocs : l'éditeur, le minutage et le sommaire partagent la même. */
+const laidOut = new WeakMap<readonly SBlock[], ScriptLayout>();
+
+/**
+ * Mise en page complète du scénario imprimé (les notes, parties et résumés ne s'impriment pas).
+ * Le résultat est partagé entre les appels sur la même liste de blocs : ne pas le modifier.
+ */
 export function layoutScript(blocks: readonly SBlock[]): ScriptLayout {
+  const hit = laidOut.get(blocks);
+  if (hit) return hit;
+  const out = computeLayout(blocks);
+  laidOut.set(blocks, out);
+  return out;
+}
+
+export interface OutlineItem {
+  id: string;
+  /** Numéro de séquence, dérivé de l'ordre. */
+  n: number;
+  text: string;
+  /** Page imprimée (1 = la première après la page de titre). */
+  page: number;
+}
+
+/** Sommaire du scénario : chaque séquence avec sa page à l'impression, et le nombre de pages. */
+export function scriptOutline(blocks: readonly SBlock[]): { items: OutlineItem[]; pages: number } {
+  const numbers = headingNumbers(blocks);
+  const { pages, placement } = layoutScript(blocks);
+  let page = 1;
+  const items = blocks
+    .filter((b) => b.type === 'heading' && numbers.has(b.id))
+    .map((b) => {
+      // Un en-tête vide ne s'imprime pas : il prend la page du précédent.
+      page = (placement.get(b.id)?.page ?? page - 1) + 1;
+      return { id: b.id, n: numbers.get(b.id)!, text: b.text.toLocaleUpperCase('fr'), page };
+    });
+  return { items, pages: Math.max(1, pages.length) };
+}
+
+function computeLayout(blocks: readonly SBlock[]): ScriptLayout {
   const numbers = headingNumbers(blocks);
   const printed = blocks.filter((b) => b.type !== 'title' && !NOT_PRINTED.has(b.type) && (b.type === 'pagebreak' || !isEmptyBlock(b)));
   const titleBlock = blocks.find((b) => b.type === 'title' && b.text.trim());
