@@ -2,7 +2,7 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { addBreakdownItems } from './breakdown';
-import { breakdownIndex, sequenceCounts } from './breakdownReport';
+import { breakdownIndex, itemCountBySequence, sequenceCounts } from './breakdownReport';
 import { computeTiming } from './timing';
 
 describe('index du dépouillement', () => {
@@ -37,5 +37,15 @@ describe('index du dépouillement', () => {
   it('comptes par séquence', () => {
     expect(sequenceCounts(index, s2).get('accessoires')).toBe(2);
     expect(sequenceCounts(index, s3).get('effets')).toBe(1);
+  });
+
+  it('total par séquence : éléments saisis et déduits, égal à la somme des comptes par catégorie', () => {
+    const totals = itemCountBySequence(index);
+    for (const id of [s1, s2, s3]) {
+      const sum = [...sequenceCounts(index, id).values()].reduce((a, b) => a + b, 0);
+      expect(totals.get(id)).toBe(sum);
+    }
+    // Léa vient des plans, Valise est saisie : la séquence 1 compte au moins les deux.
+    expect(totals.get(s1)).toBeGreaterThanOrEqual(2);
   });
 });

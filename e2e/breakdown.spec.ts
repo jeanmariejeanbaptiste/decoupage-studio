@@ -166,3 +166,14 @@ test('dépouillement : un personnage ajouté entre au registre, suit son renomma
   await page.getByRole('button', { name: 'Retirer Marco' }).click();
   await expect(page.getByTestId('breakdown-personnages')).not.toContainText('Marco');
 });
+
+test('dépouillement : le compteur de la liste compte les éléments de la fiche, saisis ou déduits', async ({ page }) => {
+  await page.goto('/#/breakdown?seed=fiction');
+  const hall = page.getByTestId('breakdown-scene').filter({ hasText: 'GARE — HALL' });
+  await hall.click();
+  // Léa et deux éléments de machinerie viennent des plans : 3, sans rien de saisi.
+  await expect(hall.locator('em')).toHaveText('3');
+  await expect(page.getByTestId('breakdown-add-all').first()).toHaveText('Ajouter la suggestion soulignée');
+  await page.getByTestId('breakdown-add-all').first().click();
+  await expect(hall.locator('em')).toHaveText('4');
+});
