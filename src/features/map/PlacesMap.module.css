@@ -1,0 +1,44 @@
+/* Panneau de la carte (plan de travail) : à droite sur un écran large, en bandeau au-dessus sinon. */
+.panel { container-type: inline-size; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); padding: 8px; }
+.body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.map { height: 300px; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: calc(100vh - 520px); min-height: 72px; overflow: auto; }
+@container (min-width: 560px) {
+  .body { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .map { height: 240px; }
+  .list { max-height: 240px; }
+}
+.loading { width: 100%; height: 100%; border-radius: var(--radius); background: var(--kraft); }
+
+/* Jours : segmenté discret. */
+.days { display: flex; flex-wrap: wrap; gap: 2px; }
+.days button { min-width: 34px; padding: 2px 8px; border: 1px solid transparent; border-radius: var(--radius); background: none; font: inherit; font-size: 12px; color: var(--ink-soft); cursor: pointer; font-variant-numeric: tabular-nums; }
+.days button:hover { color: var(--ink); background: var(--hover); }
+.days .on, .days .on:hover { color: var(--ink); border-color: var(--rule); background: var(--kraft); font-weight: 600; }
+
+/* Lieux : repère, décor, adresse ; introuvable en italique. */
+.row { display: flex; align-items: flex-start; gap: 4px; border-top: 1px solid var(--rule); }
+.row:first-child { border-top: 0; }
+.rowMain { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.rowMain:disabled { cursor: default; }
+.rowMain:not(:disabled):hover .rowTitle { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.active .rowTitle { font-weight: 600; }
+.rowText { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rowTitle { font-size: 12.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rowAddr { font-size: 11.5px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.state { font-style: italic; }
+.missing .rowAddr { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, var(--ink-soft) 60%, transparent); }
+.missing .state { text-decoration: none; display: inline-block; }
+.route { flex: none; display: inline-flex; padding: 7px 4px; color: var(--ink-soft); }
+.route:hover { color: var(--ink); }
+
+/* Pastille de la liste, comme le repère de la carte. */
+.pin { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; margin-top: 1px; box-sizing: border-box; border-radius: 10px; background: var(--ink); color: var(--paper-card); font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.h { border-radius: 4px; }
+.off { background: var(--paper-card); color: var(--ink-soft); border: 1px solid var(--ink-soft); }
+.free { min-width: 10px; width: 10px; height: 10px; padding: 0; margin: 5px 5px 0; background: var(--paper-card); border: 1.5px solid var(--ink); }
+
+/* Feuille de service : carte réduite des lieux du jour, à l'écran seulement. */
+.dayMap { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+.dayMapMap { height: 200px; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 200px; overflow: auto; }

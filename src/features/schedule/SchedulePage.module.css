@@ -85,3 +85,13 @@
 .event { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .event:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
 .eventTime { margin-right: 6px; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* Carte des lieux : colonne de droite, collante, quand la place le permet ; bandeau au-dessus sinon. */
+.layout { container-type: inline-size; }
+.columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.mapSide { min-width: 0; }
+@container (min-width: 1080px) {
+  .withMap { grid-template-columns: minmax(0, 1fr) 300px; }
+  .withMap .mapSide { grid-column: 2; grid-row: 1; position: sticky; top: 12px; }
+  .withMap .bands { grid-column: 1; grid-row: 1; }
+}

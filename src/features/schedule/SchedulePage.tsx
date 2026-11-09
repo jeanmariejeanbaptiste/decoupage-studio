@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRight, Clock, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRight, Clock, Map as MapIcon, Plus, Trash2, X } from 'lucide-react';
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
@@ -19,6 +19,9 @@ import s from './SchedulePage.module.css';
 import { TabExport } from '../export/TabExport';
 import { scheduleCsv } from '../../domain/exports';
 import { scheduleDocument } from '../../domain/documents';
+import { mapPlaces } from '../../domain/geo';
+import { ScheduleMap } from '../map/PlacesMap';
+import { useMapVisible } from '../map/visibility';
 
 const TONE: Record<StripTone, string> = {
   'int-day': s.tIntDay,
@@ -35,6 +38,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const strips = useMemo(() => stripsByDay(doc), [doc]);
   const nums = useMemo(() => characterNumbers(doc), [doc]);
   const days = scheduleDays(doc);
+  const places = useMemo(() => mapPlaces(doc), [doc]);
+  const [mapOn, toggleMap] = useMapVisible();
+  const showMap = mapOn && places.length > 0;
   const [capacity, setCapacity] = useState(20);
   const [openDays, setOpenDays] = useState<number[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
@@ -83,6 +89,11 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           <Button variant="primary" icon={<Plus size={15} strokeWidth={1.5} />} onClick={() => mutateDoc((d) => addDay(d))} data-testid="add-day">
             Ajouter un jour
           </Button>
+          {places.length > 0 && (
+            <Button variant={showMap ? 'primary' : 'outline'} icon={<MapIcon size={15} strokeWidth={1.25} />} aria-pressed={showMap} onClick={toggleMap} data-view data-testid="map-toggle">
+              Carte
+            </Button>
+          )}
         </div>
       </header>
       <p className={s.summary}>
@@ -91,6 +102,13 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
         </Hand>
       </p>
 
+      <div className={s.layout}>
+      <div className={[s.columns, showMap ? s.withMap : ''].join(' ')}>
+      {showMap && (
+        <aside className={s.mapSide}>
+          <ScheduleMap doc={doc} places={places} days={days.map((d) => d.n)} />
+        </aside>
+      )}
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <div className={s.bands}>
           {days.map((d) => {
@@ -165,6 +183,8 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           </Band>
         </div>
       </DndContext>
+      </div>
+      </div>
     </div>
   );
 }
