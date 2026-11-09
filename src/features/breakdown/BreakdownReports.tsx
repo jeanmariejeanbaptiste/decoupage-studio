@@ -12,7 +12,7 @@ import s from './BreakdownPage.module.css';
 type Report = 'items' | 'sequences';
 type ItemSort = 'film' | 'often' | 'long' | 'alpha';
 
-/** Numéros et libellés du dépouillement (ceux du scénario), par séquence du découpage. */
+/** Numéros et libellés du dépouillement (ceux du découpage), par séquence. */
 interface Numbering {
   no: (seqId: ID) => number | undefined;
   label: (seqId: ID) => string;
@@ -25,7 +25,7 @@ interface Numbering {
 export function BreakdownReports({ doc, entries: scenes, onGo }: { doc: ProjectDoc; entries: readonly Entry[]; onGo: (seqId: ID) => void }) {
   const entries = useMemo(() => breakdownIndex(doc, computeTiming(doc)), [doc]);
   const numbering = useMemo<Numbering>(() => {
-    const { byKey, bySeq } = entryNumbers(scenes);
+    const { byKey, bySeq } = entryNumbers(doc, scenes);
     return {
       no: (id) => bySeq.get(id),
       label: (id) => {
@@ -200,7 +200,7 @@ function ItemRow({ numbering, e, head, withCat, onGo }: { numbering: Numbering; 
 }
 
 function SequencesReport({ doc, scenes, entries, cats, onGo }: { doc: ProjectDoc; scenes: readonly Entry[]; entries: BreakdownEntry[]; cats: BreakdownCategory[]; onGo: (seqId: ID) => void }) {
-  const { byKey } = entryNumbers(scenes);
+  const { byKey } = entryNumbers(doc, scenes);
   const rows = scenes.map((sc) => {
     const counts = sc.seqId ? sequenceCounts(entries, sc.seqId) : new Map<BreakdownCategory, number>();
     return { sc, counts, total: [...counts.values()].reduce((a, b) => a + b, 0) };

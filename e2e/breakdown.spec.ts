@@ -60,8 +60,8 @@ test('dépouillement : une scène écrite mais absente du découpage y entre au 
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toContain('EXT. QUAI - NUIT');
   await page.getByRole('button', { name: /Dépouillement/ }).click();
   const scene = page.getByTestId('breakdown-scene').filter({ hasText: 'QUAI' });
-  // Numéro du scénario, même avant d'entrer au découpage.
-  await expect(scene).toContainText('4');
+  // Pas de numéro tant qu'elle n'est pas au découpage ; ensuite, celui de sa séquence.
+  await expect(scene).toContainText('–');
   await scene.click();
   await expect(page.getByText('pas encore au découpage')).toBeVisible();
   await selectWord(page, 'train');
@@ -127,7 +127,7 @@ test('dépouillement : liste du film entier, et rapports par élément et par s�
   await expect(page.getByTestId('breakdown-full')).toBeVisible();
 });
 
-test('dépouillement : numéros du scénario, même pour une scène pas encore au découpage', async ({ page }) => {
+test('dépouillement : numéros du découpage ; une scène pas encore au découpage n’en décale aucun', async ({ page }) => {
   await page.goto('/#/scenario?seed=fiction');
   const ed = page.getByTestId('script-editor');
   await ed.locator('[data-type="heading"]').first().click();
@@ -136,10 +136,10 @@ test('dépouillement : numéros du scénario, même pour une scène pas encore a
   await expect(ed.locator('[data-type="heading"]').first()).toHaveText('INT. QUAI - NUIT');
   await page.getByRole('button', { name: /Dépouillement/ }).first().click();
   const scenes = page.getByTestId('breakdown-scene');
-  await expect(scenes.nth(0)).toContainText('1QUAI');
-  await expect(scenes.nth(1)).toContainText('2GARE — HALL');
-  await expect(scenes.nth(3)).toContainText('4PARVIS DE LA GARE');
+  await expect(scenes.nth(0)).toContainText('–QUAI');
+  await expect(scenes.nth(1)).toContainText('1GARE — HALL');
+  await expect(scenes.nth(3)).toContainText('3PARVIS DE LA GARE');
   await page.getByTestId('breakdown-view-reports').click();
   await page.getByLabel('Rapport', { exact: true }).selectOption('sequences');
-  await expect(page.getByTestId('breakdown-report-seq').nth(1)).toContainText('2, GARE — HALL');
+  await expect(page.getByTestId('breakdown-report-seq').nth(1)).toContainText('1, GARE — HALL');
 });

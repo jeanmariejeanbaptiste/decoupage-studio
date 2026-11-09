@@ -89,7 +89,7 @@ const readView = (): View => {
 export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const entries = useMemo(() => entriesOf(doc), [doc]);
-  const numbers = useMemo(() => entryNumbers(entries), [entries]);
+  const numbers = useMemo(() => entryNumbers(doc, entries), [doc, entries]);
   const marks = useRevisionMarks(doc);
   const [view, setViewState] = useState<View>(readView);
   const [picked, setPicked] = useState<{ seqId?: ID; sceneStart?: number }>(() => ({ seqId: selectedSequence(doc) }));
@@ -224,7 +224,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
                   <button type="button" className={on ? s.on : ''} aria-current={on || undefined} onClick={() => goTo(e)} data-testid="breakdown-scene">
                     <span className={s.num}>
                       {e.scene && marks?.get(e.scene.index) && <i className={s.rev} title={marks.get(e.scene.index) === 'new' ? 'Nouvelle dans cette version' : 'Modifiée dans cette version'}>*</i>}
-                      {numbers.byKey.get(e.key)}
+                      {numbers.byKey.get(e.key) ?? '–'}
                     </span>
                     {entryName(doc, e) ? <span className={s.name}>{entryName(doc, e)}</span> : <span className={s.unnamed}>Sans en-tête</span>}
                     {n > 0 && <em>{n}</em>}
