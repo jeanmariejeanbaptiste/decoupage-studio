@@ -284,7 +284,8 @@ export function dayTitle(day: ShootingDay, total: number): string {
   return [`Jour ${day.n}${total ? ` sur ${total}` : ''}`, longDate(day.date), day.callTime && `RDV ${day.callTime}`].filter(Boolean).join(' · ');
 }
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
+/** « 1 plan », « 2 plans » (0 et 1 au singulier). */
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
 
 /** Totaux d'une journée : séquences, plans, durée d'écran, décors, comédiens (figurants à part). */
 export function dayTotalsText(doc: ProjectDoc, st: DayStats): string {

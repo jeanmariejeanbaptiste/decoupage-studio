@@ -14,6 +14,7 @@ import {
   dayStats,
   scheduleDays,
   firstSlot,
+  plural,
   setDayMeal,
   shotSlotsText,
   showTime,
@@ -360,7 +361,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           <h3>
             Plans du jour{' '}
             <span className={s.count}>
-              {shotIds.length} plans · {formatTc(stats.screenSec)} d’écran
+              {plural(shotIds.length, 'plan')} · {formatTc(stats.screenSec)} d’écran
             </span>
           </h3>
           <table className={s.table} data-testid="callsheet-shots">

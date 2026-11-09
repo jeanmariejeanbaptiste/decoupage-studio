@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRi
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
+import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, dayStats, dayTotalsText, longDate, plural, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
@@ -42,6 +42,8 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const [mapOn, toggleMap] = useMapVisible();
   const showMap = mapOn && places.length > 0;
   const [capacity, setCapacity] = useState(20);
+  // Réserve « Non planifié » vide : affichée seulement pendant un glisser, comme cible de dépôt.
+  const [dragging, setDragging] = useState(false);
   const [openDays, setOpenDays] = useState<number[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   // Venu du calendrier (« ?day=n ») : la journée demandée s'affiche en haut.
@@ -108,7 +110,10 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           <ScheduleMap doc={doc} places={places} days={days.map((d) => d.n)} />
         </aside>
       )}
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} onDragStart={() => setDragging(true)} onDragCancel={() => setDragging(false)} onDragEnd={(e) => {
+          setDragging(false);
+          onDragEnd(e);
+        }}>
         <div className={s.bands}>
           {days.map((d) => {
             const st = dayStats(doc, timing, d.n);
@@ -186,12 +191,11 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
               </Band>
             );
           })}
-          <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)} nums={nums}>
-            <p className={s.unplannedHead}>
-              Non planifié · {(strips.get(0) ?? []).reduce((n, x) => n + x.shotIds.length, 0)} plans
-              <span> — piochez-les plutôt depuis l’emploi du temps d’un jour</span>
-            </p>
-          </Band>
+          {(total > planned || dragging) && (
+            <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)} nums={nums}>
+              <p className={s.unplannedHead}>Non planifié · {plural(total - planned, 'plan')}</p>
+            </Band>
+          )}
         </div>
       </DndContext>
       </div>
@@ -229,7 +233,7 @@ function Band({ day, doc, strips, items, days, nums, children, extra }: { day: n
     <section ref={setNodeRef} className={[s.band, day === 0 ? s.unplanned : '', isOver ? s.over : ''].join(' ')} data-testid={`band-${day}`}>
       {children}
       <div className={s.strips}>
-        {strips.length === 0 && <p className={s.empty}>{day === 0 ? 'Tout est planifié.' : 'Déposez ici des séquences.'}</p>}
+        {strips.length === 0 && day > 0 && <p className={s.empty}>Déposez ici des séquences.</p>}
         {list.map((it, i) =>
           it.type === 'strip' ? (
             <StripRow key={it.strip.seqId} doc={doc} day={day} item={it} days={days} nums={nums} />
