@@ -54,6 +54,8 @@
 .reflectorEdge { stroke: #1f1d1a; stroke-width: calc(7px * var(--fp-k, 1)); stroke-linecap: round; filter: drop-shadow(3px 4px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.3)); }
 .diffuser { stroke: #d6d8dd; stroke-width: calc(5px * var(--fp-k, 1)); stroke-dasharray: 1 1.5; stroke-linecap: butt; filter: drop-shadow(0 0 1px #8b9099); }
 .flag { stroke: #0d0d0d; stroke-width: calc(4.5px * var(--fp-k, 1)); stroke-linecap: square; }
+/* Thème encre : la toile noire garde un liseré clair pour rester lisible sur le fond sombre. */
+:root[data-theme='encre'] .flag { filter: drop-shadow(0 0 1px var(--ink-soft)) drop-shadow(0 0 0.5px var(--ink-soft)); }
 .shadow { fill: #1d1b18; fill-opacity: 0.2; pointer-events: none; }
 .sel .reflectorEdge { stroke: var(--rust); }
 .beamGroup { pointer-events: none; mix-blend-mode: multiply; }
