@@ -58,16 +58,21 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   const createFirst = useRef<HTMLButtonElement>(null);
   // Un seul bouton Lier / Délier : « Délier » quand la sélection touche une action déjà liée.
   const sel = useUi((u) => u.selection);
-  const linked = useMemo(() => {
-    if (!sel) return false;
+  // Les caméras d'un cadre d'interview partagent l'action de la fiche : ni Lier ni Délier pour elles.
+  const selIds = useMemo(() => {
+    if (!sel) return [];
     const [a, b] = [sel.anchor.row, sel.focus.row].sort((x, y) => x - y);
-    const ids = model.rows.slice(a, b + 1).map((r) => r.shotId);
-    return ids.some((id) => {
-      const shot = doc.shots[id];
-      return shot && Object.values(doc.shots).some((o) => o.id !== id && o.actionBlockId === shot.actionBlockId);
-    });
+    return [...new Set(model.rows.slice(a, b + 1).map((r) => r.shotId))].filter((id) => doc.shots[id] && !doc.shots[id].interview);
   }, [sel, model, doc]);
-  const multi = !!sel && sel.anchor.row !== sel.focus.row;
+  const linked = useMemo(
+    () =>
+      selIds.some((id) => {
+        const shot = doc.shots[id];
+        return Object.values(doc.shots).some((o) => o.id !== id && o.actionBlockId === shot.actionBlockId);
+      }),
+    [selIds, doc],
+  );
+  const multi = selIds.length > 1;
 
   // Après la création de la première séquence, la grille prend le focus.
   const hadRows = useRef(model.rows.length > 0);
