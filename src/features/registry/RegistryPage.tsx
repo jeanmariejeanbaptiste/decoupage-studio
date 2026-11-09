@@ -5,7 +5,7 @@ import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters'
 import { formatFocal } from '../../domain/focal';
 import { shotCode, sequenceNumber } from '../../domain/numbering';
 import { addCharacter, mergeCharacters, refreshRecognition } from '../../domain/ops';
-import { addDecor, characterStats, decorStats, deleteCharacter, deleteDecor, sequenceProgress, setSequenceDecorByName } from '../../domain/registry';
+import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, sequenceProgress, setSequenceDecorByName, usageDayLabel, type ScheduleUsage } from '../../domain/registry';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { computeTiming, formatGap } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
@@ -43,6 +43,28 @@ export function goToShot(doc: ProjectDoc, shotId: ID | undefined) {
   const row = rowOfShot(doc, shotId);
   if (row >= 0) useUi.getState().setSelection({ row, col: 'subject' });
   navigate('grid');
+}
+
+/** Colonnes calculées depuis le plan de travail : séquences (« inutilisé » si aucune), premier jour, jours. */
+function usageColumns<T extends { id: ID }>(doc: ProjectDoc, usage: Map<ID, ScheduleUsage>): Column<T>[] {
+  const u = (r: T) => usage.get(r.id);
+  return [
+    {
+      key: 'nseq',
+      label: 'Séquences',
+      align: 'right',
+      render: (r) => (u(r)?.sequenceIds.length ? u(r)!.sequenceIds.length : <span className={s.unusedTag}>inutilisé</span>),
+      sort: (r) => u(r)?.sequenceIds.length ?? 0,
+    },
+    {
+      key: 'first',
+      label: '1er jour',
+      render: (r) => usageDayLabel(doc, u(r)) || '—',
+      sort: (r) => u(r)?.days[0] ?? 9999,
+      text: (r) => usageDayLabel(doc, u(r)),
+    },
+    { key: 'ndays', label: 'Jours', align: 'right', render: (r) => u(r)?.days.length || '—', sort: (r) => u(r)?.days.length ?? 0 },
+  ];
 }
 
 export function RegistryPage({ doc }: { doc: ProjectDoc }) {
@@ -251,6 +273,8 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
 
 function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
   const stats = useMemo(() => characterStats(doc), [doc]);
+  const usage = useMemo(() => characterUsage(doc), [doc]);
+  const nums = useMemo(() => characterNumbers(doc), [doc]);
   const rows = sortedCharacters(doc);
   const [dragId, setDragId] = useState<ID | null>(null);
   const [overId, setOverId] = useState<ID | null>(null);
@@ -268,6 +292,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
   };
 
   const columns: Column<Character>[] = [
+    { key: 'num', label: 'N°', width: '44px', align: 'right', render: (c) => <span className={s.num}>{nums.get(c.id)}</span>, sort: (c) => nums.get(c.id) ?? 0 },
     {
       key: 'name',
       label: 'Nom',
@@ -307,8 +332,9 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
       text: (c) => c.actor ?? '',
       edit: { get: (c) => c.actor ?? '', set: (c, v) => mutateDoc((d) => void (d.characters[c.id].actor = v.trim() || undefined)) },
     },
-    { key: 'nseq', label: 'Séquences', align: 'right', render: (c) => stats.get(c.id)?.sequenceIds.length ?? 0, sort: (c) => stats.get(c.id)?.sequenceIds.length ?? 0 },
+    ...usageColumns<Character>(doc, usage).slice(0, 1),
     { key: 'nshots', label: 'Plans', align: 'right', render: (c) => stats.get(c.id)?.shotIds.length ?? 0, sort: (c) => stats.get(c.id)?.shotIds.length ?? 0 },
+    ...usageColumns<Character>(doc, usage).slice(1),
     {
       key: 'list',
       label: 'Liste des séquences',
@@ -371,7 +397,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
         empty="Aucun personnage."
         rowProps={(c) => ({
           draggable: true,
-          className: overId === c.id && dragId !== c.id ? s.dropTarget : undefined,
+          className: [overId === c.id && dragId !== c.id ? s.dropTarget : '', usage.get(c.id)?.sequenceIds.length ? '' : s.unused].filter(Boolean).join(' ') || undefined,
           onDragStart: (e: React.DragEvent) => {
             setDragId(c.id);
             e.dataTransfer.effectAllowed = 'move';
@@ -402,6 +428,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
 
 function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnType<typeof computeTiming>; search: string }) {
   const stats = useMemo(() => decorStats(doc, timing), [doc, timing]);
+  const usage = useMemo(() => decorUsage(doc), [doc]);
   const rows = Object.values(doc.decors).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   const columns: Column<Decor>[] = [
     { key: 'name', label: 'Nom', render: (d) => d.name, text: (d) => d.name, edit: { get: (d) => d.name, set: (d, v) => v.trim() && mutateDoc((x) => void (x.decors[d.id].name = v.trim())) } },
@@ -419,9 +446,10 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
       text: (d) => d.address ?? '',
       edit: { get: (d) => d.address ?? '', set: (d, v) => mutateDoc((x) => void (x.decors[d.id].address = v.trim() || undefined)) },
     },
+    ...usageColumns<Decor>(doc, usage),
     {
       key: 'seqs',
-      label: 'Séquences',
+      label: 'Liste des séquences',
       render: (d) => (
         <span className={s.chips}>
           {(stats.get(d.id)?.sequenceIds ?? []).map((id) => (
@@ -456,7 +484,7 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
           Ajouter un décor
         </Button>
       </div>
-      <DataTable label="Décors" rows={rows} columns={columns} rowKey={(d) => d.id} search={search} empty="Aucun décor." />
+      <DataTable label="Décors" rows={rows} columns={columns} rowKey={(d) => d.id} search={search} empty="Aucun décor." rowProps={(d) => ({ className: usage.get(d.id)?.sequenceIds.length ? undefined : s.unused })} />
     </>
   );
 }

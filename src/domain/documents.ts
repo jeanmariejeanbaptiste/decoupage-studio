@@ -10,7 +10,7 @@ import { oneShotPlanKey, planOf } from './floorplan';
 import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
-import { characterStats, decorStats } from './registry';
+import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
 import { agendaEnd, bannerLabel, callSheetStrips, dayAgenda, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
@@ -126,6 +126,7 @@ const bannerRow = (it: Extract<AgendaItem, { type: 'banner' }>, span: number) =>
 export function scheduleDocument(doc: ProjectDoc): DocPage {
   const t = computeTiming(doc);
   const days = scheduleDays(doc);
+  const nums = characterNumbers(doc);
   const body = days.length
     ? days
         .map((d) => {
@@ -135,23 +136,13 @@ export function scheduleDocument(doc: ProjectDoc): DocPage {
               if (it.type === 'banner') return bannerRow(it, 5);
               const s = it.strip;
               const seq = doc.sequences[s.seqId];
-              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(it))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(stripCharacterIds(doc, s).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td></tr>`;
+              return `<tr class="${tone(doc, s.seqId)}"><td class="time">${esc(slotText(it))}</td><td class="code">${esc(sequenceHeading(doc, s.seqId))}</td><td>${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</td><td>${esc(seq.decorId ? doc.decors[seq.decorId]?.name : '')}</td><td>${esc(numberedCast(doc, stripCharacterIds(doc, s), nums))}</td><td>${s.shotIds.length}</td></tr>`;
             })
             .join('')}</tbody></table></section>`;
         })
         .join('')
     : '<p class="muted">Aucun jour de tournage.</p>';
   return shell(doc, 'Étape 8', 'Plan de travail', body, true);
-}
-
-/** Numéro de chaque personnage : principaux d'abord, puis par nombre de séquences (repris partout). */
-export function characterNumbers(doc: ProjectDoc): Map<string, number> {
-  const stats = characterStats(doc);
-  const rank = (k: string) => (k === 'principal' ? 0 : k === 'secondaire' ? 1 : 2);
-  const list = Object.values(doc.characters).sort(
-    (a, b) => rank(a.kind) - rank(b.kind) || (stats.get(b.id)?.sequenceIds.length ?? 0) - (stats.get(a.id)?.sequenceIds.length ?? 0) || a.name.localeCompare(b.name, 'fr'),
-  );
-  return new Map(list.map((c, i) => [c.id, i + 1]));
 }
 
 /**
@@ -256,6 +247,10 @@ export function registryDocument(doc: ProjectDoc): DocPage {
   const t = computeTiming(doc);
   const cs = characterStats(doc);
   const ds = decorStats(doc, t);
+  const nums = characterNumbers(doc);
+  const cu = characterUsage(doc);
+  const du = decorUsage(doc);
+  const unused = '<span class="muted">inutilisé</span>';
   const n = (ids: string[]) => ids.map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(', ');
   const body = `<h2>Séquences</h2><table><thead><tr><th>N°</th><th>Libellé</th><th>Décor</th><th>INT/EXT · effet</th><th>Personnages</th><th>Plans</th><th>Estimée</th><th>Calculée</th><th>Écart</th></tr></thead><tbody>${doc.project.sequenceIds
     .map((id, i) => {
@@ -264,12 +259,19 @@ export function registryDocument(doc: ProjectDoc): DocPage {
       return `<tr><td class="code">${i + 1}</td><td>${esc(s.label)}</td><td>${esc(s.decorId ? doc.decors[s.decorId]?.name : '')}</td><td>${esc([s.intExt, s.effect].filter(Boolean).join(' · '))}</td><td>${esc(sequenceCharacterIds(doc, id).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td><td class="time">${s.estimatedSec !== undefined ? formatTc(s.estimatedSec) : '—'}</td><td class="time">${formatTc(st?.durationSec ?? 0)}</td><td class="time">${st?.gap ? esc(formatGap(st.gap)) : '—'}</td></tr>`;
     })
     .join('')}</tbody></table>
-<h2>Personnages</h2><table><thead><tr><th>Nom</th><th>Type</th><th>Comédien·ne</th><th>Séquences</th><th>Plans</th></tr></thead><tbody>${Object.values(doc.characters)
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-    .map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.kind)}</td><td>${esc(c.actor || '—')}</td><td>${n(cs.get(c.id)?.sequenceIds ?? [])}</td><td>${cs.get(c.id)?.shotIds.length ?? 0}</td></tr>`)
+<h2>Personnages</h2><table><thead><tr><th>N°</th><th>Nom</th><th>Type</th><th>Comédien·ne</th><th>Séquences</th><th>Plans</th><th>1er jour</th><th>Jours</th></tr></thead><tbody>${Object.values(doc.characters)
+    .sort((a, b) => (nums.get(a.id) ?? 0) - (nums.get(b.id) ?? 0))
+    .map((c) => {
+      const u = cu.get(c.id);
+      return `<tr><td class="code">${nums.get(c.id) ?? ''}</td><td>${esc(c.name)}</td><td>${esc(c.kind)}</td><td>${esc(c.actor || '—')}</td><td>${u?.sequenceIds.length ? n(u.sequenceIds) : unused}</td><td>${cs.get(c.id)?.shotIds.length ?? 0}</td><td class="time">${esc(usageDayLabel(doc, u) || '—')}</td><td>${u?.days.length || '—'}</td></tr>`;
+    })
     .join('')}</tbody></table>
-<h2>Décors</h2><table><thead><tr><th>Décor</th><th>INT/EXT</th><th>Adresse</th><th>Séquences</th><th>Durée</th></tr></thead><tbody>${Object.values(doc.decors)
-    .map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(d.intExt)}</td><td>${esc(d.address || '—')}</td><td>${n(ds.get(d.id)?.sequenceIds ?? [])}</td><td class="time">${formatTc(ds.get(d.id)?.totalSec ?? 0)}</td></tr>`)
+<h2>Décors</h2><table><thead><tr><th>Décor</th><th>INT/EXT</th><th>Adresse</th><th>Séquences</th><th>Durée</th><th>1er jour</th><th>Jours</th></tr></thead><tbody>${Object.values(doc.decors)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    .map((d) => {
+      const u = du.get(d.id);
+      return `<tr><td>${esc(d.name)}</td><td>${esc(d.intExt)}</td><td>${esc(d.address || '—')}</td><td>${u?.sequenceIds.length ? n(u.sequenceIds) : unused}</td><td class="time">${formatTc(ds.get(d.id)?.totalSec ?? 0)}</td><td class="time">${esc(usageDayLabel(doc, u) || '—')}</td><td>${u?.days.length || '—'}</td></tr>`;
+    })
     .join('')}</tbody></table>`;
   return shell(doc, 'Base du projet', 'Registre', body, true);
 }

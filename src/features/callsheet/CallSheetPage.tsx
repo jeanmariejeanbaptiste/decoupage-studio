@@ -26,7 +26,8 @@ import { Hand } from '../../ui/Hand';
 import s from './CallSheetPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { callSheetCsv } from '../../domain/exports';
-import { callSheetDocument, characterNumbers } from '../../domain/documents';
+import { callSheetDocument } from '../../domain/documents';
+import { characterNumbers } from '../../domain/registry';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',

@@ -6,7 +6,8 @@ import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
 import { addBanner, BANNER_KINDS, bannerLabel, dayAgenda, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
-import type { ProjectDoc } from '../../domain/types';
+import type { ID, ProjectDoc } from '../../domain/types';
+import { characterNumbers, numberedCast } from '../../domain/registry';
 import { mutateDoc, undo } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
@@ -30,6 +31,7 @@ const TONE: Record<StripTone, string> = {
 export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const strips = useMemo(() => stripsByDay(doc), [doc]);
+  const nums = useMemo(() => characterNumbers(doc), [doc]);
   const days = scheduleDays(doc);
   const [capacity, setCapacity] = useState(20);
   const [openDays, setOpenDays] = useState<number[]>([]);
@@ -87,7 +89,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           {days.map((d) => {
             const st = dayStats(doc, timing, d.n);
             return (
-              <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} items={dayAgenda(doc, d.n)} days={days.map((x) => x.n)} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
+              <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} items={dayAgenda(doc, d.n)} days={days.map((x) => x.n)} nums={nums} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
                 <div className={s.dayHead}>
                   <strong>
                     Jour {d.n} <span className={s.of}>sur {days.length}</span>
@@ -145,7 +147,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
               </Band>
             );
           })}
-          <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)}>
+          <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)} nums={nums}>
             <p className={s.unplannedHead}>
               Non planifié · {(strips.get(0) ?? []).reduce((n, x) => n + x.shotIds.length, 0)} plans
               <span> — piochez-les plutôt depuis l’emploi du temps d’un jour</span>
@@ -157,7 +159,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-function Band({ day, doc, strips, items, days, children, extra }: { day: number; doc: ProjectDoc; strips: Strip[]; items?: AgendaItem[]; days: number[]; children: React.ReactNode; extra?: React.ReactNode }) {
+function Band({ day, doc, strips, items, days, nums, children, extra }: { day: number; doc: ProjectDoc; strips: Strip[]; items?: AgendaItem[]; days: number[]; nums: Map<ID, number>; children: React.ReactNode; extra?: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${day}` });
   // Jour de tournage : bandes et bandeaux dans l'ordre du déroulé ; réserve : bandes seules.
   const list: AgendaItem[] = items ?? strips.map((strip) => ({ type: 'strip', strip, computed: false }));
@@ -168,7 +170,7 @@ function Band({ day, doc, strips, items, days, children, extra }: { day: number;
         {strips.length === 0 && <p className={s.empty}>{day === 0 ? 'Tout est planifié.' : 'Déposez ici des séquences.'}</p>}
         {list.map((it, i) =>
           it.type === 'strip' ? (
-            <StripRow key={it.strip.seqId} doc={doc} day={day} item={it} days={days} />
+            <StripRow key={it.strip.seqId} doc={doc} day={day} item={it} days={days} nums={nums} />
           ) : (
             <BannerRow key={it.banner.id} day={day} item={it} first={i === 0} last={i === list.length - 1} />
           ),
@@ -209,14 +211,14 @@ function BannerRow({ day, item, first, last }: { day: number; item: Extract<Agen
   );
 }
 
-function StripRow({ doc, day, item, days }: { doc: ProjectDoc; day: number; item: Extract<AgendaItem, { type: 'strip' }>; days: number[] }) {
+function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number; item: Extract<AgendaItem, { type: 'strip' }>; days: number[]; nums: Map<ID, number> }) {
   const strip = item.strip;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `strip:${day}:${strip.seqId}` });
   const [open, setOpen] = useState(false);
   const seq = doc.sequences[strip.seqId];
   const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
   // Distribution du jour : les personnages des plans de cette bande (pas toute la séquence).
-  const cast = (day > 0 ? stripCharacterIds(doc, strip) : sequenceCharacterIds(doc, strip.seqId)).map((id) => doc.characters[id]?.name).filter(Boolean);
+  const cast = numberedCast(doc, day > 0 ? stripCharacterIds(doc, strip) : sequenceCharacterIds(doc, strip.seqId), nums);
   const totalInSeq = seq?.shotIds.length ?? 0;
   const planned = doc.schedule?.days.find((x) => x.n === day)?.durations?.[strip.seqId];
   return (
@@ -231,7 +233,7 @@ function StripRow({ doc, day, item, days }: { doc: ProjectDoc; day: number; item
         <span className={s.ie}>{[seq?.intExt, seq?.effect].filter(Boolean).join(' · ')}</span>
         <span className={s.label}>{seq?.label.toUpperCase()}</span>
         <span className={s.decor}>{decor && decor.name.toUpperCase() !== seq?.label.toUpperCase() ? decor.name : ''}</span>
-        <span className={s.cast}>{cast.join(', ')}</span>
+        <span className={s.cast}>{cast}</span>
         <span className={[s.when, item.computed ? s.computed : ''].join(' ')}>{item.start ? `${item.start}–${item.end}` : ''}</span>
         <span className={s.count}>
           {strip.shotIds.length}

@@ -18,7 +18,7 @@ test.describe('registre', () => {
   test('personnages : fusion de doublons par menu et par glisser-déposer', async ({ page }) => {
     await page.goto('/#/registry?seed=rav3&tab=characters');
     const rows = page.getByTestId('character-row');
-    const named = (n: string) => rows.filter({ has: page.locator('td:first-child', { hasText: n }) });
+    const named = (n: string) => rows.filter({ has: page.locator('td:nth-child(2)', { hasText: n }) });
     await expect(rows).toHaveCount(4);
     await page.getByRole('button', { name: 'Ajouter un personnage' }).click();
     await expect(rows).toHaveCount(5);

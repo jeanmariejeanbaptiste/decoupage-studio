@@ -8,7 +8,7 @@ import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, 
 import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
-import { characterStats, decorStats } from './registry';
+import { characterNumbers, characterStats, characterUsage, decorStats, decorUsage, usageDayLabel } from './registry';
 import { bannerLabel, callSheetStrips, dayAgenda, dayStats, scheduleDays, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
@@ -52,19 +52,22 @@ export function sequencesCsv(doc: ProjectDoc): string {
 
 export function charactersCsv(doc: ProjectDoc): string {
   const st = characterStats(doc);
+  const nums = characterNumbers(doc);
+  const u = characterUsage(doc);
   return csv([
-    ['Nom', 'Alias', 'Type', 'Comédien·ne', 'Séquences', 'Plans'],
+    ['N°', 'Nom', 'Alias', 'Type', 'Comédien·ne', 'Séquences', 'Plans', '1er jour', 'Jours'],
     ...Object.values(doc.characters)
-      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-      .map((c) => [c.name, (c.aliases ?? []).join(', '), c.kind, c.actor, (st.get(c.id)?.sequenceIds ?? []).map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(' '), st.get(c.id)?.shotIds.length ?? 0]),
+      .sort((a, b) => (nums.get(a.id) ?? 0) - (nums.get(b.id) ?? 0))
+      .map((c) => [nums.get(c.id), c.name, (c.aliases ?? []).join(', '), c.kind, c.actor, (st.get(c.id)?.sequenceIds ?? []).map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(' '), st.get(c.id)?.shotIds.length ?? 0, usageDayLabel(doc, u.get(c.id)), u.get(c.id)?.days.length ?? 0]),
   ]);
 }
 
 export function decorsCsv(doc: ProjectDoc): string {
   const st = decorStats(doc, computeTiming(doc));
+  const u = decorUsage(doc);
   return csv([
-    ['Décor', 'INT/EXT', 'Adresse', 'Séquences', 'Durée à tourner'],
-    ...Object.values(doc.decors).map((d) => [d.name, d.intExt, d.address, (st.get(d.id)?.sequenceIds ?? []).map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(' '), formatTc(st.get(d.id)?.totalSec ?? 0)]),
+    ['Décor', 'INT/EXT', 'Adresse', 'Séquences', 'Durée à tourner', '1er jour', 'Jours'],
+    ...Object.values(doc.decors).map((d) => [d.name, d.intExt, d.address, (st.get(d.id)?.sequenceIds ?? []).map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(' '), formatTc(st.get(d.id)?.totalSec ?? 0), usageDayLabel(doc, u.get(d.id)), u.get(d.id)?.days.length ?? 0]),
   ]);
 }
 
