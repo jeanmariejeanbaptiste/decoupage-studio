@@ -67,7 +67,23 @@ import { useBlobUrl } from '../../ui/useBlobUrl';
 import { aiPlanInstructions, extractPlanText, parsePlanFile, placePlan, type ParsedPlan } from '../../domain/planImport';
 import { askWithImage, isConfigured, loadAiSettings, modelOf, type ImageInput } from '../assistant/providers';
 import { navigate } from '../../app/router';
-import { LIGHT_PRESETS, ROOM_PRESETS, WORLD, lightSpecs, roomSize, setRoom, type FloorPlan, type Room } from '../../domain/floorplan';
+import {
+  LIGHT_PRESETS,
+  ROOM_PRESETS,
+  WORLD,
+  formatRoom,
+  isRoomWall,
+  lightSpecs,
+  moveFloorItems,
+  roomDimensions,
+  roomPreset,
+  roomRect,
+  roomSize,
+  setRoom,
+  withRoomWalls,
+  type FloorPlan,
+  type Room,
+} from '../../domain/floorplan';
 import { Button } from '../../ui/Button';
 import s from './FloorPlanPage.module.css';
 import { CineCameraIcon, FresnelIcon, RailsIcon } from './icons';
@@ -504,7 +520,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     }
     setMulti([]);
     setSelected(id);
-    setDrag({ mode, id, from: p, to: p });
+    // Un mur de la pièce entraîne toute la pièce.
+    const item = items.find((i) => i.id === id);
+    if (mode === 'move' && item && isRoomWall(item)) setDrag({ mode: 'group', ids: withRoomWalls(items, [id]), from: p, to: p });
+    else setDrag({ mode, id, from: p, to: p });
   };
 
   const onMove = (e: PointerEvent) => {
@@ -542,7 +561,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     if (d0.mode === 'group') {
       const dx = snap(d0.to.x - d0.from.x);
       const dy = snap(d0.to.y - d0.from.y);
-      if (dx || dy) mutate((d) => d0.ids.forEach((id) => moveFloorItem(d, planKey, id, dx, dy)));
+      if (dx || dy) mutate((d) => moveFloorItems(d, planKey, d0.ids, dx, dy));
       return;
     }
     if (d0.mode === 'line') {
@@ -582,7 +601,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       if (mv[e.key]) {
         e.preventDefault();
         const [dx, dy] = mv[e.key];
-        mutate((d) => multi.forEach((id) => moveFloorItem(d, planKey, id, dx, dy)));
+        mutate((d) => moveFloorItems(d, planKey, multi, dx, dy));
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         mutate((d) => multi.forEach((id) => removeFloorItem(d, planKey, id)));
@@ -633,10 +652,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     }
   };
 
-  // Aperçu d'un élément pendant le glissement.
+  // Aperçu d'un élément pendant le glissement (un groupe qui contient un mur de la pièce l'entraîne toute).
+  const groupIds = new Set(drag?.mode === 'group' ? withRoomWalls(items, drag.ids) : []);
   const preview = (item: FloorItem): FloorItem => {
     if (!drag || drag.mode === 'line' || drag.mode === 'box' || drag.mode === 'bg' || drag.mode === 'ghost') return item;
-    if (drag.mode === 'group' ? !drag.ids.includes(item.id) : drag.id !== item.id) return item;
+    if (drag.mode === 'group' ? !groupIds.has(item.id) : drag.id !== item.id) return item;
     if (drag.mode === 'move' || drag.mode === 'group') {
       const dx = snap(drag.to.x - drag.from.x);
       const dy = snap(drag.to.y - drag.from.y);
@@ -698,6 +718,25 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const stroke = planOf(doc, planKey).stroke ?? 1;
   const inventory = planInventory(doc, items);
   const decor = decorSummary(items);
+  const room = planOf(doc, planKey).room;
+  // Cotes de la pièce : elles suivent la pièce pendant qu'on la déplace.
+  const dims = roomDimensions({ room, items: drag?.mode === 'group' ? items.map(preview) : items });
+  /** Pièce posée ou redimensionnée : le cadrage la montre en entier, cotes comprises, si elle déborde. */
+  const applyRoom = (r: Room | undefined) => {
+    mutateDoc((d) => setRoom(d, planKey, r));
+    const rect = roomRect(planOf(useProjectStore.getState().doc ?? doc, planKey));
+    const box = svgRef.current?.getBoundingClientRect();
+    if (!rect || !box?.width) return;
+    // Marges en pixels : la palette d'outils couvre la gauche du plan.
+    const [ml, mr, mt, mb] = [96, 40, 72, 40];
+    const kx = view.w / box.width;
+    const inside = rect.x - ml * kx >= view.x && rect.x + rect.w + mr * kx <= view.x + view.w && rect.y - mt * kx >= view.y && rect.y + rect.l + mb * kx <= view.y + view.h;
+    if (inside) return;
+    const w = Math.min(ZOOM_MAX, Math.max(rect.w / (1 - (ml + mr) / box.width), rect.l / (1 - (mt + mb) / box.height) / aspectRef.current));
+    const h = w * aspectRef.current;
+    const k = w / box.width;
+    setView({ x: rect.x - ml * k - (w - rect.w - (ml + mr) * k) / 2, y: rect.y - mt * k - (h - rect.l - (mt + mb) * k) / 2, w, h });
+  };
 
   return (
     <div className={['page page--wide', s.page].join(' ')}>
@@ -1174,6 +1213,18 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             {shadows.map((sh, i) => (
               <polygon key={`shadow-${i}`} points={sh.map((p) => `${p.x},${p.y}`).join(' ')} className={s.shadow} data-testid="fp-shadow" />
             ))}
+            {dims.map((dm) => (
+              <g key={dm.rot} className={s.dim} data-testid="fp-dimension">
+                {dm.ext.map(([x1, y1, x2, y2], k) => (
+                  <line key={k} x1={x1} y1={y1} x2={x2} y2={y2} />
+                ))}
+                <line x1={dm.x1} y1={dm.y1} x2={dm.x2} y2={dm.y2} />
+                <path d={[[dm.x1, dm.y1], [dm.x2, dm.y2]].map(([x, y]) => `M ${x - 4} ${y + 4} L ${x + 4} ${y - 4}`).join(' ')} />
+                <text x={dm.tx} y={dm.ty} transform={dm.rot ? `rotate(${dm.rot} ${dm.tx} ${dm.ty})` : undefined}>
+                  {dm.label}
+                </text>
+              </g>
+            ))}
             {paths.map((p) => (
               <polyline
                 key={p.key}
@@ -1246,12 +1297,16 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 Retirer
               </Button>
             </section>
+          ) : sel ? (
+            <section className={s.section}>
+              <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} beats={nBeats} onDelete={() => setSelected(null)} />
+            </section>
           ) : (
-            sel && (
-              <section className={s.section}>
-                <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} beats={nBeats} onDelete={() => setSelected(null)} />
-              </section>
-            )
+            // Rien de sélectionné : la pièce en tête du panneau (masquée en lecture seule tant qu'elle n'existe pas).
+            <section className={s.section} data-edit={room ? undefined : true}>
+              <h2 className={s.sectionHead}>Pièce</h2>
+              <RoomFields key={planKey} room={room} onCommit={applyRoom} />
+            </section>
           )}
           <section className={s.section} data-testid="fp-shots">
             <h2 className={s.sectionHead}>
@@ -1356,10 +1411,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               {decor && <p className={s.decor}>{decor}</p>}
             </section>
           )}
-          <section className={[s.section, s.roomSection].join(' ')}>
-            <h2 className={s.sectionHead}>Pièce</h2>
-            <RoomFields key={planKey} room={planOf(doc, planKey).room} onCommit={(r) => mutateDoc((d) => setRoom(d, planKey, r))} />
-          </section>
         </aside>
       </div>
     </div>
@@ -1489,7 +1540,7 @@ function ItemShape({
               <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.railGap} />
             </>
           )}
-          {selected && <Ends item={item} onDown={onDown} />}
+          {selected && !(item.kind === 'wall' && item.room) && <Ends item={item} onDown={onDown} />}
         </g>
       );
     case 'door':
@@ -1690,7 +1741,7 @@ function Properties({
   const slide = (patch: Partial<FloorItem>) => gestureMutate((d) => updateFloorItem(d, planKey, item.id, patch));
   return (
     <div className={s.props} data-testid="fp-properties">
-      <h2 className={s.h2}>{item.kind === 'light' && item.practical ? 'Lampe de jeu' : FLOOR_KIND_LABEL[item.kind]}</h2>
+      <h2 className={s.h2}>{item.kind === 'light' && item.practical ? 'Lampe de jeu' : isRoomWall(item) ? 'Mur de la pièce' : FLOOR_KIND_LABEL[item.kind]}</h2>
       {'x2' in item && (
         <p className={s.note} data-testid="fp-length">
           Longueur {formatMeters(itemLength(item))}
@@ -1854,49 +1905,75 @@ const parseNum = (v: string) => {
   return v.trim() && Number.isFinite(n) && n > 0 ? n : undefined;
 };
 
-/** Dimensions réelles de la pièce : les murs suivent, la superficie s'affiche. */
+const fr = (n: number | undefined) => (n ? String(n).replace('.', ',') : '');
+
+/**
+ * Pièce : largeur × longueur (et hauteur) en mètres, ou un modèle. Les murs suivent ; la superficie
+ * s'affiche pendant la saisie. Les champs reprennent les valeurs du projet après une annulation.
+ */
 function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | undefined) => void }) {
-  const [w, setW] = useState(room?.w ? String(room.w) : '');
-  const [l, setL] = useState(room?.l ? String(room.l) : '');
-  const [h, setH] = useState(room?.h ? String(room.h) : '');
+  const [w, setW] = useState(fr(room?.w));
+  const [l, setL] = useState(fr(room?.l));
+  const [h, setH] = useState(fr(room?.h));
+  const first = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    setW(fr(room?.w));
+    setL(fr(room?.l));
+    setH(fr(room?.h));
+  }, [room?.w, room?.l, room?.h]);
   const draft = parseNum(w) && parseNum(l) ? { w: parseNum(w)!, l: parseNum(l)!, ...(parseNum(h) ? { h: parseNum(h) } : {}) } : undefined;
   const size = draft ? roomSize(draft) : undefined;
-  const apply = (r: Room | undefined) => {
-    setW(r ? String(r.w) : '');
-    setL(r ? String(r.l) : '');
-    setH(r?.h ? String(r.h) : '');
-    onCommit(r);
+  const preset = roomPreset(room);
+  const commit = () => {
+    if (draft) {
+      if (draft.w !== room?.w || draft.l !== room?.l || draft.h !== room?.h) onCommit(draft);
+    } else if (room) {
+      // Saisie incomplète sur une pièce existante : on revient à ses dimensions.
+      setW(fr(room.w));
+      setL(fr(room.l));
+      setH(fr(room.h));
+    }
   };
-  const field = (label: string, value: string, set: (v: string) => void) => (
+  const field = (label: string, value: string, set: (v: string) => void, ref?: React.Ref<HTMLInputElement>) => (
     <label className={s.roomField}>
       <span>{label}</span>
-      <input value={value} inputMode="decimal" onChange={(e) => set(e.target.value)} onBlur={() => draft && onCommit(draft)} onKeyDown={(e) => e.key === 'Enter' && draft && onCommit(draft)} aria-label={`${label} de la pièce (m)`} />
+      <input ref={ref} value={value} inputMode="decimal" onChange={(e) => set(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} aria-label={`${label} de la pièce (m)`} />
       <em>m</em>
     </label>
   );
   return (
     <div className={s.room} data-testid="fp-room">
-      <div className={s.roomFields}>
-        {field('Largeur', w, setW)}
+      <div className={s.roomGrid}>
+        {field('Largeur', w, setW, first)}
+        <span className={s.roomTimes} aria-hidden="true">
+          ×
+        </span>
         {field('Longueur', l, setL)}
         {field('Hauteur', h, setH)}
       </div>
-      <div className={s.presets}>
+      <div className={s.presets} role="radiogroup" aria-label="Modèle de pièce">
         {ROOM_PRESETS.map((p) => (
-          <button key={p.label} type="button" className={s.camChip} onClick={() => apply(p.room)} title={`${p.room.w} × ${p.room.l} × ${p.room.h} m`}>
-            {p.label}
+          <button key={p.label} type="button" role="radio" aria-checked={preset === p.label} className={preset === p.label ? s.presetOn : undefined} onClick={() => preset !== p.label && onCommit(p.room)}>
+            <span>{p.label}</span>
+            <span>{formatRoom(p.room)}</span>
           </button>
         ))}
+        <button type="button" role="radio" aria-checked={!!room && !preset} className={room && !preset ? s.presetOn : undefined} onClick={() => first.current?.focus()}>
+          <span>Personnalisée</span>
+          <span>{room && !preset ? formatRoom(room) : ''}</span>
+        </button>
       </div>
-      {size && (
-        <p className={s.roomSize} data-testid="fp-room-size">
-          Superficie {String(size.area).replace('.', ',')} m²{size.volume ? ` · volume ${String(size.volume).replace('.', ',')} m³` : ''}
+      {(size || room) && (
+        <div className={s.roomFoot}>
+          <p className={s.roomSize} data-testid="fp-room-size">
+            {size ? `${fr(size.area)} m²${size.volume ? ` · ${fr(size.volume)} m³` : ''}` : ''}
+          </p>
           {room && (
-            <button type="button" className={s.roomClear} onClick={() => apply(undefined)}>
-              Retirer les murs
-            </button>
+            <Button variant="danger" size="sm" icon={<Trash2 size={13} />} onClick={() => onCommit(undefined)} aria-label="Retirer la pièce" data-testid="fp-room-remove">
+              Retirer
+            </Button>
           )}
-        </p>
+        </div>
       )}
     </div>
   );

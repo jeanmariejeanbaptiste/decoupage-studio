@@ -218,8 +218,8 @@ test('plan au sol : l’assistant trace les murs depuis l’image du plan des lo
 
 test('plan au sol : pièce aux dimensions réelles et projecteur chiffré (W, K)', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
-  await page.getByTestId('fp-panel').getByRole('button', { name: 'Pièce moyenne' }).click();
-  await expect(page.getByTestId('fp-room-size')).toContainText('Superficie 45 m² · volume 135 m³');
+  await page.getByTestId('fp-panel').getByRole('radio', { name: /^Moyenne/ }).click();
+  await expect(page.getByTestId('fp-room-size')).toHaveText('45 m² · 135 m³');
   await expect(page.getByTestId('fp-items')).toContainText('4 murs');
   await page.getByRole('button', { name: /^Projecteur/ }).first().click();
   const svg = page.locator('svg').filter({ has: page.locator('pattern') }).first();
@@ -276,4 +276,62 @@ test('plan au sol : panneau latéral, caméra posée depuis un plan, éléments 
   await panel.getByTestId('fp-multi').getByRole('button', { name: 'Retirer' }).click();
   await expect(page.getByTestId('fp-items')).toHaveCount(0);
   await expect(panel.getByTestId('fp-shots')).toContainText('0 / 4 avec caméra');
+});
+
+test('plan au sol : la pièce en tête du panneau, modèles chiffrés, cotes, redimensionnement annulable', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=fiction');
+  const panel = page.getByTestId('fp-panel');
+  const room = panel.getByTestId('fp-room');
+  // Plan vierge : la pièce est la première proposition du panneau.
+  await expect(panel.locator('section').first()).toContainText('Pièce');
+  await expect(room.getByRole('radio', { name: 'Petite 5 × 6 × 2,5 m' })).toBeVisible();
+  await expect(room.getByRole('radio', { name: 'Moyenne 6 × 7,5 × 3 m' })).toBeVisible();
+  await expect(room.getByRole('radio', { name: 'Grande 8 × 10 × 5 m' })).toBeVisible();
+  await expect(page.getByTestId('fp-dimension')).toHaveCount(0);
+  // Une caméra déjà posée ne bouge pas quand la pièce change.
+  await page.getByTestId('tool-camera').click();
+  const box = (await page.getByTestId('floorplan').boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  await page.getByTestId('floorplan').press('Escape');
+  const camAt = () => page.evaluate(() => {
+    const d = (window as unknown as { __ds: { doc: () => { floorPlans: Record<string, { items: Array<{ kind: string; x: number; y: number }> }> } } }).__ds.doc();
+    const c = Object.values(d.floorPlans).flatMap((p) => p.items).find((i) => i.kind === 'camera')!;
+    return [c.x, c.y];
+  });
+  const cam0 = await camAt();
+  // Largeur × longueur saisies : murs, cotes en mètres, pièce personnalisée.
+  await room.getByLabel('Largeur de la pièce (m)').fill('4');
+  await room.getByLabel('Longueur de la pièce (m)').fill('3,5');
+  await room.getByLabel('Longueur de la pièce (m)').press('Enter');
+  await expect(page.getByTestId('fp-wall')).toHaveCount(4);
+  await expect(page.getByTestId('fp-dimension')).toHaveText(['4 m', '3,5 m']);
+  await expect(room.getByRole('radio', { name: /^Personnalisée/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(room.getByRole('radio', { name: /^Personnalisée/ })).toContainText('4 × 3,5 m');
+  await expect(page.getByTestId('fp-room-size')).toHaveText('14 m²');
+  // Un modèle redimensionne la pièce ; annuler revient à la saisie précédente, champs compris.
+  await room.getByRole('radio', { name: /^Grande/ }).click();
+  await expect(room.getByRole('radio', { name: /^Grande/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('fp-dimension')).toHaveText(['8 m', '10 m']);
+  await expect(page.getByTestId('fp-wall')).toHaveCount(4);
+  expect(await camAt()).toEqual(cam0);
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('fp-dimension')).toHaveText(['4 m', '3,5 m']);
+  await expect(room.getByLabel('Largeur de la pièce (m)')).toHaveValue('4');
+  await expect(room.getByLabel('Longueur de la pièce (m)')).toHaveValue('3,5');
+  // Un mur de la pièce sélectionné : ses propriétés prennent la tête du panneau, puis la pièce revient.
+  // Trait horizontal : boîte sans hauteur, le clic est forcé sur son milieu.
+  await page.getByTestId('fp-wall').first().click({ force: true });
+  await expect(page.getByTestId('fp-properties')).toContainText('Mur de la pièce');
+  await expect(panel.getByTestId('fp-room')).toHaveCount(0);
+  await expect(page.getByTestId('fp-end1')).toHaveCount(0);
+  await page.getByTestId('floorplan').press('Escape');
+  await expect(panel.getByTestId('fp-room')).toHaveCount(1);
+  // Retirer la pièce : murs et cotes partent, la caméra reste ; annulable.
+  await room.getByRole('button', { name: 'Retirer la pièce' }).click();
+  await expect(page.getByTestId('fp-wall')).toHaveCount(0);
+  await expect(page.getByTestId('fp-dimension')).toHaveCount(0);
+  await expect(page.getByTestId('fp-camera')).toHaveCount(1);
+  await expect(room.getByLabel('Largeur de la pièce (m)')).toHaveValue('');
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('fp-wall')).toHaveCount(4);
 });
