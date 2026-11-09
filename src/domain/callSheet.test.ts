@@ -6,7 +6,7 @@ import { callSheetDocument, scheduleDocument } from './documents';
 import { callSheetCsv, scheduleCsv } from './exports';
 import { characterNumbers } from './registry';
 import { buildRav3 } from '../../seed/rav3';
-import { addBanner, callSheetAgenda, dayAgenda, dayKeyTimes, moveBanner, placeShot, setDayMeal, suggestSchedule, updateBanner, updateDay } from './schedule';
+import { addBanner, callSheetAgenda, dayAgenda, dayKeyTimes, assignShots, moveBanner, placeShot, setDayMeal, suggestSchedule, updateBanner, updateDay } from './schedule';
 
 describe('feuille de service au format professionnel', () => {
   it('en-tête en trois blocs, séquences, comédiens numérotés, besoins des postes, prévisions', () => {
@@ -198,5 +198,26 @@ describe('repas ajouté au déroulé', () => {
       expect(k.restart).toBeUndefined();
       expect(callSheetDocument(doc, 1).html).not.toContain('<th>Reprise</th>');
     }
+  });
+});
+
+describe('feuille de service : distribution d’une séquence coupée sur deux jours', () => {
+  it('la ligne de séquence ne cite que les comédiens des plans du jour, comme le tableau Comédiens', () => {
+    const base = buildFiction();
+    const seqId = base.project.sequenceIds.find((id) => base.sequences[id].shotIds.length >= 2)!;
+    const [first, ...rest] = base.sequences[seqId].shotIds;
+    const extra = Object.values(base.characters).find((c) => !base.sequences[seqId].characterIds.includes(c.id) && !base.shots[first].characterIds.includes(c.id))!;
+    const doc = produce(base, (d) => {
+      for (const id of rest) d.shots[id].characterIds = d.shots[id].characterIds.filter((c) => c !== extra.id);
+      d.shots[rest[0]].characterIds.push(extra.id);
+      assignShots(d, [first], 1);
+      assignShots(d, rest, 2);
+    });
+    const n = characterNumbers(doc).get(extra.id)!;
+    const html = callSheetDocument(doc, 1).html;
+    const row = html.slice(html.indexOf('<h3>Séquences</h3>'), html.indexOf('<h3>Plans</h3>'));
+    const cell = [...row.matchAll(/<td>([\d, ]*)<\/td><td class="time">\d+ pl\./g)].map((m) => m[1].split(', ').filter(Boolean).map(Number));
+    expect(cell.flat()).not.toContain(n);
+    expect(callSheetDocument(doc, 2).html).toContain(extra.name);
   });
 });

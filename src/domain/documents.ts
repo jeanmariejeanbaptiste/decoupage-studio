@@ -202,7 +202,7 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
       const r = it.start ? it : undefined;
       const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
       const heading = [[seq?.intExt, decor?.name ?? seq?.label].filter(Boolean).join('. '), seq?.effect].filter(Boolean).join(' — ');
-      const cast = sequenceCharacterIds(doc, strip.seqId).map((id) => nums.get(id)).filter((n): n is number => !!n).sort((a, b) => a - b);
+      const cast = stripCharacterIds(doc, strip).map((id) => nums.get(id)).filter((n): n is number => !!n).sort((a, b) => a - b);
       const dur = strip.shotIds.reduce((n, id) => n + (doc.shots[id] ? (timing.blocks.get(doc.shots[id].actionBlockId)?.durationSec ?? 0) / Math.max(1, strip.shotIds.length) : 0), 0);
       const loc = decorLocation(decor);
       // Lieu de tournage : nom, adresse (celle du jour d'abord), accès et contact.
