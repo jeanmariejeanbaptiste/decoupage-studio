@@ -1,4 +1,4 @@
-import { buildPdf, type PdfPage } from '../../domain/pdf';
+import { buildPdf, sliceLinks, type PdfLink, type PdfPage } from '../../domain/pdf';
 import { downloadBlob } from '../../store/persistence';
 
 export type Orientation = 'landscape' | 'portrait';
@@ -73,7 +73,7 @@ export async function exportSvgPages(svgs: string[], base: string, opts: PageExp
 }
 
 /** Numérote, puis enregistre en PDF (assemblé ici, sans le module d'impression) ou en images. */
-export async function finish(canvases: HTMLCanvasElement[], base: string, opts: PageExportOptions): Promise<void> {
+export async function finish(canvases: HTMLCanvasElement[], base: string, opts: PageExportOptions, links?: PdfLink[][]): Promise<void> {
   if (!canvases.length) return;
   if (opts.numbers)
     canvases.forEach((c, i) => {
@@ -88,7 +88,7 @@ export async function finish(canvases: HTMLCanvasElement[], base: string, opts: 
   const blob = (c: HTMLCanvasElement, type: string) => new Promise<Blob>((ok, ko) => c.toBlob((b) => (b ? ok(b) : ko(new Error('Rendu impossible'))), type, 0.92));
   if (opts.format === 'pdf') {
     const pages: PdfPage[] = [];
-    for (const c of canvases) pages.push({ jpeg: new Uint8Array(await (await blob(c, 'image/jpeg')).arrayBuffer()), width: c.width, height: c.height });
+    for (const [i, c] of canvases.entries()) pages.push({ jpeg: new Uint8Array(await (await blob(c, 'image/jpeg')).arrayBuffer()), width: c.width, height: c.height, ...(links?.[i]?.length ? { links: links[i] } : {}) });
     downloadBlob(new Blob([buildPdf(pages, a4(opts.orientation))], { type: 'application/pdf' }), `${base}.pdf`);
     return;
   }
@@ -171,6 +171,13 @@ export async function exportDocumentPages(html: string, base: string, opts: Page
       slices.push([start, cut]);
       start = cut;
     }
+    // Liens web du document (itinéraires…) : cliquables dans le PDF, à leur place sur la page.
+    const left = body.getBoundingClientRect().left;
+    const anchors = [...d.querySelectorAll<HTMLAnchorElement>('a[href^="http"]')].flatMap((a) =>
+      [...a.getClientRects()].map((r) => ({ left: r.left - left, top: r.top - top, width: r.width, height: r.height, url: a.href })),
+    );
+    // Mesurés avant la capture, qui décale le document.
+    const links = sliceLinks(anchors, slices, { contentWidth: body.scrollWidth, pageWidth: w * px, pageHeight: h * px, margin });
     const { toCanvas } = await import('html-to-image');
     const ratio = 2.5;
     const W = Math.round(w * px * ratio);
@@ -205,7 +212,7 @@ export async function exportDocumentPages(html: string, base: string, opts: Page
       }
       i = j + 1;
     }
-    await finish(pages, base, opts);
+    await finish(pages, base, opts, links);
   } finally {
     wrap.remove();
   }

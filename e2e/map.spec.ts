@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 // Fausses tuiles et fausses réponses Nominatim : rien ne part sur le réseau.
@@ -109,4 +110,29 @@ test('carte des lieux : géocodage une fois, marqueurs par jour, masquable, hors
   await context.setOffline(false);
   await expect(page.getByTestId('day-map').getByTestId('map-place').filter({ hasText: 'Belleville' })).toHaveAttribute('data-state', 'ok', { timeout: 10_000 });
   expect(osm.queries.length).toBe(asked + 1);
+});
+
+test('feuille de service : liens d’itinéraire cliquables dans le PDF et le Word', async ({ page }) => {
+  await fakeOsm(page);
+  await page.goto('/#/schedule?seed=rav3');
+  await page.getByTestId('suggest-schedule').click();
+  await page.getByRole('button', { name: 'Feuille de service' }).click();
+  await page.getByTestId('stop-address').first().fill('3 quai Voltaire, Paris');
+  await page.getByLabel('Hôpital le plus proche').fill('Hôpital Lariboisière, 2 rue Ambroise-Paré, 75010 Paris');
+  const rows = page.getByTestId('day-map').getByTestId('map-place');
+  await expect(rows.first()).toHaveAttribute('data-state', 'ok', { timeout: 10_000 });
+  await expect(rows.last()).toHaveAttribute('data-state', 'ok', { timeout: 10_000 });
+  const exportAs = async (format: string) => {
+    const dl = page.waitForEvent('download', { timeout: 30_000 });
+    await page.getByTestId('tab-export').click();
+    await page.getByTestId('tab-export-panel').getByText(format, { exact: true }).click();
+    await page.getByTestId('tab-export-go').click();
+    return readFileSync(await (await dl).path()).toString('latin1');
+  };
+  // PDF : une annotation par lien, vers l'itinéraire de chaque lieu géocodé (décor, hôpital).
+  const pdf = await exportAs('PDF');
+  expect(pdf).toContain('/URI (https://www.openstreetmap.org/directions?route=%3B48.8589%2C2.3318#map=16/48.8589/2.3318)');
+  expect(pdf).toContain('/URI (https://www.openstreetmap.org/directions?route=%3B48.8826%2C2.3522#map=16/48.8826/2.3522)');
+  const word = await exportAs('Word');
+  expect(word).toContain('href="https://www.openstreetmap.org/directions?route=%3B48.8589%2C2.3318');
 });
