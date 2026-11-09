@@ -438,3 +438,52 @@ test('versions : effacer le scénario de la version courante, puis le rétablir'
   await page.getByTestId('scenario-restore').click();
   await expect(page.getByTestId('scenario-outline')).toContainText('PARVIS DE LA GARE');
 });
+
+test('scénario : effacer une réplique entière ne touche ni aux blocs voisins ni à la page', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/#/scenario?seed=fiction');
+  const editor = page.getByTestId('script-editor');
+  const dialogue = editor.locator('[data-type="dialogue"]:has(+ [data-type="action"])').first();
+  const after = editor.locator('[data-type="dialogue"] + [data-type="action"]').first();
+  const next = (await after.textContent())!;
+  const said = (await dialogue.textContent())!;
+  const scenario = () => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario);
+  const select = (toNext: boolean) =>
+    dialogue.evaluate((el, next) => {
+      const r = document.createRange();
+      r.setStart(el, 0);
+      if (next) r.setStart(el.firstChild ?? el, 0);
+      if (next) r.setEnd(el.nextElementSibling!, 0);
+      else r.selectNodeContents(el);
+      (el.closest('[data-testid="script-editor"]') as HTMLElement).focus();
+      const s = window.getSelection()!;
+      s.removeAllRanges();
+      s.addRange(r);
+    }, toNext);
+  // Toute la réplique sélectionnée, effacée : le bloc reste, vide ; le paragraphe suivant ne bouge pas.
+  await select(false);
+  await page.keyboard.press('Backspace');
+  await expect(after).toHaveText(next);
+  await expect(editor.getByText(said)).toHaveCount(0);
+  await page.keyboard.type('Merci.');
+  await expect(editor.getByText('Merci.', { exact: true })).toHaveCount(1);
+  // Sélection qui court jusqu'au début du bloc suivant (triple clic) : seule la réplique part.
+  await select(true);
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('Merci beaucoup.');
+  await expect(dialogue).toHaveText('Merci beaucoup.');
+  await expect(after).toHaveText(next);
+  // Le navigateur retire un bloc de lui-même : tout est remis en place, rien ne tombe.
+  await editor.evaluate((root) => {
+    root.querySelector('[data-type="dialogue"]:has(+ [data-type="action"])')!.remove();
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(dialogue).toHaveText('Merci beaucoup.');
+  await after.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Elle sourit.');
+  await expect.poll(scenario).toContain(`Merci beaucoup.\n\n${next.split('\n').pop()} Elle sourit.`);
+  expect(errors).toEqual([]);
+  await expect(page.getByText('Cette page n’a pas pu s’afficher')).toHaveCount(0);
+});

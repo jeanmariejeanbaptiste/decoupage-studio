@@ -298,6 +298,21 @@ function readSelection(root: HTMLElement): Sel | null {
   return { start, end, collapsed: r.collapsed };
 }
 
+/**
+ * Sélection qui finit au tout début d'un bloc suivant (triple clic, glissé jusqu'au bout de la ligne) :
+ * elle s'arrête à la fin du bloc précédent. Effacer une réplique ne doit pas avaler le paragraphe d'après.
+ */
+function tidySelection(sel: Sel): Sel {
+  if (sel.start.id === sel.end.id || sel.end.offset > 0) return sel;
+  const el = document.querySelector<HTMLElement>(`[data-bid="${sel.end.id}"]`);
+  const prev = el?.previousElementSibling as HTMLElement | null;
+  if (!prev?.dataset.bid) return sel;
+  const end = { id: prev.dataset.bid, offset: readText(prev).length };
+  // Seul le saut de paragraphe était sélectionné : l'effacer joint bien les deux blocs.
+  if (end.id === sel.start.id && end.offset <= sel.start.offset) return sel;
+  return { start: sel.start, end, collapsed: false };
+}
+
 function placeCaret(root: HTMLElement, c: Caret, focus = true) {
   const el = root.querySelector<HTMLElement>(`[data-bid="${c.id}"]`);
   if (!el) return;
@@ -330,8 +345,18 @@ function domRange(root: HTMLElement, a: Caret, b: Caret): Range | null {
 
 // --- Bloc ----------------------------------------------------------------------------------------
 
-const Block = memo(function Block({ b, mt, n }: { b: SBlock; mt?: number; n?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
+/** Éléments des blocs, tenus par React : de quoi remettre en place ce que le navigateur aurait retiré. */
+type Register = (id: string, el: HTMLDivElement | null) => void;
+
+const Block = memo(function Block({ b, mt, n, reg }: { b: SBlock; mt?: number; n?: number; reg: Register }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const setRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      ref.current = el;
+      reg(b.id, el);
+    },
+    [b.id, reg],
+  );
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -348,15 +373,17 @@ const Block = memo(function Block({ b, mt, n }: { b: SBlock; mt?: number; n?: nu
       }
     }
   }, [b.text]);
-  return <div ref={ref} data-bid={b.id} data-type={b.type} data-n={n} data-empty={isEmptyBlock(b) || undefined} className={[s.b, s[`t_${b.type}`]].join(' ')} style={mt === undefined ? undefined : { marginTop: mt }} />;
+  return <div ref={setRef} data-bid={b.id} data-type={b.type} data-n={n} data-empty={isEmptyBlock(b) || undefined} className={[s.b, s[`t_${b.type}`]].join(' ')} style={mt === undefined ? undefined : { marginTop: mt }} />;
 });
 
 /** Page de titre : celle de l'export, ligne pour ligne ; non modifiable dans le texte (un clic ouvre ses champs). */
-const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit }: { b: SBlock; mt?: number; paged: boolean; onEdit?: () => void }) {
+const TitleBlock = memo(function TitleBlock({ b, mt, paged, onEdit, reg }: { b: SBlock; mt?: number; paged: boolean; onEdit?: () => void; reg: Register }) {
+  const setRef = useCallback((el: HTMLDivElement | null) => reg(b.id, el), [b.id, reg]);
   const f = parseTitlePage(b.text);
   const lines = titlePageLines({ ...f, Title: f.Title || 'Sans titre' }, false);
   return (
     <div
+      ref={setRef}
       data-bid={b.id}
       data-type="title"
       contentEditable={false}
@@ -499,6 +526,11 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   const redoStack = useRef<Snapshot[]>([]);
   const lastTyping = useRef<{ id: string; at: number } | null>(null);
   const composing = useRef(false);
+  const blockEls = useRef(new Map<string, HTMLDivElement>());
+  const register = useCallback<Register>((id, el) => {
+    if (el) blockEls.current.set(id, el);
+    else blockEls.current.delete(id);
+  }, []);
   const [layout, setLayout] = useState<EditorLayout>({ margins: {}, pageOf: {}, pages: 1, offset: 0 });
   // Police chargée après le premier rendu : les hauteurs changent, la pagination est refaite.
   const [, setFontTick] = useState(0);
@@ -699,12 +731,39 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       const b = next.blocks.find((x) => x.id === t.dataset.bid);
       if (b && b.text !== text) next = setBlockText(next, b.id, text);
     }
-    // Nœud tapé hors d'un bloc (rare) : retiré, le texte rejoint le bloc le plus proche.
-    for (const n of Array.from(el.childNodes)) if (!(n instanceof HTMLElement && n.dataset.bid)) n.remove();
     if (next !== sdocRef.current) {
       sdocRef.current = next;
       setSdoc(next);
     }
+    repairDom();
+  };
+
+  /**
+   * Le navigateur ne doit jamais toucher à la structure (les entrées qui le pourraient sont interceptées) ;
+   * s'il l'a fait quand même — bloc retiré, imbriqué, nœud tapé hors d'un bloc —, chaque bloc est remis à
+   * sa place avec son texte. Sans cela, l'affichage et le texte divergent, puis la page tombe.
+   */
+  const repairDom = () => {
+    const el = root.current;
+    if (!el) return;
+    const want = sdocRef.current.blocks.map((b) => blockEls.current.get(b.id)).filter((x): x is HTMLDivElement => !!x);
+    const kids = el.childNodes;
+    if (kids.length === want.length && want.every((x, i) => kids[i] === x)) return;
+    const sl = window.getSelection();
+    const anchor = sl?.anchorNode ? blockElOf(sl.anchorNode) : null;
+    const caret = anchor && want.includes(anchor as HTMLDivElement) && sl?.anchorNode ? { id: anchor.dataset.bid!, offset: offsetIn(anchor, sl.anchorNode, sl.anchorOffset) } : null;
+    want.forEach((x, i) => {
+      if (kids[i] !== x) el.insertBefore(x, kids[i] ?? null);
+    });
+    const keep = new Set<Node>(want);
+    for (const n of Array.from(kids)) if (!keep.has(n)) n.remove();
+    for (const b of sdocRef.current.blocks) {
+      const x = blockEls.current.get(b.id);
+      if (!x || b.type === 'title') continue;
+      for (const inner of Array.from(x.querySelectorAll('[data-bid]'))) inner.remove();
+      if (readText(x) !== b.text) writeText(x, b.text);
+    }
+    if (caret) placeCaret(el, caret);
   };
 
   // --- Entrées interceptées : structure du texte (Entrée, retour arrière en début de bloc, sélection à cheval…) ---
@@ -726,11 +785,12 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         return;
       }
       if (composing.current || t === 'insertCompositionText') return;
-      const sel = readSelection(el);
-      if (!sel) {
+      const raw = readSelection(el);
+      if (!raw) {
         e.preventDefault();
         return;
       }
+      const sel = tidySelection(raw);
       const multi = sel.start.id !== sel.end.id;
       if (t === 'insertParagraph' || (t === 'insertLineBreak' && !allowsLines(blockOf(sel.start.id)?.type))) {
         e.preventDefault();
@@ -752,7 +812,9 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         apply(replaceRange(sdocRef.current, sel.start, sel.end, '\n'));
         return;
       }
-      if (multi) {
+      // Sélection effacée ou remplacée : toujours dans le texte, jamais par le navigateur, qui emporte
+      // volontiers le bloc entier quand la sélection le couvre (Safari surtout).
+      if (multi || (!sel.collapsed && (t.startsWith('delete') || t === 'insertText'))) {
         e.preventDefault();
         const text = t.startsWith('insert') ? (e.data ?? e.dataTransfer?.getData('text/plain') ?? '') : '';
         apply(replaceRange(sdocRef.current, sel.start, sel.end, text));
@@ -770,6 +832,19 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         if (!backward && sel.start.offset >= b.text.length) {
           e.preventDefault();
           apply(mergeWithNext(sdocRef.current, b.id));
+          return;
+        }
+        // Ce que le navigateur s'apprête à effacer : s'il sort du bloc ou le vide, on l'efface nous-mêmes
+        // (borné au bloc ; la jonction de deux blocs ne passe que par les cas ci-dessus).
+        const target = e.getTargetRanges?.()[0];
+        const ta = target ? caretFromPoint(el, target.startContainer, target.startOffset, 'start') : null;
+        const tz = target ? caretFromPoint(el, target.endContainer, target.endOffset, 'end') : null;
+        const a: Caret = ta ? (ta.id === b.id ? ta : { id: b.id, offset: 0 }) : backward ? { id: b.id, offset: sel.start.offset - 1 } : sel.start;
+        const z: Caret = tz ? (tz.id === b.id ? tz : { id: b.id, offset: b.text.length }) : backward ? sel.start : { id: b.id, offset: sel.start.offset + 1 };
+        const crosses = (ta && ta.id !== b.id) || (tz && tz.id !== b.id);
+        if (crosses || (a.offset <= 0 && z.offset >= b.text.length)) {
+          e.preventDefault();
+          apply(replaceRange(sdocRef.current, a, z, ''));
           return;
         }
       }
@@ -1091,9 +1166,9 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       >
         {sdoc.blocks.map((b) =>
           b.type === 'title' ? (
-            <TitleBlock key={b.id} b={b} paged={paged} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} onEdit={readOnly ? undefined : () => setTitleOpen(true)} />
+            <TitleBlock key={b.id} reg={register} b={b} paged={paged} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} onEdit={readOnly ? undefined : () => setTitleOpen(true)} />
           ) : (
-            <Block key={b.id} b={b} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} n={numbers.get(b.id)} />
+            <Block key={b.id} reg={register} b={b} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} n={numbers.get(b.id)} />
           ),
         )}
       </div>
