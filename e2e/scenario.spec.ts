@@ -359,6 +359,14 @@ test('scénario : minutage par pages, caractères ou type (réglages) ; graphiqu
   const dl = page.waitForEvent('download');
   await page.getByTestId('report-png').click();
   expect((await dl).suggestedFilename()).toBe('la-consigne-structure-de-l-histoire.png');
+  // Rapport en PDF : les contrôles de l'écran ne sont pas imprimés.
+  await page.getByTestId('report-scenes').click();
+  await page.getByTestId('script-reports').locator('select').selectOption({ index: 1 });
+  const pdf = page.waitForEvent('download', { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Exporter ce rapport en PDF' }).click();
+  // (Le nom accentué n'est pas rendu par Chromium sans interface : seul le contenu est vérifié.)
+  const { readFileSync } = await import('node:fs');
+  expect(readFileSync((await (await pdf).path())!).subarray(0, 5).toString()).toBe('%PDF-');
 });
 
 test('scénario : la page de garde restée dans le texte est reconnue et en sort à la validation', async ({ page }) => {

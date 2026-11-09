@@ -20,6 +20,29 @@ const REPORTS: ReadonlyArray<[Report, string, string]> = [
   ['activity', 'Activité', 'Activité des personnages'],
 ];
 
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+/**
+ * Rapport à imprimer : sans les contrôles de l'écran (tri, cases, choix des personnages). Le tri et le
+ * personnage choisis deviennent une ligne de texte ; la légende du graphique ne garde que ses courbes.
+ */
+export function printable(box: HTMLElement): string {
+  const notes = Array.from(box.querySelectorAll<HTMLElement>('[data-print]'))
+    .map((l) => {
+      const sel = l.querySelector('select');
+      // L'ordre du scénario va de soi : seul un autre tri est dit.
+      if (!sel || (l.dataset.print === 'Trié' && sel.selectedIndex === 0)) return '';
+      const t = sel.selectedOptions[0]?.text;
+      return t ? `${l.dataset.print} ${t}` : '';
+    })
+    .filter(Boolean);
+  const clone = box.cloneNode(true) as HTMLElement;
+  const shown = Array.from(box.querySelectorAll<HTMLInputElement>('[data-legend] input')).map((i) => i.checked);
+  clone.querySelectorAll('[data-legend] label').forEach((l, i) => (shown[i] === false ? l.remove() : l.querySelector('input')?.remove()));
+  clone.querySelectorAll('[data-no-print]').forEach((e) => e.remove());
+  return (notes.length ? `<p class="muted">${esc(notes.join(' · '))}</p>` : '') + clone.innerHTML;
+}
+
 const savedReport = (): Report => {
   try {
     const r = localStorage.getItem('ds-script-report');
@@ -55,7 +78,7 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
   const print = async () => {
     const { exportDocumentPages } = await import('../export/imageExport');
     const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} .muted{color:#6b7079} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} .bar td{background:#eef0f3;font-weight:600} svg{width:100%;height:auto} .pad{height:13mm}`;
-    const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${doc.project.title} — ${title}</h1>${box.current?.innerHTML ?? ''}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
+    const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${esc(doc.project.title)} — ${title}</h1>${box.current ? printable(box.current) : ''}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
     await exportDocumentPages(html, `${doc.project.title || 'scenario'}-${title}`, { format: 'pdf', orientation: 'portrait', numbers: true });
   };
   const png = async () => {
@@ -105,7 +128,7 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
 
 function Sort<T extends string>({ value, options, onChange }: { value: T; options: ReadonlyArray<[T, string]>; onChange: (v: T) => void }) {
   return (
-    <label className={s.sort}>
+    <label className={s.sort} data-print="Trié">
       <span>Trier</span>
       <select value={value} onChange={(e) => onChange(e.target.value as T)}>
         {options.map(([k, l]) => (
@@ -145,7 +168,7 @@ function ScenesReport({ scenes, pageOf, onGo }: { scenes: SceneInfo[]; pageOf: M
   if (sort === 'small') list.sort((a, b) => a.present.size - b.present.size);
   return (
     <>
-      <div className={s.opts}>
+      <div className={s.opts} data-no-print>
         <Sort value={sort} options={SCENE_SORTS} onChange={setSort} />
         <label className={s.check}>
           <input type="checkbox" checked={withCast} onChange={(e) => setWithCast(e.target.checked)} /> Personnages
@@ -221,7 +244,7 @@ function DecorsReport({ scenes, pageOf, onGo }: { scenes: SceneInfo[]; pageOf: M
   if (sort === 'short') list.sort((a, b) => a.durationSec - b.durationSec);
   return (
     <>
-      <div className={s.opts}>
+      <div className={s.opts} data-no-print>
         <Sort value={sort} options={DECOR_SORTS} onChange={setSort} />
         <label className={s.check}>
           <input type="checkbox" checked={extended} onChange={(e) => setExtended(e.target.checked)} /> Affichage étendu
@@ -294,7 +317,7 @@ function CharactersReport({ scenes }: { scenes: SceneInfo[] }) {
   if (sort === 'quiet') list.sort((a, b) => a.replies - b.replies);
   return (
     <>
-      <div className={s.opts}>
+      <div className={s.opts} data-no-print>
         <Sort value={sort} options={CHAR_SORTS} onChange={setSort} />
         <label className={s.check}>
           <input type="checkbox" checked={split} onChange={(e) => setSplit(e.target.checked)} /> Parlantes et muettes
@@ -335,8 +358,8 @@ function DialoguesReport({ scenes, blocks, pageOf }: { scenes: SceneInfo[]; bloc
   if (!chars.length) return <p className={s.empty}>Aucune réplique.</p>;
   return (
     <>
-      <div className={s.opts}>
-        <label className={s.sort}>
+      <div className={s.opts} data-no-print>
+        <label className={s.sort} data-print="Personnage :">
           <span>Personnage</span>
           <select value={name} onChange={(e) => setWho(e.target.value)}>
             {chars.map((c) => (
@@ -413,7 +436,7 @@ function StructureChart({ scenes }: { scenes: SceneInfo[] }) {
   const ticks = Array.from({ length: Math.floor(total / 60) + 1 }, (_, i) => i).filter((m, _, all) => all.length <= 12 || m % Math.ceil(all.length / 12) === 0);
   return (
     <>
-      <div className={s.legend}>
+      <div className={s.legend} data-legend>
         {SERIES.map((x) => (
           <label key={x.key} className={s.check}>
             <input type="checkbox" checked={!!on[x.key]} onChange={(e) => setOn({ ...on, [x.key]: e.target.checked })} />
@@ -466,7 +489,7 @@ function ActivityChart({ scenes }: { scenes: SceneInfo[] }) {
   const X = (sec: number) => left + (sec / total) * (W - left - PAD.r);
   return (
     <>
-      <div className={s.picks}>
+      <div className={s.picks} data-no-print>
         {chars.map((c) => {
           const on = picked.includes(c.name);
           return (
