@@ -189,6 +189,22 @@ export function requestDriveFile(): Promise<string> {
     void preloadGoogle().catch(() => undefined);
     return Promise.reject(new Error('Connexion Google en cours de chargement : réessayez.'));
   }
+  // Le même clic a déjà lancé le renouvellement discret (portées déjà accordées) : on l'attend.
+  const pending = renewing ? inflight : null;
+  if (pending && fileFlag()) {
+    pending.silent = false;
+    return new Promise<string>((resolve, reject) => {
+      const [ok, ko] = [pending.resolve, pending.reject];
+      pending.resolve = (t) => {
+        ok?.(t);
+        resolve(t);
+      };
+      pending.reject = (e) => {
+        ko?.(e);
+        reject(e);
+      };
+    });
+  }
   const user = useCloud.getState().user;
   return new Promise<string>((resolve, reject) => {
     ask(g, { kind: 'file', silent: false, resolve, reject }, { prompt: '', hint: user?.email, scope: user ? `${SYNC_SCOPE} ${SCOPE_FILE}` : SCOPE_FILE });
@@ -281,11 +297,9 @@ async function onToken(r: TokenResponse, req: Request | null) {
     }
   }
   useCloud.setState({ fileAccess: !!holder(SCOPE_FILE), connected: valid() });
-  if (kind === 'file') {
-    if (file) req?.resolve?.(entry.token);
-    else req?.reject?.(new Error('Accès à Google Drive non accordé.'));
-    return;
-  }
+  if (file) req?.resolve?.(entry.token);
+  else req?.reject?.(new Error('Accès à Google Drive non accordé.'));
+  if (kind === 'file') return;
   if (!scopes.includes(SCOPE_APPDATA)) return fail('Accès à Google Drive non accordé.');
   try {
     const me = (await (await fetch(USERINFO, { headers: { authorization: `Bearer ${entry.token}` } })).json()) as { email?: string; name?: string; picture?: string };
