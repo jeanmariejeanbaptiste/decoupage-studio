@@ -180,6 +180,17 @@ export function publicScript(text: string): string {
   return out.replace(/^[^\S\n]*(#|=(?!==))[^\n]*/gm, spaces);
 }
 
+/** Actions du découpage : sans notes ni passages écartés repris du scénario. */
+function publicBlocks(blocks: ProjectDoc['blocks']): ProjectDoc['blocks'] {
+  const strip = (x: string) => x.replace(/\[\[(?!=)[\s\S]*?\]\]/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const out = copy(blocks);
+  for (const b of Object.values(out)) {
+    b.text = strip(b.text);
+    if (b.dialogue) b.dialogue = strip(b.dialogue);
+  }
+  return out;
+}
+
 /**
  * Commentaires tels qu'ils partent chez les relecteurs : ceux des versions publiées seulement (un
  * commentaire d'une version plus récente citerait un texte qui n'est pas publié). Les passages de la
@@ -196,14 +207,22 @@ export function publishedComments(doc: ProjectDoc, snapshot: Pick<ProjectDoc, 's
     .map((c) => {
       const out = copy(c);
       const a = out.anchor;
-      if (a.kind === 'script' && versionOfComment(doc, c) === snapshot.activeVersionId && norm(text.slice(a.start, a.end)) !== norm(a.quote)) {
-        const found = locateQuote(text, a.quote, a.start);
-        if (found) Object.assign(a, found);
-        else {
-          // Passage absent du texte publié (écrit depuis, ou dans une note) : rien de lui ne sort.
-          a.end = a.start = Math.min(a.start, text.length);
-          a.quote = '';
+      if (a.kind !== 'script') return out;
+      const v = versionOfComment(doc, c);
+      if (v === snapshot.activeVersionId) {
+        if (norm(text.slice(a.start, a.end)) !== norm(a.quote)) {
+          const found = locateQuote(text, a.quote, a.start);
+          if (found) Object.assign(a, found);
+          else {
+            // Passage absent du texte publié (écrit depuis, ou dans une note) : rien de lui ne sort.
+            a.end = a.start = Math.min(a.start, text.length);
+            a.quote = '';
+          }
         }
+      } else if (a.quote) {
+        // Version précédente : la citation doit se lire dans son texte publié (jamais une note).
+        const older = snapshot.versions?.find((x) => x.id === v)?.slice?.scenario;
+        if (older !== undefined && !locateQuote(older, a.quote, a.start)) a.quote = '';
       }
       return out;
     });
@@ -247,7 +266,7 @@ export function reviewDoc(doc: ProjectDoc): ProjectDoc {
     },
     sequences,
     shots,
-    blocks: copy(doc.blocks),
+    blocks: publicBlocks(doc.blocks),
     characters,
     decors,
     ignoredChecks: [],

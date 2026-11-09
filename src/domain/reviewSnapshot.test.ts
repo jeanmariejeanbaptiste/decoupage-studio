@@ -40,11 +40,15 @@ describe('instantané de relecture', () => {
       b.notes = 'Note visible aussi';
       Object.assign(a, { sound: 'Perche', light: 'HMI 4K', aperture: 2.8, shootingDay: 7, status: 'tourné' });
       d.sequences[d.project.sequenceIds[0]].slot = '10:30–11:00';
+      const block = Object.values(d.blocks)[0];
+      block.text = `${block.text} [[cachet du figurant]]`;
       d.scenario = `${d.scenario}\n\n[[Note privée : appeler la prod]]\n\nLéa entre[[ cachet 800 EUR]] et [[=jaune]]sort[[=]].\n\n/* boneyard secret */\n\n# Partie secrète\n\n= Résumé secret\n\n===\n`;
+      const at = d.scenario.indexOf('appeler la prod');
+      addComment(d, { kind: 'script', start: at, end: at + 15, quote: 'appeler la prod' }, 'Moi', 'Penser à rappeler');
     });
     const snap = reviewSnapshot(doc, {});
     const text = JSON.stringify(snap);
-    for (const secret of ['Perche', 'HMI 4K', '"shootingDay"', '"aperture"', 'tourné', '10:30–11:00', 'appeler la prod', 'cachet 800', 'boneyard secret', 'Partie secrète', 'Résumé secret']) expect(text, secret).not.toContain(secret);
+    for (const secret of ['Perche', 'HMI 4K', '"shootingDay"', '"aperture"', 'tourné', '10:30–11:00', 'appeler la prod', 'cachet 800', 'cachet du figurant', 'boneyard secret', 'Partie secrète', 'Résumé secret']) expect(text, secret).not.toContain(secret);
     // Colonne affichée : sa valeur part ; texte, surlignage et saut de page restent, aux mêmes positions.
     expect(text).toContain('Note visible aussi');
     expect(snap.doc.scenario).toHaveLength(doc.scenario!.length);
