@@ -133,3 +133,6 @@
 .hlMenu .sw_rose { background: rgba(255, 90, 160, 0.7); }
 .hlMenu .sw_orange { background: rgba(255, 150, 40, 0.75); }
 .hlMenu .sw_gris { background: rgba(128, 128, 128, 0.7); }
+
+/* Marque de révision : séquence nouvelle ou modifiée depuis la version d'origine. */
+.rev { font-style: normal; font-weight: 700; margin-right: 2px; color: var(--ink); }

@@ -1,0 +1,20 @@
+/* Sélecteur de version : une pastille, un menu sobre (noir, gris, blanc). */
+.wrap { position: relative; display: inline-flex; }
+.trigger { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.trigger:hover { border-color: var(--ink-soft); }
+.menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 40; min-width: 280px; padding: 6px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-card); box-shadow: var(--shadow); }
+.menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.menu li { display: flex; align-items: center; gap: 4px; border-radius: 5px; }
+.menu li:hover { background: var(--hover); }
+.menu li input { flex: 1; margin: 2px; padding: 4px 7px; border: 1px solid var(--ink-soft); border-radius: 5px; background: var(--paper); color: var(--ink); font: inherit; font-size: 13px; }
+.pick { flex: 1; min-width: 0; display: grid; grid-template-columns: 16px auto minmax(0, 1fr); align-items: baseline; gap: 6px; padding: 6px 6px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.on .pick { cursor: default; }
+.check { display: inline-flex; color: var(--ink); }
+.meta { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink); }
+.acts { display: inline-flex; gap: 2px; padding-right: 4px; opacity: 0; }
+.menu li:hover .acts, .acts:focus-within { opacity: 1; }
+.acts button { display: inline-flex; padding: 3px; border: 0; border-radius: 4px; background: none; color: var(--ink-soft); cursor: pointer; }
+.acts button:hover { color: var(--ink); background: var(--paper); }
+.add { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 7px 8px; border: 0; border-top: 1px solid var(--rule); border-radius: 0 0 5px 5px; background: none; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.add:hover { background: var(--hover); }

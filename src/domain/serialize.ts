@@ -2,6 +2,7 @@ import { richImageKeys } from './richText';
 import { ensureInterview, syncInterviewShots, upgradeInterview } from './interview';
 import { defaultSettings, makeBlock } from './factory';
 import { normalizeScenario } from './fountain';
+import { storedShots } from './versions';
 import { migrateDecorLocations } from './locations';
 import { activeColumns } from './columns';
 import { normalizeTiming } from './factory';
@@ -45,7 +46,8 @@ export function mediaOfFile(text: string): Record<string, MediaEntry> {
 export function mediaKeys(doc: ProjectDoc): string[] {
   const keys = new Set<string>();
   const add = (k?: string) => k && keys.add(k);
-  for (const sh of Object.values(doc.shots)) {
+  // Images du storyboard de toutes les versions, rangées comprises.
+  for (const sh of [...Object.values(doc.shots), ...storedShots(doc)]) {
     add(sh.storyboard?.blobKey);
     add(sh.storyboard?.baseKey);
     for (const k of sh.keyframes ?? []) {

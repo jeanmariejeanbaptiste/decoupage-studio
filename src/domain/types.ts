@@ -290,6 +290,9 @@ export interface ProjectDoc {
   research?: Research;
   /** Institutionnel : l'interview (A-roll). */
   interview?: import('./interview').Interview;
+  /** Versions du film (V1, V2…), voir `versions.ts` ; la courante vit dans le projet lui-même. */
+  versions?: import('./versions').ProjectVersion[];
+  activeVersionId?: ID;
 }
 
 export const SCHEMA_VERSION = 1;

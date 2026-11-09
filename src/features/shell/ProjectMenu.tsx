@@ -54,7 +54,6 @@ export function ProjectMenu({ doc, readOnly }: { doc: ProjectDoc; readOnly?: boo
   const label = (
     <>
       <span className={s.title}>{p.title || 'Sans titre'}</span>
-      {p.version && <span className={s.version}>{p.version}</span>}
     </>
   );
   if (readOnly) return <div className={s.static}>{label}</div>;
@@ -69,7 +68,6 @@ export function ProjectMenu({ doc, readOnly }: { doc: ProjectDoc; readOnly?: boo
         <div className={s.panel} role="dialog" aria-label="Projet" data-testid="project-panel">
           <Field label="Titre" value={p.title} onCommit={(v) => v.trim() && mutateDoc((d) => void (d.project.title = v.trim()))} />
           <div className={s.pair}>
-            <Field label="Version" value={p.version} onCommit={(v) => mutateDoc((d) => void (d.project.version = v.trim()))} />
             <div className={s.field}>
               <span>Format</span>
               <div className={s.seg} role="radiogroup" aria-label="Format">

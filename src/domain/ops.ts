@@ -103,16 +103,24 @@ export function deleteShot(doc: ProjectDoc, shotId: ID): void {
   for (const id of interviewGroupOf(doc, shotId)) removeShot(doc, id);
 }
 
+/**
+ * Une autre version du film (rangée) a-t-elle encore cette séquence ou ce plan ? Sa préparation,
+ * commune aux versions (plans au sol, dépouillement, emploi du temps), reste alors en place.
+ */
+const keptElsewhere = (doc: ProjectDoc, kind: 'sequences' | 'shots', id: ID) => (doc.versions ?? []).some((v) => !!v.slice?.[kind]?.[id]);
+
 /** Supprime ce seul plan, sans toucher aux autres caméras d'un cadre d'interview. */
 export function removeShot(doc: ProjectDoc, shotId: ID): void {
   const shot = doc.shots[shotId];
   if (!shot) return;
   const seq = seqOf(doc, shot.sequenceId);
-  unlinkShotFromPlans(doc, shotId, true);
-  // Emploi du temps : ses créneaux et reprises disparaissent avec lui.
-  for (const d of doc.schedule?.days ?? []) {
-    if (d.timeline?.[shotId]) delete d.timeline[shotId];
-    if (d.parts?.[shotId]) delete d.parts[shotId];
+  if (!keptElsewhere(doc, 'shots', shotId)) {
+    unlinkShotFromPlans(doc, shotId, true);
+    // Emploi du temps : ses créneaux et reprises disparaissent avec lui.
+    for (const d of doc.schedule?.days ?? []) {
+      if (d.timeline?.[shotId]) delete d.timeline[shotId];
+      if (d.parts?.[shotId]) delete d.parts[shotId];
+    }
   }
   seq.shotIds = seq.shotIds.filter((id) => id !== shotId);
   delete doc.shots[shotId];
@@ -122,9 +130,12 @@ export function removeShot(doc: ProjectDoc, shotId: ID): void {
 export function deleteSequence(doc: ProjectDoc, seqId: ID): void {
   const seq = doc.sequences[seqId];
   if (!seq) return;
-  // Plans au sol, dépouillement et jours de la séquence partent avec elle (annulable).
-  for (const key of planKeysOfSequence(doc, seqId)) delete doc.floorPlans![key];
-  if (doc.breakdown) delete doc.breakdown[seqId];
+  // Plans au sol, dépouillement et jours de la séquence partent avec elle (annulable), sauf si une
+  // autre version du film la garde.
+  if (!keptElsewhere(doc, 'sequences', seqId)) {
+    for (const key of planKeysOfSequence(doc, seqId)) delete doc.floorPlans![key];
+    if (doc.breakdown) delete doc.breakdown[seqId];
+  }
   for (const id of seq.shotIds) delete doc.shots[id];
   for (const b of Object.values(doc.blocks)) if (b.sequenceId === seqId) delete doc.blocks[b.id];
   delete doc.sequences[seqId];

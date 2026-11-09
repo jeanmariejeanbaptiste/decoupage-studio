@@ -15,6 +15,7 @@ import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
 import { linkSelection, newSequenceAfter, rowOfShot, unlinkSelection } from './actions';
 import { CutExport } from './CutExport';
+import { VersionSwitcher } from '../versions/VersionSwitcher';
 import { StoryboardPage, StoryboardPreview } from '../storyboard/StoryboardPage';
 import { Grid } from './Grid';
 import { GridFooter } from './GridFooter';
@@ -152,6 +153,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
               {previewToggle}
             </div>
             <div className={s.right}>
+              <VersionSwitcher doc={storeDoc} />
               <CutExport doc={storeDoc} defaultContent="storyboard" />
             </div>
           </div>
@@ -240,6 +242,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
                 />
               </div>
             )}
+            {!interviewView && <VersionSwitcher doc={storeDoc} />}
             {itwSelected ? <InterviewExport doc={storeDoc} /> : <CutExport doc={storeDoc} defaultContent="grid" />}
           </div>
         </div>

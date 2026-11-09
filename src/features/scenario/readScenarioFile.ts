@@ -147,7 +147,10 @@ function looksLikeFountain(text: string): boolean {
   return headings > 0 && blanks >= Math.max(2, headings);
 }
 
-const normalize = (t: string) => splitLongActions(t.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(DEMO_WATERMARK, (m) => (m.endsWith('\n') ? '\n' : '')));
+/** Numéros de scène écrits dans les en-têtes (« 12. INT. GARE - JOUR 12 », « #12# ») : l'application numérote elle-même. */
+const stripSceneNumbers = (t: string) =>
+  t.replace(/^[ \t]*\d+[A-Z]?[.)-]?[ \t]+((?:INT|EXT|EST|I\/E)[.\s/].*?)(?:[ \t]+\d+[A-Z]?\.?)?(?:[ \t]*#[^#\n]*#)?[ \t]*$/gim, '$1').replace(/^((?:INT|EXT|EST|I\/E)[.\s/].*?)[ \t]*#[^#\n]*#[ \t]*$/gim, '$1');
+const normalize = (t: string) => splitLongActions(stripSceneNumbers(t.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(DEMO_WATERMARK, (m) => (m.endsWith('\n') ? '\n' : ''))));
 
 /** Lit un scénario (Final Draft, Fountain, PDF, Word, Markdown ou texte) et le convertit en Fountain. */
 export async function readScenarioFile(file: File): Promise<string> {

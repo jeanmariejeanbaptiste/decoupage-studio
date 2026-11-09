@@ -27,6 +27,7 @@ import { paragraphsOf, SceneText, type Paragraph } from './SceneText';
 import { BreakdownReports } from './BreakdownReports';
 import { breakdownIndex, type BreakdownEntry } from '../../domain/breakdownReport';
 import { entriesOf, entryLabel, entryName, entryNumbers, type Entry } from './entries';
+import { useRevisionMarks } from '../versions/useRevisionMarks';
 import s from './BreakdownPage.module.css';
 
 /** Texte d'une séquence sans passage dans le scénario : ses actions et ses répliques du découpage. */
@@ -91,6 +92,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const entries = useMemo(() => entriesOf(doc), [doc]);
   const numbers = useMemo(() => entryNumbers(entries), [entries]);
+  const marks = useRevisionMarks(doc);
   const [view, setViewState] = useState<View>(readView);
   const [picked, setPicked] = useState<{ seqId?: ID; sceneStart?: number }>(() => ({ seqId: selectedSequence(doc) }));
   const [hot, setHot] = useState<string | null>(null);
@@ -233,7 +235,10 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
               return (
                 <li key={e.key}>
                   <button type="button" className={on ? s.on : ''} aria-current={on || undefined} onClick={() => goTo(e)} data-testid="breakdown-scene">
-                    <span className={s.num}>{numbers.byKey.get(e.key)}</span>
+                    <span className={s.num}>
+                      {e.scene && marks?.get(e.scene.index) && <i className={s.rev} title={marks.get(e.scene.index) === 'new' ? 'Nouvelle dans cette version' : 'Modifiée dans cette version'}>*</i>}
+                      {numbers.byKey.get(e.key)}
+                    </span>
                     {entryName(doc, e) ? <span className={s.name}>{entryName(doc, e)}</span> : <span className={s.unnamed}>Sans en-tête</span>}
                     {n > 0 && <em>{n}</em>}
                   </button>

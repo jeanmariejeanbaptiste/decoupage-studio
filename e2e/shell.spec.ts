@@ -56,20 +56,18 @@ test('interface épurée : ni jauge, ni validation, ni intitulés de page ; menu
   await expect(label).toBeVisible();
 });
 
-test('menu du projet : titre, version et format modifiables en haut de l’écran', async ({ page }) => {
+test('menu du projet : titre et format modifiables en haut de l’écran (la version se choisit dans le scénario et le découpage)', async ({ page }) => {
   await page.goto('/#/grid?seed=fiction');
   await page.getByTestId('project-menu').click();
   const panel = page.getByTestId('project-panel');
   await panel.getByLabel('Titre').fill('La Consigne (montage)');
-  await panel.getByLabel('Version').fill('V2');
+  await expect(panel.getByLabel('Version')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
   await expect(page.getByTestId('project-menu')).toContainText('La Consigne (montage)');
-  await expect(page.getByTestId('project-menu')).toContainText('V2');
   // Un seul pas d'annulation par champ, pas un par lettre.
   await page.keyboard.press('Control+z');
-  await expect(page.getByTestId('project-menu')).toContainText('V1');
-  await expect(page.getByTestId('project-menu')).toContainText('La Consigne (montage)');
+  await expect(page.getByTestId('project-menu')).not.toContainText('(montage)');
 });
 
 test('paramètres : rien n’est appliqué avant « Enregistrer », « Annuler » revient en arrière', async ({ page }) => {

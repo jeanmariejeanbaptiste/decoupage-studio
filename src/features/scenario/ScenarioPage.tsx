@@ -4,7 +4,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Bold, ChevronDown, FilePlus2, FileText, FileUp, Highlighter, Italic, Underline } from 'lucide-react';
 import { HIGHLIGHTS, type HighlightColor } from '../../domain/scriptLayout';
 import { chronoAt, chronoOf, mmss, type ScriptChrono } from '../../domain/chronometry';
-import { importScenes, matchSequence, parseDialogue, relinkAnchors, scenesOf } from '../../domain/fountain';
+import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
+import { reviseScenario, revisionSummary, type RevisionReport } from '../../domain/revision';
+import { createVersion, ensureVersions, nextVersionName } from '../../domain/versions';
+import { VersionSwitcher } from '../versions/VersionSwitcher';
+import { useRevisionMarks } from '../versions/useRevisionMarks';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import { BLOCK_LABELS, blockLabel, type BlockType } from '../../domain/screenplay';
 import { blockTypeKey } from '../../domain/shortcuts';
@@ -116,21 +120,36 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     const f = await pickFile('.fountain,.fdx,.txt,.spmd,.md,.markdown,.pdf,.docx,.doc,text/plain,application/pdf', false);
     if (!f) return;
     api.current?.flush();
-    if ((useProjectStore.getState().doc?.scenario ?? '').trim()) {
-      const r = await ask({ title: 'Remplacer le scénario actuel ?', body: `Le texte de « ${f.name} » remplacera le scénario en cours (annulable).`, confirmLabel: 'Remplacer' });
-      if (!r.ok) return;
+    const cur = useProjectStore.getState().doc;
+    let asVersion = false;
+    if ((cur?.scenario ?? '').trim()) {
+      // Un nouveau texte arrive : par défaut, il devient la version suivante (rien n'est perdu).
+      const now = cur!.versions?.find((v) => v.id === cur!.activeVersionId)?.name ?? cur!.project.version ?? 'V1';
+      const next = nextVersionName((cur!.versions?.length ? cur!.versions : [{ name: now }]).map((v) => v.name));
+      const r = await ask({
+        title: `« ${f.name} » : nouvelle version ?`,
+        body: `En ${next}, le découpage et la préparation de ${now} sont repris scène par scène ; ${now} reste consultable. « Remplacer » réécrit ${now}.`,
+        confirmLabel: `Créer la ${next}`,
+        altLabel: `Remplacer la ${now}`,
+      });
+      if (!r.ok && !r.alt) return;
+      asVersion = r.ok;
     }
     try {
       const content = await readScenarioFile(f);
-      // Remplacement complet : les passages liés aux plans sont retrouvés par leur texte, ou détachés.
-      let dropped = 0;
+      // Chaque scène retrouve sa séquence (même renumérotée, retouchée ou déplacée) ; les passages liés suivent.
+      let report: RevisionReport | null = null;
       mutateDoc((d) => {
-        dropped = relinkAnchors(d, d.scenario ?? '', content);
-        d.scenario = content;
+        if (asVersion) {
+          ensureVersions(d);
+          createVersion(d);
+        }
+        report = reviseScenario(d, content);
       });
       const n = scenesOf(content).length;
-      const links = dropped ? ` ${dropped} passage${dropped > 1 ? 's' : ''} lié${dropped > 1 ? 's' : ''} introuvable${dropped > 1 ? 's' : ''}, détaché${dropped > 1 ? 's' : ''}.` : '';
-      toast({ message: `Scénario importé : ${n} séquence${n > 1 ? 's' : ''}. Le découpage n’est pas modifié.${links}`, actionLabel: 'Annuler', action: undo });
+      const r = report as RevisionReport | null;
+      const head = asVersion ? `${useProjectStore.getState().doc?.project.version} : ` : 'Scénario importé : ';
+      toast({ message: r && r.kept > 0 ? `${head}${revisionSummary(r)}.` : `${head}${n} séquence${n > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
     } catch (e) {
       toast({ message: (e as Error).message || 'Ce fichier n’a pas pu être lu.', tone: 'warn' });
     }
@@ -213,6 +232,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
         </div>
         <div className={s.tools}>
           {view === 'script' && !phone && <Chrono settings={doc.project.settings.scriptChrono} />}
+          <VersionSwitcher doc={doc} />
           {!readOnly && (
             <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.25} />} onClick={importFile} title="Final Draft, Fountain, PDF, Word, Markdown ou texte">
               Importer
@@ -269,7 +289,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               </button>
             ))}
           </div>
-          {tab === 'scenes' && <Outline onPick={goTo} />}
+          {tab === 'scenes' && <Outline doc={doc} onPick={goTo} />}
           {tab === 'characters' && <CharactersPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />}
           {tab === 'decors' && <DecorsPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />}
           {tab === 'research' && <ResearchPanel doc={doc} readOnly={readOnly} />}
@@ -331,8 +351,10 @@ function TypePicker({ type, onPick }: { type: BlockType | null; onPick: (t: Bloc
 }
 
 /** Sommaire : une ligne par séquence, avec sa page ; un clic y mène. */
-function Outline({ onPick }: { onPick: (id: string) => void }) {
+function Outline({ doc, onPick }: { doc: ProjectDoc; onPick: (id: string) => void }) {
   const outline = useScriptUi((u) => u.outline);
+  const marks = useRevisionMarks(doc);
+  const from = marks ? doc.versions?.find((v) => v.id === doc.versions?.find((x) => x.id === doc.activeVersionId)?.from)?.name : undefined;
   const active = useScriptUi((u) => u.activeHeading);
   const pages = useScriptUi((u) => u.pages);
   if (!outline.length) return <p className={s.muted}>Aucune séquence pour l’instant.</p>;
@@ -342,10 +364,17 @@ function Outline({ onPick }: { onPick: (id: string) => void }) {
         {outline.length} séquence{outline.length > 1 ? 's' : ''} · {pages} page{pages > 1 ? 's' : ''}
       </p>
       <ol className={s.outline} data-testid="scenario-outline">
-        {outline.map((o) => (
+        {outline.map((o, i) => (
           <li key={o.id}>
             <button type="button" className={o.id === active ? s.current : ''} aria-current={o.id === active || undefined} onClick={() => onPick(o.id)}>
-              <span className={s.n}>{o.n}</span>
+              <span className={s.n}>
+                {marks?.get(i) && (
+                  <i className={s.rev} title={marks.get(i) === 'new' ? `Nouvelle depuis ${from}` : `Modifiée depuis ${from}`} data-testid="revision-mark">
+                    *
+                  </i>
+                )}
+                {o.n}
+              </span>
               <span className={s.h}>{o.text || 'Sans titre'}</span>
               <span className={s.p}>{o.page}</span>
             </button>

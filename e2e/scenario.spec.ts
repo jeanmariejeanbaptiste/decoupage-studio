@@ -345,3 +345,58 @@ test('scénario : la page de garde restée dans le texte est reconnue et en sort
   await expect(ed.locator('[data-type="action"]').filter({ hasText: 'Écrit par' })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toMatch(/^Title: VOX/);
 });
+
+test('versions : la V2 part de la V1 ; on passe de l’une à l’autre, le découpage et les marques suivent', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  const switcher = page.getByTestId('version-switcher');
+  await expect(switcher).toHaveText('V1');
+  await switcher.click();
+  await page.getByTestId('version-new').click();
+  await expect(switcher).toHaveText('V2');
+  // En V2 : une scène ajoutée à la fin.
+  const ed = page.getByTestId('script-editor');
+  await ed.locator('[data-bid]').last().click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('\nEXT. QUAI - NUIT\nUn train passe sans s’arrêter.');
+  await expect(page.getByTestId('scenario-outline')).toContainText('QUAI');
+  // Marque de révision : la seule scène nouvelle (les autres n'ont pas changé).
+  await expect(page.getByTestId('scenario-outline').getByTestId('revision-mark')).toHaveCount(1);
+  await expect(page.getByTestId('scenario-outline').locator('li').filter({ has: page.getByTestId('revision-mark') })).toContainText('QUAI');
+  // Retour en V1 : la scène n'y est pas ; le découpage montre la même version.
+  await switcher.click();
+  await page.getByTestId('version-item').filter({ hasText: 'V1' }).getByRole('menuitemradio').click();
+  await expect(switcher).toHaveText('V1');
+  await expect(page.getByTestId('scenario-outline')).not.toContainText('QUAI');
+  await page.getByRole('button', { name: /Découpage technique/ }).click();
+  await expect(page.getByTestId('version-switcher')).toHaveText('V1');
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-item').filter({ hasText: 'V2' }).getByRole('menuitemradio').click();
+  await page.getByRole('button', { name: /^Scénario$/ }).first().click();
+  await expect(page.getByTestId('scenario-outline')).toContainText('QUAI');
+});
+
+test('versions : un nouveau texte importé devient la V2, chaque scène retrouve sa séquence', async ({ page }) => {
+  await page.goto('/#/breakdown?seed=fiction');
+  // Préparation en V1 : un accessoire sur le parvis.
+  await page.getByTestId('breakdown-scene').filter({ hasText: 'PARVIS' }).click();
+  await page.getByLabel('Ajouter (Accessoires)').fill('Parapluie');
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: /^Scénario$/ }).first().click();
+  page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-v2.fountain'));
+  await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Créer la V2' }).click();
+  await expect(page.getByTestId('toast')).toContainText('V2 : 3 séquences reprises dont 1 modifiée · 1 nouvelle, ajoutée au découpage');
+  await expect(page.getByTestId('version-switcher')).toHaveText('V2');
+  // Le découpage suit : la nouvelle scène à sa place, le parvis devenu la 4 garde son dépouillement.
+  await page.getByRole('button', { name: /Dépouillement/ }).first().click();
+  const parvis = page.getByTestId('breakdown-scene').filter({ hasText: 'PARVIS' });
+  await expect(parvis).toContainText('4');
+  await parvis.click();
+  await expect(page.getByTestId('breakdown-accessoires')).toContainText('Parapluie');
+  await page.getByRole('button', { name: /Découpage technique/ }).click();
+  await expect(page.locator('tbody[data-seq]')).toHaveCount(4);
+  // La V1 est intacte.
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-item').filter({ hasText: 'V1' }).getByRole('menuitemradio').click();
+  await expect(page.locator('tbody[data-seq]')).toHaveCount(3);
+});
