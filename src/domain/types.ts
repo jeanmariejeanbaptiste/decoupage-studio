@@ -233,6 +233,8 @@ export interface Decor {
   address?: string;
   location?: FilmingLocation;
   notes?: string;
+  /** Anciens noms (renommé dans une version : les autres, figées, l'écrivent encore). */
+  aliases?: string[];
 }
 
 export interface VocabEntry {

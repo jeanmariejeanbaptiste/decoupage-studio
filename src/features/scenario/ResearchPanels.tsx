@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { SBlock } from '../../domain/screenplay';
-import { characterReports, locationReports, renameCharacter, renameDecor, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
+import { characterReports, locationReports, matchesName, renameCharacter, renameDecor, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
 import { addCharacter } from '../../domain/ops';
 import { addDecor } from '../../domain/registry';
 import { newId } from '../../domain/factory';
@@ -40,9 +40,10 @@ function useScenes(doc: ProjectDoc, blocks: readonly SBlock[]): SceneInfo[] {
   return useMemo(() => sceneReports(blocks, names, doc.project.settings.scriptChrono), [blocks, names, doc.project.settings.scriptChrono]);
 }
 
+// Par nom, ou par un ancien nom : une version figée écrit encore le nom d'avant un renommage.
 const findCharacter = (doc: ProjectDoc, name: string): Character | undefined =>
-  Object.values(doc.characters).find((c) => fold(c.name) === fold(name) || (c.aliases ?? []).some((a) => fold(a) === fold(name)));
-const findDecor = (doc: ProjectDoc, name: string): Decor | undefined => Object.values(doc.decors).find((d) => fold(d.name) === fold(name));
+  Object.values(doc.characters).find((c) => fold(c.name) === fold(name)) ?? Object.values(doc.characters).find((c) => matchesName(c, name));
+const findDecor = (doc: ProjectDoc, name: string): Decor | undefined => Object.values(doc.decors).find((d) => fold(d.name) === fold(name)) ?? Object.values(doc.decors).find((d) => matchesName(d, name));
 
 type Sort = 'first' | 'alpha' | 'replies' | 'scenes';
 
