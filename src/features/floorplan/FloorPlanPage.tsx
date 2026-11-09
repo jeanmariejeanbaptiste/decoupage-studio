@@ -24,6 +24,7 @@ import {
   addFloorItem,
   addPlan,
   choreography,
+  nextLabel,
   oneShotPlansOf,
   cameraCone,
   decorSummary,
@@ -461,8 +462,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     const id = mutateDoc((d) => {
       const nid = addFloorItem(d, planKey, tool === 'practical' ? 'light' : tool, p);
       if (tool === 'practical') {
-        const n = planOf(d, planKey).items.filter((i) => i.kind === 'light' && i.practical).length + 1;
-        updateFloorItem(d, planKey, nid, { practical: true, spread: 360, range: 170, power: 0.6, label: `P${n}` } as Partial<FloorItem>);
+        const label = nextLabel(planOf(d, planKey).items, (n) => `P${n}`);
+        updateFloorItem(d, planKey, nid, { practical: true, spread: 360, range: 170, power: 0.6, label } as Partial<FloorItem>);
       }
       if (tool === 'actor') {
         // Nommage rapide : le premier personnage de la séquence pas encore placé.
@@ -476,7 +477,12 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
         const patch: Record<string, unknown> = { beat };
         // Le comédien du temps précédent est repris ; la caméra couvre le plan-séquence.
         if (tool === 'actor' && prev?.kind === 'actor') Object.assign(patch, { characterId: prev.characterId, label: prev.label });
-        if (tool === 'camera' && psShots.length === 1) patch.shotIds = [psShots[0]];
+        if (tool === 'camera' && psShots.length === 1) {
+          patch.shotIds = [psShots[0]];
+          // Une seule caméra d'un temps à l'autre : elle garde son repère, même si un temps manque.
+          const same = planOf(d, planKey).items.find((i) => i.kind === 'camera' && i.id !== nid && i.shotIds.includes(psShots[0]));
+          if (same?.kind === 'camera' && same.label) patch.label = same.label;
+        }
         if (it) updateFloorItem(d, planKey, nid, patch as Partial<FloorItem>);
       }
       return nid;

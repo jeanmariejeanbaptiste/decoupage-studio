@@ -4,7 +4,23 @@ import { addSequence, addShot, deleteSequence, moveShot, moveShotTo } from './op
 import { toggleOneShot } from './oneshot';
 import { aggregateEquipment } from './equipment';
 import { addInterviewee, ensureInterview, placeSetup, setupShotIds, syncInterviewShots } from './interview';
-import { addFloorItem, oneShotPlanKey, placeCameraForShot, planOf, shotCameras, updateFloorItem, type FloorItem } from './floorplan';
+import {
+  addFloorItem,
+  addPlan,
+  deletePlan,
+  duplicatePlan,
+  oneShotPlanKey,
+  placeCameraForShot,
+  planOf,
+  plansOf,
+  removeFloorItem,
+  shotCameras,
+  updateFloorItem,
+  type FloorItem,
+} from './floorplan';
+import type { ProjectDoc } from './types';
+
+const labels = (doc: ProjectDoc, key: string) => planOf(doc, key).items.map((i) => ('label' in i ? i.label : undefined));
 
 describe('plan au sol : vue d’un plan-séquence déplacé', () => {
   it('garde sa caméra et survit à la suppression de l’ancienne séquence', () => {
@@ -64,5 +80,34 @@ describe('plan au sol : cadre d’interview déplacé', () => {
     expect(doc.shots[ca].sequenceId).toBe(s2);
     const item = planOf(doc, s1).items.find((i) => i.id === cam) as Extract<FloorItem, { kind: 'camera' }>;
     expect(item.shotIds).toEqual([]);
+  });
+});
+
+describe('plan au sol : repères et noms de vues', () => {
+  it('prend le premier repère libre, sans compter les lampes de jeu', () => {
+    const doc = createProjectDoc({ title: 'T', format: 'fiction' });
+    const s = addSequence(doc, undefined, { label: 'Salon' });
+    const a = addFloorItem(doc, s, 'camera', { x: 0, y: 0 });
+    addFloorItem(doc, s, 'camera', { x: 100, y: 0 });
+    removeFloorItem(doc, s, a);
+    addFloorItem(doc, s, 'camera', { x: 200, y: 0 });
+    expect(labels(doc, s)).toEqual(['CAM B', 'CAM A']);
+    const p = addFloorItem(doc, s, 'light', { x: 0, y: 200 });
+    updateFloorItem(doc, s, p, { practical: true, label: 'P1' } as Partial<FloorItem>);
+    addFloorItem(doc, s, 'light', { x: 100, y: 200 });
+    expect(labels(doc, s).slice(2)).toEqual(['P1', 'L1']);
+  });
+
+  it('nomme les vues sans doublon ni suffixe empilé', () => {
+    const doc = createProjectDoc({ title: 'T', format: 'fiction' });
+    const s = addSequence(doc, undefined, { label: 'Salon' });
+    const v2 = addPlan(doc, s);
+    addPlan(doc, s);
+    deletePlan(doc, v2);
+    addPlan(doc, s);
+    expect(plansOf(doc, s).map((p) => p.name)).toEqual(['Vue 1', 'Vue 3', 'Vue 2']);
+    const c1 = duplicatePlan(doc, s, s);
+    duplicatePlan(doc, s, c1);
+    expect(plansOf(doc, s).map((p) => p.name).slice(3)).toEqual(['Vue 1 (copie)', 'Vue 1 (copie 2)']);
   });
 });

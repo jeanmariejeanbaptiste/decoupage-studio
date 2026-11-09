@@ -150,23 +150,38 @@ export function oneShotPlansOf(doc: ProjectDoc, seqId: ID): Array<PlanRef & { sh
     .map((id) => ({ key: oneShotPlanKey(id), shotId: id, name: `Plan-séquence ${shotCode(doc, id)}` }));
 }
 
+/** Premier nom libre de la série : `make(1)`, `make(2)`… parmi les noms donnés. */
+function firstFreeName(taken: readonly string[], make: (n: number) => string): string {
+  const set = new Set(taken);
+  let n = 1;
+  while (set.has(make(n))) n++;
+  return make(n);
+}
+
 export function addPlan(doc: ProjectDoc, seqId: ID): string {
+  const taken = plansOf(doc, seqId).map((p) => p.name);
   const key = newId();
   doc.floorPlans ??= {};
-  doc.floorPlans[key] = { items: [], seqId, name: `Vue ${plansOf(doc, seqId).length + 1}` };
+  doc.floorPlans[key] = { items: [], seqId, name: firstFreeName(taken, (n) => `Vue ${n}`) };
   return key;
 }
 
-/** Copie d'une vue : mêmes éléments (avec leurs propres identifiants), même fond et même épaisseur de traits. */
+/** Copie d'une vue : mêmes éléments (avec leurs propres identifiants), même fond, pièce et épaisseur de traits. */
 export function duplicatePlan(doc: ProjectDoc, seqId: ID, key: string): string {
   const src = planOf(doc, key);
+  const name = src.name ?? plansOf(doc, seqId).find((p) => p.key === key)?.name;
   const k = addPlan(doc, seqId);
   const copy = doc.floorPlans![k];
   copy.items = src.items.map((i) => ({ ...JSON.parse(JSON.stringify(i)), id: newId() }) as FloorItem);
   if (src.bg) copy.bg = { ...src.bg };
+  if (src.room) copy.room = { ...src.room };
   if (src.stroke !== undefined) copy.stroke = src.stroke;
-  const name = src.name ?? plansOf(doc, seqId).find((p) => p.key === key)?.name;
-  if (name) copy.name = `${name} (copie)`;
+  if (name) {
+    // « Vue 1 (copie) », puis « Vue 1 (copie 2) »… : jamais de suffixes empilés.
+    const base = name.replace(/\s+\(copie(?: \d+)?\)$/, '');
+    const taken = plansOf(doc, seqId).filter((p) => p.key !== k).map((p) => p.name);
+    copy.name = firstFreeName(taken, (n) => `${base} (copie${n > 1 ? ` ${n}` : ''})`);
+  }
   return k;
 }
 
@@ -219,19 +234,25 @@ function ensure(doc: ProjectDoc, seqId: ID): FloorPlan {
   return doc.floorPlans[seqId];
 }
 
+/** Premier repère libre de la vue (« CAM A », « L1 », « P1 »…), même après une suppression. */
+export function nextLabel(items: readonly FloorItem[], make: (n: number) => string): string {
+  const taken = items.map((i) => ('label' in i ? i.label : undefined)).filter((x): x is string => !!x);
+  return firstFreeName(taken, make);
+}
+
 /** Crée un élément à la position donnée et renvoie son identifiant. */
 export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Point, end?: Point): ID {
   const plan = ensure(doc, seqId);
   const p = clampPoint({ x: snap(at.x), y: snap(at.y) });
   const id = newId();
-  const n = plan.items.filter((i) => i.kind === kind).length + 1;
+  const label = (make: (n: number) => string) => nextLabel(plan.items, make);
   switch (kind) {
     case 'camera':
-      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: `CAM ${String.fromCharCode(64 + n)}` });
+      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: label((n) => `CAM ${String.fromCharCode(64 + n)}`) });
       break;
     case 'actor':
       // Orientation : 90° = regarde vers le bas du plan.
-      plan.items.push({ id, kind, ...p, label: String(n), rot: 90 });
+      plan.items.push({ id, kind, ...p, label: label(String), rot: 90 });
       break;
     case 'wall':
     case 'rail':
@@ -241,7 +262,7 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
       const e = clampPoint(end ? { x: snap(end.x), y: snap(end.y) } : { x: p.x + 160, y: p.y });
       plan.items.push(
         kind === 'reflector' || kind === 'diffuser' || kind === 'flag'
-          ? { id, kind, ...p, x2: e.x, y2: e.y, label: `${kind === 'reflector' ? 'R' : kind === 'diffuser' ? 'D' : 'N'}${n}` }
+          ? { id, kind, ...p, x2: e.x, y2: e.y, label: label((n) => `${kind === 'reflector' ? 'R' : kind === 'diffuser' ? 'D' : 'N'}${n}`) }
           : { id, kind, ...p, x2: e.x, y2: e.y },
       );
       break;
@@ -256,7 +277,7 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
         kind,
         ...p,
         rot: 90,
-        label: `L${n}`,
+        label: label((n) => `L${n}`),
         spread: DEFAULT_SPREAD,
         range: DEFAULT_RANGE,
       });

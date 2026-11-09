@@ -210,6 +210,12 @@ test('plan-séquence : temps dans la grille, chorégraphie au plan au sol', asyn
     await page.keyboard.press('Escape');
   }
   await expect(page.getByTestId('fp-choreo')).toHaveCount(1);
+  // Une seule caméra suivie de temps en temps : elle garde son repère.
+  const camLabels = await page.evaluate(() => {
+    const d = (window as unknown as { __ds: { doc: () => { floorPlans: Record<string, { items: Array<{ kind: string; label?: string }> }> } } }).__ds.doc();
+    return Object.values(d.floorPlans).flatMap((p) => p.items.filter((i) => i.kind === 'camera').map((i) => i.label));
+  });
+  expect(camLabels).toEqual(['CAM A', 'CAM A']);
   // Annexe technique du plan-séquence, en PDF généré par l'outil.
   await page.goto('/#/grid');
   const dl = page.waitForEvent('download', { timeout: 30_000 });
