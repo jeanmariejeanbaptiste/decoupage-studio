@@ -11,7 +11,7 @@ import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
-import { agendaEnd, bannerLabel, callSheetStrips, dayAgenda, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
+import { bannerLabel, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
 import { decorLocation } from './locations';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
@@ -161,9 +161,18 @@ export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
   const date = d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Date à préciser';
   const cell = (label: string, value?: string) => (value ? `<tr><th>${esc(label)}</th><td class="time">${esc(value)}</td></tr>` : '');
   const agenda = dayAgenda(doc, day, strips);
-  // Repas et fin prévue : saisis sur la feuille, sinon déduits du déroulé (bandeau « Repas », dernière bande).
-  const mealBanner = agenda.find((x) => x.type === 'banner' && x.banner.kind === 'repas' && x.start);
-  const events = [cell('Rendez-vous', d?.callTime), cell('Prêt à tourner', d?.pat), cell('Repas', d?.meal ?? mealBanner?.start), cell('Fin prévue', d?.wrap ?? agendaEnd(agenda) ?? d?.dayEnd)].join('');
+  // Repas, reprise et fin prévue : saisis sur la feuille, sinon déduits du déroulé (bandeau « Repas », dernière bande).
+  const keys = dayKeyTimes(doc, day, agenda);
+  const range = (a: string, b?: string) => (b ? `de ${a} à ${b}` : a);
+  const events = [
+    cell('Rendez-vous', d?.callTime),
+    cell('Prêt à tourner', d?.pat),
+    keys.meal && cell('Repas', range(keys.meal.start, keys.meal.end)),
+    keys.restart && cell('Reprise', range(keys.restart.start, keys.restart.end)),
+    !keys.restart?.end && cell('Fin prévue', keys.wrap),
+  ]
+    .filter(Boolean)
+    .join('');
   const sun = [d?.sunrise && `Lever ${d.sunrise}`, d?.sunset && `coucher ${d.sunset}`].filter(Boolean).join(' · ');
   const head = `<div class="cs-head">
 <div><p class="cs-prod">${esc(doc.project.title)}</p><p class="muted">${esc(doc.project.version)}</p>

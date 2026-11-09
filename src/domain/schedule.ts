@@ -28,9 +28,11 @@ export interface ShootingDay {
   /** Amplitude affichée de la journée. */
   dayStart?: string;
   dayEnd?: string;
-  /** Feuille de service : horaires clés (prêt à tourner, repas, fin prévue). */
+  /** Feuille de service : horaires clés (prêt à tourner, repas de `meal` à `mealEnd`, fin prévue). */
   pat?: string;
+  /** Début du repas (ancien champ unique « Repas », lu comme le début). */
   meal?: string;
+  mealEnd?: string;
   wrap?: string;
   /** Météo prévue, lever et coucher du soleil (saisis : aucune donnée n'est demandée en ligne). */
   weather?: string;
@@ -559,6 +561,98 @@ export function dayAgenda(doc: ProjectDoc, day: number, strips: Strip[] = strips
 export function agendaEnd(items: readonly AgendaItem[]): string | undefined {
   const ends = items.map((i) => i.end).filter((x): x is string => !!x);
   return ends.length ? fromMin(Math.max(...ends.map(toMin))) : undefined;
+}
+
+export const DEFAULT_MEAL_MIN = 60;
+/** Heure d'horloge (« 25:30 » → « 01:30 ») : ce qu'affiche un champ horaire. */
+const clock = (min: number) => fromMin(((Math.round(min) % 1440) + 1440) % 1440);
+
+/** Horaires clés d'une journée : repas, reprise du tournage, fin prévue. */
+export interface DayKeyTimes {
+  /** Repas, de … à … ; `computed` : heure déduite (du bandeau « Repas » ou de la durée), non saisie. */
+  meal?: { start: string; end: string; computed: { start: boolean; end: boolean } };
+  /** Reprise après le repas, de … (première bande qui suit, sinon la fin du repas) à … (fin prévue). */
+  restart?: { start: string; end?: string };
+  wrap?: string;
+  wrapComputed: boolean;
+}
+
+const mealItem = (agenda: readonly AgendaItem[]) =>
+  agenda.find((x): x is Extract<AgendaItem, { type: 'banner' }> => x.type === 'banner' && x.banner.kind === 'repas');
+
+/**
+ * Repas, reprise et fin prévue de la feuille de service. Une heure saisie sur la feuille fait foi ;
+ * sinon le repas suit le bandeau « Repas » du déroulé (sa durée, ou une heure par défaut) et la fin
+ * prévue, la fin du déroulé.
+ */
+export function dayKeyTimes(doc: ProjectDoc, day: number, agenda: readonly AgendaItem[] = dayAgenda(doc, day, callSheetStrips(doc, day))): DayKeyTimes {
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  const item = mealItem(agenda);
+  const minutes = item?.banner.minutes ?? DEFAULT_MEAL_MIN;
+  let meal: DayKeyTimes['meal'];
+  if (d?.meal || d?.mealEnd) {
+    const start = d.meal ?? clock(toMin(d.mealEnd!) - minutes);
+    meal = { start, end: d.mealEnd ?? clock(toMin(start) + minutes), computed: { start: !d.meal, end: !d.mealEnd } };
+  } else if (item?.start && item.end) {
+    meal = { start: clock(toMin(item.start)), end: clock(toMin(item.end)), computed: { start: item.computed, end: item.computed } };
+  }
+  const wrap = d?.wrap ?? agendaEnd(agenda) ?? d?.dayEnd;
+  const out: DayKeyTimes = { meal, wrap, wrapComputed: !d?.wrap };
+  if (!meal) return out;
+  // Repas du déroulé : la reprise est la première bande qui le suit. Repas saisi sur le jour : sa fin.
+  const fromAgenda = !(d?.meal || d?.mealEnd) && item;
+  const next = fromAgenda ? agenda.slice(agenda.indexOf(item) + 1).find((x) => x.type === 'strip' && x.start)?.start : undefined;
+  const start = next !== undefined ? clock(toMin(next)) : meal.end;
+  // Fin prévue après la reprise (une fin saisie plus tôt se lit le lendemain : tournage de nuit).
+  const end = wrap && wrap !== start && (d?.wrap || toMin(wrap) > toMin(start)) ? wrap : undefined;
+  if (next !== undefined || end) out.restart = { start, end };
+  return out;
+}
+
+/**
+ * Repas saisi sur la feuille de service. Avec un bandeau « Repas » au déroulé, c'est lui qui change
+ * (début imposé, durée) : le plan de travail et la feuille restent d'accord, la suite de la journée
+ * s'enchaîne. Sinon l'horaire est gardé sur le jour. Changer le début garde la durée.
+ */
+export function setDayMeal(doc: ProjectDoc, day: number, patch: { start?: string; end?: string }): void {
+  const d = dayOf(doc, day);
+  const agenda = dayAgenda(doc, day, callSheetStrips(doc, day));
+  const cur = dayKeyTimes(doc, day, agenda).meal;
+  const item = mealItem(agenda);
+  const b = item && d.banners?.find((x) => x.id === item.banner.id);
+  if (b) {
+    // Heures saisies auparavant sur le jour : reportées sur le bandeau, qui devient la seule référence.
+    if (!('start' in patch) && d.meal) patch = { ...patch, start: d.meal };
+    if (!('end' in patch) && d.mealEnd) patch = { ...patch, end: d.mealEnd };
+    delete d.meal;
+    delete d.mealEnd;
+    if ('start' in patch) {
+      if (patch.start) b.start = patch.start;
+      else delete b.start;
+    }
+    if (!('end' in patch)) return;
+    if (!patch.end) {
+      b.minutes = DEFAULT_MEAL_MIN;
+      return;
+    }
+    const start = mealItem(dayAgenda(doc, day, callSheetStrips(doc, day)))?.start;
+    if (start) b.minutes = (((toMin(patch.end) - toMin(start)) % 1440) + 1440) % 1440;
+    else b.start = clock(toMin(patch.end) - b.minutes);
+    return;
+  }
+  if ('start' in patch) {
+    if (!patch.start) {
+      delete d.meal;
+      delete d.mealEnd;
+      return;
+    }
+    if (d.mealEnd && cur) d.mealEnd = clock(toMin(patch.start) + ((((toMin(cur.end) - toMin(cur.start)) % 1440) + 1440) % 1440));
+    d.meal = patch.start;
+  }
+  if ('end' in patch) {
+    if (patch.end) d.mealEnd = patch.end;
+    else delete d.mealEnd;
+  }
 }
 
 export function addBanner(doc: ProjectDoc, day: number, kind: BannerKind): ID {
