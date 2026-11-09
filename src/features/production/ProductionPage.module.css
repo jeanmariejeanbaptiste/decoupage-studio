@@ -140,3 +140,8 @@
   .cDate, .cDur { display: none; }
   .zoomLabel { min-width: 64px; }
 }
+
+/* Rendez-vous du calendrier : repères sous l'échelle, collés en haut au défilement, sans décaler la frise. */
+.appts { position: sticky; top: calc(var(--head) - 5px); z-index: 5; height: 0; }
+.appt { position: absolute; top: 0; width: 9px; height: 9px; margin-left: -4.5px; padding: 0; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--paper-card); cursor: pointer; }
+.appt:hover, .appt:focus-visible { background: var(--ink-soft); border-color: var(--ink-soft); }

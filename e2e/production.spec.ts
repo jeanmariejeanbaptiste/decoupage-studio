@@ -229,3 +229,34 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
   await expect(page).toHaveURL(/#\/production\?task=/);
   await expect(page.getByTestId('event-dialog')).toHaveCount(0);
 });
+
+test('calendrier de production : rendez-vous du calendrier sur la frise, lien vers le calendrier, tout effacer puis rétablir', async ({ page }) => {
+  await fromTemplate(page);
+  // Un rendez-vous au calendrier, dans dix jours : repéré sur la frise, un clic ouvre ce jour.
+  const day = iso(plusDays(new Date(), 10));
+  await page.getByRole('button', { name: 'Calendrier', exact: true }).click();
+  await page.getByTestId('event-add').click();
+  const dlg = page.getByTestId('event-dialog');
+  await dlg.getByTestId('event-title').fill('Lecture à la table');
+  await dlg.getByTestId('event-date').fill(day);
+  await dlg.getByTestId('event-start').fill('10:00');
+  await dlg.getByTestId('event-save').click();
+  await expect(dlg).toBeHidden();
+  await page.getByRole('button', { name: 'Calendrier de production' }).click();
+  const mark = page.getByTestId('production-appointment');
+  await expect(mark).toHaveCount(1);
+  await expect(mark).toHaveAttribute('title', 'Lecture à la table · 10:00');
+  await mark.click();
+  await expect(page).toHaveURL(new RegExp(`#/calendar\\?date=${day}`));
+  // Et l'inverse : du calendrier de production au calendrier, sur la période des étapes.
+  await page.getByRole('button', { name: 'Calendrier de production' }).click();
+  await page.getByTestId('production-to-calendar').click();
+  await expect(page).toHaveURL(/#\/calendar\?date=\d{4}-\d{2}-\d{2}/);
+  // Le modèle se retire d'un coup, après confirmation, et ⌘Z le rend.
+  await page.getByRole('button', { name: 'Calendrier de production' }).click();
+  await page.getByTestId('production-clear').click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Effacer' }).click();
+  await expect(page.getByTestId('production-template')).toBeVisible();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('task-row')).toHaveCount(17);
+});

@@ -1,15 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { produce } from 'immer';
-import { Check, ChevronDown, ChevronRight, GripVertical, Link2, Minus, MoreHorizontal, Plus } from 'lucide-react';
-import { useLocation } from '../../app/router';
-import { addDays, calendarIcs, isWeekend, productionItems, todayIso } from '../../domain/calendar';
+import { CalendarDays, Check, ChevronDown, ChevronRight, GripVertical, Link2, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { navigate, useLocation } from '../../app/router';
+import { addDays, calendarIcs, calendarItems, isWeekend, productionItems, timeOn, todayIso } from '../../domain/calendar';
 import { productionDocument } from '../../domain/documents';
 import {
   addDependency,
   addPhase,
   addTask,
   applyTemplate,
+  planSpan,
   daysBetween,
   dependencyCandidates,
   durationDays,
@@ -297,6 +298,12 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
   }
 
   const title = doc.project.title || 'projet';
+  // Rendez-vous du calendrier, repérés sur la frise (un clic ouvre leur jour dans le calendrier).
+  const appointments = calendarItems(doc).filter((it) => it.source === 'project' && it.date >= scale.from && it.date <= scale.to);
+  const clearAll = async () => {
+    const r = await ask({ title: 'Effacer le calendrier de production ?', body: 'Toutes les phases, étapes et jalons. ⌘Z les rétablit.', confirmLabel: 'Effacer', danger: true });
+    if (r.ok) mutateDoc((d) => void delete d.production);
+  };
   const width = scale.width;
   const bodyH = rows.length * RH;
   const todayX = today >= scale.from && today <= scale.to ? dayX(scale, today) + scale.dayWidth / 2 : null;
@@ -307,6 +314,8 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
       <header className={s.bar}>
         <div className={s.barStart}>
           <Button variant="icon" aria-label="Nouvelle phase" title="Nouvelle phase" icon={<Plus {...ICON} />} onClick={() => addPhaseAfter()} data-edit data-testid="phase-add" />
+          <Button variant="icon" aria-label="Voir dans le calendrier" title="Voir dans le calendrier" icon={<CalendarDays {...ICON} />} onClick={() => navigate('calendar', { date: planSpan(plan)?.start ?? today })} data-view data-testid="production-to-calendar" />
+          {!readOnly && <Button variant="icon" aria-label="Effacer le calendrier de production" title="Effacer le calendrier de production" icon={<Trash2 {...ICON} />} onClick={() => void clearAll()} data-edit data-testid="production-clear" />}
         </div>
         <div className={s.barEnd} data-view>
           <div className={s.zoom} role="group" aria-label="Zoom">
@@ -407,6 +416,20 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                 ))}
               </div>
               {todayX !== null && <span className={s.todayMark} style={{ left: todayX }} />}
+            </div>
+            <div className={s.appts} data-view>
+              {appointments.map((it) => (
+                <button
+                  key={it.key}
+                  type="button"
+                  className={s.appt}
+                  style={{ left: dayX(scale, it.date) + scale.dayWidth / 2 }}
+                  title={[it.title, timeOn(it, it.date)].filter(Boolean).join(' · ')}
+                  aria-label={`Rendez-vous : ${it.title}`}
+                  onClick={() => navigate('calendar', { date: it.date })}
+                  data-testid="production-appointment"
+                />
+              ))}
             </div>
             <div className={s.chartBody} style={{ height: bodyH }} onPointerMove={moveBarDrag} onPointerUp={endBarDrag} onPointerCancel={() => setBar(null)}>
               <svg className={s.grid} width={width} height={bodyH} aria-hidden="true">
