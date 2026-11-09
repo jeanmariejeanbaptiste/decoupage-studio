@@ -228,10 +228,10 @@ export function App() {
           onUndo={undo}
           onRedo={redo}
           onSave={canCopy ? () => void saveToFile() : undefined}
-          readOnly={readOnly}
+          readOnly={readOnly || route === 'review'}
           theme={theme}
           onToggleTheme={(e) => switchTheme(e)}
-          account={readOnly ? undefined : <AccountButton />}
+          account={readOnly || route === 'review' ? undefined : <AccountButton />}
         />
       )}
       <GuestBanner />

@@ -63,7 +63,7 @@ export function ReviewSection({ doc }: { doc: ProjectDoc }) {
       {st.error && <p className={s.error}>{st.error}</p>}
       <div className={s.actions}>
         <Button size="sm" variant={pub ? 'outline' : 'primary'} disabled={busy} onClick={() => void publishReview()} data-testid="review-publish">
-          {st.busy === 'publish' ? 'Publication…' : pub?.publishedVersionId === doc.activeVersionId ? `Mettre à jour ${name}` : `Publier ${name}`}
+          {st.busy === 'publish' ? 'Publication…' : pub && pub.publishedVersionId === doc.activeVersionId ? `Mettre à jour ${name}` : `Publier ${name}`}
         </Button>
         {pub && (
           <Button size="sm" disabled={busy} onClick={() => void setReviewLink(!!pub.stopped)} data-testid="review-stop">

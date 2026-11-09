@@ -336,6 +336,9 @@ async function pushComments(): Promise<void> {
 let session: { raw: string; ref: DriveRef; snap: ReviewSnapshot; docId: string } | null = null;
 const blobCache = new Map<string, Blob>();
 
+/** Toujours la même relecture (l'instantané a pu être relu entre-temps). */
+const sameSession = (s: { docId: string }) => session?.docId === s.docId;
+
 /** Images de la relecture : celles de l'instantané, puis celles jointes depuis Drive (lien public). */
 async function reviewBlob(key: string): Promise<Blob | undefined> {
   const hit = blobCache.get(key);
@@ -443,7 +446,7 @@ async function listAsReviewer(): Promise<void> {
   try {
     const remote = await drive.listComments(token, s.ref.id);
     const extra = await loadExtras(remote);
-    if (session !== s || cur()?.project.id !== s.docId) return;
+    if (!sameSession(s) || cur()?.project.id !== s.docId) return;
     const pending = new Set(Object.keys(useReview.getState().pending));
     writeLocal((d) => void mergeDriveComments(d, remote, { versionId: s.snap.versionId, dismissed: s.snap.dismissed, extra, pending }));
     const mine = remote.filter((r) => r.author?.me && !r.deleted).map((r) => r.id);
@@ -549,7 +552,7 @@ async function deliver(it: DriveItem, tokenP: Promise<string>): Promise<void> {
     if (!drive.unseen(e) || !(await drive.openWithPicker(token, s.ref.id))) throw e;
     res = await post();
   }
-  if (session !== s) return;
+  if (!sameSession(s)) return;
   writeLocal((d) => {
     const t = findItem(d, it).target;
     if (!t) return;
@@ -607,7 +610,7 @@ export function deleteDriveItem(it: DriveItem): void {
     .then((token) => drive.removeComment(token, s.ref.id, rid))
     .then(
       () => {
-        if (session === s) remove();
+        if (sameSession(s)) remove();
         setPending(id, null);
       },
       // Pas retiré (réseau, droits) : il reste affiché tel quel.

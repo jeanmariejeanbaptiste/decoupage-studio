@@ -4,6 +4,7 @@ import { buildFiction } from '../../seed/fiction';
 import { addComment, deleteComment, replyComment, type ReviewComment } from './comments';
 import { driveAttachmentKeys, LIMITS, mergeDriveComments, mergeSnapshotComments, WITHDRAWN, type DriveComment, type MergeOptions } from './reviewMerge';
 import { encodeComment } from './reviewTrailer';
+import { parseReviewSnapshot, reviewSnapshot } from './reviewSnapshot';
 import type { ProjectDoc } from './types';
 import { createVersion, ensureVersions } from './versions';
 
@@ -160,5 +161,15 @@ describe('retours de la relecture en ligne', () => {
     const out = mergeSnapshotComments(local, prev, next);
     expect(out.map((x) => x.id)).toEqual(['a', 'b', 'local']);
     expect(out[0].replies.map((r) => r.id)).toEqual(['ra', 'mine']);
+  });
+
+  it('chez le relecteur (V1 réduite à son texte) : un plan commenté en V1 garde sa place', () => {
+    let doc = base();
+    const v1 = doc.activeVersionId!;
+    const shotId = Object.keys(doc.shots)[0];
+    doc = produce(doc, (d) => void createVersion(d));
+    const snap = parseReviewSnapshot(JSON.stringify(reviewSnapshot(doc, {})));
+    const r = merge(snap.doc, [dc('d1', encodeComment('Sur V1', { v: v1, a: { kind: 'shot', shotId, col: 'value' } }))], { versionId: snap.versionId });
+    expect(r.next.comments![0]).toMatchObject({ versionId: v1, anchor: { kind: 'shot', shotId, col: 'value' } });
   });
 });

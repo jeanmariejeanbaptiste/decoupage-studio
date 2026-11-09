@@ -52,8 +52,12 @@ interface VersionView {
 /** Contenu d'une version : la courante vit dans le projet, les autres sont rangées. */
 function versionView(doc: ProjectDoc, versionId: ID | undefined): VersionView {
   const v = doc.versions?.find((x) => x.id === versionId);
-  if (v?.slice && v.id !== doc.activeVersionId) return { scenario: v.slice.scenario ?? '', sequenceIds: v.slice.sequenceIds, sequences: v.slice.sequences, shots: v.slice.shots };
-  return { scenario: doc.scenario ?? '', sequenceIds: doc.project.sequenceIds, sequences: doc.sequences, shots: doc.shots };
+  const current = { scenario: doc.scenario ?? '', sequenceIds: doc.project.sequenceIds, sequences: doc.sequences, shots: doc.shots };
+  if (!v?.slice || v.id === doc.activeVersionId) return current;
+  // Instantané de relecture : une version précédente n'y garde que son texte ; ses séquences et ses
+  // plans ont les mêmes identifiants que ceux de la version publiée.
+  if (!v.slice.sequenceIds.length && !Object.keys(v.slice.shots).length) return { ...current, scenario: v.slice.scenario ?? '' };
+  return { scenario: v.slice.scenario ?? '', sequenceIds: v.slice.sequenceIds, sequences: v.slice.sequences, shots: v.slice.shots };
 }
 
 function resolveVersion(doc: ProjectDoc, wanted: unknown, fallback: ID | undefined): ID | undefined {
