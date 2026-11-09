@@ -55,7 +55,9 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const phone = useIsMobile();
   const [view, setView] = useState<'script' | 'cut'>('script');
-  const [tab, setTabState] = useState<Tab>(savedTab);
+  const [tabState, setTabState] = useState<Tab>(savedTab);
+  // « Plans » n'a de sens qu'en vue Découpage : en vue Scénario, le panneau revient aux séquences.
+  const tab: Tab = tabState === 'shots' && view !== 'cut' ? 'scenes' : tabState;
   const setTab = (t: Tab) => {
     setTabState(t);
     try {
@@ -343,7 +345,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
 
         <aside className={[s.side, tab === 'stats' ? s.sideWide : ''].join(' ')} aria-label="Navigation du scénario">
           <div className={s.tabs} role="tablist">
-            {TABS.map(([t, label, Icon]) => (
+            {TABS.filter(([t]) => t !== 'shots' || view === 'cut').map(([t, label, Icon]) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} aria-label={label} title={label} className={tab === t ? s.tabOn : ''} onClick={() => setTab(t)} data-testid={`scenario-tab-${t}`}>
                 <Icon size={15} strokeWidth={1.4} aria-hidden="true" />
                 {tab === t && <span>{label}</span>}

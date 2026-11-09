@@ -42,15 +42,19 @@ async function selectText(page: Page, needle: string) {
 test.describe('scénario et liaison', () => {
   test('clic droit → créer un plan avec cette action, ou la commenter', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    await page.getByTestId('scenario-tab-shots').click();
-    const marc = page.getByTestId('scenario-shot').filter({ hasText: 'Marc attend sous la pluie' });
-    await expect(page.getByTestId('scenario-shot').first()).toBeVisible();
-    const before = await marc.count();
+    // L'onglet Plans n'existe qu'en vue Découpage.
+    await expect(page.getByTestId('scenario-tab-shots')).toHaveCount(0);
+    const count = () => page.evaluate(() => Object.values((window as unknown as { __ds: { doc: () => { shots: Record<string, { subject: string }> } } }).__ds.doc().shots).length);
+    const before = await count();
     await selectText(page, 'Marc attend sous la pluie');
     await page.getByTestId('script-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
     await page.getByRole('menuitem', { name: 'Créer un plan' }).click();
     // Mode lié (par défaut) : le plan va directement dans la séquence de la scène.
-    await expect(marc).toHaveCount(before + 1);
+    await expect.poll(count).toBe(before + 1);
+    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
+    await page.getByTestId('scenario-tab-shots').click();
+    await expect(page.getByTestId('scenario-shot').filter({ hasText: 'Marc attend sous la pluie' }).first()).toBeVisible();
+    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Scénario' }).click();
     // Même geste : commenter le passage (l'auteur aussi).
     await selectText(page, 'Marc attend sous la pluie');
     await page.getByTestId('script-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
@@ -62,9 +66,11 @@ test.describe('scénario et liaison', () => {
 
   test('les répliques sélectionnées vont dans le dialogue', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
+    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
     await page.getByTestId('scenario-tab-shots').click();
     // Mode libre : la séquence se choisit, celle de la scène est suggérée en premier.
     await page.getByTestId('scenario-link-mode').uncheck();
+    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Scénario' }).click();
     await selectText(page, "GUICHETIER\nC'est pour combien de temps ?");
     await page.getByTestId('create-shot-from-selection').click();
     await expect(page.getByRole('menuitem').first()).toContainText('(suggérée)');
@@ -87,6 +93,7 @@ test.describe('scénario et liaison', () => {
     await expect(editor.locator('[data-type="character"]').last()).toHaveText('NINA');
     await expect(editor.locator('[data-type="dialogue"]').last()).toHaveText('Bonsoir.');
     await expect(page.getByTestId('scenario-outline')).toContainText('CAFÉ DE LA GARE');
+    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
     await page.getByTestId('scenario-tab-shots').click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toContain('NINA\nBonsoir.');
     await expect(page.locator('aside').getByText('4, CAFÉ DE LA GARE')).toHaveCount(0);
