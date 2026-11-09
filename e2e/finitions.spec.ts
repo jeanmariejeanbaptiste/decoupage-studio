@@ -123,7 +123,8 @@ test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
   expect(word).toContain('08:30');
   expect(word).not.toContain('<button');
   await page.goto('/#/callsheet');
-  await expect(page.getByTestId('itinerary')).toContainText('08:30 – 09:00');
+  // Mêmes horaires que le plan de travail : les plans non placés de la bande s'enchaînent après le créneau.
+  await expect(page.getByTestId('itinerary')).toContainText('08:30 – 11:30');
   await page.getByTestId('stop-address').first().fill('3 quai Voltaire');
   expect(readFileSync(await (await tabExport(page, 'Word')).path(), 'utf8')).toContain('3 quai Voltaire');
 });
