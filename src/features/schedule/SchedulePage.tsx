@@ -106,7 +106,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
       <div className={s.layout}>
       <div className={[s.columns, showMap ? s.withMap : ''].join(' ')}>
       {showMap && (
-        <aside className={s.mapSide}>
+        <aside className={[s.mapSide, 'no-print'].join(' ')}>
           <ScheduleMap doc={doc} places={places} days={days.map((d) => d.n)} />
         </aside>
       )}
