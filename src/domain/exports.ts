@@ -10,6 +10,7 @@ import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, characterUsage, decorStats, decorUsage, usageDayLabel } from './registry';
 import { bannerLabel, callSheetStrips, dayAgenda, dayStats, scheduleDays, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
+import { decorLocation } from './locations';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -66,8 +67,8 @@ export function decorsCsv(doc: ProjectDoc): string {
   const st = decorStats(doc, computeTiming(doc));
   const u = decorUsage(doc);
   return csv([
-    ['Décor', 'INT/EXT', 'Adresse', 'Séquences', 'Durée à tourner', '1er jour', 'Jours'],
-    ...Object.values(doc.decors).map((d) => [d.name, d.intExt, d.address, (st.get(d.id)?.sequenceIds ?? []).map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(' '), formatTc(st.get(d.id)?.totalSec ?? 0), usageDayLabel(doc, u.get(d.id)), u.get(d.id)?.days.length ?? 0]),
+    ['Décor', 'INT/EXT', 'Lieu de tournage', 'Adresse', 'Accès · stationnement', 'Contact', 'Séquences', 'Durée à tourner', '1er jour', 'Jours'],
+    ...Object.values(doc.decors).map((d) => [d.name, d.intExt, decorLocation(d).name, decorLocation(d).address, decorLocation(d).access, decorLocation(d).contact, (st.get(d.id)?.sequenceIds ?? []).map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(' '), formatTc(st.get(d.id)?.totalSec ?? 0), usageDayLabel(doc, u.get(d.id)), u.get(d.id)?.days.length ?? 0]),
   ]);
 }
 

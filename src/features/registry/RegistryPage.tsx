@@ -9,7 +9,8 @@ import { addDecor, characterNumbers, characterStats, characterUsage, decorStats,
 import { formatTc, parseTc } from '../../domain/timecode';
 import { computeTiming, formatGap } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
-import type { Character, CharacterKind, Decor, Effect, ID, IntExt, ProjectDoc, Sequence, Shot, ShotStatus } from '../../domain/types';
+import type { Character, CharacterKind, Decor, Effect, FilmingLocation, ID, IntExt, ProjectDoc, Sequence, Shot, ShotStatus } from '../../domain/types';
+import { decorLocation, setDecorLocation } from '../../domain/locations';
 import { isZoom } from '../../domain/vocabulary';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -34,6 +35,12 @@ const KINDS: CharacterKind[] = ['principal', 'secondaire', 'figurant', 'silhouet
 const INT_EXT = [{ value: '', label: '—' }, ...(['INT', 'EXT', 'INT/EXT'] as IntExt[]).map((v) => ({ value: v, label: v }))];
 const EFFECTS = [{ value: '', label: '—' }, ...(['JOUR', 'NUIT', 'AUBE', 'CRÉPUSCULE'] as Effect[]).map((v) => ({ value: v, label: v }))];
 const STATUSES: ShotStatus[] = ['à tourner', 'tourné', 'abandonné'];
+const LOCATION_FIELDS: Array<[keyof FilmingLocation, string]> = [
+  ['name', 'Lieu de tournage'],
+  ['address', 'Adresse'],
+  ['access', 'Accès · stationnement'],
+  ['contact', 'Contact'],
+];
 
 /** Saute au plan dans la grille. */
 export function goToShot(doc: ProjectDoc, shotId: ID | undefined) {
@@ -439,13 +446,16 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
       text: (d) => d.intExt ?? '',
       edit: { get: (d) => d.intExt ?? '', options: INT_EXT, set: (d, v) => mutateDoc((x) => void (x.decors[d.id].intExt = (v || undefined) as IntExt | undefined)) },
     },
-    {
-      key: 'address',
-      label: 'Adresse',
-      render: (d) => d.address || '—',
-      text: (d) => d.address ?? '',
-      edit: { get: (d) => d.address ?? '', set: (d, v) => mutateDoc((x) => void (x.decors[d.id].address = v.trim() || undefined)) },
-    },
+    // Lieu de tournage réel : nom, adresse, accès et contact (repris sur la feuille de service).
+    ...LOCATION_FIELDS.map(
+      ([k, label]): Column<Decor> => ({
+        key: `loc-${k}`,
+        label,
+        render: (d) => decorLocation(d)[k] || '—',
+        text: (d) => decorLocation(d)[k] ?? '',
+        edit: { get: (d) => decorLocation(d)[k] ?? '', set: (d, v) => mutateDoc((x) => setDecorLocation(x, d.id, { [k]: v })) },
+      }),
+    ),
     ...usageColumns<Decor>(doc, usage),
     {
       key: 'seqs',

@@ -28,6 +28,7 @@ import { TabExport } from '../export/TabExport';
 import { callSheetCsv } from '../../domain/exports';
 import { callSheetDocument } from '../../domain/documents';
 import { characterNumbers } from '../../domain/registry';
+import { decorLocation } from '../../domain/locations';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',
@@ -146,8 +147,8 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               <thead>
                 <tr>
                   <th>Horaire</th>
-                  <th>Lieu</th>
-                  <th>Adresse</th>
+                  <th>Décor</th>
+                  <th>Lieu de tournage</th>
                   <th>Séquence</th>
                 </tr>
               </thead>
@@ -167,6 +168,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   const stop = itinerary.find((x) => x.seqIds[0] === it.strip.seqId);
                   if (!stop) return null;
                   const decor = stop.decorId ? doc.decors[stop.decorId] : undefined;
+                  const loc = decorLocation(decor);
                   return (
                     <tr key={it.strip.seqId}>
                       <td className={[s.code, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? `${stop.start} – ${stop.end}` : '—'}</td>
@@ -175,6 +177,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                         {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
                       </td>
                       <td>
+                        {loc.name && <strong className={s.locName}>{loc.name}</strong>}
                         <input
                           className={s.address}
                           value={stop.address}
@@ -188,6 +191,8 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                             set({ seqAddresses: next });
                           }}
                         />
+                        {loc.access && <span className={s.locLine}>Accès : {loc.access}</span>}
+                        {loc.contact && <span className={s.locLine}>Contact : {loc.contact}</span>}
                       </td>
                       <td>{stop.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')}</td>
                     </tr>

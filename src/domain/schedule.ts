@@ -1,5 +1,6 @@
 import { sequenceCharacterIds } from './characters';
 import { newId } from './factory';
+import { decorLocation } from './locations';
 import { shotDurationSec } from './rows';
 import { fold } from './text';
 import { formatTc } from './timecode';
@@ -634,7 +635,7 @@ export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
     const decorId = doc.sequences[strip.seqId]?.decorId;
     const address =
       d?.seqAddresses?.[strip.seqId] ??
-      (decorId ? (d?.addresses?.[decorId] ?? doc.decors[decorId]?.address) : undefined) ??
+      (decorId ? (d?.addresses?.[decorId] ?? decorLocation(doc.decors[decorId]).address) : undefined) ??
       '';
     return [{ decorId, address, start: it.start, end: it.end, ...(it.computed ? { computed: true } : {}), seqIds: [strip.seqId] }];
   });

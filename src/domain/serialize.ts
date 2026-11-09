@@ -2,6 +2,7 @@ import { richImageKeys } from './richText';
 import { ensureInterview, syncInterviewShots, upgradeInterview } from './interview';
 import { defaultSettings, makeBlock } from './factory';
 import { normalizeScenario } from './fountain';
+import { migrateDecorLocations } from './locations';
 import { activeColumns } from './columns';
 import { normalizeTiming } from './factory';
 import { EMPTY_CUSTOM_VOCABULARY } from './vocabulary';
@@ -106,6 +107,7 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   doc.validatedSteps ??= [];
   doc.customVocabulary = { ...structuredClone(EMPTY_CUSTOM_VOCABULARY), ...(doc.customVocabulary ?? {}) };
   doc.manualEquipment ??= [];
+  migrateDecorLocations(doc);
   // Références cassées (fichier abîmé, ancienne version, synchronisation interrompue) : réparées
   // plutôt que de faire planter l'affichage.
   p.sequenceIds = p.sequenceIds.filter((id, i, all) => isObject(doc.sequences[id]) && all.indexOf(id) === i);

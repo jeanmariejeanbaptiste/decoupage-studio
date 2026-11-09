@@ -212,11 +212,24 @@ export interface Research {
   docs?: Array<{ id: ID; title: string; text: string }>;
 }
 
+/** Lieu de tournage réel d'un décor (le décor, lui, est le lieu du scénario). */
+export interface FilmingLocation {
+  /** Nom du lieu (« Lycée Voltaire »), quand il diffère du décor. */
+  name?: string;
+  address?: string;
+  /** Accès, stationnement, base technique. */
+  access?: string;
+  /** Contact sur place (nom, téléphone). */
+  contact?: string;
+}
+
 export interface Decor {
   id: ID;
   name: string;
   intExt?: IntExt;
+  /** Ancien champ (adresse de tournage), repris dans `location.address` à l'ouverture du projet. */
   address?: string;
+  location?: FilmingLocation;
   notes?: string;
 }
 
