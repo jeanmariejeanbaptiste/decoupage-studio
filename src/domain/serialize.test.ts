@@ -2,9 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { checkInvariants } from './ops';
-import { exportBase, fileNameFor, parseProjectFile, ProjectFileError, serializeDoc } from './serialize';
+import { exportBase, fileNameFor, parseProjectFile, ProjectFileError, projectCopy, serializeDoc } from './serialize';
 
 describe('fichier .decoupage', () => {
+  it('ouvert comme copie : nouvel identifiant, sans le fichier de relecture de l’original', () => {
+    const doc = buildFiction();
+    doc.review = { fileId: 'file123456', publishedVersionId: 'v1', publishedAt: '2026-11-09T10:00:00Z' };
+    const copy = parseProjectFile(serializeDoc(projectCopy(doc, 'copie1')));
+    expect(copy.project.id).toBe('copie1');
+    expect(copy.project.title).toBe(`${doc.project.title} (copie)`);
+    expect(copy.review).toBeUndefined();
+    expect(doc.review.fileId).toBe('file123456');
+  });
+
   it.each([['RAV3', buildRav3], ['fiction', buildFiction]])('aller-retour sans perte (%s)', (_n, build) => {
     const doc = build();
     doc.ignoredChecks.push('x:y');

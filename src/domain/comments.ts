@@ -23,6 +23,8 @@ export interface CommentReply {
   versionId?: ID;
   /** Schémas et images joints (clés des fichiers). */
   attachments?: string[];
+  /** Commentaire Google Drive d'où vient la réponse (relecture en ligne). */
+  remoteId?: string;
 }
 
 /** Tracés à main levée sur la page (entourer, souligner, flécher), en coordonnées de la page sans zoom. */
@@ -44,6 +46,8 @@ export interface ReviewComment {
   resolved?: boolean;
   attachments?: string[];
   marks?: CommentMarks;
+  /** Commentaire Google Drive d'où il vient (relecture en ligne) : clé d'idempotence. */
+  remoteId?: string;
 }
 
 export interface CommentExtra {
@@ -70,10 +74,18 @@ export function addComment(doc: ProjectDoc, anchor: CommentAnchor, author: strin
   return id;
 }
 
-export function replyComment(doc: ProjectDoc, id: ID, author: string, text: string, attachments?: string[]): void {
+export function replyComment(doc: ProjectDoc, id: ID, author: string, text: string, attachments?: string[]): ID | undefined {
   const c = doc.comments?.find((x) => x.id === id);
-  if (!c || !hasContent(text, { attachments })) return;
-  c.replies.push({ id: newId(), author: author.trim() || 'Anonyme', text: text.trim(), at: new Date().toISOString(), ...(doc.activeVersionId ? { versionId: doc.activeVersionId } : {}), ...(attachments?.length ? { attachments } : {}) });
+  if (!c || !hasContent(text, { attachments })) return undefined;
+  const rid = newId();
+  c.replies.push({ id: rid, author: author.trim() || 'Anonyme', text: text.trim(), at: new Date().toISOString(), ...(doc.activeVersionId ? { versionId: doc.activeVersionId } : {}), ...(attachments?.length ? { attachments } : {}) });
+  return rid;
+}
+
+/** Commentaires venus de Google Drive et retirés ici : la relecture en ligne ne les réimporte pas. */
+function dismiss(doc: ProjectDoc, ids: Array<string | undefined>): void {
+  const gone = ids.filter((x): x is string => !!x);
+  if (gone.length && doc.review) doc.review.dismissed = [...new Set([...(doc.review.dismissed ?? []), ...gone])];
 }
 
 /** Ajoute ou remplace les tracés d'un commentaire (l'auteur du commentaire les retouche). */
@@ -85,12 +97,17 @@ export function setCommentMarks(doc: ProjectDoc, id: ID, marks: CommentMarks | u
 }
 
 export function deleteComment(doc: ProjectDoc, id: ID): void {
-  if (doc.comments) doc.comments = doc.comments.filter((c) => c.id !== id);
+  const c = doc.comments?.find((x) => x.id === id);
+  if (!c || !doc.comments) return;
+  dismiss(doc, [c.remoteId, ...c.replies.map((r) => r.remoteId)]);
+  doc.comments = doc.comments.filter((x) => x.id !== id);
 }
 
 export function deleteReply(doc: ProjectDoc, id: ID, replyId: ID): void {
   const c = doc.comments?.find((x) => x.id === id);
-  if (c) c.replies = c.replies.filter((r) => r.id !== replyId);
+  if (!c) return;
+  dismiss(doc, [c.replies.find((r) => r.id === replyId)?.remoteId]);
+  c.replies = c.replies.filter((r) => r.id !== replyId);
 }
 
 export function setResolved(doc: ProjectDoc, id: ID, resolved: boolean): void {

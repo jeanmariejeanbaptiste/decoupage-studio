@@ -27,3 +27,6 @@ export const STEP_GROUPS: ReadonlyArray<{ label: string; steps: readonly number[
   { label: 'Préparation', steps: [3, 4, 5, 6] },
   { label: 'Tournage', steps: [9, 7, 8] },
 ];
+
+/** Pages publiées pour une relecture en ligne (le reste de la préparation reste privé). */
+export const REVIEWED: ReadonlySet<Route> = new Set<Route>(['scenario', 'grid', 'storyboard']);

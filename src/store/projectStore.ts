@@ -103,3 +103,25 @@ export function applyRemote(ops: readonly Op[]) {
     t.resume();
   }
 }
+
+/**
+ * Modification venue d'ailleurs (retours relevés dans Drive), appliquée hors historique : au projet
+ * et à chaque état d'annuler / rétablir, par la même recette (pure, rejouable). Annuler ne défait donc
+ * que ses propres changements, et « Rétablir » reste possible. Renvoie `true` si le projet a changé.
+ */
+export function mutateOutsideHistory(recipe: (doc: ProjectDoc) => void): boolean {
+  const cur = useProjectStore.getState().doc;
+  if (!cur) return false;
+  const next = produce(cur, recipe);
+  if (next === cur) return false;
+  const t = useProjectStore.temporal.getState();
+  t.pause();
+  try {
+    useProjectStore.setState({ doc: produce(next, (d) => void (d.project.updatedAt = new Date().toISOString())) });
+    const replay = <S extends { doc?: ProjectDoc | null }>(list: S[]): S[] => list.map((snap) => (snap.doc ? { ...snap, doc: produce(snap.doc, recipe) } : snap));
+    useProjectStore.temporal.setState((st) => ({ pastStates: replay(st.pastStates), futureStates: replay(st.futureStates) }));
+  } finally {
+    t.resume();
+  }
+  return true;
+}

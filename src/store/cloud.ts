@@ -3,39 +3,43 @@
  * dossier privé de l'application (`appDataFolder`, invisible dans le Drive de l'utilisateur), via
  * Google Identity Services côté navigateur. Rien ne transite par un autre serveur.
  * Le jeton d'accès ne vit qu'en mémoire ; seule l'identité (nom, adresse) est mémorisée.
+ * La même connexion sert la relecture en ligne (portée drive.file, demandée en plus au premier besoin).
  */
 import { create } from 'zustand';
 import { GOOGLE_CLIENT_ID } from '../app/config';
 import { parseProjectFile, serializeDoc } from '../domain/serialize';
 import type { ProjectDoc } from '../domain/types';
 import { db, deleteProject, listProjects, loadProject, saveProject } from './db';
+import { DRIVE_API as API, DRIVE_UPLOAD as UPLOAD, GIS_SCRIPT, SCOPE_APPDATA, SCOPE_FILE, SCOPE_IDENTITY, USERINFO } from './googleUrls';
 import { flushEditors, flushSave, openStoredProject } from './persistence';
 import { useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
 
-const SCOPE = 'https://www.googleapis.com/auth/drive.appdata openid email profile';
-const API = 'https://www.googleapis.com/drive/v3';
-const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+const SYNC_SCOPE = `${SCOPE_APPDATA} ${SCOPE_IDENTITY}`;
 const USER_KEY = 'ds-cloud-user';
 const TOMB_KEY = 'ds-cloud-deleted';
-/** Jeton d'accès (portée drive.appdata, une heure) gardé le temps de sa validité : un rechargement ne déconnecte plus. */
+/** Jetons d'accès (une heure) gardés le temps de leur validité : un rechargement ne déconnecte plus. */
 const TOKEN_KEY = 'ds-cloud-token';
+/** Accès aux fichiers de l'application (relecture) déjà accordé ici : redemandé discrètement au renouvellement. */
+const FILE_FLAG = 'ds-cloud-file';
 const PUSH_DELAY = 4000;
 
 interface TokenResponse {
   access_token?: string;
   expires_in?: number;
+  scope?: string;
   error?: string;
   error_description?: string;
 }
 interface TokenClient {
-  requestAccessToken(o?: { prompt?: string; hint?: string }): void;
+  requestAccessToken(o?: { prompt?: string; hint?: string; scope?: string }): void;
 }
 interface Gis {
   accounts: {
     oauth2: {
       initTokenClient(c: { client_id: string; scope: string; callback: (r: TokenResponse) => void; error_callback?: (e: { type: string; message?: string }) => void; hint?: string }): TokenClient;
       revoke(token: string, done?: () => void): void;
+      hasGrantedAllScopes?(r: TokenResponse, ...scopes: string[]): boolean;
     };
   };
 }
@@ -50,8 +54,10 @@ interface CloudState {
   /** Connexion possible : un identifiant d'application Google est configuré. */
   enabled: boolean;
   user: CloudUser | null;
-  /** Jeton valide en mémoire. */
+  /** Jeton valide en mémoire (synchronisation privée). */
   connected: boolean;
+  /** Jeton valide pour les fichiers de l'application (relecture en ligne). */
+  fileAccess: boolean;
   status: 'idle' | 'syncing' | 'error';
   lastSync?: string;
   error?: string;
@@ -66,14 +72,19 @@ function storedUser(): CloudUser | null {
   }
 }
 
-let token: string | null = null;
-let expiresAt = 0;
+/** Jetons tenus : un seul d'ordinaire (Google cumule les portées accordées), deux au plus. */
+interface Held {
+  token: string;
+  expiresAt: number;
+  scopes: string[];
+}
+let held: Held[] = [];
 let client: TokenClient | null = null;
 let gisPromise: Promise<void> | null = null;
 
-function keepToken(): void {
+function keepTokens(): void {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt }));
+    if (held.length) localStorage.setItem(TOKEN_KEY, JSON.stringify(held));
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* stockage indisponible */
@@ -81,28 +92,47 @@ function keepToken(): void {
 }
 (() => {
   try {
-    const r = JSON.parse(localStorage.getItem(TOKEN_KEY) ?? 'null') as { token?: string; expiresAt?: number } | null;
-    if (r?.token && (r.expiresAt ?? 0) > Date.now() && storedUser()) {
-      token = r.token;
-      expiresAt = r.expiresAt!;
-    }
+    const raw = JSON.parse(localStorage.getItem(TOKEN_KEY) ?? 'null') as Held[] | { token?: string; expiresAt?: number } | null;
+    // Ancien format : un jeton de synchronisation seul.
+    const list: Held[] = Array.isArray(raw) ? raw : raw?.token ? [{ token: raw.token, expiresAt: raw.expiresAt ?? 0, scopes: [SCOPE_APPDATA] }] : [];
+    const user = storedUser();
+    held = list.filter((h) => typeof h?.token === 'string' && h.expiresAt > Date.now() && Array.isArray(h.scopes) && (!!user || !h.scopes.includes(SCOPE_APPDATA)));
   } catch {
     /* rien à reprendre */
   }
 })();
 
 const gis = () => (window as unknown as { google?: Gis }).google;
-const valid = () => !!token && Date.now() < expiresAt;
+const holder = (scope: string, margin = 0) => held.find((h) => h.scopes.includes(scope) && Date.now() + margin < h.expiresAt);
+/** Synchronisation privée possible : quelqu'un s'est connecté ici, et son jeton vaut encore. */
+const valid = () => !!useCloud.getState().user && !!holder(SCOPE_APPDATA);
+const fileFlag = () => {
+  try {
+    return localStorage.getItem(FILE_FLAG) === '1';
+  } catch {
+    return false;
+  }
+};
 
-export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: valid(), status: 'idle' }));
+/** Jeton donnant accès aux fichiers de l'application (relecture), s'il est encore valide. */
+export const driveFileToken = (): string | null => holder(SCOPE_FILE)?.token ?? null;
+
+export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: !!storedUser() && !!holder(SCOPE_APPDATA), fileAccess: !!holder(SCOPE_FILE), status: 'idle' }));
+
+/**
+ * Où en est la relecture en ligne (renseigné par `review.ts`) : un relecteur sans compte ne garde
+ * pas l'accès aux fichiers au-delà de sa relecture ; l'auteur d'une relecture publiée, si.
+ */
+let reviewContext = { reviewing: () => false, published: () => false };
+export const setReviewContext = (c: typeof reviewContext) => void (reviewContext = c);
 
 /** Charge le script de Google à l'avance : le clic de connexion doit ouvrir la fenêtre sans attendre. */
 export function preloadGoogle(): Promise<void> {
   if (!GOOGLE_CLIENT_ID) return Promise.resolve();
-  if (gis()) return Promise.resolve();
+  if (gis()?.accounts) return Promise.resolve();
   gisPromise ??= new Promise<void>((ok, ko) => {
     const sc = document.createElement('script');
-    sc.src = 'https://accounts.google.com/gsi/client';
+    sc.src = GIS_SCRIPT;
     sc.async = true;
     sc.onload = () => ok();
     sc.onerror = () => {
@@ -118,37 +148,95 @@ function fail(message: string) {
   useCloud.setState({ status: 'error', error: message });
 }
 
+/** Demande en cours auprès de Google : synchronisation (connexion) ou fichiers de l'application. */
+interface Request {
+  kind: 'sync' | 'file';
+  silent: boolean;
+  resolve?: (token: string) => void;
+  reject?: (e: Error) => void;
+}
+let inflight: Request | null = null;
+/** Renouvellement en cours sans fenêtre de choix (au premier clic, Google valide d'office l'accord déjà donné). */
+let renewing = false;
+
+function ask(g: Gis, req: Request, o: { prompt: string; hint?: string; scope: string }) {
+  inflight?.reject?.(new Error('Connexion interrompue.'));
+  inflight = req;
+  renewing = true;
+  tokenClient(g).requestAccessToken(o);
+}
+
+const syncScope = () => (fileFlag() ? `${SYNC_SCOPE} ${SCOPE_FILE}` : SYNC_SCOPE);
+
 /** Connexion (à appeler directement depuis un clic : Safari bloque sinon la fenêtre de Google). */
 export function signIn(): void {
   const g = gis();
-  if (!g) {
+  if (!g?.accounts) {
     void preloadGoogle().then(() => useUi.getState().toast({ message: 'Connexion prête : cliquez de nouveau.' }), (e: Error) => fail(e.message));
     return;
   }
   const user = useCloud.getState().user;
   // Le clic qui mène ici a pu déjà lancer le renouvellement discret : il suffit.
-  if (renewing) return;
-  silent = false;
-  tokenClient(g).requestAccessToken({ prompt: user ? '' : 'consent', hint: user?.email });
+  if (renewing && inflight?.kind === 'sync') {
+    inflight.silent = false;
+    return;
+  }
+  ask(g, { kind: 'sync', silent: false }, { prompt: user ? '' : 'consent', hint: user?.email, scope: syncScope() });
 }
 
-/** Renouvellement en cours sans fenêtre de choix (au premier clic, Google valide d'office l'accord déjà donné). */
-let silent = false;
-let renewing = false;
+/**
+ * Accès aux fichiers de l'application (portée drive.file, demandée en plus, au premier besoin) :
+ * publier une relecture, la commenter. À appeler depuis un clic. Ne déconnecte rien : la
+ * synchronisation privée garde sa portée.
+ */
+export function requestDriveFile(): Promise<string> {
+  const ready = holder(SCOPE_FILE, 60_000)?.token;
+  if (ready) return Promise.resolve(ready);
+  const g = gis();
+  if (!g?.accounts) {
+    void preloadGoogle().catch(() => undefined);
+    return Promise.reject(new Error('Connexion Google en cours de chargement : réessayez.'));
+  }
+  // Le même clic a déjà lancé le renouvellement discret (portées déjà accordées) : on l'attend.
+  const pending = renewing ? inflight : null;
+  if (pending && fileFlag()) {
+    pending.silent = false;
+    return new Promise<string>((resolve, reject) => {
+      const [ok, ko] = [pending.resolve, pending.reject];
+      pending.resolve = (t) => {
+        ok?.(t);
+        resolve(t);
+      };
+      pending.reject = (e) => {
+        ko?.(e);
+        reject(e);
+      };
+    });
+  }
+  const user = useCloud.getState().user;
+  return new Promise<string>((resolve, reject) => {
+    ask(g, { kind: 'file', silent: false, resolve, reject }, { prompt: '', hint: user?.email, scope: user ? `${SYNC_SCOPE} ${SCOPE_FILE}` : SCOPE_FILE });
+  });
+}
 
 function tokenClient(g: Gis): TokenClient {
   client ??= g.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    scope: SCOPE,
+    scope: SYNC_SCOPE,
     callback: (r) => {
       renewing = false;
-      void onToken(r);
+      const req = inflight;
+      inflight = null;
+      void onToken(r, req);
     },
     error_callback: (e) => {
       renewing = false;
+      const req = inflight;
+      inflight = null;
+      const message = e.type === 'popup_closed' ? 'Connexion annulée.' : 'Connexion impossible.';
+      req?.reject?.(new Error(message));
       // Un renouvellement discret qui échoue ne dérange pas : « Se reconnecter » reste possible.
-      if (silent) return;
-      fail(e.type === 'popup_closed' ? 'Connexion annulée.' : 'Connexion impossible.');
+      if (req?.kind === 'sync' && !req.silent) fail(message);
     },
   });
   return client;
@@ -156,21 +244,27 @@ function tokenClient(g: Gis): TokenClient {
 
 /**
  * Session tenue le plus longtemps possible : le jeton de Google dure une heure ; à moins de cinq
- * minutes de la fin (ou après), le premier clic ou la première touche le renouvelle sans rien demander.
- * (Safari n'ouvre la fenêtre de Google qu'en réponse à un geste.)
+ * minutes de la fin (ou après), le premier clic ou la première touche le renouvelle sans rien demander,
+ * avec les portées déjà accordées (synchronisation, relecture). Safari n'ouvre la fenêtre de Google
+ * qu'en réponse à un geste.
  */
 export function keepSessionAlive(): () => void {
   const onGesture = () => {
+    if (renewing) return;
     const user = useCloud.getState().user;
-    if (!user || renewing || (token && expiresAt - Date.now() > 5 * 60_000)) return;
+    const margin = 5 * 60_000;
+    const needSync = !!user && !holder(SCOPE_APPDATA, margin);
+    // Sans compte de synchronisation : seulement pour l'auteur d'une relecture publiée (un relecteur
+    // est redemandé au geste « Envoyer », jamais hors de sa relecture).
+    const needFile = fileFlag() && !holder(SCOPE_FILE, margin) && (!!user || reviewContext.published());
+    if (!needSync && !needFile) return;
     const g = gis();
-    if (!g) {
+    if (!g?.accounts) {
       void preloadGoogle().catch(() => undefined);
       return;
     }
-    renewing = true;
-    silent = true;
-    tokenClient(g).requestAccessToken({ prompt: '', hint: user.email });
+    if (user) ask(g, { kind: 'sync', silent: true }, { prompt: '', hint: user.email, scope: syncScope() });
+    else ask(g, { kind: 'file', silent: true }, { prompt: '', scope: SCOPE_FILE });
   };
   window.addEventListener('click', onGesture, true);
   window.addEventListener('keydown', onGesture, true);
@@ -180,13 +274,49 @@ export function keepSessionAlive(): () => void {
   };
 }
 
-async function onToken(r: TokenResponse) {
-  if (r.error || !r.access_token) return silent ? useCloud.setState({ connected: valid() }) : fail(r.error_description || 'Connexion refusée.');
-  token = r.access_token;
-  expiresAt = Date.now() + Math.max(60, (r.expires_in ?? 3600) - 60) * 1000;
-  keepToken();
+/** Portées réellement accordées (la fenêtre de Google laisse décocher une case). */
+function grantedScopes(r: TokenResponse, asked: string): string[] {
+  const listed = (r.scope ?? asked).split(/\s+/).filter(Boolean);
+  const check = gis()?.accounts?.oauth2.hasGrantedAllScopes;
+  if (!check) return listed;
+  return [...new Set([...listed, SCOPE_APPDATA, SCOPE_FILE])].filter((sc) => (sc === SCOPE_APPDATA || sc === SCOPE_FILE ? check(r, sc) : true));
+}
+
+async function onToken(r: TokenResponse, req: Request | null) {
+  const kind = req?.kind ?? 'sync';
+  if (r.error || !r.access_token) {
+    const message = r.error_description || 'Connexion refusée.';
+    req?.reject?.(new Error(message));
+    if (kind === 'sync') {
+      if (req?.silent) useCloud.setState({ connected: valid() });
+      else fail(message);
+    }
+    return;
+  }
+  const user = useCloud.getState().user;
+  let scopes = grantedScopes(r, kind === 'file' ? SCOPE_FILE : syncScope());
+  // Google cumule les accords déjà donnés par ce compte (ailleurs, pour la synchronisation) : sans
+  // connexion ici, l'accès aux fichiers ne vaut pas connexion, rien de privé ne se synchronise.
+  if (kind === 'file' && !user) scopes = scopes.filter((sc) => sc !== SCOPE_APPDATA);
+  const entry: Held = { token: r.access_token, expiresAt: Date.now() + Math.max(60, (r.expires_in ?? 3600) - 60) * 1000, scopes };
+  // Un jeton plus ancien n'est gardé que s'il porte une portée que le nouveau n'a pas.
+  held = [entry, ...held.filter((h) => Date.now() < h.expiresAt && h.scopes.some((sc) => !scopes.includes(sc)))];
+  keepTokens();
+  const file = scopes.includes(SCOPE_FILE);
+  if (file && (user || !reviewContext.reviewing())) {
+    try {
+      localStorage.setItem(FILE_FLAG, '1');
+    } catch {
+      /* stockage indisponible */
+    }
+  }
+  useCloud.setState({ fileAccess: !!holder(SCOPE_FILE), connected: valid() });
+  if (file) req?.resolve?.(entry.token);
+  else req?.reject?.(new Error('Accès à Google Drive non accordé.'));
+  if (kind === 'file') return;
+  if (!scopes.includes(SCOPE_APPDATA)) return fail('Accès à Google Drive non accordé.');
   try {
-    const me = (await (await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { authorization: `Bearer ${token}` } })).json()) as { email?: string; name?: string; picture?: string };
+    const me = (await (await fetch(USERINFO, { headers: { authorization: `Bearer ${entry.token}` } })).json()) as { email?: string; name?: string; picture?: string };
     const user: CloudUser = { email: me.email ?? '', name: me.name, picture: me.picture };
     try {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -201,17 +331,36 @@ async function onToken(r: TokenResponse) {
 }
 
 export function signOut(): void {
-  const t = token;
-  token = null;
-  expiresAt = 0;
-  keepToken();
-  if (t) gis()?.accounts.oauth2.revoke(t);
+  for (const h of held) gis()?.accounts?.oauth2.revoke(h.token);
+  held = [];
+  keepTokens();
   try {
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(FILE_FLAG);
   } catch {
     /* stockage indisponible */
   }
-  useCloud.setState({ user: null, connected: false, status: 'idle', error: undefined, lastSync: undefined });
+  useCloud.setState({ user: null, connected: false, fileAccess: false, status: 'idle', error: undefined, lastSync: undefined });
+}
+
+/** Relecture quittée par un relecteur sans compte ici : son accès aux fichiers est oublié. */
+export function forgetReviewerAccess(): void {
+  if (useCloud.getState().user) return;
+  held = held.filter((h) => h.scopes.includes(SCOPE_APPDATA));
+  keepTokens();
+  try {
+    localStorage.removeItem(FILE_FLAG);
+  } catch {
+    /* stockage indisponible */
+  }
+  useCloud.setState({ fileAccess: !!holder(SCOPE_FILE) });
+}
+
+/** Jeton refusé par Google (expiré, retiré) : oublié. */
+export function dropToken(token: string): void {
+  held = held.filter((h) => h.token !== token);
+  keepTokens();
+  useCloud.setState({ connected: valid(), fileAccess: !!holder(SCOPE_FILE) });
 }
 
 // --- Drive ---------------------------------------------------------------------------------------
@@ -223,15 +372,14 @@ interface DriveFile {
 }
 
 async function drive(url: string, init: RequestInit = {}): Promise<Response> {
-  if (!valid()) {
+  const token = holder(SCOPE_APPDATA)?.token;
+  if (!token) {
     useCloud.setState({ connected: false });
     throw new Error('Session Google expirée : reconnectez-vous.');
   }
   const res = await fetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), authorization: `Bearer ${token}` } });
   if (res.status === 401) {
-    token = null;
-    keepToken();
-    useCloud.setState({ connected: false });
+    dropToken(token);
     throw new Error('Session Google expirée : reconnectez-vous.');
   }
   if (!res.ok) throw new Error(`Google Drive a répondu ${res.status}.`);

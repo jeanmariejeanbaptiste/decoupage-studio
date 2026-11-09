@@ -33,6 +33,8 @@ interface ShareState {
   keep: boolean;
   guests: Guest[];
   hostName?: string;
+  /** Invité d'un partage en direct, ou relecteur d'une version publiée dans Google Drive (`review.ts`). */
+  via?: 'peer' | 'drive';
 }
 
 export const useShare = create<ShareState>(() => ({ role: 'none', status: 'idle', mode: 'edit', keep: false, guests: [] }));
@@ -265,7 +267,7 @@ export function stopHosting() {
 
 export async function joinSession(room: string, password: string, name: string): Promise<boolean> {
   leaveSession();
-  useShare.setState({ role: 'guest', status: 'joining', error: undefined, room });
+  useShare.setState({ role: 'guest', status: 'joining', error: undefined, room, via: 'peer' });
   try {
     peer = await newPeer();
     const conn = peer.connect(room, { reliable: true });
@@ -360,13 +362,29 @@ export function leaveSession(unload = true) {
     if (unload) useProjectStore.getState().loadDoc(null);
     if (shared && unload) void deleteProject(shared.project.id);
   }
-  useShare.setState({ role: 'none', status: 'idle', room: undefined, guests: [], hostName: undefined, error: undefined });
+  useShare.setState({ role: 'none', status: 'idle', room: undefined, guests: [], hostName: undefined, error: undefined, via: undefined });
+}
+
+/**
+ * Relecture d'une version publiée dans Google Drive : la même posture qu'un invité « Commenter »
+ * d'un partage en direct (seuls les commentaires s'écrivent, rien ne s'enregistre ici), sans
+ * connexion directe. Les images viennent de la source donnée.
+ */
+export function enterDriveReview(hostName: string, blobs: (key: string) => Promise<Blob | undefined>): void {
+  if (useShare.getState().role === 'host') stopHosting();
+  if (useShare.getState().role === 'guest') leaveSession(false);
+  useShare.setState({ role: 'guest', status: 'joined', mode: 'review', keep: false, hostName, guests: [], room: undefined, error: undefined, via: 'drive' });
+  setMutationGuard(() => commentWriting);
+  setPersistGuard(() => false);
+  setRemoteBlobSource(blobs);
 }
 
 /** Invité en lecture seule : l'interface ne montre que ce qui sert à regarder. */
 export const useReadOnly = () => useShare((s) => s.role === 'guest' && s.mode !== 'edit');
 /** Peut commenter : l'auteur, et les invités en relecture ou en modification. */
 export const useCanComment = () => useShare((s) => s.role !== 'guest' || s.mode !== 'read');
+/** Relecteur d'une version publiée dans Google Drive. */
+export const useDriveReview = () => useShare((s) => s.role === 'guest' && s.via === 'drive');
 /** Invité en relecture : l'écran se présente en aperçu, prêt à commenter. */
 export const useReviewing = () => useShare((s) => s.role === 'guest' && s.mode === 'review');
 

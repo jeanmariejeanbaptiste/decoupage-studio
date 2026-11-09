@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Eye, MessageSquare, PenLine, QrCode, Users, X } from 'lucide-react';
+import { QrScreen } from './QrScreen';
 import { navigate, useLocation } from '../../app/router';
 import { joinSession, kickGuest, leaveSession, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';
 import { useDoc } from '../../store/projectStore';
+import { preloadGoogle } from '../../store/cloud';
+import { syncReview } from '../../store/review';
+import { ReviewSection } from '../review/Review';
 import { Button } from '../../ui/Button';
-import { qrPath } from './qr';
 import s from './Share.module.css';
 
 const copy = async (text: string) => {
@@ -43,45 +45,6 @@ function KeepSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boo
   );
 }
 
-/** QR code du lien, en plein écran (à montrer à l'équipe), avec le mot de passe en grand. */
-function QrScreen({ link, password, onClose }: { link: string; password: string; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { size, path } = useMemo(() => qrPath(link), [link]);
-  useEffect(() => {
-    const el = ref.current;
-    let entered = false;
-    // Vrai plein écran quand le navigateur le permet ; sinon, l'écran recouvre la fenêtre.
-    el?.requestFullscreen?.().then(() => (entered = true)).catch(() => undefined);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    const onFs = () => entered && !document.fullscreenElement && onClose();
-    window.addEventListener('keydown', onKey);
-    document.addEventListener('fullscreenchange', onFs);
-    el?.focus();
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.removeEventListener('fullscreenchange', onFs);
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-    };
-  }, [onClose]);
-  return createPortal(
-    <div ref={ref} className={s.qrScreen} role="dialog" aria-modal="true" aria-label="QR code du partage" tabIndex={-1} data-testid="share-qr-screen">
-      <button type="button" className={s.qrClose} onClick={onClose} aria-label="Fermer">
-        <X size={22} strokeWidth={1.25} />
-      </button>
-      <svg className={s.qrCode} viewBox={`0 0 ${size} ${size}`} shapeRendering="crispEdges" role="img" aria-label={`QR code : ${link}`}>
-        <rect width={size} height={size} fill="#fff" />
-        <path d={path} fill="#000" />
-      </svg>
-      <p className={s.qrPass}>
-        <span>Mot de passe</span>
-        <b data-testid="share-qr-password">{password}</b>
-      </p>
-      <p className={s.qrLink}>{link}</p>
-    </div>,
-    document.body,
-  );
-}
-
 /** Bouton « Partager » de la barre du haut : ouvre, règle et ferme le partage du projet. */
 export function ShareButton() {
   const doc = useDoc();
@@ -108,7 +71,18 @@ export function ShareButton() {
   const link = st.room ? shareLink(st.room) : '';
   return (
     <div className={s.wrap} ref={ref}>
-      <button type="button" className={s.trigger} onClick={() => setOpen(!open)} aria-expanded={open} data-testid="share-button">
+      <button
+        type="button"
+        className={s.trigger}
+        // Connexion Google prête avant le clic sur « Publier » (la fenêtre de Google doit s'ouvrir au clic).
+        onPointerEnter={() => void preloadGoogle().catch(() => undefined)}
+        onClick={() => {
+          if (!open) void syncReview();
+          setOpen(!open);
+        }}
+        aria-expanded={open}
+        data-testid="share-button"
+      >
         {hosting ? <i className={s.liveDot} aria-hidden="true" /> : <Users size={15} strokeWidth={1.25} />}
         {hosting ? `Partagé${st.guests.length ? ` · ${st.guests.length}` : ''}` : 'Partager'}
       </button>
@@ -123,6 +97,7 @@ export function ShareButton() {
                 {st.status === 'opening' ? 'Ouverture…' : 'Ouvrir le partage'}
               </Button>
               <p className={s.note}>Le partage reste ouvert tant que cette page est ouverte.</p>
+              <ReviewSection doc={doc} />
             </>
           ) : (
             <>
@@ -167,6 +142,7 @@ export function ShareButton() {
               <Button variant="outline" className={s.block} onClick={stopHosting} data-testid="share-stop">
                 Fermer le partage
               </Button>
+              <ReviewSection doc={doc} />
             </>
           )}
         </div>

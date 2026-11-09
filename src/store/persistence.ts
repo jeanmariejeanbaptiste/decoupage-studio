@@ -1,4 +1,4 @@
-import { mediaKeys, mediaOfFile, migrate, parseProjectFile, serializeDoc, fileNameFor, FILE_EXTENSION, type MediaEntry } from '../domain/serialize';
+import { mediaKeys, mediaOfFile, migrate, parseProjectFile, projectCopy, serializeDoc, fileNameFor, FILE_EXTENSION, type MediaEntry } from '../domain/serialize';
 import { newId } from '../domain/factory';
 import type { ProjectDoc } from '../domain/types';
 import { ask } from '../ui/dialogStore';
@@ -176,7 +176,7 @@ export function downloadBlob(blob: Blob, name: string) {
   }, 60_000);
 }
 
-const toBase64 = (blob: Blob) =>
+export const blobToBase64 = (blob: Blob) =>
   new Promise<string>((ok, ko) => {
     const r = new FileReader();
     r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ''));
@@ -189,7 +189,7 @@ export async function collectMedia(doc: ProjectDoc): Promise<Record<string, Medi
   const out: Record<string, MediaEntry> = {};
   for (const key of mediaKeys(doc)) {
     const b = await getBlob(key);
-    if (b) out[key] = { type: b.type || 'application/octet-stream', data: await toBase64(b) };
+    if (b) out[key] = { type: b.type || 'application/octet-stream', data: await blobToBase64(b) };
   }
   return out;
 }
@@ -269,7 +269,7 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
         altLabel: 'Ouvrir comme copie',
         danger: true,
       });
-      if (r.alt) doc = { ...doc, project: { ...doc.project, id: newId(), title: `${doc.project.title} (copie)` } };
+      if (r.alt) doc = projectCopy(doc, newId());
       else if (!r.ok) return false;
     }
     await restoreMedia(text, doc.project.id);

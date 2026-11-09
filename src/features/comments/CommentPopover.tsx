@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Circle, X } from 'lucide-react';
 import { addComment, shownComments } from '../../domain/comments';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
-import { asComment, useCanComment } from '../../store/share';
+import { sendDriveItem } from '../../store/review';
+import { asComment, useCanComment, useDriveReview } from '../../store/share';
 import { Button } from '../../ui/Button';
 import { AttachButtons, Attachments } from './Attachments';
 import { CommentThread } from './CommentThread';
@@ -19,6 +20,7 @@ export function CommentPopover() {
   const drawing = useCommentsUi((u) => u.drawing);
   const doc = useProjectStore((st) => st.doc);
   const canComment = useCanComment();
+  const drive = useDriveReview();
   const box = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -50,7 +52,10 @@ export function CommentPopover() {
   const ready = !!draft.text.trim() || draft.attachments.length > 0 || marks > 0;
   const send = () => {
     if (!ready) return;
-    asComment(() => mutateDoc((d) => void addComment(d, pop.anchor, authorName(), draft.text, { attachments: draft.attachments, marks: draft.marks })));
+    let id: string | undefined;
+    asComment(() => void (id = mutateDoc((d) => addComment(d, pop.anchor, authorName(), draft.text, { attachments: draft.attachments, marks: draft.marks }))));
+    // Relecture en ligne : il part dans Google Drive (connexion, s'il en faut une, depuis ce geste).
+    if (id && drive) sendDriveItem({ comment: id });
     resetDraft();
   };
   return (

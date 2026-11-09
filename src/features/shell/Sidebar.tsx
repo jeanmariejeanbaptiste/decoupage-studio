@@ -1,9 +1,9 @@
-import { useCanCopy, useReadOnly } from '../../store/share';
+import { useCanCopy, useDriveReview, useReadOnly } from '../../store/share';
 import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
-import { PREP_STEPS, STEP_GROUPS } from './steps';
+import { PREP_STEPS, REVIEWED, STEP_GROUPS } from './steps';
 import s from './Sidebar.module.css';
 
 const ICON = { size: 16, strokeWidth: 1.25 } as const;
@@ -33,6 +33,9 @@ export function Sidebar({ activeRoute, collapsed = false, counts = {}, onNavigat
   const readOnly = useReadOnly();
   // Invité sans droit de copie : rien à exporter.
   const canCopy = useCanCopy();
+  // Relecture en ligne : seuls le scénario et le découpage sont publiés.
+  const drive = useDriveReview();
+  const shown = (route: Route) => !drive || REVIEWED.has(route);
   // Le storyboard est une vue du découpage technique.
   const current = activeRoute === 'storyboard' ? 'grid' : activeRoute;
   const item = (route: Route, label: string, mark: ReactNode, count?: number, testId?: string) => {
@@ -63,25 +66,23 @@ export function Sidebar({ activeRoute, collapsed = false, counts = {}, onNavigat
   return (
     <aside className={[s.sidebar, collapsed ? s.collapsed : '', 'no-print'].join(' ')} aria-label="Étapes du projet" data-collapsed={collapsed || undefined}>
       <nav className={s.nav}>
-        {STEP_GROUPS.map((g) => (
-          <div key={g.label} className={s.group}>
-            <p className={s.section}>{g.label}</p>
-            <ol className={s.steps}>
-              {g.steps.map((n) => {
-                const step = PREP_STEPS.find((x) => x.n === n)!;
-                return item(step.route, step.label, STEP_ICONS[step.route]);
-              })}
-            </ol>
-          </div>
-        ))}
-        <div className={s.group}>
+        {STEP_GROUPS.map((g) => {
+          const steps = g.steps.map((n) => PREP_STEPS.find((x) => x.n === n)!).filter((step) => shown(step.route));
+          return steps.length ? (
+            <div key={g.label} className={s.group}>
+              <p className={s.section}>{g.label}</p>
+              <ol className={s.steps}>{steps.map((step) => item(step.route, step.label, STEP_ICONS[step.route]))}</ol>
+            </div>
+          ) : null;
+        })}
+        {!drive && <div className={s.group}>
           <p className={s.section}>Projet</p>
           <ul className={s.steps}>
             {item('registry', 'Registre', <Database {...ICON} />, counts.registry)}
             {item('checks', 'Vérifications', <ShieldCheck {...ICON} />, counts.checks)}
             {canCopy && item('export', 'Exporter', <Download {...ICON} />)}
           </ul>
-        </div>
+        </div>}
       </nav>
 
       <div className={s.foot}>

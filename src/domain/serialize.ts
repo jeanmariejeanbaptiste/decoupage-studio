@@ -175,6 +175,16 @@ export function exportBase(doc: ProjectDoc): string {
   return fileNameFor(doc).slice(0, -FILE_EXTENSION.length);
 }
 
+/**
+ * Copie d'un projet sous un nouvel identifiant : sans le lien de sa relecture en ligne (le fichier
+ * publié reste à l'original ; la copie publiera le sien).
+ */
+export function projectCopy(doc: ProjectDoc, id: string): ProjectDoc {
+  const out: ProjectDoc = { ...doc, project: { ...doc.project, id, title: `${doc.project.title} (copie)` } };
+  delete out.review;
+  return out;
+}
+
 export function fileNameFor(doc: ProjectDoc): string {
   const base = `${doc.project.title || 'projet'} ${doc.project.version ?? ''}`
     .trim()
