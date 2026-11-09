@@ -121,6 +121,17 @@ test('paramètres : un brouillon de minutage cède au format changé dans le men
   await expect(track).toHaveValue(before);
 });
 
+test('paramètres : Annuler et Enregistrer à la même place dans chaque rubrique, sans titre répété', async ({ page }) => {
+  const ys: number[] = [];
+  for (const sec of ['minutage', 'scenario', 'raccourcis']) {
+    await page.goto(`/#/settings?seed=fiction&section=${sec}`);
+    await expect(page.locator(`[data-section="${sec}"]`)).toBeVisible();
+    await expect(page.locator(`[data-section="${sec}"] h2`)).toHaveCount(0);
+    ys.push(Math.round((await page.getByTestId('settings-save').boundingBox())!.y));
+  }
+  expect(new Set(ys).size).toBe(1);
+});
+
 test('états vides et lien d’évitement', async ({ page }) => {
   await page.goto('/#/');
   await expect(page.getByText('Aucun projet pour l’instant')).toBeVisible();

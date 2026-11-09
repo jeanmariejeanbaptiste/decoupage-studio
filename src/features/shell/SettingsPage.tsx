@@ -98,10 +98,7 @@ const CurrentSection = createContext<SectionId>('minutage');
 function Section({ id, title, children }: { id: SectionId; title: string; children: ReactNode }) {
   if (useContext(CurrentSection) !== id) return null;
   return (
-    <section id={`reglages-${id}`} data-section={id} className={s.section} aria-labelledby={`reglages-${id}-h`}>
-      <h2 id={`reglages-${id}-h`} className={s.h2}>
-        {title}
-      </h2>
+    <section id={`reglages-${id}`} data-section={id} className={s.section} aria-label={title}>
       {children}
     </section>
   );
@@ -251,7 +248,6 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
       }}
     >
       <nav className={s.nav} aria-label="Rubriques des paramètres">
-        <p className={s.navTitle}>Paramètres</p>
         <ul>
           {SECTIONS.map(([id, label]) => (
             <li key={id}>
@@ -390,7 +386,7 @@ function ScriptTimingSection() {
   );
   return (
     <Section id="scenario" title="Scénario">
-      <Row label="Minutage">
+      <Row label="Méthode">
         <Radio
           name="Minutage du scénario"
           value={c.method}
