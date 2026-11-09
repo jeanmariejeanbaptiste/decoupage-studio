@@ -61,9 +61,65 @@ export async function readFile(token: string, ref: DriveRef): Promise<string> {
   return (await call(`${DRIVE_API}/files/${encodeURIComponent(ref.id)}?alt=media`, { token, headers: keyHeader(ref) })).text();
 }
 
-/** Lit un fichier ouvert à tous ceux qui ont le lien, sans compte (clé d'API). */
-export async function readPublic(ref: DriveRef): Promise<Blob> {
-  return (await call(`${DRIVE_API}/files/${encodeURIComponent(ref.id)}?alt=media&key=${encodeURIComponent(GOOGLE_API_KEY)}`, { headers: keyHeader(ref) })).blob();
+/** Fichier plus lourd que permis (pièce jointe, tracés rangés à part). */
+export class TooLargeError extends Error {
+  constructor() {
+    super('Fichier trop lourd.');
+  }
+}
+
+/** Corps de la réponse, coupé au-delà de `max` octets (sans tout télécharger). */
+export async function boundedBlob(res: Response, max: number): Promise<Blob> {
+  const type = res.headers.get('content-type') ?? '';
+  if (Number(res.headers.get('content-length') ?? 0) > max) {
+    void res.body?.cancel().catch(() => undefined);
+    throw new TooLargeError();
+  }
+  if (!res.body) {
+    const b = await res.blob();
+    if (b.size > max) throw new TooLargeError();
+    return b;
+  }
+  const reader = res.body.getReader();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      void reader.cancel().catch(() => undefined);
+      throw new TooLargeError();
+    }
+    parts.push(value);
+  }
+  return new Blob(parts as BlobPart[], { type });
+}
+
+/**
+ * Lit un fichier ouvert à tous ceux qui ont le lien, sans compte (clé d'API). `max` : taille au-delà
+ * de laquelle la lecture s'arrête (fichiers nommés par un relecteur).
+ */
+export async function readPublic(ref: DriveRef, max?: number): Promise<Blob> {
+  const res = await call(`${DRIVE_API}/files/${encodeURIComponent(ref.id)}?alt=media&key=${encodeURIComponent(GOOGLE_API_KEY)}`, { headers: keyHeader(ref) });
+  return max ? boundedBlob(res, max) : res.blob();
+}
+
+/** Le lien mène-t-il encore au fichier (lecture sans compte des seules métadonnées) ? */
+export async function linkOpen(ref: DriveRef): Promise<boolean> {
+  try {
+    await call(`${DRIVE_API}/files/${encodeURIComponent(ref.id)}?fields=id&key=${encodeURIComponent(GOOGLE_API_KEY)}`, { headers: keyHeader(ref) });
+    return true;
+  } catch (e) {
+    if (e instanceof DriveError && (e.status === 404 || e.status === 403)) return false;
+    throw e;
+  }
+}
+
+/** Numéro de version du fichier (il change à chaque écriture, d'où qu'elle vienne). */
+export async function fileVersion(token: string, id: string): Promise<string> {
+  const j = (await (await call(`${DRIVE_API}/files/${encodeURIComponent(id)}?fields=version`, { token })).json()) as { version?: string | number };
+  return String(j.version ?? '');
 }
 
 /** Ouvre le fichier à tous ceux qui ont le lien (commentateurs, ou lecteurs pour une image jointe). */

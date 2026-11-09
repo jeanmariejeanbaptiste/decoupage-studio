@@ -104,7 +104,8 @@ function keepTokens(): void {
 
 const gis = () => (window as unknown as { google?: Gis }).google;
 const holder = (scope: string, margin = 0) => held.find((h) => h.scopes.includes(scope) && Date.now() + margin < h.expiresAt);
-const valid = () => !!holder(SCOPE_APPDATA);
+/** Synchronisation privée possible : quelqu'un s'est connecté ici, et son jeton vaut encore. */
+const valid = () => !!useCloud.getState().user && !!holder(SCOPE_APPDATA);
 const fileFlag = () => {
   try {
     return localStorage.getItem(FILE_FLAG) === '1';
@@ -116,7 +117,14 @@ const fileFlag = () => {
 /** Jeton donnant accès aux fichiers de l'application (relecture), s'il est encore valide. */
 export const driveFileToken = (): string | null => holder(SCOPE_FILE)?.token ?? null;
 
-export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: valid(), fileAccess: !!holder(SCOPE_FILE), status: 'idle' }));
+export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: !!storedUser() && !!holder(SCOPE_APPDATA), fileAccess: !!holder(SCOPE_FILE), status: 'idle' }));
+
+/**
+ * Où en est la relecture en ligne (renseigné par `review.ts`) : un relecteur sans compte ne garde
+ * pas l'accès aux fichiers au-delà de sa relecture ; l'auteur d'une relecture publiée, si.
+ */
+let reviewContext = { reviewing: () => false, published: () => false };
+export const setReviewContext = (c: typeof reviewContext) => void (reviewContext = c);
 
 /** Charge le script de Google à l'avance : le clic de connexion doit ouvrir la fenêtre sans attendre. */
 export function preloadGoogle(): Promise<void> {
@@ -246,7 +254,9 @@ export function keepSessionAlive(): () => void {
     const user = useCloud.getState().user;
     const margin = 5 * 60_000;
     const needSync = !!user && !holder(SCOPE_APPDATA, margin);
-    const needFile = fileFlag() && !holder(SCOPE_FILE, margin);
+    // Sans compte de synchronisation : seulement pour l'auteur d'une relecture publiée (un relecteur
+    // est redemandé au geste « Envoyer », jamais hors de sa relecture).
+    const needFile = fileFlag() && !holder(SCOPE_FILE, margin) && (!!user || reviewContext.published());
     if (!needSync && !needFile) return;
     const g = gis();
     if (!g?.accounts) {
@@ -283,13 +293,17 @@ async function onToken(r: TokenResponse, req: Request | null) {
     }
     return;
   }
-  const scopes = grantedScopes(r, kind === 'file' ? SCOPE_FILE : syncScope());
+  const user = useCloud.getState().user;
+  let scopes = grantedScopes(r, kind === 'file' ? SCOPE_FILE : syncScope());
+  // Google cumule les accords déjà donnés par ce compte (ailleurs, pour la synchronisation) : sans
+  // connexion ici, l'accès aux fichiers ne vaut pas connexion, rien de privé ne se synchronise.
+  if (kind === 'file' && !user) scopes = scopes.filter((sc) => sc !== SCOPE_APPDATA);
   const entry: Held = { token: r.access_token, expiresAt: Date.now() + Math.max(60, (r.expires_in ?? 3600) - 60) * 1000, scopes };
   // Un jeton plus ancien n'est gardé que s'il porte une portée que le nouveau n'a pas.
   held = [entry, ...held.filter((h) => Date.now() < h.expiresAt && h.scopes.some((sc) => !scopes.includes(sc)))];
   keepTokens();
   const file = scopes.includes(SCOPE_FILE);
-  if (file) {
+  if (file && (user || !reviewContext.reviewing())) {
     try {
       localStorage.setItem(FILE_FLAG, '1');
     } catch {
@@ -327,6 +341,19 @@ export function signOut(): void {
     /* stockage indisponible */
   }
   useCloud.setState({ user: null, connected: false, fileAccess: false, status: 'idle', error: undefined, lastSync: undefined });
+}
+
+/** Relecture quittée par un relecteur sans compte ici : son accès aux fichiers est oublié. */
+export function forgetReviewerAccess(): void {
+  if (useCloud.getState().user) return;
+  held = held.filter((h) => h.scopes.includes(SCOPE_APPDATA));
+  keepTokens();
+  try {
+    localStorage.removeItem(FILE_FLAG);
+  } catch {
+    /* stockage indisponible */
+  }
+  useCloud.setState({ fileAccess: !!holder(SCOPE_FILE) });
 }
 
 /** Jeton refusé par Google (expiré, retiré) : oublié. */
