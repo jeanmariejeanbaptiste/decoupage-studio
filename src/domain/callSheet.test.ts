@@ -156,3 +156,47 @@ describe('tournage de nuit', () => {
     expect(set.schedule!.days.find((x) => x.n === 1)!.banners![0].start).toBe('26:00');
   });
 });
+
+describe('repas ajouté au déroulé', () => {
+  it('se place à midi, et la reprise ne dure jamais zéro minute', () => {
+    const doc = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      updateDay(d, 1, { callTime: '08:00' });
+      addBanner(d, 1, 'repas');
+    });
+    const ag = dayAgenda(doc, 1);
+    const i = ag.findIndex((x) => x.type === 'banner');
+    const before = ag[i - 1];
+    // Bandes 08:00–11:00 puis 11:00–15:00 : le repas suit la première (fin la plus proche de midi).
+    expect(before).toMatchObject({ type: 'strip', end: '11:00' });
+    expect(i).toBeLessThan(ag.length - 1);
+    const k = dayKeyTimes(doc, 1);
+    expect(k.restart?.start).toBe(ag[i + 1].start);
+    expect(k.restart?.end).toBe(ag.at(-1)!.end);
+    // Sans horaire : après la bande du milieu. Les autres bandeaux restent en fin de journée.
+    const bare = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      addBanner(d, 1, 'repas');
+      addBanner(d, 1, 'trajet');
+    });
+    const ag2 = dayAgenda(bare, 1);
+    const strips = ag2.filter((x) => x.type === 'strip').length;
+    expect(ag2.findIndex((x) => x.type === 'banner' && x.banner.kind === 'repas')).toBe(Math.ceil(strips / 2));
+    expect(ag2.at(-1)).toMatchObject({ type: 'banner', banner: { kind: 'trajet' } });
+  });
+
+  it('repas en fin de journée : pas de reprise de 16:00 à 16:00, ni de nuit de 04:00 à 04:00', () => {
+    for (const call of ['08:00', '20:00']) {
+      const doc = produce(buildRav3(), (d) => {
+        suggestSchedule(d, 15);
+        updateDay(d, 1, { callTime: call });
+        const id = addBanner(d, 1, 'trajet');
+        d.schedule!.days.find((x) => x.n === 1)!.banners!.find((b) => b.id === id)!.kind = 'repas';
+      });
+      const k = dayKeyTimes(doc, 1);
+      expect(k.meal).toBeDefined();
+      expect(k.restart).toBeUndefined();
+      expect(callSheetDocument(doc, 1).html).not.toContain('<th>Reprise</th>');
+    }
+  });
+});

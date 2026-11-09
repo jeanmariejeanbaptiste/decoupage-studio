@@ -713,12 +713,22 @@ export function setDayMeal(doc: ProjectDoc, day: number, patch: { start?: string
   }
 }
 
+/**
+ * Ajoute un bandeau au déroulé du jour, en fin de journée ; un repas se place vers midi : après la
+ * bande dont la fin est la plus proche de 12:00, ou, sans horaire, après la bande du milieu.
+ */
 export function addBanner(doc: ProjectDoc, day: number, kind: BannerKind): ID {
   const d = dayOf(doc, day);
-  const last = [...dayAgenda(doc, day)].reverse().find((i) => i.type === 'strip');
+  const strips = dayAgenda(doc, day).filter((i): i is Extract<AgendaItem, { type: 'strip' }> => i.type === 'strip');
+  let host = strips.at(-1);
+  if (kind === 'repas' && strips.length) {
+    const gap = (i: (typeof strips)[number]) => Math.abs(toMin(i.end!) - 12 * 60);
+    const timed = strips.filter((i) => i.end);
+    host = timed.length ? timed.reduce((a, b) => (gap(b) < gap(a) ? b : a)) : strips[Math.ceil(strips.length / 2) - 1];
+  }
   const id = newId();
   const minutes = BANNER_KINDS.find((k) => k.kind === kind)?.minutes ?? 30;
-  (d.banners ??= []).push({ id, kind, minutes, ...(last?.type === 'strip' ? { after: last.strip.seqId } : {}) });
+  (d.banners ??= []).push({ id, kind, minutes, ...(host ? { after: host.strip.seqId } : {}) });
   return id;
 }
 

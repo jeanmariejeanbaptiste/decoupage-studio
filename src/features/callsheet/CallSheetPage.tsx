@@ -258,12 +258,12 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                 />
               </div>
             </div>
-            {keys.meal ? (
+            {keys.restart ? (
               <div className={s.key} role="group" aria-label="Reprise" data-testid="callsheet-restart">
                 <span>Reprise</span>
                 <div className={s.range}>
                   <output className={s.rangeFixed} aria-label="Début de la reprise">
-                    {showTime(keys.restart?.start ?? keys.meal.end)}
+                    {showTime(keys.restart.start)}
                   </output>
                   <span>à</span>
                   {wrapInput}
