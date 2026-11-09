@@ -529,22 +529,24 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
               </option>
             ))}
           </select>
-          <span className={s.sep} />
-          {btn('image', 'Insérer une image', <ImagePlus {...IC} />, () => fileInput.current?.click())}
-          {btn('pagebreak', 'Saut de page (⌘ Entrée)', <SeparatorHorizontal {...IC} />, () => exec('insertHTML', '<hr class="page-break"><p><br></p>'))}
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/*"
-            className="visually-hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = '';
-              if (f) void insertImage(f);
-            }}
-            data-testid="note-image-input"
-          />
-          {trail && <span className={s.trail}>{trail}</span>}
+          {/* Insertion et export : d'un seul tenant, à droite (ils passent à la ligne ensemble). */}
+          <span className={s.tail}>
+            {btn('image', 'Insérer une image', <ImagePlus {...IC} />, () => fileInput.current?.click())}
+            {btn('pagebreak', 'Saut de page (⌘ Entrée)', <SeparatorHorizontal {...IC} />, () => exec('insertHTML', '<hr class="page-break"><p><br></p>'))}
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              className="visually-hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void insertImage(f);
+              }}
+              data-testid="note-image-input"
+            />
+            {trail && <span className={s.trail}>{trail}</span>}
+          </span>
         </div>
       )}
       {readOnly && trail && <div className={s.readTrail}>{trail}</div>}
