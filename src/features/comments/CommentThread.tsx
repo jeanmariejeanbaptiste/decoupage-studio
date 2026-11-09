@@ -10,15 +10,22 @@ import s from './Comments.module.css';
 
 const when = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-/** Relecture en ligne : où en est l'envoi d'un commentaire (rien une fois arrivé). */
+/** Relecture en ligne : où en est l'envoi (ou le retrait) d'un commentaire (rien une fois fait). */
 function SendState({ item }: { item: DriveItem }) {
   const st = useReview((r) => r.pending[item.reply ?? item.comment]);
   if (st === 'sending') return <span className={s.note}>Envoi…</span>;
-  if (st === 'failed')
+  if (st === 'removing') return <span className={s.note}>Retrait…</span>;
+  if (st === 'stopped')
     return (
-      <span className={s.note} data-testid="comment-unsent">
-        Non envoyé —{' '}
-        <button type="button" className={s.retry} onClick={() => sendDriveItem(item)}>
+      <span className={s.note} data-testid="comment-stopped">
+        Relecture arrêtée
+      </span>
+    );
+  if (st === 'failed' || st === 'unremoved')
+    return (
+      <span className={s.note} data-testid={st === 'failed' ? 'comment-unsent' : 'comment-unremoved'}>
+        {st === 'failed' ? 'Non envoyé' : 'Non retiré'} —{' '}
+        <button type="button" className={s.retry} onClick={() => (st === 'failed' ? sendDriveItem(item) : deleteDriveItem(item))}>
           Réessayer
         </button>
       </span>
@@ -41,7 +48,7 @@ function OwnTools({ item, onEdit, small }: { item: DriveItem; onEdit: () => void
   );
 }
 
-/** Texte d'un commentaire, ou sa correction en cours. */
+/** Texte d'un commentaire, ou sa correction en cours (Entrée valide, Maj+Entrée va à la ligne). */
 function Body({ text, editing, onDone }: { text: string; editing: boolean; onDone: (next: string | null) => void }) {
   const [value, setValue] = useState(text);
   // Une seule issue : Entrée, Échap ou sortie du champ.
@@ -60,14 +67,18 @@ function Body({ text, editing, onDone }: { text: string; editing: boolean; onDon
         finish(value);
       }}
     >
-      <input
+      <textarea
         autoFocus
+        rows={Math.min(8, Math.max(2, value.split('\n').length))}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.stopPropagation();
             finish(null);
+          } else if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            finish(value);
           }
         }}
         onBlur={() => finish(value)}
@@ -95,7 +106,8 @@ export function CommentThread({ c, from }: { c: ReviewComment; from?: string }) 
   const [reply, setReply] = useState('');
   const [files, setFiles] = useState<string[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
-  const own = (x: { id: string; remoteId?: string }) => drive && isMine({ mine, pending }, x);
+  // Pas pendant un envoi ou un retrait : la correction ou le retrait attend qu'il aboutisse.
+  const own = (x: { id: string; remoteId?: string }) => drive && isMine({ mine, pending }, x) && pending[x.id] !== 'sending' && pending[x.id] !== 'removing';
   const send = () => {
     if (!reply.trim() && !files.length) return;
     let rid: string | undefined;

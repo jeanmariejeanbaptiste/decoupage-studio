@@ -1,4 +1,4 @@
-import { useCanComment, useReadOnly, useShare } from '../../store/share';
+import { useCanComment, useDriveReview, useReadOnly, useShare } from '../../store/share';
 import { shownComments } from '../../domain/comments';
 import { MarkLayer } from '../comments/MarkLayer';
 import { clearFocus, openComment, useCommentsUi } from '../comments/commentsUi';
@@ -98,7 +98,10 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     store('ds-scenario-side', on ? '1' : '0');
   };
   // « Plans » n'a de sens qu'en vue Découpage : en vue Scénario, le panneau revient aux séquences.
-  const tab: Tab = tabState === 'shots' && view !== 'cut' ? 'scenes' : tabState;
+  // Relecture en ligne : fiches et recherche ne sont pas publiées, seules les séquences (et les plans).
+  const drive = useDriveReview();
+  const tabShown = (t: Tab) => (t !== 'shots' || view === 'cut') && (!drive || t === 'scenes' || t === 'shots');
+  const tab: Tab = tabShown(tabState) ? tabState : 'scenes';
   const setTab = (t: Tab) => {
     setTabState(t);
     store('ds-scenario-tab', t);
@@ -505,7 +508,7 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
             <aside className={s.side} aria-label="Navigation du scénario">
               <div className={s.tabs} role="tablist">
                 {/* « Plans » garde sa place hors de la vue Découpage (invisible) : les onglets ne bougent pas. */}
-                {TABS.map(([t, label, Icon]) => (
+                {TABS.filter(([t]) => !drive || t === 'scenes' || t === 'shots').map(([t, label, Icon]) => (
                   <button
                     key={t}
                     type="button"

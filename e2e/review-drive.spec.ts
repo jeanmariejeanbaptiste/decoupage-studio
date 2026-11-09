@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs';
 test.describe.configure({ mode: 'serial' });
 
 const CONFIG = JSON.stringify({ clientId: 'test-client.apps.googleusercontent.com', apiKey: 'test-api-key', appId: '123456789' });
-const USERS: Record<string, string> = { 'tok-author': 'Réalisation', 'tok-nina': 'Nina Relectrice' };
+const USERS: Record<string, string> = { 'tok-author': 'Réalisation', 'tok-nina': 'Nina Relectrice', 'tok-paul': 'Paul Relecteur' };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-expose-headers': '*' };
 const PREFLIGHT = { ...CORS, 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS' };
 
@@ -20,6 +20,7 @@ interface FakeFile {
   owner: string;
   rk?: string;
   perms: Array<{ id: string; type: string; role: string }>;
+  version?: number;
 }
 interface FakeComment {
   id: string;
@@ -41,6 +42,19 @@ class FakeGoogle {
   snapshotText(): string {
     const f = [...this.files.values()].find((x) => x.name.endsWith('.json') && x.name.startsWith('Découpage Studio — ') && x.mime === 'application/json' && !x.name.includes('tracés'));
     return f ? f.body.toString('utf8') : '';
+  }
+  /** Fichier ouvert à tous par le lien, déposé par un compte (pièce jointe d'un relecteur). */
+  addPublic(owner: string, name: string, mime: string, body: Buffer): string {
+    const id = this.next('file');
+    this.files.set(id, { id, name, mime, body, owner, perms: [{ id: 'anyoneWithLink', type: 'anyone', role: 'reader' }] });
+    return id;
+  }
+  /** Commentaire posé directement dans Drive (par un relecteur, hors de l'application). */
+  addComment(fileId: string, owner: string, content: string): string {
+    const now = new Date(Date.now() + ++this.seq).toISOString();
+    const c: FakeComment = { id: this.next('cmt'), content, owner, createdTime: now, modifiedTime: now };
+    this.comments.set(fileId, [...(this.comments.get(fileId) ?? []), c]);
+    return c.id;
   }
   snapshotId(): string {
     return [...this.files.values()].find((x) => x.name.startsWith('Découpage Studio — La Consigne'))?.id ?? '';
@@ -91,6 +105,7 @@ class FakeGoogle {
       if (!f) return fail(404, 'notFound');
       if (f.owner !== token) return fail(403, 'insufficientFilePermissions');
       f.body = req.postDataBuffer() ?? Buffer.alloc(0);
+      f.version = (f.version ?? 1) + 1;
       return json(200, { id: f.id });
     }
     m = /^\/drive\/v3\/files\/([^/]+)$/.exec(path);
@@ -98,6 +113,12 @@ class FakeGoogle {
       const f = this.files.get(m[1]);
       if (!f || !this.canSee(f, token, token ? null : url.searchParams.get('key'), req.headers()['x-goog-drive-resource-keys'])) return fail(404, 'notFound');
       return route.fulfill({ status: 200, headers: CORS, contentType: f.mime, body: f.body });
+    }
+    // Métadonnées : numéro de version (propriétaire), existence du lien (clé d'API).
+    if (m && method === 'GET') {
+      const f = this.files.get(m[1]);
+      if (!f || !this.canSee(f, token, token ? null : url.searchParams.get('key'), req.headers()['x-goog-drive-resource-keys'])) return fail(404, 'notFound');
+      return json(200, url.searchParams.get('fields') === 'version' ? { version: String(f.version ?? 1) } : { id: f.id });
     }
     m = /^\/drive\/v3\/files\/([^/]+)\/permissions(?:\/([^/]+))?$/.exec(path);
     if (m) {
@@ -138,7 +159,8 @@ class FakeGoogle {
       }
       const c = list.find((x) => x.id === m![2]);
       if (!c) return fail(404, 'notFound');
-      if (c.owner !== token) return fail(403, 'insufficientFilePermissions');
+      // Le propriétaire du fichier peut retirer tout commentaire ; chacun peut corriger ou retirer le sien.
+      if (c.owner !== token && !(method === 'DELETE' && f.owner === token)) return fail(403, 'insufficientFilePermissions');
       if (method === 'PATCH') {
         c.content = (req.postDataJSON() as { content: string }).content;
         c.modifiedTime = new Date().toISOString();
@@ -367,7 +389,7 @@ test('relecture en ligne : publier, lire sans compte, commenter (connexion, sél
 
   // Le relecteur voit V2, et le commentaire de V1 repris à sa place.
   await focus(nina);
-  await expect(nina.getByTestId('version-switcher')).toHaveText('V2');
+  await expect(nina.getByTestId('version-name')).toHaveText('V2');
   await nina.locator('td[data-commented]').first().click();
   const carried = nina.getByTestId('comment-popover').getByTestId('comment').filter({ hasText: 'plan large' });
   await expect(carried).toContainText('V1');
@@ -400,6 +422,271 @@ test('relecture en ligne : lien arrêté, puis repris', async ({ browser }) => {
   await expect(section.getByTestId('review-stop')).toHaveText('Arrêter');
   await nina.reload();
   await expect(nina.getByTestId('guest-banner')).toContainText('relecture');
+});
+
+/** L'auteur publie V1 ; renvoie sa page et le lien. */
+async function published(browser: Browser, fake: FakeGoogle) {
+  const { page: author } = await authorWithSecrets(browser, fake);
+  await author.getByTestId('share-button').click();
+  const section = author.getByTestId('review-section');
+  await section.getByTestId('review-publish').click();
+  await expect(section.getByTestId('review-publish')).toHaveText('Mettre à jour V1', { timeout: 20_000 });
+  await expect(section.getByTestId('review-state')).toContainText('V1 publiée le');
+  await expect(section.getByTestId('review-state')).not.toContainText('arrêté');
+  const link = (await section.getByTestId('review-link').textContent())!;
+  await author.getByTestId('share-button').click();
+  await expect(author.getByTestId('share-panel')).toHaveCount(0);
+  return { author, link };
+}
+
+/** Un relecteur ouvre le lien et commente la première cellule « valeur ». */
+async function reviewerComments(browser: Browser, fake: FakeGoogle, link: string, text: string, token = 'tok-nina', init?: () => void) {
+  const { ctx, page } = await person(browser, fake, token);
+  if (init) await ctx.addInitScript(init);
+  await page.goto(link);
+  await expect(page.getByTestId('export-table').first()).toBeVisible();
+  await page.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await page.getByTestId('comment-text').fill(text);
+  await page.getByTestId('comment-send').click();
+  return page;
+}
+
+/** Images rangées dans ce navigateur, venues de Drive : clé → type. */
+const driveBlobs = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<Record<string, string>>((ok) => {
+        const r = indexedDB.open('decoupage-studio');
+        r.onsuccess = () => {
+          const out: Record<string, string> = {};
+          const c = r.result.transaction('blobs').objectStore('blobs').openCursor();
+          c.onsuccess = () => {
+            const cur = c.result;
+            if (!cur) return ok(out);
+            const v = cur.value as { key: string; blob: Blob };
+            if (v.key.startsWith('drive:')) out[v.key] = v.blob.type;
+            cur.continue();
+          };
+        };
+      }),
+  );
+
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64');
+const trailer = (text: string, p: Record<string, unknown>) => `${text}\n\nds:1 ${JSON.stringify(p)}`;
+
+test('pièces jointes venues de Drive : réencodées en JPEG, jamais une page ni un SVG servis tels quels', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { author, link } = await published(browser, fake);
+  const good = fake.addPublic('tok-nina', 'image.png', 'image/png', PNG);
+  const evil = fake.addPublic('tok-nina', 'page.html', 'text/html', Buffer.from('<script>document.title = "pwned"</script>'));
+  const svg = fake.addPublic('tok-nina', 'image.svg', 'image/svg+xml', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>document.title = "pwned"</script></svg>'));
+  fake.addComment(fake.snapshotId(), 'tok-nina', trailer('Trois images', { i: 'piege00001', f: [{ id: good }, { id: evil }, { id: svg }] }));
+
+  // Chez l'auteur : seule l'image matricielle est rangée, réencodée.
+  await focus(author);
+  await expect.poll(async () => (await driveBlobs(author))[`drive:${good}`]).toBe('image/jpeg');
+  const kept = await driveBlobs(author);
+  expect(kept[`drive:${evil}`]).toBeUndefined();
+  // Un SVG n'est jamais rangé tel quel (au mieux, son rendu en JPEG).
+  expect(Object.values(kept).every((t) => t === 'image/jpeg')).toBe(true);
+  // Renvoyée aux relecteurs avec le commentaire.
+  await expect.poll(() => fake.snapshotText(), { timeout: 40_000 }).toContain('Trois images');
+
+  // Chez le relecteur : une seule vignette, une image JPEG ; rien d'autre ne s'ouvre.
+  const { page: nina } = await person(browser, fake, 'tok-nina');
+  await nina.goto(link);
+  await nina.getByTestId('version-switcher').click();
+  const thumbs = nina.getByTestId('comments-panel').getByTestId('comment-attachments');
+  await expect(thumbs.locator('img').first()).toBeVisible();
+  await nina.waitForTimeout(500);
+  const hrefs = await thumbs.locator('img').evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).src));
+  expect(hrefs.length).toBeLessThanOrEqual(2);
+  for (const u of hrefs) expect(await nina.evaluate(async (x) => (await (await fetch(x)).blob()).type, u)).toBe('image/jpeg');
+  // Une vignette sans image reste vide (la page HTML n'est jamais montrée ni liée).
+  await expect(thumbs.locator('i')).toHaveCount(3 - hrefs.length);
+  expect(await nina.title()).not.toContain('pwned');
+  expect(await driveBlobs(nina)).toEqual({});
+});
+
+test('relecteur : correction gardée tant qu’elle n’est pas partie, retours à la ligne, retrait manqué, rien à corriger pendant l’envoi', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { link } = await published(browser, fake);
+  const nina = await reviewerComments(browser, fake, link, 'Ligne un\nLigne deux');
+  const pop = nina.getByTestId('comment-popover');
+  const cmts = () => fake.comments.get(fake.snapshotId()) ?? [];
+  await expect(pop.getByText('Envoi…')).toHaveCount(0);
+  expect(cmts()[0].content).toMatch(/^Ligne un\nLigne deux\n\nds:1 /);
+
+  // Corriger garde les retours à la ligne.
+  await pop.getByTestId('comment-edit').click();
+  await pop.getByTestId('comment-edit-text').fill('Ligne un\nLigne deux !');
+  await nina.keyboard.press('Enter');
+  await expect.poll(() => cmts()[0].content).toMatch(/^Ligne un\nLigne deux !\n\nds:1 /);
+
+  // Correction refusée par Drive : elle reste, marquée, même après un relevé.
+  const patch500 = (r: Route) => (r.request().method() === 'PATCH' ? r.fulfill({ status: 500, headers: CORS, body: '{}' }) : fake.handle(r));
+  await nina.route('**/drive/v3/files/*/comments/*', patch500);
+  await pop.getByTestId('comment-edit').click();
+  await pop.getByTestId('comment-edit-text').fill('Texte corrigé');
+  await nina.keyboard.press('Enter');
+  await expect(pop.getByTestId('comment-unsent')).toBeVisible();
+  const listed = nina.waitForResponse((r) => r.url().includes('/comments?') && r.request().method() === 'GET');
+  await focus(nina);
+  await listed;
+  await nina.waitForTimeout(300);
+  await expect(pop.getByTestId('comment').first()).toContainText('Texte corrigé');
+  await expect(pop.getByTestId('comment-unsent')).toBeVisible();
+  await nina.unroute('**/drive/v3/files/*/comments/*', patch500);
+  await pop.getByRole('button', { name: 'Réessayer' }).click();
+  await expect.poll(() => cmts()[0].content).toMatch(/^Texte corrigé\n\nds:1 /);
+  await expect(pop.getByTestId('comment-unsent')).toHaveCount(0);
+
+  // Pendant l'envoi d'un nouveau commentaire : ni corriger ni retirer.
+  const slow = async (r: Route) => {
+    if (r.request().method() === 'POST') await new Promise((ok) => setTimeout(ok, 1500));
+    await fake.handle(r);
+  };
+  await nina.route('**/drive/v3/files/*/comments?*', slow);
+  await pop.getByTestId('comment-text').fill('Éphémère');
+  await pop.getByTestId('comment-send').click();
+  const second = pop.getByTestId('comment').filter({ hasText: 'Éphémère' });
+  await expect(second.getByText('Envoi…')).toBeVisible();
+  await expect(second.getByTestId('comment-delete')).toHaveCount(0);
+  await expect(second.getByTestId('comment-edit')).toHaveCount(0);
+  await expect(second.getByText('Envoi…')).toHaveCount(0);
+  await nina.unroute('**/drive/v3/files/*/comments?*', slow);
+  expect(cmts()).toHaveLength(2);
+
+  // Retrait refusé : « Non retiré — Réessayer », puis retiré pour de bon, et il ne revient pas.
+  const del500 = (r: Route) => (r.request().method() === 'DELETE' ? r.fulfill({ status: 500, headers: CORS, body: '{}' }) : fake.handle(r));
+  await nina.route('**/drive/v3/files/*/comments/*', del500);
+  await second.getByTestId('comment-delete').click();
+  await expect(second.getByTestId('comment-unremoved')).toBeVisible();
+  await nina.unroute('**/drive/v3/files/*/comments/*', del500);
+  await second.getByRole('button', { name: 'Réessayer' }).click();
+  await expect(second).toHaveCount(0);
+  expect(cmts()[1].deleted).toBe(true);
+  await focus(nina);
+  await nina.waitForTimeout(800);
+  await expect(pop.getByTestId('comment')).toHaveCount(1);
+});
+
+test('relecteur : rien de la synchronisation privée, onglets publiés seulement, liste des commentaires, lien arrêté sans sélecteur', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { author, link } = await published(browser, fake);
+  // Ce compte Google a déjà accordé la synchronisation privée ailleurs : Google cumule les accords.
+  const nina = await reviewerComments(browser, fake, link, 'Plutôt un plan large ?', 'tok-nina', () =>
+    localStorage.setItem('fake-granted', 'https://www.googleapis.com/auth/drive.appdata openid email profile'),
+  );
+  await expect(nina.getByTestId('comment-popover').getByTestId('comment')).toContainText('Nina Relectrice');
+  const stored = await nina.evaluate(() => ({ token: localStorage.getItem('ds-cloud-token') ?? '', flag: localStorage.getItem('ds-cloud-file'), user: localStorage.getItem('ds-cloud-user') }));
+  expect(stored.token).toContain('drive.file');
+  expect(stored.token).not.toContain('drive.appdata');
+  expect(stored.flag).toBeNull();
+  expect(stored.user).toBeNull();
+  await nina.keyboard.press('Escape');
+
+  // La pastille de la version ouvre la liste des commentaires.
+  await nina.getByTestId('version-switcher').click();
+  await expect(nina.getByTestId('comments-panel').getByTestId('comment')).toHaveCount(1);
+  await nina.getByTestId('comments-panel').getByRole('button', { name: 'Fermer' }).click();
+  // Scénario : seulement ce qui est publié.
+  await nina.getByRole('navigation').getByRole('button', { name: /Scénario/ }).click();
+  await expect(nina.getByTestId('scenario-tab-scenes')).toBeVisible();
+  for (const t of ['characters', 'decors', 'research']) await expect(nina.getByTestId(`scenario-tab-${t}`)).toHaveCount(0);
+
+  // Lien arrêté : un autre relecteur qui commente n'ouvre pas le sélecteur de Google.
+  const { page: paul } = await person(browser, fake, 'tok-paul');
+  await paul.goto(link);
+  await expect(paul.getByTestId('export-table').first()).toBeVisible();
+  await author.getByTestId('share-button').click();
+  await author.getByTestId('review-section').getByTestId('review-stop').click();
+  await expect(author.getByTestId('review-state')).toContainText('lien arrêté');
+  await paul.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await paul.getByTestId('comment-text').fill('Trop tard ?');
+  await paul.getByTestId('comment-send').click();
+  await expect(paul.getByTestId('comment-stopped')).toHaveText('Relecture arrêtée');
+  expect(fake.pickerShown).toBe(1);
+});
+
+test('auteur : panneau Partager au clavier, publication sans faux « arrêté », bouton immobile, erreur propre au moment, téléphone', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { page: author } = await person(browser, fake, 'tok-author');
+  await author.goto('/#/grid?seed=fiction');
+  // Ouvert au clavier : le script de Google se charge quand même.
+  await author.getByTestId('share-button').focus();
+  await author.keyboard.press('Enter');
+  await author.waitForFunction(() => !!(window as unknown as { google?: { accounts?: unknown } }).google?.accounts);
+  const section = author.getByTestId('review-section');
+  const before = (await section.getByTestId('review-publish').boundingBox())!;
+  // Ouverture du lien ralentie : la publication ne passe jamais par « lien arrêté ».
+  await author.route('**/drive/v3/files/*/permissions?*', async (r) => {
+    await new Promise((ok) => setTimeout(ok, 1200));
+    await fake.handle(r);
+  });
+  await section.getByTestId('review-publish').click();
+  await expect(section.getByTestId('review-publish')).toHaveText('Publication…');
+  await expect(section.getByTestId('review-link')).toBeVisible();
+  await expect(section.getByTestId('review-state')).not.toContainText('arrêté');
+  await expect(section.getByTestId('review-stop')).toHaveCount(0);
+  await expect(section.getByTestId('review-publish')).toHaveText('Mettre à jour V1');
+  await expect(section.getByTestId('review-state')).not.toContainText('arrêté');
+  const after = (await section.getByTestId('review-publish').boundingBox())!;
+  expect(Math.abs(after.y - before.y)).toBeLessThan(1);
+
+  // Erreur : affichée, puis oubliée à la réouverture du panneau.
+  await author.route('**/upload/drive/v3/files/*?*', (r) => r.fulfill({ status: 500, headers: CORS, body: '{}' }));
+  await section.getByTestId('review-publish').click();
+  await expect(section).toContainText('Google Drive ne répond pas');
+  await author.getByTestId('share-button').click();
+  await author.getByTestId('share-button').click();
+  await expect(section).not.toContainText('Google Drive ne répond pas');
+
+  // Téléphone : le panneau tient dans l'écran.
+  await author.setViewportSize({ width: 390, height: 800 });
+  await author.getByTestId('share-button').click();
+  if (!(await author.getByTestId('share-panel').isVisible())) await author.getByTestId('share-button').click();
+  const box = (await author.getByTestId('share-panel').boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+});
+
+test('auteur : un retour retiré quitte Drive ; un renvoi n’écrase pas une publication venue d’ailleurs', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { author, link } = await published(browser, fake);
+  const nina = await reviewerComments(browser, fake, link, 'Indiscret');
+  await expect(nina.getByTestId('comment-popover').getByTestId('comment')).toContainText('Nina Relectrice');
+  await nina.keyboard.press('Escape');
+  const cmts = () => fake.comments.get(fake.snapshotId()) ?? [];
+
+  await focus(author);
+  await author.getByTestId('version-switcher').click();
+  await author.getByTestId('version-comments').click();
+  const panel = author.getByTestId('comments-panel');
+  await expect(panel.getByTestId('comment')).toHaveCount(1);
+  // Une autre publication arrive entre-temps (autre appareil).
+  const file = fake.files.get(fake.snapshotId())!;
+  const other = JSON.parse(file.body.toString('utf8')) as { publishedAt: string };
+  other.publishedAt = '2030-01-01T00:00:00.000Z';
+  file.body = Buffer.from(JSON.stringify(other));
+  file.version = (file.version ?? 1) + 1;
+  await panel.getByTestId('comment-delete').click();
+  await expect(panel.getByTestId('comment')).toHaveCount(0);
+  // Le commentaire quitte Drive ; la publication venue d'ailleurs reste telle quelle.
+  await expect.poll(() => cmts()[0].deleted ?? false, { timeout: 30_000 }).toBe(true);
+  await author.waitForTimeout(1500);
+  const now = JSON.parse(fake.snapshotText()) as { publishedAt: string; dismissed?: string[] };
+  expect(now.publishedAt).toBe('2030-01-01T00:00:00.000Z');
+  expect(now.dismissed).toBeUndefined();
+  // Chez le relecteur, il disparaît aussi.
+  await focus(nina);
+  await nina.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await expect(nina.getByTestId('comment-popover').getByTestId('comment')).toHaveCount(0);
 });
 
 test('sans réglage Google complet, la relecture en ligne n’apparaît pas', async ({ page }) => {

@@ -4,6 +4,7 @@ import { REVIEW_ENABLED } from '../../app/config';
 import { navigate, useLocation } from '../../app/router';
 import type { ProjectDoc } from '../../domain/types';
 import { activeVersion } from '../../domain/versions';
+import { preloadGoogle } from '../../store/cloud';
 import { openReview, publishReview, reviewLink, setReviewLink, useReview } from '../../store/review';
 import { Button } from '../../ui/Button';
 import { QrScreen } from '../share/QrScreen';
@@ -19,22 +20,41 @@ export function ReviewSection({ doc }: { doc: ProjectDoc }) {
   const st = useReview();
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState(false);
+  useEffect(() => {
+    if (!REVIEW_ENABLED) return;
+    // Connexion Google prête bien avant « Publier » ; une ancienne erreur ne revient pas à la réouverture.
+    void preloadGoogle().catch(() => undefined);
+    if (!useReview.getState().busy) useReview.setState({ error: undefined, errorFor: undefined });
+  }, []);
   if (!REVIEW_ENABLED) return null;
   const pub = doc.review;
   const name = activeVersion(doc)?.name ?? doc.project.version ?? 'V1';
   const published = pub ? (doc.versions?.find((v) => v.id === pub.publishedVersionId)?.name ?? name) : '';
   const link = pub ? reviewLink(pub) : '';
   const busy = st.busy !== null;
+  // Pendant la publication, le lien n'est pas « arrêté » : il s'ouvre (état définitif ensuite).
+  const stopped = !!pub?.stopped && st.busy !== 'publish';
+  const error = st.error && st.errorFor === doc.project.id ? st.error : undefined;
   return (
     <section className={s.review} aria-label="Relecture en ligne" data-testid="review-section">
       <p className={s.sectionTitle}>Relecture en ligne</p>
+      <div className={s.actions}>
+        <Button size="sm" variant={pub ? 'outline' : 'primary'} disabled={busy} onClick={() => void publishReview()} data-testid="review-publish">
+          {st.busy === 'publish' ? 'Publication…' : pub && pub.publishedVersionId === doc.activeVersionId ? `Mettre à jour ${name}` : `Publier ${name}`}
+        </Button>
+        {pub && st.busy !== 'publish' && (
+          <Button size="sm" disabled={busy} onClick={() => void setReviewLink(stopped)} data-testid="review-stop">
+            {stopped ? 'Reprendre' : 'Arrêter'}
+          </Button>
+        )}
+      </div>
       {pub && (
         <>
           <div className={[s.secret, s.linkRow].join(' ')}>
-            <code className={pub.stopped ? s.off : undefined} data-testid="review-link">
+            <code className={stopped ? s.off : undefined} data-testid="review-link">
               {link}
             </code>
-            {!pub.stopped && (
+            {!stopped && (
               <>
                 <button
                   type="button"
@@ -56,22 +76,12 @@ export function ReviewSection({ doc }: { doc: ProjectDoc }) {
           </div>
           <p className={s.note} data-testid="review-state">
             {published} publiée le {dateFmt.format(new Date(pub.publishedAt))}
-            {pub.stopped ? ' · lien arrêté' : ''}
+            {stopped ? ' · lien arrêté' : ''}
           </p>
         </>
       )}
-      {st.error && <p className={s.error}>{st.error}</p>}
-      <div className={s.actions}>
-        <Button size="sm" variant={pub ? 'outline' : 'primary'} disabled={busy} onClick={() => void publishReview()} data-testid="review-publish">
-          {st.busy === 'publish' ? 'Publication…' : pub && pub.publishedVersionId === doc.activeVersionId ? `Mettre à jour ${name}` : `Publier ${name}`}
-        </Button>
-        {pub && (
-          <Button size="sm" disabled={busy} onClick={() => void setReviewLink(!!pub.stopped)} data-testid="review-stop">
-            {pub.stopped ? 'Reprendre' : 'Arrêter'}
-          </Button>
-        )}
-      </div>
-      {qr && pub && !pub.stopped && <QrScreen link={link} label="QR code de la relecture" onClose={() => setQr(false)} />}
+      {error && <p className={s.error}>{error}</p>}
+      {qr && pub && !stopped && <QrScreen link={link} label="QR code de la relecture" onClose={() => setQr(false)} />}
     </section>
   );
 }

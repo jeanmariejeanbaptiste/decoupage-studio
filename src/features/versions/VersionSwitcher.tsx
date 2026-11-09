@@ -8,7 +8,7 @@ import { activeVersion, clearScenario, clearedOf, compareVersions, restoreScenar
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
 import { mutateDoc, undo } from '../../store/projectStore';
-import { useReadOnly } from '../../store/share';
+import { useDriveReview, useReadOnly } from '../../store/share';
 import { ask } from '../../ui/dialogStore';
 import s from './VersionSwitcher.module.css';
 
@@ -20,6 +20,7 @@ const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short
  */
 export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
+  const drive = useDriveReview();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -38,8 +39,34 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
     };
   }, [open]);
 
-  // Invité : la version partagée s'affiche, sans menu.
-  if (readOnly) return <span className={s.trigger} data-testid="version-switcher">{current.name}</span>;
+  // Relecture en ligne : la version publiée, qui ouvre la liste de ses commentaires (sans les commandes de version).
+  if (drive) {
+    const all = doc.comments?.length ? shownComments(doc) : [];
+    const n = all.filter((x) => !x.c.resolved).length;
+    return (
+      <button
+        type="button"
+        className={s.trigger}
+        onClick={() => openCommentsPanel(current.id)}
+        // Lecture seule : un bouton qui sert à regarder reste visible.
+        data-view
+        aria-label={`Commentaires de ${current.name}`}
+        title={all.length ? `${n} à traiter, ${all.length} en tout` : 'Commentaires'}
+        data-testid="version-switcher"
+      >
+        <span data-testid="version-name">{current.name}</span>
+        <MessageSquare size={12} strokeWidth={1.4} aria-hidden="true" />
+        {n > 0 && <span className={s.count}>{n}</span>}
+      </button>
+    );
+  }
+  // Invité : la version partagée s'affiche, sans menu (un simple libellé, pas un bouton).
+  if (readOnly)
+    return (
+      <span className={s.label} data-testid="version-switcher">
+        {current.name}
+      </span>
+    );
 
   const go = (id: string) => {
     flushEditors();

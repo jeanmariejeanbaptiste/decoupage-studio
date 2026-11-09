@@ -77,6 +77,8 @@ export function ShareButton() {
         // Connexion Google prête avant le clic sur « Publier » (la fenêtre de Google doit s'ouvrir au clic).
         onPointerEnter={() => void preloadGoogle().catch(() => undefined)}
         onClick={() => {
+          // Ouvert au clavier aussi (pas de survol) : le script de Google se charge dès l'ouverture.
+          void preloadGoogle().catch(() => undefined);
           if (!open) void syncReview();
           setOpen(!open);
         }}

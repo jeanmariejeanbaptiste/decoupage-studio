@@ -13,8 +13,8 @@
 .tools button { display: inline-flex; padding: 3px; border: 0; border-radius: 4px; background: none; color: var(--ink-soft); cursor: pointer; }
 .tools button:hover, .tools button[aria-pressed='true'] { color: var(--ink); background: var(--hover); }
 .reply { margin-left: 12px; padding-left: 8px; border-left: 1px solid var(--rule); display: flex; flex-direction: column; gap: 2px; }
-.replyForm input, .compose textarea { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; font-size: 12.5px; resize: vertical; }
-.replyForm input:focus, .compose textarea:focus { outline: none; border-color: var(--ink-soft); }
+.replyForm input, .replyForm textarea, .compose textarea { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; font-size: 12.5px; resize: vertical; }
+.replyForm input:focus, .replyForm textarea:focus, .compose textarea:focus { outline: none; border-color: var(--ink-soft); }
 .compose { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 
 .backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(17, 19, 24, 0.18); }

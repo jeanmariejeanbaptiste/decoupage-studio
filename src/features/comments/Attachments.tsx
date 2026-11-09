@@ -2,17 +2,20 @@ import { useRef } from 'react';
 import { ImagePlus, PenTool, X } from 'lucide-react';
 import { putBlob } from '../../store/db';
 import { useProjectStore } from '../../store/projectStore';
-import { useBlobUrl } from '../../ui/useBlobUrl';
+import { openable, useBlob } from '../../ui/useBlobUrl';
 import s from './Comments.module.css';
 
 function Thumb({ k, onRemove }: { k: string; onRemove?: () => void }) {
-  const url = useBlobUrl(k);
+  const { url, type } = useBlob(k);
   return (
     <span className={s.thumb}>
-      {url ? (
+      {url && openable(type) ? (
+        // Ouvert en grand dans un onglet : seulement une image matricielle (un SVG s'y exécuterait).
         <a href={url} target="_blank" rel="noreferrer" title="Ouvrir en grand">
           <img src={url} alt="" />
         </a>
+      ) : url ? (
+        <img src={url} alt="" />
       ) : (
         <i />
       )}

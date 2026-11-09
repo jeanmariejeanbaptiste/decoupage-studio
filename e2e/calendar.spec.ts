@@ -82,7 +82,7 @@ test('plan de travail : rendez-vous du calendrier sous chaque jour daté, dans l
   await page.getByLabel('Date du jour 1').fill(today);
 
   // Deux rendez-vous ce jour-là (journée entière, puis minuté) et un autre jour.
-  await page.getByRole('button', { name: 'Calendrier' }).click();
+  await page.getByRole('button', { name: 'Calendrier', exact: true }).click();
   const dlg = page.getByTestId('event-dialog');
   const create = async (title: string, date: string, start?: string) => {
     await page.getByTestId('event-add').click();
