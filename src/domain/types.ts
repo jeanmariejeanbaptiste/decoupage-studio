@@ -297,6 +297,8 @@ export interface ProjectDoc {
   comments?: import('./comments').ReviewComment[];
   /** Textes de scénario effacés, mis de côté pour être rétablis (`versions.ts`). */
   clearedScenarios?: import('./versions').ClearedScenario[];
+  /** Calendrier : rendez-vous du projet (les jours de tournage viennent du plan de travail). */
+  calendar?: import('./calendar').CalendarEvent[];
 }
 
 export const SCHEMA_VERSION = 1;

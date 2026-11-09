@@ -1,5 +1,5 @@
 import { useCanCopy, useReadOnly } from '../../store/share';
-import { CalendarDays, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
+import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
@@ -14,8 +14,9 @@ const STEP_ICONS: Partial<Record<Route, ReactNode>> = {
   grid: <Clapperboard {...ICON} />,
   floorplan: <Map {...ICON} />,
   equipment: <Package {...ICON} />,
-  schedule: <CalendarDays {...ICON} />,
+  schedule: <ChartNoAxesGantt {...ICON} />,
   callsheet: <ClipboardList {...ICON} />,
+  calendar: <CalendarDays {...ICON} />,
 };
 
 interface Props {

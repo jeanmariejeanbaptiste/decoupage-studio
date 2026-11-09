@@ -11,6 +11,7 @@ export type Route =
   | 'equipment'
   | 'schedule'
   | 'callsheet'
+  | 'calendar'
   | 'export'
   | 'registry'
   | 'checks'
@@ -20,7 +21,7 @@ export type Route =
 
 const ROUTES: readonly Route[] = [
   'home', 'intention', 'scenario', 'breakdown', 'grid', 'storyboard', 'floorplan', 'equipment',
-  'schedule', 'callsheet', 'export', 'registry', 'checks', 'settings', 'print', 'join',
+  'schedule', 'callsheet', 'calendar', 'export', 'registry', 'checks', 'settings', 'print', 'join',
 ];
 
 export interface Location { route: Route; params: URLSearchParams }

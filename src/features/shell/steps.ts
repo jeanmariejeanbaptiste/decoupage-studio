@@ -18,11 +18,12 @@ export const PREP_STEPS: readonly PrepStep[] = [
   { n: 6, label: 'Listes de matériel', route: 'equipment', available: true },
   { n: 7, label: 'Plan de travail', route: 'schedule', available: true },
   { n: 8, label: 'Feuille de service', route: 'callsheet', available: true },
+  { n: 9, label: 'Calendrier', route: 'calendar', available: true },
 ];
 
 /** Regroupement des étapes dans le menu : écrire, préparer, tourner. */
 export const STEP_GROUPS: ReadonlyArray<{ label: string; steps: readonly number[] }> = [
   { label: 'Écriture', steps: [1, 2] },
   { label: 'Préparation', steps: [3, 4, 5, 6] },
-  { label: 'Tournage', steps: [7, 8] },
+  { label: 'Tournage', steps: [9, 7, 8] },
 ];
