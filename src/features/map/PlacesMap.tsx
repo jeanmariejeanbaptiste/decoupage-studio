@@ -151,7 +151,7 @@ export function DayMap({ doc, places, day }: { doc: ProjectDoc; places: MapPlace
   });
   if (!today.length) return null;
   return (
-    <div className={[s.dayMap, 'no-print'].join(' ')} data-view data-testid="day-map">
+    <div className={[s.dayMap, 'no-print'].join(' ')} data-view data-a4-unit data-testid="day-map">
       <MapView className={s.dayMapMap} points={points} fit={`${day}|${points.map((p) => p.id).join(',')}`} focus={focus} tiles={geo.online} onPick={setFocus} />
       <ol className={s.legend}>
         {today.map((p) => (

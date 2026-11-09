@@ -53,9 +53,10 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const day = days.find((d) => d.n === n) ?? days[0];
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const sheetRef = useRef<HTMLElement>(null);
-  useA4Pages(sheetRef, [doc, day?.n]);
   const places = useMemo(() => mapPlaces(doc), [doc]);
   const [mapOn, toggleMap] = useMapVisible();
+  // La carte du jour, montrée ou masquée, déplace la suite de la feuille : pagination refaite.
+  useA4Pages(sheetRef, [doc, day?.n, mapOn]);
 
   if (!day) {
     return (
