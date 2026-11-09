@@ -350,7 +350,7 @@ export function oneShotAnnexDocument(doc: ProjectDoc): DocPage {
           const trans = beatTransitions(beats, valueRank, (n) => cameraAt(n))
             .map((x) => `<li><b>T${x.from} → T${x.to}</b> : ${x.notes.map(esc).join(' · ')}</li>`)
             .join('');
-          const plan = items.length ? `<h3>Plan au sol du plan-séquence</h3>${floorPlanSvg(doc, key, `Plan-séquence ${shotCode(doc, id)}`)}` : '<p class="muted">Pas encore de vue de plan au sol pour ce plan-séquence (onglet Plan au sol, vue « Plan-séquence »).</p>';
+          const plan = items.length ? `<h3>Plan au sol du plan-séquence</h3>${floorPlanSvg(doc, key, `Plan-séquence ${shotCode(doc, id)}`)}` : '<p class="muted">Pas de plan au sol pour ce plan-séquence.</p>';
           return `<section class="plan"><h2>Plan-séquence ${esc(shotCode(doc, id))} <span class="muted" style="font-size:10pt">${esc(sequenceHeading(doc, shot.sequenceId))}</span></h2><p><b>${beats.length} temps</b> · durée ${esc(formatOneShotDuration(t) || 'à estimer')}${doc.blocks[shot.actionBlockId]?.text ? ` · ${esc(doc.blocks[shot.actionBlockId].text)}` : ''}</p>${strip}<table><thead><tr><th>Temps</th><th>Début</th><th>Durée</th><th>Valeur</th><th>Sujet</th><th>Angle</th><th>Mouvement</th><th>Focale</th><th>Repères</th></tr></thead><tbody>${rows}</tbody></table><h3>Transitions</h3><ul>${trans || '<li class="muted">Un seul temps.</li>'}</ul>${plan}</section>`;
         })
         .join('')

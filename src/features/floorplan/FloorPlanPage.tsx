@@ -941,11 +941,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                       const text = aiPlanInstructions(bg && nat ? { ratio: nat.h / nat.w, pixels: nat } : {});
                       await navigator.clipboard.writeText(text).catch(() => undefined);
                       setPlanMenu(false);
-                      useUi.getState().toast({
-                        message: bg
-                          ? 'Consignes copiées pour cette image : donnez-les à votre IA avec la même image, demandez un fichier plan.md, puis importez-le ici.'
-                          : 'Consignes copiées : donnez-les à votre IA avec l’image du plan, demandez un fichier plan.md, puis importez-le ici. Posez d’abord l’image en fond pour un calage exact.',
-                      });
+                      useUi.getState().toast({ message: 'Consignes copiées' });
                     }}
                     data-testid="fp-ai-copy"
                   >
@@ -1072,21 +1068,20 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               </div>
             </div>
           )}
-          {psShots.length > 0 && (
-            <div className={s.beats} role="radiogroup" aria-label="Temps du plan-séquence" data-testid="fp-beats">
-              <span>Plan-séquence {psShots.map((id) => shotCode(doc, id)).join(', ')} · temps</span>
-              <button type="button" role="radio" aria-checked={beat === null} className={beat === null ? s.on : ''} onClick={() => setBeat(null)}>
-                Tous
-              </button>
-              {Array.from({ length: nBeats }, (_, i) => i + 1).map((n) => (
-                <button key={n} type="button" role="radio" aria-checked={beat === n} className={beat === n ? s.on : ''} onClick={() => setBeat(n)} data-testid={`fp-beat-${n}`}>
-                  T{n}
-                </button>
-              ))}
-              <em>{beat ? `les caméras et comédiens placés maintenant sont au temps T${beat}` : 'choisissez un temps pour placer caméra et comédiens à chaque étape'}</em>
-            </div>
-          )}
           <div className={s.stage}>
+            {psShots.length > 0 && (
+              <div className={s.beats} role="radiogroup" aria-label="Temps du plan-séquence" data-testid="fp-beats">
+                <span>Temps</span>
+                <button type="button" role="radio" aria-checked={beat === null} className={beat === null ? s.on : ''} onClick={() => setBeat(null)}>
+                  Tous
+                </button>
+                {Array.from({ length: nBeats }, (_, i) => i + 1).map((n) => (
+                  <button key={n} type="button" role="radio" aria-checked={beat === n} className={beat === n ? s.on : ''} onClick={() => setBeat(n)} data-testid={`fp-beat-${n}`}>
+                    T{n}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className={s.palette} role="toolbar" aria-label="Outils du plan au sol" aria-orientation="vertical" data-edit>
               {TOOL_GROUPS.map((g) => (
                 <div key={g.label} className={s.paletteGroup} role="group" aria-label={g.label}>
@@ -1112,7 +1107,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             </div>
             {editingBg && (
               <div className={s.bgBar} data-edit>
-                <span>Fond : glisser pour le déplacer, molette pour l’agrandir</span>
                 <button type="button" onClick={() => scaleBg(1 / 1.15)} aria-label="Réduire le fond">
                   −
                 </button>
