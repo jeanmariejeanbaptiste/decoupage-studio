@@ -8,8 +8,11 @@ import {
   busyDates,
   calendarIcs,
   calendarItems,
+  eventFields,
+  eventFromFields,
   eventItem,
   hourRange,
+  newEventFields,
   isoWeek,
   itemsOn,
   layoutDay,
@@ -85,6 +88,16 @@ describe('éléments du calendrier', () => {
     expect(b.calendar![0]).toEqual({ id, title: 'Lecture', start: '2026-11-13', allDay: true, kind: 'prep' });
     const c = produce(b, (d) => removeEvent(d, id));
     expect(c.calendar).toBeUndefined();
+  });
+
+  it('passe du formulaire au rendez-vous et retour', () => {
+    const f = newEventFields('2026-11-10', 14);
+    expect(f).toMatchObject({ start: '14:00', end: '15:00', allDay: false, kind: 'rdv' });
+    expect(eventFromFields({ ...f, title: ' Repérages ', end: '13:00' })).toEqual({ title: 'Repérages', kind: 'rdv', note: undefined, start: '2026-11-10T14:00', end: '2026-11-10T15:00' });
+    const allDay = eventFromFields({ ...f, allDay: true, endDate: '2026-11-12', note: 'Lycée' });
+    expect(allDay).toMatchObject({ start: '2026-11-10', end: '2026-11-12', allDay: true, note: 'Lycée', title: 'Sans titre' });
+    expect(eventFields({ id: 'x', ...allDay })).toMatchObject({ date: '2026-11-10', endDate: '2026-11-12', allDay: true, note: 'Lycée' });
+    expect(eventFields({ id: 'y', title: 'A', start: '2026-11-10T08:15', end: '2026-11-10T09:45' })).toMatchObject({ start: '08:15', end: '09:45', allDay: false, kind: 'autre' });
   });
 
   it('montre les jours de tournage datés : « Jour n · décors », RDV', () => {

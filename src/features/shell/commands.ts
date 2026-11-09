@@ -77,6 +77,7 @@ export const COMMANDS: readonly Command[] = [
   { id: 'go-equipment', group: 'Aller à', label: 'Listes de matériel', run: () => navigate('equipment'), needsProject: true },
   { id: 'go-schedule', group: 'Aller à', label: 'Plan de travail', run: () => navigate('schedule'), needsProject: true },
   { id: 'go-callsheet', group: 'Aller à', label: 'Feuille de service', run: () => navigate('callsheet'), needsProject: true },
+  { id: 'go-calendar', group: 'Aller à', label: 'Calendrier', run: () => navigate('calendar'), needsProject: true },
   { id: 'go-export', group: 'Aller à', label: 'Exporter', run: () => navigate('export'), needsProject: true },
   { id: 'go-settings', group: 'Aller à', label: 'Paramètres', run: () => navigate('settings'), needsProject: true },
   { id: 'pdf', group: 'Fichier', label: 'Exporter en PDF', run: () => navigate('print', { auto: '1' }), needsProject: true, copies: true },

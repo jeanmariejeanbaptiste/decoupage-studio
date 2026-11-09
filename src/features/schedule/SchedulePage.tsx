@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { ArrowDown, ArrowUp, CalendarRange, ChevronDown, ChevronRight, Clock, Plus, Trash2, X } from 'lucide-react';
 import { DayTimeline } from './DayTimeline';
@@ -10,6 +10,7 @@ import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
 import { mutateDoc, undo } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
+import { useLocation } from '../../app/router';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { ask } from '../../ui/dialogStore';
@@ -37,6 +38,11 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const [openDays, setOpenDays] = useState<number[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   const toast = useUi((u) => u.toast);
+  // Venu du calendrier (« ?day=n ») : la journée demandée s'affiche en haut.
+  const focusDay = useLocation().params.get('day');
+  useEffect(() => {
+    if (focusDay) document.querySelector(`[data-testid="band-${CSS.escape(focusDay)}"]`)?.scrollIntoView({ block: 'start' });
+  }, [focusDay]);
 
   const onDragEnd = (e: DragEndEvent) => {
     const from = String(e.active.id).split(':');

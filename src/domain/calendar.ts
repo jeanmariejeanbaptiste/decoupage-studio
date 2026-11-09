@@ -331,6 +331,49 @@ export function removeEvent(doc: ProjectDoc, id: ID): void {
   if (!doc.calendar.length) delete doc.calendar;
 }
 
+/** Champs du formulaire d'un rendez-vous (date, heures « HH:MM », dernier jour d'une journée entière). */
+export interface EventFields {
+  title: string;
+  date: string;
+  allDay: boolean;
+  start: string;
+  end: string;
+  endDate: string;
+  kind: CalendarKind;
+  note: string;
+}
+
+/** Nouveau rendez-vous : une heure à partir de `hour`, ou la journée entière. */
+export function newEventFields(date: string, hour?: number, allDay = false): EventFields {
+  const h = Math.max(0, Math.min(22, hour ?? 9));
+  return { title: '', date, allDay, start: fromMinutes(h * 60), end: fromMinutes((h + 1) * 60), endDate: date, kind: 'rdv', note: '' };
+}
+
+export function eventFields(e: CalendarEvent): EventFields {
+  const it = eventItem(e);
+  const date = it?.date ?? todayIso();
+  return {
+    title: e.title,
+    date,
+    allDay: it?.allDay ?? true,
+    start: it?.allDay ? '09:00' : (it?.start ?? '09:00'),
+    end: it?.allDay ? '10:00' : (it?.end ?? '10:00'),
+    endDate: it?.endDate ?? date,
+    kind: e.kind ?? 'autre',
+    note: e.note ?? '',
+  };
+}
+
+/** Rendez-vous tiré du formulaire : fin avant le début corrigée (une heure, ou un seul jour). */
+export function eventFromFields(f: EventFields): Omit<CalendarEvent, 'id'> {
+  const base = { title: f.title.trim() || 'Sans titre', kind: f.kind, note: f.note.trim() || undefined };
+  if (f.allDay) return { ...base, start: f.date, end: f.endDate > f.date ? f.endDate : undefined, allDay: true };
+  const a = toMinutes(f.start) ?? 9 * 60;
+  let b = toMinutes(f.end) ?? a + 60;
+  if (b <= a) b = Math.min(a + 60, 24 * 60 - 1);
+  return { ...base, start: `${f.date}T${fromMinutes(a)}`, end: `${f.date}T${fromMinutes(b)}` };
+}
+
 /** Champs vides retirés, titre rogné. */
 function clean<T extends Omit<CalendarEvent, 'id'>>(e: T): T {
   const out = { ...e, title: e.title.trim() };
