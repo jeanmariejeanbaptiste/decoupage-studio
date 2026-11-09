@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { shownComments, type CommentMarks } from '../../domain/comments';
 import { useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
@@ -18,6 +19,17 @@ export function MarkLayer({ surface }: { surface: CommentMarks['surface'] }) {
   const draft = useCommentsUi((u) => u.draft);
   const svg = useRef<SVGSVGElement>(null);
   const [live, setLive] = useState<Array<[number, number]> | null>(null);
+  // Échap quitte le tracé : la bulle et son brouillon reviennent tels quels.
+  useEffect(() => {
+    if (!drawing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      useCommentsUi.setState({ drawing: null });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawing]);
   if (!doc) return null;
   const shown = shownComments(doc).filter((x) => !x.from && !x.c.resolved && x.c.marks?.surface === surface);
   const mine = draft.marks?.surface === surface ? draft.marks.paths : [];
@@ -64,15 +76,18 @@ export function MarkLayer({ surface }: { surface: CommentMarks['surface'] }) {
         ))}
         {live && <path d={path(live)} className={[s.markPath, s.markDraft].join(' ')} />}
       </svg>
-      {drawing && (
-        <div className={s.drawBar} role="toolbar" aria-label="Tracés">
+      {/* Hors du conteneur mis à l'échelle (le fixed y resterait relatif aux pages) et hors de <main>
+          (masqué pour l'invité en lecture seule). */}
+      {drawing && createPortal(
+        <div className={s.drawBar} role="toolbar" aria-label="Tracés" data-view>
           <Button variant="ghost" size="sm" onClick={() => patchDraft({ marks: undefined })} disabled={!mine.length}>
             Effacer
           </Button>
           <Button variant="primary" size="sm" onClick={() => useCommentsUi.setState({ drawing: null })} data-testid="marks-done">
             Terminer
           </Button>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
