@@ -31,7 +31,7 @@ export function ChecksPage({ doc }: { doc: ProjectDoc }) {
       ) : (
         <>
           <p className={s.summary}>
-            {warn} avertissement{warn > 1 ? 's' : ''} · {issues.length - warn} rappel{issues.length - warn > 1 ? 's' : ''}. Ces contrôles ne bloquent jamais la saisie.
+            {warn} avertissement{warn > 1 ? 's' : ''} · {issues.length - warn} rappel{issues.length - warn > 1 ? 's' : ''}
           </p>
           {doc.project.sequenceIds
             .filter((id) => bySeq.has(id))
