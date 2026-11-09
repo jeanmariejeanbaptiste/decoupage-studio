@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import {
   addBreakdownItems,
+  addedCharacters,
   breakdownCategories,
   breakdownLabel,
   breakdownOf,
@@ -454,6 +455,7 @@ function BreakdownSheet({
 }) {
   const manual = seqId ? breakdownOf(doc, seqId) : {};
   const derived = seqId ? derivedBreakdown(doc, seqId) : {};
+  const added = seqId ? addedCharacters(doc, seqId) : {};
   const [newCat, setNewCat] = useState('');
   return (
     <div className={s.cats}>
@@ -462,6 +464,7 @@ function BreakdownSheet({
           key={cat}
           cat={cat}
           derived={derived[cat] ?? []}
+          removable={added[cat] ?? []}
           manual={manual[cat] ?? []}
           readOnly={readOnly}
           onAdd={(v) => onAdd(cat, [v])}
@@ -502,6 +505,7 @@ function BreakdownSheet({
 function Category({
   cat,
   derived,
+  removable,
   manual,
   readOnly,
   onAdd,
@@ -511,6 +515,8 @@ function Category({
 }: {
   cat: BreakdownCategory;
   derived: string[];
+  /** Éléments déduits qu'on retire pourtant d'ici (personnages ajoutés à la séquence, pas à ses plans). */
+  removable: string[];
   manual: string[];
   readOnly: boolean;
   onAdd: (v: string) => void;
@@ -534,11 +540,22 @@ function Category({
       </h3>
       {count > 0 && (
         <ul>
-          {fromCut.map((d) => (
-            <li key={`d-${d}`} className={s.derived} title="Déduit du découpage" onMouseEnter={() => onHot(d)} onMouseLeave={() => onHot(null)}>
-              {d}
-            </li>
-          ))}
+          {fromCut.map((d) =>
+            removable.includes(d) ? (
+              <li key={`d-${d}`} onMouseEnter={() => onHot(d)} onMouseLeave={() => onHot(null)}>
+                {d}
+                {!readOnly && (
+                  <button type="button" aria-label={`Retirer ${d}`} onClick={() => onRemove(d)}>
+                    <X size={11} />
+                  </button>
+                )}
+              </li>
+            ) : (
+              <li key={`d-${d}`} className={s.derived} title="Déduit du découpage" onMouseEnter={() => onHot(d)} onMouseLeave={() => onHot(null)}>
+                {d}
+              </li>
+            ),
+          )}
           {manual.map((m) => (
             <li key={m} onMouseEnter={() => onHot(m)} onMouseLeave={() => onHot(null)}>
               {m}

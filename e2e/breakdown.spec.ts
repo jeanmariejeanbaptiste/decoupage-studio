@@ -143,3 +143,26 @@ test('dépouillement : numéros du découpage ; une scène pas encore au découp
   await page.getByLabel('Rapport', { exact: true }).selectOption('sequences');
   await expect(page.getByTestId('breakdown-report-seq').nth(1)).toContainText('1, GARE — HALL');
 });
+
+test('dépouillement : un personnage ajouté entre au registre, suit son renommage et se retire', async ({ page }) => {
+  await page.goto('/#/breakdown?seed=fiction');
+  await page.getByTestId('breakdown-scene').filter({ hasText: 'GARE — HALL' }).click();
+  await page.getByLabel('Ajouter (Personnages)').fill('Marc');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('breakdown-personnages')).toContainText('Marc');
+  await page.getByRole('link', { name: /Registre/ }).or(page.getByRole('button', { name: /Registre/ })).first().click();
+  const row = page.getByRole('table', { name: 'Séquences' }).locator('tbody tr').first();
+  await expect(row).toContainText('Marc');
+  await page.getByRole('tab', { name: /Personnages/ }).click();
+  const marc = page.getByTestId('character-row').filter({ has: page.locator('td:nth-child(2)', { hasText: 'Marc' }) });
+  await marc.locator('td').nth(1).click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('Marco');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('character-row').filter({ has: page.locator('td:nth-child(2)', { hasText: 'Marco' }) })).toHaveCount(1);
+  await page.getByRole('button', { name: /Dépouillement/ }).first().click();
+  await page.getByTestId('breakdown-scene').filter({ hasText: 'GARE — HALL' }).click();
+  await expect(page.getByTestId('breakdown-personnages')).toContainText('Marco');
+  await page.getByRole('button', { name: 'Retirer Marco' }).click();
+  await expect(page.getByTestId('breakdown-personnages')).not.toContainText('Marco');
+});

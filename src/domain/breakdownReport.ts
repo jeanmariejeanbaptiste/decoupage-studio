@@ -2,7 +2,7 @@
  * Index du dépouillement sur tout le film : chaque élément, ses séquences, sa durée à l'écran et ses
  * jours de tournage (comme les rapports du scénario, mais pour les accessoires, costumes, effets…).
  */
-import { breakdownCategories, breakdownOf, derivedBreakdown, type BreakdownCategory } from './breakdown';
+import { addedCharacters, breakdownCategories, breakdownOf, derivedBreakdown, type BreakdownCategory } from './breakdown';
 import { stripsByDay } from './schedule';
 import { fold } from './text';
 import type { Timing } from './timing';
@@ -41,6 +41,8 @@ export function breakdownIndex(doc: ProjectDoc, timing?: Timing): BreakdownEntry
   for (const seqId of doc.project.sequenceIds) {
     const manual = breakdownOf(doc, seqId);
     const derived = derivedBreakdown(doc, seqId);
+    // Personnages ajoutés à la séquence (pas nommés par ses plans) : saisis, donc retirables.
+    const added = addedCharacters(doc, seqId);
     for (const cat of cats) {
       const seen = new Set<string>();
       const add = (item: string, isManual: boolean) => {
@@ -61,7 +63,7 @@ export function breakdownIndex(doc: ProjectDoc, timing?: Timing): BreakdownEntry
         for (const d of days.get(seqId) ?? []) if (!e.days.includes(d)) e.days.push(d);
       };
       for (const item of manual[cat] ?? []) add(item, true);
-      for (const item of derived[cat] ?? []) add(item, false);
+      for (const item of derived[cat] ?? []) add(item, !!added[cat]?.includes(item));
     }
   }
   const rank = new Map(cats.map((c, i) => [c, i]));

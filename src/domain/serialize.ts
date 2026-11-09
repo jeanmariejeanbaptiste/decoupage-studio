@@ -5,6 +5,7 @@ import { normalizeScenario } from './fountain';
 import { storedShots } from './versions';
 import { commentAttachments } from './comments';
 import { migrateDecorLocations } from './locations';
+import { migrateBreakdownCharacters } from './breakdown';
 import { activeColumns } from './columns';
 import { normalizeTiming } from './factory';
 import { EMPTY_CUSTOM_VOCABULARY } from './vocabulary';
@@ -163,6 +164,7 @@ export function migrate(input: ProjectDoc): ProjectDoc {
     }
   }
   normalizeScenario(doc);
+  migrateBreakdownCharacters(doc);
   // Plans d'interview remis d'accord avec la fiche (fichier modifié ailleurs, ancienne version).
   syncInterviewShots(doc);
   return doc;
