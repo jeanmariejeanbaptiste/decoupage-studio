@@ -4,7 +4,7 @@
  * Durée : selon la méthode de minutage du projet (par défaut une page de 58 lignes par minute).
  */
 import { isEmptyBlock, type SBlock } from './screenplay';
-import { blockSeconds, chronoOf, stripMarks, type ScriptChrono } from './chronometry';
+import { chronoOf, chronoTimeline, stripMarks, type ScriptChrono } from './chronometry';
 import { NOT_PRINTED } from './scriptLayout';
 import { fold } from './text';
 import type { ProjectDoc } from './types';
@@ -24,6 +24,7 @@ export interface SceneInfo {
   location: string;
   intExt: string;
   effect: string;
+  /** Durée en secondes, non arrondie (l'affichage arrondit). */
   durationSec: number;
   /** Part de l'action et des dialogues dans la durée (secondes). */
   actionSec: number;
@@ -46,7 +47,8 @@ export function parseHeading(text: string): { intExt: string; location: string; 
 /** Séquences du scénario, avec durée, répliques et présence des personnages. */
 export function sceneReports(source: readonly SBlock[], knownNames: readonly string[] = [], chrono?: Partial<ScriptChrono>): SceneInfo[] {
   const blocks = printed(source);
-  const secs = blockSeconds(blocks, chronoOf(chrono));
+  // Même minutage que la barre du scénario (impression, secondes non arrondies) : les sommes concordent.
+  const { secs } = chronoTimeline(source, chronoOf(chrono));
   const scenes: SceneInfo[] = [];
   const speakers = new Set<string>(knownNames.map(upper));
   for (const b of blocks) if (b.type === 'character' && !isEmptyBlock(b)) speakers.add(speakerName(b.text));
@@ -59,9 +61,9 @@ export function sceneReports(source: readonly SBlock[], knownNames: readonly str
   let dialogue = 0;
   const close = () => {
     if (!cur) return;
-    cur.durationSec = Math.round(total);
-    cur.actionSec = Math.round(action);
-    cur.dialogueSec = Math.round(dialogue);
+    cur.durationSec = total;
+    cur.actionSec = action;
+    cur.dialogueSec = dialogue;
   };
   for (const [i, b] of blocks.entries()) {
     if (isEmptyBlock(b) || b.type === 'title' || NOT_PRINTED.has(b.type)) continue;

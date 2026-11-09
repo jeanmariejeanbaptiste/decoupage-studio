@@ -23,7 +23,7 @@ import {
   Underline,
 } from 'lucide-react';
 import { HIGHLIGHTS, type HighlightColor } from '../../domain/scriptLayout';
-import { chronoAt, chronoOf, mmss, type ScriptChrono } from '../../domain/chronometry';
+import { chronoOf, chronoTimeline, mmss, type ScriptChrono } from '../../domain/chronometry';
 import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
 import { reviseScenario, revisionSummary, type RevisionReport } from '../../domain/revision';
 import { createVersion, ensureVersions, nextVersionName } from '../../domain/versions';
@@ -731,18 +731,12 @@ const METHOD_HINT: Record<ScriptChrono['method'], string> = {
 /** Chronomètre : durée estimée à la position du curseur, puis au total, selon la méthode du projet. */
 function Chrono({ settings }: { settings?: Partial<ScriptChrono> }) {
   const c = useMemo(() => chronoOf(settings), [settings]);
-  const paged = useScriptUi((u) => u.chrono);
   const blocks = useScriptUi((u) => u.blocks);
   const caret = useScriptUi((u) => u.caret);
-  const counted = useMemo(
-    () => (c.method === 'pages' ? null : chronoAt(blocks, c, caret)),
-    [blocks, caret, c],
-  );
-  const k = c.pageSec / 60;
-  const chrono = counted ?? {
-    at: paged.at === null ? null : Math.round(paged.at * k),
-    total: Math.round(paged.total * k),
-  };
+  // Même minutage que les statistiques : celui des pages imprimées (les notes n'y comptent pas).
+  const timeline = useMemo(() => chronoTimeline(blocks, c), [blocks, c]);
+  const at = timeline.at(caret);
+  const chrono = { at: at === null ? null : Math.round(at), total: Math.round(timeline.total) };
   return (
     <span
       className={s.chrono}

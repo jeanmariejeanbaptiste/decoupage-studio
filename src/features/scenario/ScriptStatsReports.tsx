@@ -4,10 +4,10 @@ import type { SBlock } from '../../domain/screenplay';
 import { characterReports, locationReports, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
 import { blockLabel, isEmptyBlock } from '../../domain/screenplay';
 import type { ProjectDoc } from '../../domain/types';
-import { layoutScript } from '../../domain/scriptLayout';
+import { layoutScript, NOT_PRINTED } from '../../domain/scriptLayout';
 import s from './ScriptStatsReports.module.css';
 
-import { mmss, printedText } from '../../domain/chronometry';
+import { chronoOf, chronoTimeline, mmss, printedText } from '../../domain/chronometry';
 
 type Report = 'summary' | 'scenes' | 'decors' | 'characters' | 'dialogues' | 'structure' | 'activity';
 const REPORTS: ReadonlyArray<[Report, string, string]> = [
@@ -47,6 +47,8 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
   const scenes = useMemo(() => sceneReports(blocks, names, doc.project.settings.scriptChrono), [blocks, names, doc.project.settings.scriptChrono]);
   const laid = useMemo(() => layoutScript(blocks), [blocks]);
   const pages = Math.max(1, laid.pages.length);
+  // Durée totale : celle de la barre du scénario, ouverture comprise (avant la première séquence).
+  const duration = useMemo(() => chronoTimeline(blocks, chronoOf(doc.project.settings.scriptChrono)).total, [blocks, doc.project.settings.scriptChrono]);
   const pageOf = useMemo(() => new Map([...laid.placement].map(([id, p]) => [id, p.page + 1])), [laid]);
   const box = useRef<HTMLDivElement>(null);
   const title = REPORTS.find(([k]) => k === report)![2];
@@ -87,7 +89,7 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
           <p className={s.empty}>Aucune séquence dans le texte.</p>
         ) : (
           <div ref={box}>
-            {report === 'summary' && <SummaryReport scenes={scenes} blocks={blocks} pages={pages} />}
+            {report === 'summary' && <SummaryReport scenes={scenes} blocks={blocks} pages={pages} duration={duration} />}
             {report === 'scenes' && <ScenesReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
             {report === 'decors' && <DecorsReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
             {report === 'characters' && <CharactersReport scenes={scenes} />}
@@ -518,9 +520,9 @@ function Pct({ v }: { v: number }) {
 }
 
 /** Sommaire : durée, pages, mots, signes ; texte par type de paragraphe ; moments, lieux, personnages. */
-function SummaryReport({ scenes, blocks, pages }: { scenes: SceneInfo[]; blocks: readonly SBlock[]; pages: number }) {
-  // Texte imprimé : sans marques d'emphase ni de surlignage.
-  const body = blocks.filter((b) => !isEmptyBlock(b) && b.type !== 'title' && b.type !== 'pagebreak').map((b) => ({ ...b, text: printedText(b.text) }));
+function SummaryReport({ scenes, blocks, pages, duration }: { scenes: SceneInfo[]; blocks: readonly SBlock[]; pages: number; duration: number }) {
+  // Texte imprimé : sans notes, parties ni résumés, sans marques d'emphase ni de surlignage.
+  const body = blocks.filter((b) => !isEmptyBlock(b) && b.type !== 'title' && b.type !== 'pagebreak' && !NOT_PRINTED.has(b.type)).map((b) => ({ ...b, text: printedText(b.text) }));
   const all = body.map((b) => b.text).join(' ');
   const words = wordsOf(all);
   const types = [...new Set(body.map((b) => b.type))].map((t) => {
@@ -539,7 +541,8 @@ function SummaryReport({ scenes, blocks, pages }: { scenes: SceneInfo[]; blocks:
     ['De 1 à 10 répliques', chars.filter((c) => c.replies >= 1 && c.replies <= 10).length],
     ['Sans réplique', chars.filter((c) => c.replies === 0).length],
   ];
-  const total = scenes.reduce((n, sc) => n + sc.durationSec, 0);
+  const total = duration;
+  const inScenes = scenes.reduce((n, sc) => n + sc.durationSec, 0);
   const dialogue = scenes.reduce((n, sc) => n + sc.dialogueSec, 0);
   const replies = scenes.reduce((n, sc) => n + [...sc.replies.values()].reduce((a, k) => a + k, 0), 0);
   const longest = scenes.reduce((a, sc) => (sc.durationSec > a.durationSec ? sc : a), scenes[0]);
@@ -598,7 +601,7 @@ function SummaryReport({ scenes, blocks, pages }: { scenes: SceneInfo[]; blocks:
           <span>Séquences</span>
         </div>
         <div>
-          <b>{mmss(total / scenes.length)}</b>
+          <b>{mmss(inScenes / scenes.length)}</b>
           <span>Durée moyenne</span>
         </div>
         <div>

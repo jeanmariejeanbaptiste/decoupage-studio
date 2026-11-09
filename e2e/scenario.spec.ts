@@ -505,3 +505,25 @@ test('scénario : effacer une réplique entière ne touche ni aux blocs voisins 
   expect(errors).toEqual([]);
   await expect(page.getByText('Cette page n’a pas pu s’afficher')).toHaveCount(0);
 });
+
+test('scénario : les notes ne comptent ni dans les pages ni dans la durée ; barre, sommaire et statistiques concordent', async ({ page }) => {
+  const scene = (k: number) =>
+    `INT. LIEU ${k} - JOUR\n\n[[${'Note de travail assez longue pour tenir plusieurs lignes à l’écran. '.repeat(4)}]]\n\n${'Une action qui occupe quelques lignes de la page imprimée. '.repeat(4)}\n\nLÉA\nUne réplique.\n\n`;
+  const src = `Title: Notes\n\n> FONDU D’OUVERTURE :\n\nUne ouverture.\n\n${Array.from({ length: 30 }, (_, k) => scene(k + 1)).join('')}`;
+  await page.goto('/#/scenario?seed=fiction');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: /^Importer/ }).click();
+  await (await chooser).setFiles({ name: 'notes.fountain', mimeType: 'text/plain', buffer: Buffer.from(src) });
+  await page.getByRole('alertdialog').getByRole('button', { name: /^Remplacer/ }).click();
+  const count = page.getByText(/^30 séquences · \d+ pages$/);
+  await expect(count).toBeVisible();
+  const pages = Number(/· (\d+) pages/.exec((await count.textContent()) ?? '')![1]);
+  // La dernière séquence est sur la dernière page imprimée.
+  await expect(page.getByTestId('scenario-outline').locator('li').last().locator('span').last()).toHaveText(String(pages));
+  const total = /\/ (\d+:\d\d)/.exec((await page.getByTestId('scenario-chrono').textContent()) ?? '')![1];
+  await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Statistiques' }).click();
+  await page.getByTestId('report-summary').click();
+  const kpi = (label: string) => page.getByTestId('script-reports').getByText(label, { exact: true }).locator('xpath=preceding-sibling::b');
+  await expect(kpi('Durée')).toHaveText(total);
+  await expect(kpi('Pages')).toHaveText(String(pages));
+});
