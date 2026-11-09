@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Braces, Download, Eye, FolderArchive, FileSpreadsheet, FileUp, Printer, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { ALL_COLUMNS, COLUMN_DEFS, moveColumn, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, columnMenuLabel, moveColumn, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
 import { serializeDoc, exportBase } from '../../domain/serialize';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -204,15 +204,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-const label = (c: ColumnKey) => {
-  const l = COLUMN_DEFS[c].label;
-  if (l !== l.toUpperCase()) return l;
-  // « SÉQUENCE » → « Séquence », mais « TC MIN » reste tel quel.
-  return l
-    .split(' ')
-    .map((w, i) => (w.length <= 3 ? w : (i ? w.charAt(0).toLowerCase() : w.charAt(0)) + w.slice(1).toLowerCase()))
-    .join(' ');
-};
+const label = columnMenuLabel;
 
 function Seg({ name, value, options, onChange }: { name: string; value: string; options: Array<[string, string]>; onChange: (v: string) => void }) {
   return (

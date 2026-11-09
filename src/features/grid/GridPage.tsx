@@ -6,7 +6,7 @@ import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
-import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, COLUMN_DEFS, columnMenuLabel, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -327,7 +327,7 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
           <p className={s.menuTitle}>Colonnes de la grille</p>
           {listed.map((c) => {
             const on = cols.includes(c);
-            const label = COLUMN_DEFS[c].label.charAt(0) + COLUMN_DEFS[c].label.slice(1).toLowerCase();
+            const label = columnMenuLabel(c);
             const i = shownCols.indexOf(c);
             const canUp = on && isMovableColumn(c) && i > 0 && isMovableColumn(shownCols[i - 1]);
             const canDown = on && isMovableColumn(c) && i < shownCols.length - 1 && isMovableColumn(shownCols[i + 1]);
