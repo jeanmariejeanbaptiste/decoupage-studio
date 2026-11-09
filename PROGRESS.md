@@ -255,3 +255,12 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Retirés : modèles de découpage. « Séquence » partout au lieu de « scène ».
 - Tests : 340 tests unitaires, 90 parcours de bout en bout (Chromium).
 - À faire : gras, italique et couleurs dans l'éditeur du scénario (rendu en place des marques) ; chantier production (inventaire : scratchpad/inventaire-production.md, résumé dans CLAUDE.md).
+
+## Version 2.7.0 — 2026-11-09 (scénario à la KIT, production)
+- Scénario : gras, italique, souligné (⌘B / ⌘I / ⌘U) rendus en place ; surlignage de révision en six couleurs (`[[=couleur]]…[[=]]`), jamais imprimé ; statistiques complètes (sommaire, séquences, décors, personnages, dialogues, structure, activité), graphiques exportés en PNG ou PDF ; renommage des personnages et décors ; paragraphes trop longs coupés à l'import.
+- Minutage du scénario (Paramètres → Scénario) : par pages (s / page), par caractères (N caractères = M s, espaces au choix) ou par type de paragraphe (forfait + s / 50 caractères), comme KIT (`domain/chronometry.ts`) ; repris par le chronomètre, les rapports et les graphiques. Compteurs sans les marques.
+- Plan de travail : « Jour n sur N » avec totaux, bandes grises INT/EXT × moment, bandeaux installation / trajet / repas / pause, horaires en cascade depuis le RDV (les horaires saisis priment), durées prévues par bande.
+- Registre : numéros des personnages (repris partout), séquences, 1er jour, nombre de jours, fiches inutilisées estompées. Lieux de tournage distincts des décors (nom, adresse, accès, contact), repris par la feuille de service et les exports (`domain/locations.ts`).
+- Thème sombre : contrôles natifs sombres (`color-scheme`).
+- Tests : 368 tests unitaires, 94 parcours de bout en bout (Chromium).
+- Suite possible : réordonner les séquences dans un jour, horaire par plan, lieu de tournage commun à plusieurs décors.

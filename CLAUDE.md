@@ -28,10 +28,12 @@ Vite 5 + React 18 + TypeScript strict · Zustand + immer + zundo · Dexie (Index
 - Ne pas appliquer bêtement une demande : penser aux interdépendances (format ↔ minutage ↔ colonnes ↔ modèles ↔ exports), être force de proposition, s'auto-relire et corriger avant de livrer.
 - Publier = pousser sur `main` (GitHub Pages). Tester avant (tsc, lint, vitest, e2e concernés). Les tags git ne passent pas (403), c'est accepté.
 
-## Architecture récente (v2.6.0)
+## Architecture récente (v2.7.0)
 - Coquille : `features/shell` (Topbar + ProjectMenu, Sidebar groupée et réductible, SettingsPage en brouillon, Account pour Google).
 - Scénario : `domain/screenplay.ts` (blocs typés ↔ Fountain, « @ » seul = réplique sans personnage), `domain/scriptLayout.ts` (gabarit du modèle KIT : Courier Prime, 58 lignes, pagination ; sert l'éditeur et tous les exports, tests ligne à ligne sur `src/domain/__fixtures__/kit`), `domain/fdx.ts` (Final Draft), `features/scenario/ScriptEditor.tsx` (pages de l'export à l'écran, lignes de 16 px), `scriptExport.ts` (PDF texte pdf-lib, images, .docx). `ScriptReader` reste le lecteur du panneau du découpage.
 - Note d'intention : `domain/richText.ts` (HTML réduit et nettoyé), `features/intention/RichEditor.tsx` (pages A4, ruban, barre d'état, annulation propre), `noteExport.ts` ; `intentionHtml` + `intention` (texte brut tenu à jour).
+- Minutage du scénario : `domain/chronometry.ts` (pages / caractères / type, réglage `scriptChrono`) ; marques d'emphase et surlignage `[[=couleur]]` dans `scriptLayout.ts`, jamais imprimés.
+- Production : `domain/schedule.ts` (jours, bandes, bandeaux, cascade), `domain/registry.ts` (numéros, 1er jour), `domain/locations.ts` (lieux de tournage).
 - Dépouillement : `domain/tagging.ts` + `features/breakdown/SceneText.tsx`.
 - Découpage : `GridPage` porte les vues Tableau / Storyboard et la bascule Aperçu (tableau ou planches) ; `grid/CutExport.tsx` = export unique.
 - Plan au sol : `domain/floorSymbols.ts` (projecteur, caméra, rails : mêmes tracés écran / export), `features/floorplan/icons.tsx`.
@@ -40,9 +42,9 @@ Vite 5 + React 18 + TypeScript strict · Zustand + immer + zundo · Dexie (Index
 - Rapports du scénario : `domain/scriptReports.ts` ; panneaux `features/scenario/ResearchPanels.tsx` ; page de garde détectée à l'import (`detectTitlePage`).
 - Google Drive : `store/cloud.ts` (dormant sans `VITE_GOOGLE_CLIENT_ID`, variable de dépôt `GOOGLE_CLIENT_ID` lue par deploy.yml).
 
-## Chantiers en cours (au 8 nov. 2026, v2.6.0)
+## Chantiers en cours (au 9 nov. 2026, v2.7.0)
 - Google Drive : code prêt ; l'utilisateur doit créer l'ID client OAuth (guide pas à pas redonné le 8 nov., portée drive.appdata) et le mettre dans la variable de dépôt `GOOGLE_CLIENT_ID`.
-- Demandé, pas encore fait : gras, italique et couleurs dans l'éditeur du scénario (il faut rendre les marques en place) ; chantier production d'après les captures Yamdu (séparateurs de jour « Jour n sur N » avec totaux, couleur de bande INT/EXT × JOUR/NUIT en gris, bandeaux sans séquence, horaires en cascade, fiches avec 1er jour et nombre de jours, n° de personnage partout, lieux de tournage distincts des décors, programme par poste).
+- Production, suite possible : réordonner les séquences dans un jour, horaire par plan, lieu commun à plusieurs décors, programme par poste.
 - Ouverts (Safari jamais vérifié) : pincement du trackpad dans le dessin, pied de page @page, captures très longues.
 - Reportés (à proposer) : numéros figés avec plans bis, colonnes figées au défilement, raccords pour la scripte, partage via serveur hébergé, mode révision et versions comparées du scénario.
 - Toujours vérifier les deux thèmes (captures clair et sombre) avant de pousser ; ne jamais pousser si un test échoue.
