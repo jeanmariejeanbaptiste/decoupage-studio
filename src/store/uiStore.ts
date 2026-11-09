@@ -74,7 +74,7 @@ export const useUi = create<UiState>()((set) => ({
     }
   })(),
   itwFocus: null,
-  rightPanel: typeof window !== 'undefined' && window.innerWidth >= 1600 ? 'inspector' : null,
+  rightPanel: null,
   oneShotEditor: null,
   sidebarOpen: (() => {
     // Sur téléphone, le menu est un tiroir fermé au départ.

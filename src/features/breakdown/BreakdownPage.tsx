@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Sparkles, X } from 'lucide-react';
 import {
   addBreakdownItems,
@@ -78,19 +78,82 @@ function selectedSequence(doc: ProjectDoc): ID | undefined {
   return undefined;
 }
 
-/** Dépouillement scène par scène (§15.5) : le texte à gauche du dépouillement, qu'on étiquette en le sélectionnant. */
+/** Paragraphes d'une scène : son passage du scénario, sinon les actions et répliques du découpage. */
+function paragraphsFor(doc: ProjectDoc, entry: Entry): Paragraph[] {
+  if (entry.scene) return paragraphsOf((doc.scenario ?? '').slice(entry.scene.start, entry.scene.end));
+  return entry.seqId ? sequenceParagraphs(doc, entry.seqId) : [];
+}
+
+/** Éléments repérés dans le texte et pas encore dépouillés (une fois chacun), pour « Tout ajouter ». */
+function suggestionsFor(doc: ProjectDoc, entry: Entry, paragraphs: Paragraph[]): Map<string, { cat: BreakdownCategory; item: string }> {
+  const out = new Map<string, { cat: BreakdownCategory; item: string }>();
+  for (const p of paragraphs) for (const m of marksIn(doc, entry.seqId ?? '', p.text)) if (m.suggested) out.set(`${m.cat}|${m.item.toLocaleLowerCase('fr')}`, { cat: m.cat, item: m.item });
+  return out;
+}
+
+/** Nom d'une scène dans la liste : lieu, ou en-tête de la séquence (vide s'il n'y en a pas). */
+function entryName(doc: ProjectDoc, e: Entry): string {
+  const name = e.seqId ? sequenceHeading(doc, e.seqId).replace(/^\d+,?\s*/, '') : (e.scene?.location ?? '');
+  return name.trim().toLocaleUpperCase('fr');
+}
+
+type View = 'sequence' | 'full';
+const VIEW_KEY = 'ds-breakdown-view';
+const readView = (): View => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'full' ? 'full' : 'sequence';
+  } catch {
+    return 'sequence';
+  }
+};
+
+/**
+ * Dépouillement (§15.5) : le texte au centre, qu'on étiquette en le sélectionnant, la fiche à droite.
+ * Par séquence, ou le scénario entier d'un seul tenant : la fiche suit alors la séquence lue.
+ */
 export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const entries = useMemo(() => entriesOf(doc), [doc]);
+  const [view, setViewState] = useState<View>(readView);
   const [picked, setPicked] = useState<{ seqId?: ID; sceneStart?: number }>(() => ({ seqId: selectedSequence(doc) }));
   const [hot, setHot] = useState<string | null>(null);
+  const flow = useRef<HTMLDivElement>(null);
   const entry = entries.find((e) => picked.seqId && e.seqId === picked.seqId) ?? entries.find((e) => picked.sceneStart !== undefined && e.scene?.start === picked.sceneStart) ?? entries[0];
+  const pick = (e: Entry) => setPicked({ seqId: e.seqId, sceneStart: e.scene?.start });
 
-  const paragraphs = useMemo(() => {
-    if (!entry) return [];
-    if (entry.scene) return paragraphsOf((doc.scenario ?? '').slice(entry.scene.start, entry.scene.end));
-    return entry.seqId ? sequenceParagraphs(doc, entry.seqId) : [];
-  }, [entry, doc]);
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* préférence non retenue */
+    }
+  };
+
+  // Scénario entier : la séquence lue (la première dont le haut a passé le tiers de l'écran) devient la courante.
+  const lock = useRef(0);
+  useEffect(() => {
+    if (view !== 'full') return;
+    const onScroll = () => {
+      if (Date.now() < lock.current || !flow.current) return;
+      const line = window.innerHeight / 3;
+      let current: string | undefined;
+      for (const el of Array.from(flow.current.querySelectorAll<HTMLElement>('[data-entry]'))) {
+        if (el.getBoundingClientRect().top <= line) current = el.dataset.entry;
+        else break;
+      }
+      const e = entries.find((x) => x.key === current) ?? entries[0];
+      if (e && e.key !== entry?.key) pick(e);
+    };
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+  });
+
+  // En passant au scénario entier, on retrouve la séquence courante à sa place.
+  useEffect(() => {
+    if (view === 'full' && entry) goTo(entry, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   if (!entry) {
     return (
@@ -103,43 +166,61 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
     );
   }
 
-  /** Ajoute au dépouillement de la scène ; une scène absente du découpage y devient une séquence. */
-  const tag = (cat: BreakdownCategory, items: string[]) => {
-    const clean = items.map((i) => i.trim()).filter(Boolean);
+  function goTo(e: Entry, smooth = true) {
+    pick(e);
+    if (view !== 'full') return;
+    const el = flow.current?.querySelector<HTMLElement>(`[data-entry="${CSS.escape(e.key)}"]`);
+    if (!el) return;
+    lock.current = Date.now() + (smooth ? 900 : 200);
+    el.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  /** Ajoute au dépouillement d'une scène ; une scène absente du découpage y devient une séquence. */
+  const tagIn = (target: Entry, items: Array<{ cat: BreakdownCategory; item: string }>) => {
+    const clean = items.map((i) => ({ ...i, item: i.item.trim() })).filter((i) => i.item);
     if (!clean.length) return;
     let created: ID | undefined;
     mutateDoc((d) => {
-      let seqId = entry.seqId && d.sequences[entry.seqId] ? entry.seqId : undefined;
-      if (!seqId && entry.scene) seqId = created = createSequenceForScene(d, d.scenario ?? '', entry.scene);
-      if (seqId) addBreakdownItems(d, seqId, cat, clean);
+      let seqId = target.seqId && d.sequences[target.seqId] ? target.seqId : undefined;
+      if (!seqId && target.scene) seqId = created = createSequenceForScene(d, d.scenario ?? '', target.scene);
+      if (!seqId) return;
+      const byCat = new Map<BreakdownCategory, string[]>();
+      for (const { cat, item } of clean) byCat.set(cat, [...(byCat.get(cat) ?? []), item]);
+      for (const [cat, list] of byCat) addBreakdownItems(d, seqId, cat, list);
     });
     if (created) setPicked({ seqId: created });
+    else pick(target);
   };
-  const untag = (cat: BreakdownCategory, item: string) => entry.seqId && mutateDoc((d) => removeBreakdownItem(d, entry.seqId!, cat, item));
-
-  // Suggestions repérées dans le texte (une fois chacune), pour « Tout ajouter ».
-  const suggestions = new Map<string, { cat: BreakdownCategory; item: string }>();
-  if (entry.seqId || entry.scene) {
-    const seqForMarks = entry.seqId ?? '';
-    for (const p of paragraphs) for (const m of marksIn(doc, seqForMarks, p.text)) if (m.suggested) suggestions.set(`${m.cat}|${m.item.toLocaleLowerCase('fr')}`, { cat: m.cat, item: m.item });
-  }
-  const seq = entry.seqId ? doc.sequences[entry.seqId] : undefined;
-  const heading = entry.seqId ? sequenceHeading(doc, entry.seqId) : entry.scene?.heading.toLocaleUpperCase('fr');
+  const untagIn = (target: Entry, cat: BreakdownCategory, item: string) => target.seqId && mutateDoc((d) => removeBreakdownItem(d, target.seqId!, cat, item));
   const title = doc.project.title || 'projet';
 
   return (
     <div className={['page page--wide', s.page].join(' ')}>
       <header className={s.toolbar}>
-        <p className={s.count}>
-          {entries.length} séquence{entries.length > 1 ? 's' : ''}
-        </p>
+        <div className={s.lead}>
+          <div className={s.seg} role="radiogroup" aria-label="Affichage du texte">
+            {(
+              [
+                ['sequence', 'Par séquence'],
+                ['full', 'Scénario entier'],
+              ] as const
+            ).map(([v, label]) => (
+              <button key={v} type="button" role="radio" aria-checked={view === v} className={view === v ? s.segOn : ''} onClick={() => setView(v)} data-testid={`breakdown-view-${v}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className={s.count}>
+            {entries.length} séquence{entries.length > 1 ? 's' : ''}
+          </p>
+        </div>
         <div className={s.tools}>
           {!readOnly && (entry.seqId || entry.scene) && (
             <Button
               variant="outline"
               icon={<Sparkles size={15} strokeWidth={1.25} />}
               onClick={() => suggestBreakdown(doc, { seqId: entry.seqId, heading: entry.scene?.heading })}
-              title="L’assistant relève les éléments de cette séquence et les ajoute au dépouillement (annulable en une fois)"
+              title="L’assistant relève les éléments de la séquence courante et les ajoute au dépouillement (annulable en une fois)"
               data-testid="breakdown-ai"
             >
               Dépouiller avec l’assistant
@@ -156,9 +237,9 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
               const on = e.key === entry.key;
               return (
                 <li key={e.key}>
-                  <button type="button" className={on ? s.on : ''} aria-current={on || undefined} onClick={() => setPicked({ seqId: e.seqId, sceneStart: e.scene?.start })} data-testid="breakdown-scene">
+                  <button type="button" className={on ? s.on : ''} aria-current={on || undefined} onClick={() => goTo(e)} data-testid="breakdown-scene">
                     <span className={s.num}>{e.seqId ? doc.project.sequenceIds.indexOf(e.seqId) + 1 : '–'}</span>
-                    <span className={s.name}>{e.seqId ? sequenceHeading(doc, e.seqId).replace(/^\d+,\s*/, '') : e.scene?.location.toLocaleUpperCase('fr')}</span>
+                    {entryName(doc, e) ? <span className={s.name}>{entryName(doc, e)}</span> : <span className={s.unnamed}>Sans en-tête</span>}
                     {n > 0 && <em>{n}</em>}
                   </button>
                 </li>
@@ -167,46 +248,80 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           </ol>
         </nav>
 
-        <section className={s.center} aria-label="Texte de la séquence">
-          <div className={s.sheet}>
-            {/* Le texte du scénario porte déjà son en-tête ; une séquence sans texte écrit affiche le sien. */}
-            {(!entry.scene || !entry.seqId) && (
-              <header className={s.sceneHead}>
-                {!entry.scene && <h2>{heading}</h2>}
-                {!entry.seqId && <span className={s.absent}>pas encore au découpage</span>}
-              </header>
-            )}
-            {seq?.summary && <p className={s.summary}>{seq.summary}</p>}
-            {!readOnly && suggestions.size > 0 && (
-              <button
-                type="button"
-                className={s.addAll}
-                onClick={() => {
-                  const byCat = new Map<BreakdownCategory, string[]>();
-                  for (const { cat, item } of suggestions.values()) byCat.set(cat, [...(byCat.get(cat) ?? []), item]);
-                  let created: ID | undefined;
-                  mutateDoc((d) => {
-                    let seqId = entry.seqId && d.sequences[entry.seqId] ? entry.seqId : undefined;
-                    if (!seqId && entry.scene) seqId = created = createSequenceForScene(d, d.scenario ?? '', entry.scene);
-                    if (seqId) for (const [cat, items] of byCat) addBreakdownItems(d, seqId, cat, items);
-                  });
-                  if (created) setPicked({ seqId: created });
-                }}
-                data-testid="breakdown-add-all"
-              >
-                <Plus size={13} strokeWidth={1.5} /> Ajouter les {suggestions.size} suggestion{suggestions.size > 1 ? 's' : ''} soulignée{suggestions.size > 1 ? 's' : ''}
-              </button>
-            )}
-            <SceneText doc={doc} seqId={entry.seqId ?? ''} paragraphs={paragraphs} hot={hot} readOnly={readOnly} onTag={(cat, item) => tag(cat, [item])} onUntag={untag} />
-          </div>
+        <section className={s.center} aria-label={view === 'full' ? 'Texte du scénario' : 'Texte de la séquence'}>
+          {view === 'full' ? (
+            <div className={[s.sheet, s.sheetFull].join(' ')} ref={flow} data-testid="breakdown-full">
+              {entries.map((e) => (
+                <EntryText key={e.key} doc={doc} entry={e} active={e.key === entry.key} full hot={hot} readOnly={readOnly} onTag={(items) => tagIn(e, items)} onUntag={(cat, item) => untagIn(e, cat, item)} onFocus={() => e.key !== entry.key && pick(e)} />
+              ))}
+            </div>
+          ) : (
+            <div className={s.sheet}>
+              <EntryText doc={doc} entry={entry} active hot={hot} readOnly={readOnly} onTag={(items) => tagIn(entry, items)} onUntag={(cat, item) => untagIn(entry, cat, item)} />
+            </div>
+          )}
         </section>
 
         <aside className={s.sheetSide} aria-label="Fiche de dépouillement">
+          {view === 'full' && <p className={s.sideHead}>{entry.seqId ? sequenceHeading(doc, entry.seqId) : entry.scene?.heading.toLocaleUpperCase('fr')}</p>}
+          {view === 'full' && !readOnly && <AddAll suggestions={suggestionsFor(doc, entry, paragraphsFor(doc, entry))} onAdd={(items) => tagIn(entry, items)} />}
           {/* Une fiche par scène : une saisie commencée ne passe pas à la scène suivante. */}
-          <BreakdownSheet key={entry.key} doc={doc} seqId={entry.seqId} readOnly={readOnly} onAdd={tag} onRemove={untag} onHot={setHot} />
+          <BreakdownSheet key={entry.key} doc={doc} seqId={entry.seqId} readOnly={readOnly} onAdd={(cat, items) => tagIn(entry, items.map((item) => ({ cat, item })))} onRemove={(cat, item) => untagIn(entry, cat, item)} onHot={setHot} />
         </aside>
       </div>
     </div>
+  );
+}
+
+/** « Ajouter les N suggestions soulignées » : tout ce que le texte laisse repérer, d'un clic. */
+function AddAll({ suggestions, onAdd }: { suggestions: Map<string, { cat: BreakdownCategory; item: string }>; onAdd: (items: Array<{ cat: BreakdownCategory; item: string }>) => void }) {
+  if (!suggestions.size) return null;
+  return (
+    <button type="button" className={s.addAll} onClick={() => onAdd([...suggestions.values()])} data-testid="breakdown-add-all">
+      <Plus size={13} strokeWidth={1.5} /> Ajouter les {suggestions.size} suggestion{suggestions.size > 1 ? 's' : ''} soulignée{suggestions.size > 1 ? 's' : ''}
+    </button>
+  );
+}
+
+/** Le texte d'une scène, étiquetable ; en tête, son en-tête s'il n'est pas dans le texte, et ses suggestions. */
+function EntryText({
+  doc,
+  entry,
+  active,
+  full,
+  hot,
+  readOnly,
+  onTag,
+  onUntag,
+  onFocus,
+}: {
+  doc: ProjectDoc;
+  entry: Entry;
+  active: boolean;
+  full?: boolean;
+  hot: string | null;
+  readOnly: boolean;
+  onTag: (items: Array<{ cat: BreakdownCategory; item: string }>) => void;
+  onUntag: (cat: BreakdownCategory, item: string) => void;
+  onFocus?: () => void;
+}) {
+  const paragraphs = useMemo(() => paragraphsFor(doc, entry), [doc, entry]);
+  const suggestions = suggestionsFor(doc, entry, paragraphs);
+  const seq = entry.seqId ? doc.sequences[entry.seqId] : undefined;
+  const heading = entry.seqId ? sequenceHeading(doc, entry.seqId) : entry.scene?.heading.toLocaleUpperCase('fr');
+  return (
+    <article className={[s.entry, full && active ? s.entryOn : ''].join(' ')} data-entry={entry.key} onMouseDownCapture={onFocus} onFocusCapture={onFocus} data-testid={full ? 'breakdown-entry' : undefined}>
+      {/* Le texte du scénario porte déjà son en-tête ; une séquence sans texte écrit affiche le sien. */}
+      {(!entry.scene || !entry.seqId) && (
+        <header className={s.sceneHead}>
+          {!entry.scene && <h2>{heading}</h2>}
+          {!entry.seqId && <span className={s.absent}>pas encore au découpage</span>}
+        </header>
+      )}
+      {seq?.summary && <p className={s.summary}>{seq.summary}</p>}
+      {!readOnly && active && !full && <AddAll suggestions={suggestions} onAdd={onTag} />}
+      {paragraphs.length > 0 && <SceneText doc={doc} seqId={entry.seqId ?? ''} paragraphs={paragraphs} hot={active ? hot : null} readOnly={readOnly} onTag={(cat, item) => onTag([{ cat, item }])} onUntag={onUntag} />}
+    </article>
   );
 }
 

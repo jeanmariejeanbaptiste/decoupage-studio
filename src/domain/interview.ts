@@ -295,11 +295,19 @@ export function placeSetup(doc: ProjectDoc, setupId: ID, seqId?: ID | 'new'): vo
   if (seqId === 'new') target = addSequence(doc, undefined, { label: interviewSequenceLabel(subject) }, false);
   if (!target) return;
   setup.sequenceId = target;
+  // Après les autres cadres du même intervenant s'il en a déjà dans la séquence, sinon en fin de séquence.
+  const ids = doc.sequences[target].shotIds;
+  let index: number | undefined;
+  for (let i = ids.length - 1; i >= 0; i--)
+    if (doc.shots[ids[i]]?.interview?.subjectId === subject.id) {
+      index = i + 1;
+      break;
+    }
   let blockId: ID | undefined;
-  for (const cam of setup.cameras) {
-    const id = addShot(doc, target, { blockId, action: { text: interviewAction(subject, setup, doc.interview) }, init: cameraShot(subject, setup, cam, doc) });
+  setup.cameras.forEach((cam, k) => {
+    const id = addShot(doc, target!, { blockId, index: index === undefined ? undefined : index + k, action: { text: interviewAction(subject, setup, doc.interview) }, init: cameraShot(subject, setup, cam, doc) });
     blockId ??= doc.shots[id].actionBlockId;
-  }
+  });
 }
 
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -399,6 +407,32 @@ export function syncInterviewShots(doc: ProjectDoc): void {
         if (sh.interview!.subjectId !== subject.id) sh.interview!.subjectId = subject.id;
       });
     }
+  keepInterviewsTogether(doc);
+}
+
+/**
+ * Une interview ne se coupe pas : entre deux cadres d'un même intervenant, dans une séquence, aucun
+ * autre plan ne s'intercale ; ceux qui s'y trouvent passent juste après l'interview, dans leur ordre.
+ */
+function keepInterviewsTogether(doc: ProjectDoc): void {
+  for (const seqId of doc.project.sequenceIds) {
+    const seq = doc.sequences[seqId];
+    if (!seq) continue;
+    const subj = (id: ID) => doc.shots[id]?.interview?.subjectId;
+    let order = seq.shotIds;
+    for (const sId of new Set(order.map(subj).filter((x): x is ID => !!x))) {
+      const first = order.findIndex((id) => subj(id) === sId);
+      let last = order.length - 1;
+      while (last > first && subj(order[last]) !== sId) last--;
+      const span = order.slice(first, last + 1);
+      const others = span.filter((id) => subj(id) !== sId);
+      if (others.length) order = [...order.slice(0, first), ...span.filter((id) => subj(id) === sId), ...others, ...order.slice(last + 1)];
+    }
+    if (!sameList(order, seq.shotIds)) {
+      seq.shotIds = order;
+      normalizeBlocks(doc, seqId);
+    }
+  }
 }
 
 /** Regard de l'intervenant, en bref (bande du découpage). */

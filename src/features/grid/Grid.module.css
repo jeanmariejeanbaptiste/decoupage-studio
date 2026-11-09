@@ -256,5 +256,4 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 
 /* Plans d'interview : mêmes colonnes, fond kraft et filet d'encre à gauche (réglés dans la fiche). */
 .itwRow > td:not(.c_sequence) { background: var(--kraft); }
-.itwRow > .c_number { box-shadow: inset 2px 0 0 var(--ink); }
 .itwRow .c_action { font-style: italic; }

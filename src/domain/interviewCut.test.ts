@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
-import { addInterviewee, ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
+import { addInterviewee, addSetup, ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
 import { addSequence, addShot, addShotAfter, deleteShot, duplicateShot, moveShot } from './ops';
 import { shotCode, shotNumberLabel } from './numbering';
 import { buildSequenceRows, sequenceMerges } from './rows';
@@ -149,5 +149,31 @@ describe('interview placée dans le découpage', () => {
     expect(doc.shots[a].subject).toBe('Marie Dupont');
     expect(doc.shots[b].subject).toBe('Paul Durand');
     expect(doc.blocks[doc.shots[a].actionBlockId].text).toContain('Marie Dupont, directrice et Paul Durand, technicien');
+  });
+
+  it('une interview ne se coupe pas : rien entre deux cadres d’un même intervenant', () => {
+    const { doc, seq, subject, setup } = project();
+    placeSetup(doc, setup.id, seq);
+    setup.cameras.splice(1);
+    syncInterviewShots(doc);
+    // Un plan ordinaire ajouté en fin de séquence, puis un second cadre placé : il rejoint le premier.
+    addShot(doc, seq, { init: { subject: 'Couloir' } });
+    const second = addSetup(doc, subject.id)!;
+    placeSetup(doc, second, seq);
+    syncInterviewShots(doc);
+    expect(order(doc, seq)).toEqual(['1', '2', '3A', '4A', '5']);
+    // Un plan glissé entre les deux cadres en ressort, juste après l’interview.
+    const loose = doc.sequences[seq].shotIds[4];
+    moveShot(doc, loose, seq, 3);
+    syncInterviewShots(doc);
+    expect(order(doc, seq)).toEqual(['1', '2', '3A', '4A', '5']);
+    expect(doc.sequences[seq].shotIds[4]).toBe(loose);
+    // Un numéro choisi au milieu de la séquence emporte l’interview entière à cet endroit.
+    setSetupNumber(doc, second, 1);
+    syncInterviewShots(doc);
+    expect(doc.sequences[seq].shotIds.slice(0, 2).map((id) => doc.shots[id].interview?.setupId)).toEqual([second, setup.id]);
+    const before = JSON.stringify(doc);
+    syncInterviewShots(doc);
+    expect(JSON.stringify(doc)).toBe(before);
   });
 });

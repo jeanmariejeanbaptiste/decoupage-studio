@@ -81,3 +81,23 @@ test('dépouillement : catégorie personnalisée, ajoutée puis supprimée sans 
   await page.getByRole('alertdialog').getByRole('button', { name: 'Supprimer' }).click();
   await expect(page.getByTestId('breakdown-perso:Animaux')).toHaveCount(0);
 });
+
+test('dépouillement : le scénario entier d’un seul tenant, la fiche suit la séquence travaillée', async ({ page }) => {
+  await page.goto('/#/breakdown?seed=fiction');
+  await page.getByTestId('breakdown-view-full').click();
+  const full = page.getByTestId('breakdown-full');
+  await expect(full.getByTestId('breakdown-entry')).toHaveCount(3);
+  await expect(full).toContainText('Le hall bruisse');
+  await expect(full).toContainText('Marc attend sous la pluie');
+  // Une suggestion de la dernière séquence : la fiche passe à cette séquence et la reçoit.
+  await full.getByTestId('tag-suggestion').filter({ hasText: 'cigarette' }).click();
+  await expect(page.getByLabel('Fiche de dépouillement')).toContainText('PARVIS DE LA GARE');
+  await expect(page.getByTestId('breakdown-accessoires')).toContainText('Cigarette');
+  // La liste mène à la séquence dans le texte continu.
+  await page.getByTestId('breakdown-scene').first().click();
+  await expect(page.getByLabel('Fiche de dépouillement')).toContainText('HALL');
+  await expect(page.getByTestId('breakdown-accessoires')).not.toContainText('Cigarette');
+  // Le choix d'affichage est retenu.
+  await page.reload();
+  await expect(page.getByTestId('breakdown-full')).toBeVisible();
+});

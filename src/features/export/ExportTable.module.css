@@ -138,4 +138,3 @@
 
 /* Plans d'interview : fond gris clair, filet à gauche du numéro. */
 .itwRow td:not(.c_sequence) { background: var(--x-head); }
-.itwRow .c_number { box-shadow: inset 2px 0 0 currentColor; }
