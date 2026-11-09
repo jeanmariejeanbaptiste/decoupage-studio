@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankModels } from './modelPick';
+import { rankModels, shortlist } from './modelPick';
 
 describe('choix du modèle le plus rapide disponible', () => {
   it('Anthropic : Haiku le plus récent, puis Sonnet, puis Opus', () => {
@@ -16,5 +16,16 @@ describe('choix du modèle le plus rapide disponible', () => {
   });
   it('OpenRouter : Claude Haiku, puis Gemini Flash, puis GPT mini', () => {
     expect(rankModels('openrouter', ['openai/gpt-5-mini', 'google/gemini-2.5-flash', 'anthropic/claude-haiku-4.5', 'anthropic/claude-haiku-5.5', 'meta/llama'])[0]).toBe('anthropic/claude-haiku-5.5');
+  });
+  it('OpenRouter : une variante gratuite se range comme son modèle', () => {
+    expect(rankModels('openrouter', ['meta-llama/llama-4:free', 'google/gemini-2.5-flash:free', 'openai/gpt-5-mini']).slice(0, 2)).toEqual(['google/gemini-2.5-flash:free', 'openai/gpt-5-mini']);
+  });
+});
+
+describe('modèles essayés', () => {
+  it('le meilleur de chaque famille d’abord, l’ordre du classement gardé', () => {
+    const ranked = rankModels('anthropic', ['claude-haiku-5-5', 'claude-haiku-4-5-20251001', 'claude-3-5-haiku-20241022', 'claude-sonnet-5-5', 'claude-sonnet-4-5', 'claude-opus-5-5']);
+    expect(shortlist(ranked, 4)).toEqual(['claude-haiku-5-5', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5', 'claude-opus-5-5']);
+    expect(shortlist(ranked, 2)).toEqual(['claude-haiku-5-5', 'claude-sonnet-5-5']);
   });
 });

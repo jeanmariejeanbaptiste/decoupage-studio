@@ -53,15 +53,19 @@ function mistralScore(id: string): Scored | null {
 
 const byScore = (a: Scored, b: Scored) => a.tier - b.tier || a.preview - b.preview || b.version - a.version || a.dated - b.dated || a.id.localeCompare(b.id);
 
+/** Nom sans variante OpenRouter (« :free », « :nitro »…). */
+const baseId = (id: string) => id.replace(/:[\w-]+$/, '');
+
 /** Modèles de conversation, du plus conseillé au moins conseillé. */
 export function rankModels(provider: ProviderId, ids: readonly string[]): string[] {
-  const chat = [...new Set(ids.map((x) => x.replace(/^models\//, '').trim()))].filter((x) => x && !NOT_CHAT.test(x));
+  const chat = [...new Set(ids.map((x) => x.replace(/^models\//, '').trim()))].filter((x) => x && !NOT_CHAT.test(baseId(x)));
   if (provider === 'custom') return chat;
   if (provider === 'openrouter') {
-    // Les familles rapides des grands fournisseurs (Claude Haiku, Gemini Flash, GPT mini), puis le reste.
-    const haiku = chat.filter((x) => /^anthropic\/claude-haiku-[\d.]+$/.test(x)).sort((a, b) => version(b.slice(21)) - version(a.slice(21)));
-    const flash = rank(chat.filter((x) => x.startsWith('google/')), geminiScore).filter((x) => /-flash$/.test(x));
-    const mini = rank(chat.filter((x) => x.startsWith('openai/')), openAiScore).filter((x) => /-mini$/.test(x));
+    // Les familles rapides des grands fournisseurs (Claude Haiku, Gemini Flash, GPT mini), puis le reste ;
+    // une variante gratuite se range comme son modèle.
+    const haiku = chat.filter((x) => /^anthropic\/claude-haiku-[\d.]+$/.test(baseId(x))).sort((a, b) => version(baseId(b).slice(21)) - version(baseId(a).slice(21)));
+    const flash = rank(chat.filter((x) => x.startsWith('google/')), (x) => geminiScore(baseId(x))).filter((x) => /-flash$/.test(baseId(x)));
+    const mini = rank(chat.filter((x) => x.startsWith('openai/')), (x) => openAiScore(baseId(x))).filter((x) => /-mini$/.test(baseId(x)));
     return [...new Set([...haiku, ...flash, ...mini, ...chat])];
   }
   const score = provider === 'anthropic' ? anthropicScore : provider === 'openai' ? openAiScore : provider === 'gemini' ? geminiScore : mistralScore;
@@ -69,10 +73,31 @@ export function rankModels(provider: ProviderId, ids: readonly string[]): string
   return [...known, ...chat.filter((x) => !known.includes(x))];
 }
 
+/** Famille d'un modèle : les mots de son nom, sans numéros ni date (« claude-3-5-haiku » et « claude-haiku-4-5 » vont ensemble). */
+const family = (id: string) =>
+  baseId(id)
+    .split(/[-/._]/)
+    .filter((w) => w && !/^\d+$/.test(w))
+    .sort()
+    .join(' ');
+
+/**
+ * Les `n` premiers d'une liste classée, en variant les familles : le meilleur de chaque famille
+ * d'abord (Haiku, Sonnet, Opus plutôt que quatre Haiku), puis les suivants ; l'ordre est gardé.
+ */
+export function shortlist(ranked: readonly string[], n: number): string[] {
+  const seen = new Set<string>();
+  const first = ranked.filter((id) => !seen.has(family(id)) && seen.add(family(id))).slice(0, n);
+  const picked = new Set([...first, ...ranked.filter((id) => !first.includes(id)).slice(0, n - first.length)]);
+  return ranked.filter((id) => picked.has(id));
+}
+
 function rank(ids: readonly string[], score: (id: string) => Scored | null): string[] {
   return ids
-    .map((id) => score(id))
-    .filter((x): x is Scored => !!x)
+    .flatMap((id) => {
+      const sc = score(id);
+      return sc ? [{ ...sc, id }] : [];
+    })
     .sort(byScore)
     .map((x) => x.id);
 }

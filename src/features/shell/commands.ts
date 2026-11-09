@@ -7,6 +7,7 @@ import { redoHome, undoHome } from '../../store/homeHistory';
 import { useShare } from '../../store/share';
 import { toggleSidebar, useUi } from '../../store/uiStore';
 import { toggleAssistant } from '../assistant/assistant';
+import { useAiStatus } from '../assistant/aiStatus';
 import {
   deleteCurrentShots,
   deleteSequenceOf,
@@ -29,6 +30,8 @@ export interface Command {
   copies?: boolean;
   /** Modifie le projet : refusé à l'invité en lecture seule. */
   edits?: boolean;
+  /** Proposée seulement si la condition est remplie. */
+  when?: () => boolean;
 }
 
 const toGrid = (fn: () => void) => () => {
@@ -82,7 +85,7 @@ export const COMMANDS: readonly Command[] = [
   { id: 'pdf', group: 'Fichier', label: 'Exporter en PDF', run: () => navigate('print', { auto: '1' }), needsProject: true, copies: true },
   { id: 'save', group: 'Fichier', label: 'Enregistrer le fichier .decoupage', shortcut: 'save', run: () => void saveToFile(), needsProject: true, copies: true },
   { id: 'open', group: 'Fichier', label: 'Ouvrir un fichier .decoupage…', run: () => void openFromFile().then((ok) => ok && navigate('grid')) },
-  { id: 'assistant', group: 'Affichage', label: 'Assistant IA', run: () => toggleAssistant(), needsProject: true, edits: true },
+  { id: 'assistant', group: 'Affichage', label: 'Assistant IA', run: () => toggleAssistant(), needsProject: true, edits: true, when: () => useAiStatus.getState().ready },
   {
     id: 'sidebar',
     group: 'Affichage',
@@ -109,5 +112,5 @@ export function availableCommands(): Command[] {
   const sh = useShare.getState();
   const canCopy = sh.role !== 'guest' || sh.keep;
   const readOnly = sh.role === 'guest' && sh.mode === 'read';
-  return COMMANDS.filter((c) => (has || !c.needsProject) && (canCopy || !c.copies) && (!readOnly || !c.edits));
+  return COMMANDS.filter((c) => (has || !c.needsProject) && (canCopy || !c.copies) && (!readOnly || !c.edits) && (!c.when || c.when()));
 }

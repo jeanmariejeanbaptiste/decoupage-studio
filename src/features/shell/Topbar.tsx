@@ -6,6 +6,7 @@ import type { ProjectDoc } from '../../domain/types';
 import { navigate } from '../../app/router';
 import { Button } from '../../ui/Button';
 import { toggleAssistant, useAssistant } from '../assistant/assistant';
+import { useAiStatus } from '../assistant/aiStatus';
 import { ProjectMenu } from './ProjectMenu';
 import s from './Topbar.module.css';
 
@@ -34,6 +35,8 @@ interface Props {
 export function Topbar(p: Props) {
   const k = { save: useShortcutLabel('save'), undo: useShortcutLabel('undo'), redo: useShortcutLabel('redo') };
   const assistantOpen = useAssistant((a) => a.open);
+  // L'assistant n'est proposé qu'une fois essayé et fonctionnel.
+  const ai = useAiStatus();
   return (
     <header className={[s.topbar, 'no-print'].join(' ')}>
       <div className={s.left}>
@@ -66,10 +69,11 @@ export function Topbar(p: Props) {
             )}
           </div>
         )}
-        {p.doc && !p.readOnly && (
+        {p.doc && !p.readOnly && ai.ready && (
           <Button
             variant="ghost"
-            className={[s.assistant, assistantOpen ? s.pressed : ''].join(' ')}
+            className={[s.assistant, assistantOpen ? s.pressed : '', ai.appear ? s.appear : ''].join(' ')}
+            onAnimationEnd={() => useAiStatus.setState({ appear: false })}
             icon={<Sparkles size={15} strokeWidth={1.3} />}
             aria-pressed={assistantOpen}
             onClick={() => toggleAssistant()}

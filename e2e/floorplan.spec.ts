@@ -183,7 +183,9 @@ test('plan au sol : l’assistant trace les murs depuis l’image du plan des lo
   await page.addInitScript(() => localStorage.setItem('ds-ai', JSON.stringify({ provider: 'custom', keys: {}, models: { custom: 'vision-test' }, baseUrl: 'https://ia.test/v1' })));
   let sent: { model?: string; messages?: Array<{ content: Array<{ type: string; text?: string; image_url?: { url: string } }> }> } = {};
   await page.route('https://ia.test/v1/chat/completions', async (route) => {
-    sent = JSON.parse(route.request().postData() ?? '{}');
+    // L'essai silencieux du lancement (sans image) n'est pas la demande suivie ici.
+    const body = route.request().postData() ?? '{}';
+    if (body.includes('image_url')) sent = JSON.parse(body);
     const plan = ['Voici le plan :', '# PLAN DECOUPAGE-STUDIO v2', 'repere: image', 'grille: 1000x750', 'echelle_cm_par_unite: inconnue', 'murs: 2', 'portes: 0', 'fenetres: 1', '## MURS', 'M001 | 100,100 -> 900,100 | standard', 'M002 | 900,100 -> 900,650 | standard', '## PORTES', '## FENETRES', 'F001 | 900,400 | 80 | 90', '## FIN'].join('\n');
     await route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ choices: [{ message: { content: plan }, finish_reason: 'stop' }] }) });
   });

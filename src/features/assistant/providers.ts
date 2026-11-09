@@ -382,11 +382,19 @@ export async function askWithImage(s: AiSettings, prompt: string, image: ImageIn
 
 // --- Vérification de la clé et choix du modèle ------------------------------------------------------
 
+export interface ModelEntry {
+  id: string;
+  /** Gratuit ou payant, quand le fournisseur publie ses prix (OpenRouter) ; absent sinon. */
+  free?: boolean;
+}
+
 export interface ProbeResult {
-  /** Modèle qui a répondu à l'essai (le plus rapide disponible, sauf choix déjà fait et valable). */
+  /** Modèle retenu : celui déjà choisi s'il répond, sinon le meilleur gratuit, sinon le meilleur payant. */
   model: string;
-  /** Modèles de conversation donnés par la clé, du plus conseillé au moins conseillé. */
-  models: string[];
+  /** Modèles qui ont répondu à l'essai, du plus conseillé au moins conseillé. */
+  models: ModelEntry[];
+  /** La liste vient du fournisseur (sinon : modèle saisi ou modèles connus, essayés tels quels). */
+  listed: boolean;
 }
 
 const baseOf = (s: AiSettings) => (s.provider === 'custom' ? s.baseUrl || providerInfo('custom').baseUrl! : providerInfo(s.provider).baseUrl ?? '').replace(/\/+$/, '');
@@ -404,16 +412,16 @@ async function getJson(url: string, headers: Record<string, string>, signal?: Ab
   return JSON.parse(text) as unknown;
 }
 
-/** Modèles que cette clé donne réellement, selon le fournisseur. */
-async function listModels(s: AiSettings, signal?: AbortSignal): Promise<string[]> {
+/** Modèles que cette clé donne réellement, selon le fournisseur (avec leur prix quand il est publié). */
+async function listModels(s: AiSettings, signal?: AbortSignal): Promise<ModelEntry[]> {
   const key = keyOf(s);
   if (s.provider === 'anthropic') {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
     try {
-      const ids: string[] = [];
-      for await (const m of client.models.list({ limit: 100 }, { signal })) ids.push(m.id);
-      return ids;
+      const out: ModelEntry[] = [];
+      for await (const m of client.models.list({ limit: 100 }, { signal })) out.push({ id: m.id });
+      return out;
     } catch (e) {
       if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new AiError('Clé API refusée.');
       if (e instanceof Anthropic.APIConnectionError) throw new AiError('Connexion à l’API impossible.');
@@ -424,49 +432,85 @@ async function listModels(s: AiSettings, signal?: AbortSignal): Promise<string[]
     const json = (await getJson('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { 'x-goog-api-key': key }, signal)) as {
       models?: Array<{ name: string; supportedGenerationMethods?: string[] }>;
     };
-    return (json.models ?? []).filter((m) => m.supportedGenerationMethods?.includes('generateContent')).map((m) => m.name.replace(/^models\//, ''));
+    return (json.models ?? []).filter((m) => m.supportedGenerationMethods?.includes('generateContent')).map((m) => ({ id: m.name.replace(/^models\//, '') }));
   }
-  const json = (await getJson(`${baseOf(s)}/models`, key ? { authorization: `Bearer ${key}` } : {}, signal)) as { data?: Array<{ id: string }> };
-  return (json.data ?? []).map((m) => m.id);
+  const json = (await getJson(`${baseOf(s)}/models`, key ? { authorization: `Bearer ${key}` } : {}, signal)) as {
+    data?: Array<{ id: string; pricing?: { prompt?: string; completion?: string }; supported_parameters?: string[] }>;
+  };
+  const data = json.data ?? [];
+  if (s.provider !== 'openrouter') return data.map((m) => ({ id: m.id }));
+  // OpenRouter publie ses prix ; l'assistant agit par ses outils : les modèles qui n'en ont pas sont écartés,
+  // comme les routeurs à prix variable (prix négatif).
+  const price = (v?: string) => (v === undefined ? 0 : Number(v));
+  return data
+    .filter((m) => !m.supported_parameters || m.supported_parameters.includes('tools'))
+    .filter((m) => price(m.pricing?.prompt) >= 0 && price(m.pricing?.completion) >= 0)
+    .map((m) => ({ id: m.id, free: m.id.endsWith(':free') || (!!m.pricing && price(m.pricing.prompt) === 0 && price(m.pricing.completion) === 0) }));
 }
 
 /** Essai réel et minimal : le modèle répond-il avec cette clé ? */
-async function tryModel(s: AiSettings, model: string, signal?: AbortSignal): Promise<void> {
+export async function tryModel(s: AiSettings, model: string, signal?: AbortSignal): Promise<void> {
   const session = createSession({ ...s, models: { ...s.models, [s.provider]: model } }, 'Réponds en un mot.', []);
   session.addUser('Réponds « ok ».');
   await session.step(signal);
 }
 
+/** Un essai qui tarde est abandonné : le modèle n'est pas retenu comme disponible. */
+async function tryWithin(s: AiSettings, model: string, ms: number, signal?: AbortSignal): Promise<void> {
+  const ctrl = new AbortController();
+  const stop = () => ctrl.abort();
+  signal?.addEventListener('abort', stop);
+  const timer = setTimeout(stop, ms);
+  try {
+    await tryModel(s, model, ctrl.signal);
+  } catch (e) {
+    if ((e as Error).name === 'AbortError' && !signal?.aborted) throw new AiError(`${model} ne répond pas à temps.`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', stop);
+  }
+}
+
+/** Modèles essayés par groupe (gratuits, payants) : les meilleurs, en variant les familles. */
+const PER_GROUP = 5;
+
+const refused = (e: unknown) => e instanceof AiError && /refusée/.test(e.message);
+
 /**
- * Vérifie la clé et choisit le modèle : liste des modèles accessibles, classés du meilleur des plus
- * rapides au plus lent, puis un essai réel (le suivant prend le relais si l'un ne répond pas). Le modèle
- * déjà choisi est gardé s'il est disponible et répond.
+ * Vérifie la clé et ne retient que les modèles réellement disponibles : la liste du fournisseur est
+ * classée (les plus rapides et récents d'abord), les meilleurs de chaque groupe sont essayés ensemble
+ * et seuls ceux qui répondent à temps sont gardés. Sans liste (proxy, serveur local), le modèle choisi
+ * et les modèles connus sont essayés tels quels.
  */
 export async function probeProvider(s: AiSettings, signal?: AbortSignal): Promise<ProbeResult> {
   if (!keyOf(s) && !providerInfo(s.provider).keyOptional) throw new AiError('Clé manquante.');
-  const { rankModels } = await import('./modelPick');
-  let models: string[] = [];
+  const { rankModels, shortlist } = await import('./modelPick');
+  let listed: ModelEntry[] = [];
   try {
-    models = rankModels(s.provider, await listModels(s, signal));
+    listed = await listModels(s, signal);
   } catch (e) {
-    // Liste indisponible (proxy, serveur local) : les modèles connus sont essayés tels quels.
-    if (e instanceof AiError && /refusée/.test(e.message)) throw e;
-    if ((e as Error).name === 'AbortError') throw e;
+    if (refused(e) || (e as Error).name === 'AbortError') throw e;
   }
+  const freeOf = new Map(listed.map((m) => [m.id, m.free]));
+  const ranked = rankModels(s.provider, listed.map((m) => m.id));
   const chosen = s.models[s.provider]?.trim();
-  const candidates = [...new Set([...(chosen && (!models.length || models.includes(chosen)) ? [chosen] : []), ...(models.length ? models : providerInfo(s.provider).models)])].slice(0, 4);
-  if (!candidates.length) throw new AiError('Aucun modèle de conversation disponible avec cette clé.');
-  let last: unknown;
-  for (const model of candidates) {
-    try {
-      await tryModel(s, model, signal);
-      return { model, models };
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') throw e;
-      if (e instanceof AiError && /refusée/.test(e.message)) throw e;
-      last = e;
-    }
+  const pool = ranked.length ? ranked : [...new Set([...(chosen ? [chosen] : []), ...providerInfo(s.provider).models])];
+  const priced = listed.some((m) => m.free !== undefined);
+  const groups = priced ? [pool.filter((id) => freeOf.get(id)), pool.filter((id) => !freeOf.get(id))] : [pool];
+  const candidates = new Set(groups.flatMap((g) => shortlist(g, PER_GROUP)));
+  if (chosen && pool.includes(chosen)) candidates.add(chosen);
+  if (!candidates.size) throw new AiError('Aucun modèle de conversation disponible avec cette clé.');
+  const tried = [...candidates];
+  const outcomes = await Promise.allSettled(tried.map((id) => tryWithin(s, id, 20000, signal)));
+  if (signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+  const ok = new Set(tried.filter((_, i) => outcomes[i].status === 'fulfilled'));
+  const models: ModelEntry[] = pool.filter((id) => ok.has(id)).map((id) => (priced ? { id, free: !!freeOf.get(id) } : { id }));
+  if (!models.length) {
+    const errors = outcomes.flatMap((o) => (o.status === 'rejected' ? [o.reason as unknown] : []));
+    const err = errors.find(refused) ?? errors[0];
+    throw err instanceof Error ? err : new AiError('Aucun modèle ne répond.');
   }
-  throw last instanceof Error ? last : new AiError('Aucun modèle ne répond.');
+  const model = chosen && ok.has(chosen) ? chosen : (models.find((m) => m.free) ?? models[0]).id;
+  return { model, models, listed: ranked.length > 0 };
 }
-

@@ -73,3 +73,9 @@
 }
 .saveState { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); }
 .invalid { border-color: var(--ink) !important; box-shadow: inset 0 0 0 1px var(--ink); }
+
+/* Assistant : état de l'essai à gauche, lien vers la page du fournisseur à droite. */
+.aiMeta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; font-size: 12.5px; }
+.aiMeta .error { font-size: 12.5px; }
+.keyLink { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--rule); }
+.keyLink:hover { text-decoration-color: currentColor; }
