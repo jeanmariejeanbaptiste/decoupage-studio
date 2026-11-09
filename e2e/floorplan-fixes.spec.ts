@@ -45,3 +45,27 @@ test('plan au sol : le réglage du fond s’arrête en changeant de vue ou en re
   await expect(page.getByTestId('fp-background')).toHaveCount(0);
   await expect(done).toHaveCount(0);
 });
+
+test('plan au sol : la pièce et le projecteur suivent l’annulation ; un passage dans un champ ne change rien', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=fiction');
+  const panel = page.getByTestId('fp-panel');
+  await panel.getByRole('button', { name: 'Petite pièce' }).click();
+  await expect(page.getByTestId('fp-room-size')).toContainText('Superficie 30 m²');
+  // Entrer puis sortir d'un champ sans rien taper : aucune étape d'annulation.
+  await page.getByLabel('Largeur de la pièce (m)').focus();
+  await page.getByLabel('Longueur de la pièce (m)').focus();
+  await page.getByTestId('floorplan').focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('fp-wall')).toHaveCount(0);
+  await expect(page.getByTestId('fp-room-size')).toHaveCount(0);
+  await expect(page.getByLabel('Largeur de la pièce (m)')).toHaveValue('');
+  // Projecteur : la température annulée quitte aussi le champ.
+  await page.getByTestId('tool-light').click();
+  const box = (await page.getByTestId('floorplan').boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.getByTestId('fp-properties').getByRole('button', { name: '3 200 K' }).click();
+  await expect(page.getByTestId('fp-kelvin')).toHaveValue('3200');
+  await page.getByTestId('floorplan').focus();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('fp-kelvin')).toHaveValue('');
+});

@@ -1877,8 +1877,18 @@ function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | unde
   const [w, setW] = useState(room?.w ? String(room.w) : '');
   const [l, setL] = useState(room?.l ? String(room.l) : '');
   const [h, setH] = useState(room?.h ? String(room.h) : '');
+  // Annulation, « Vider » : les champs suivent la pièce enregistrée.
+  useEffect(() => {
+    setW(room?.w ? String(room.w) : '');
+    setL(room?.l ? String(room.l) : '');
+    setH(room?.h ? String(room.h) : '');
+  }, [room?.w, room?.l, room?.h]);
   const draft = parseNum(w) && parseNum(l) ? { w: parseNum(w)!, l: parseNum(l)!, ...(parseNum(h) ? { h: parseNum(h) } : {}) } : undefined;
   const size = draft ? roomSize(draft) : undefined;
+  // Valide seulement un vrai changement : un passage dans un champ ne redessine pas les murs.
+  const commitDraft = () => {
+    if (draft && (draft.w !== room?.w || draft.l !== room?.l || draft.h !== room?.h)) onCommit(draft);
+  };
   const apply = (r: Room | undefined) => {
     setW(r ? String(r.w) : '');
     setL(r ? String(r.l) : '');
@@ -1888,7 +1898,7 @@ function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | unde
   const field = (label: string, value: string, set: (v: string) => void) => (
     <label className={s.roomField}>
       <span>{label}</span>
-      <input value={value} inputMode="decimal" onChange={(e) => set(e.target.value)} onBlur={() => draft && onCommit(draft)} onKeyDown={(e) => e.key === 'Enter' && draft && onCommit(draft)} aria-label={`${label} de la pièce (m)`} />
+      <input value={value} inputMode="decimal" onChange={(e) => set(e.target.value)} onBlur={commitDraft} onKeyDown={(e) => e.key === 'Enter' && commitDraft()} aria-label={`${label} de la pièce (m)`} />
       <em>m</em>
     </label>
   );
@@ -1925,7 +1935,15 @@ function LightSpecsFields({ item, onCommit }: { item: { model?: string; watts?: 
   const [model, setModel] = useState(item.model ?? '');
   const [watts, setWatts] = useState(item.watts ? String(item.watts) : '');
   const [kelvin, setKelvin] = useState(item.kelvin ? String(item.kelvin) : '');
-  const commit = (m = model, w = watts, k = kelvin) => onCommit({ model: m.trim() || undefined, watts: parseNum(w), kelvin: parseNum(k) });
+  useEffect(() => {
+    setModel(item.model ?? '');
+    setWatts(item.watts ? String(item.watts) : '');
+    setKelvin(item.kelvin ? String(item.kelvin) : '');
+  }, [item.model, item.watts, item.kelvin]);
+  const commit = (m = model, w = watts, k = kelvin) => {
+    const next = { model: m.trim() || undefined, watts: parseNum(w), kelvin: parseNum(k) };
+    if (next.model !== item.model || next.watts !== item.watts || next.kelvin !== item.kelvin) onCommit(next);
+  };
   return (
     <>
       <label className={s.field}>

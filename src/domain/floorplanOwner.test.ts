@@ -14,6 +14,7 @@ import {
   planOf,
   plansOf,
   removeFloorItem,
+  setRoom,
   shotCameras,
   updateFloorItem,
   type FloorItem,
@@ -109,5 +110,24 @@ describe('plan au sol : repères et noms de vues', () => {
     const c1 = duplicatePlan(doc, s, s);
     duplicatePlan(doc, s, c1);
     expect(plansOf(doc, s).map((p) => p.name).slice(3)).toEqual(['Vue 1 (copie)', 'Vue 1 (copie 2)']);
+  });
+});
+
+describe('plan au sol : pièce', () => {
+  it('la hauteur seule ne redessine pas les murs ; dupliquer et vider suivent la pièce', () => {
+    const doc = createProjectDoc({ title: 'T', format: 'fiction' });
+    const s = addSequence(doc, undefined, { label: 'Salon' });
+    setRoom(doc, s, { w: 5, l: 6, h: 2.5 });
+    const wall = planOf(doc, s).items.find((i) => i.kind === 'wall')!;
+    updateFloorItem(doc, s, wall.id, { x: 100 } as Partial<FloorItem>);
+    setRoom(doc, s, { w: 5, l: 6, h: 3 });
+    expect(planOf(doc, s).items.find((i) => i.id === wall.id)?.x).toBe(100);
+    expect(planOf(doc, s).room).toEqual({ w: 5, l: 6, h: 3 });
+    const copy = duplicatePlan(doc, s, s);
+    expect(planOf(doc, copy).room).toEqual({ w: 5, l: 6, h: 3 });
+    deletePlan(doc, copy);
+    deletePlan(doc, s);
+    expect(planOf(doc, s).items).toEqual([]);
+    expect(planOf(doc, s).room).toBeUndefined();
   });
 });

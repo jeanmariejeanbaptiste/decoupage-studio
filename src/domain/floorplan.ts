@@ -92,6 +92,12 @@ export function roomSize(r: Room): { area: number; volume?: number } {
 export function setRoom(doc: ProjectDoc, planKey: string, room: Room | undefined): void {
   if (!room && !doc.floorPlans?.[planKey]) return;
   const plan = ensure(doc, planKey);
+  // La hauteur seule ne change pas le tracé : les murs (et leurs retouches) restent.
+  if (room && plan.room && room.w === plan.room.w && room.l === plan.room.l) {
+    plan.room = { ...plan.room, h: room.h };
+    if (plan.room.h === undefined) delete plan.room.h;
+    return;
+  }
   plan.items = plan.items.filter((i) => !(i.kind === 'wall' && i.room));
   plan.room = room && room.w > 0 && room.l > 0 ? room : undefined;
   if (!plan.room) return;
@@ -202,8 +208,10 @@ export function deletePlan(doc: ProjectDoc, key: string): void {
   const next = Object.entries(plans).find(([k, x]) => x.seqId === key && k !== key && !x.oneShotId);
   if (!next) {
     if (p) {
+      // Le fond (plan des locaux) reste ; la pièce part avec ses murs.
       p.items = [];
       p.name = undefined;
+      p.room = undefined;
     }
     return;
   }
