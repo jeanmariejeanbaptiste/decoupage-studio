@@ -5,7 +5,8 @@
  */
 import { newId } from './factory';
 import { recognizeCharacters } from './characters';
-import { shotNumber } from './numbering';
+import { removeFrame, setFrame } from './keyframes';
+import { formatShotCode, sequenceNumber, shotNumber } from './numbering';
 import { addSequence, addShot, moveShotTo, normalizeBlocks, removeShot } from './ops';
 import type { ID, ProjectDoc, Shot } from './types';
 
@@ -17,7 +18,7 @@ export interface InterviewCamera {
   angle: string;
   focal: string;
   note?: string;
-  /** Image du cadre (storyboard propre à l'interview, utile quand elle reste en annexe). */
+  /** Image du cadre tant qu'il reste en annexe ; placé, elle passe au storyboard du plan de la caméra. */
   frame?: string;
   /** Multicam : intervenant filmé par cette caméra (par défaut, celui du cadre). */
   filmsId?: ID;
@@ -71,6 +72,19 @@ export function defaultCameras(): InterviewCamera[] {
     { id: newId(), name: 'A', value: 'Rapproché', angle: '3/4 Face, Hauteur regard', focal: '50' },
     { id: newId(), name: 'B', value: 'Gros plan', angle: 'Profil (≈ 30° de A)', focal: '85' },
   ];
+}
+
+/** A, B… Z, puis AA, AB… */
+export function cameraName(i: number): string {
+  return (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + (i % 26));
+}
+
+/** Nom d'une caméra ajoutée : la première lettre libre (après retrait de A, la suivante redevient A). */
+export function nextCameraName(cameras: readonly Pick<InterviewCamera, 'name'>[]): string {
+  const taken = new Set(cameras.map((c) => c.name));
+  let i = 0;
+  while (taken.has(cameraName(i))) i++;
+  return cameraName(i);
 }
 
 export function makeSetup(_index: number, eyeline: InterviewSetup['eyeline'] = 'gauche'): InterviewSetup {
@@ -234,6 +248,34 @@ const cameraShot = (subject: Interviewee, setup: InterviewSetup, cam: InterviewC
   interview: { subjectId: subject.id, setupId: setup.id, cameraId: cam.id },
 });
 
+/** Repère d'un cadre : « Plan 2.9 » une fois placé (au format des codes de plan), sinon « ITW 1 », « ITW 2 »… */
+export function setupRef(doc: ProjectDoc, subject: Interviewee, setupId: ID): string {
+  const ids = setupShotIds(doc, setupId);
+  if (ids.length) return `Plan ${formatShotCode(sequenceNumber(doc, doc.shots[ids[0]].sequenceId), shotNumber(doc, ids[0]), doc.project.settings.shotCodeFormat)}`;
+  return `ITW ${subject.setups.findIndex((x) => x.id === setupId) + 1}`;
+}
+
+/** Plan du découpage tourné par une caméra d'un cadre placé. */
+export function cameraShotId(doc: ProjectDoc, setupId: ID, cameraId: ID): ID | undefined {
+  return setupShotIds(doc, setupId).find((id) => doc.shots[id].interview?.cameraId === cameraId);
+}
+
+/** Image d'une caméra : celle du storyboard de son plan quand le cadre est placé, sinon celle de la fiche. */
+export function cameraFrameKey(doc: ProjectDoc, setupId: ID, cam: InterviewCamera): string | undefined {
+  const id = cameraShotId(doc, setupId, cam.id);
+  return id ? doc.shots[id].storyboard?.blobKey : cam.frame;
+}
+
+/** Pose (ou retire) l'image d'une caméra : dans le storyboard de son plan si le cadre est placé, sinon dans la fiche. */
+export function setCameraFrame(doc: ProjectDoc, setupId: ID, cameraId: ID, key: string | undefined): void {
+  const cam = findSetup(doc, setupId)?.setup.cameras.find((c) => c.id === cameraId);
+  if (!cam) return;
+  const id = cameraShotId(doc, setupId, cameraId);
+  if (!id) cam.frame = key;
+  else if (key) setFrame(doc, id, 0, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined, baseCrop: undefined, baseFit: undefined, sketchAspect: undefined });
+  else removeFrame(doc, id, 0);
+}
+
 /** Libellé de la séquence créée pour un cadre placé à part. */
 export const interviewSequenceLabel = (s: Pick<Interviewee, 'name'>) => `Interview${s.name.trim() ? ` ${s.name.trim()}` : ''}`;
 
@@ -292,8 +334,13 @@ export function placeSetup(doc: ProjectDoc, setupId: ID, seqId?: ID | 'new'): vo
   const placed = setupShotIds(doc, setupId);
   let target = seqId === 'new' ? undefined : seqId && doc.sequences[seqId] ? seqId : undefined;
   if (!target && seqId !== 'new') {
-    // Annexe seule : le cadre sort du découpage.
-    for (const id of placed) removeShot(doc, id);
+    // Annexe seule : le cadre sort du découpage ; l'image de chaque caméra revient dans la fiche.
+    for (const id of placed) {
+      const cam = setup.cameras.find((c) => c.id === doc.shots[id].interview?.cameraId);
+      const key = doc.shots[id].storyboard?.blobKey;
+      if (cam && key) cam.frame = key;
+      removeShot(doc, id);
+    }
     setup.sequenceId = undefined;
     return;
   }
@@ -415,6 +462,11 @@ export function syncInterviewShots(doc: ProjectDoc): void {
         if (sh.focal.from !== f.focal.from || sh.focal.to !== f.focal.to) sh.focal = f.focal;
         const sound = setup.sound.trim() || undefined;
         if (sh.sound !== sound) sh.sound = sound;
+        // Image de la fiche : elle passe au storyboard du plan (une seule image par caméra).
+        if (cam.frame) {
+          if (!sh.storyboard?.blobKey) sh.storyboard = { blobKey: cam.frame };
+          delete cam.frame;
+        }
         if (sh.interview!.subjectId !== subject.id) sh.interview!.subjectId = subject.id;
       });
     }

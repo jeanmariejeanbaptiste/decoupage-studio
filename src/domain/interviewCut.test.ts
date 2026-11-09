@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyFormat, createProjectDoc } from './factory';
-import { addInterviewee, addSetup, ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
+import { addInterviewee, addSetup, cameraFrameKey, ensureInterview, maxSetupNumber, nextCameraName, placeSetup, setCameraFrame, setSetupNumber, setupNumber, setupRef, setupShotIds, syncInterviewShots } from './interview';
+import { interviewDocument } from './documents';
 import { addSequence, addShot, addShotAfter, checkInvariants, deleteShot, duplicateShot, moveShot } from './ops';
 import { shotCode, shotNumberLabel } from './numbering';
 import { buildSequenceRows, sequenceMerges } from './rows';
@@ -211,6 +212,25 @@ describe('interview : préparation gardée, liens et libellés', () => {
     expect(checkInvariants(doc)).toEqual([]);
   });
 
+  it('l’image d’une caméra passe au storyboard du plan placé, et revient dans la fiche en annexe', () => {
+    const { doc, seq, setup } = project();
+    setup.cameras[0].frame = 'cadre-a';
+    placeSetup(doc, setup.id, seq);
+    syncInterviewShots(doc);
+    const [ca, cb] = setupShotIds(doc, setup.id);
+    expect(doc.shots[ca].storyboard?.blobKey).toBe('cadre-a');
+    expect(setup.cameras[0].frame).toBeUndefined();
+    expect(cameraFrameKey(doc, setup.id, setup.cameras[0])).toBe('cadre-a');
+    setCameraFrame(doc, setup.id, setup.cameras[1].id, 'cadre-b');
+    expect(doc.shots[cb].storyboard?.blobKey).toBe('cadre-b');
+    expect(interviewDocument(doc).html).toContain('data-blob="cadre-b"');
+    placeSetup(doc, setup.id, undefined);
+    syncInterviewShots(doc);
+    expect(setup.cameras.map((c) => c.frame)).toEqual(['cadre-a', 'cadre-b']);
+    setCameraFrame(doc, setup.id, setup.cameras[1].id, undefined);
+    expect(setup.cameras[1].frame).toBeUndefined();
+  });
+
   it('dupliquer une caméra : la copie vient après le cadre, avec sa propre action', () => {
     const { doc, seq, setup } = project();
     placeSetup(doc, setup.id, seq);
@@ -241,5 +261,26 @@ describe('interview : préparation gardée, liens et libellés', () => {
     expect(setup.sequenceId).toBeUndefined();
     expect(setup.cameras[1].frame).toBe('cadre-b');
     expect(doc.interview!.subjects[0].setups).toHaveLength(1);
+  });
+
+  it('caméra ajoutée : la première lettre libre', () => {
+    expect(nextCameraName([{ name: 'B' }])).toBe('A');
+    expect(nextCameraName([{ name: 'A' }, { name: 'B' }])).toBe('C');
+    expect(nextCameraName([])).toBe('A');
+  });
+
+  it('repère du cadre au format des codes de plan ; titre de la fiche exportée sans tiret orphelin', () => {
+    const { doc, seq, subject, setup } = project();
+    expect(setupRef(doc, subject, setup.id)).toBe('ITW 1');
+    expect(interviewDocument(doc).html).toContain('<h3>ITW 1</h3>');
+    placeSetup(doc, setup.id, seq);
+    syncInterviewShots(doc);
+    expect(setupRef(doc, subject, setup.id)).toBe('Plan 1.3');
+    doc.project.settings.shotCodeFormat = '{seq}-{shot}';
+    expect(setupRef(doc, subject, setup.id)).toBe('Plan 1-3');
+    const html = interviewDocument(doc, 'portrait').html;
+    expect(html).toContain('<h3>Plan 1-3 <span');
+    expect(html).toContain('Questions · Plan 1-3');
+    expect(html).not.toMatch(/<h3> <span/);
   });
 });
