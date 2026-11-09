@@ -24,6 +24,7 @@ import {
 import { INDENT_STEP_CM, LINE_SPACINGS, PARAGRAPH_STYLES, RICH_FONTS, RICH_SIZES, sanitizeRich, type ParagraphStyle } from '../../domain/richText';
 import { countWords } from '../../domain/text';
 import { getBlob, putBlob } from '../../store/db';
+import { registerFlush } from '../../store/persistence';
 import s from './RichEditor.module.css';
 
 /** Géométrie de la page à l'écran : A4, marges de 25 mm (comme Word). */
@@ -242,6 +243,8 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     onChange(clean);
   }, [onChange]);
   useEffect(() => () => commit(), [commit]);
+  // ⌘S, fermeture de l'onglet : la frappe encore en attente part avec le projet.
+  useEffect(() => registerFlush(commit), [commit]);
   const scheduleCommit = () => {
     if (commitTimer.current) window.clearTimeout(commitTimer.current);
     commitTimer.current = window.setTimeout(commit, COMMIT_DELAY);
