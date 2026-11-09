@@ -218,3 +218,104 @@ describe('plan de travail : en-têtes et codage des bandes', () => {
     expect(next.schedule!.days.find((x) => x.n === 1)!.timeline?.[doc.sequences[b].shotIds[0]]).toEqual({ start: '09:00', end: '09:30' });
   });
 });
+
+describe('plan de travail : bandeaux et horaires en cascade', () => {
+  const setup = () => {
+    const doc = buildRav3();
+    const [a, b] = doc.project.sequenceIds;
+    return {
+      a,
+      b,
+      doc: produce(doc, (d) => {
+        assignShots(d, d.sequences[a].shotIds.slice(0, 2), 1);
+        assignShots(d, d.sequences[b].shotIds.slice(0, 1), 1);
+      }),
+    };
+  };
+
+  it('lit un créneau saisi librement', async () => {
+    const { parseSlot } = await import('./schedule');
+    expect(parseSlot('10:30–11:00')).toEqual({ start: '10:30', end: '11:00' });
+    expect(parseSlot('10h30 - 11h')).toEqual({ start: '10:30', end: '11:00' });
+    expect(parseSlot('23:00-01:00')).toEqual({ start: '23:00', end: '25:00' });
+    expect(parseSlot('matin')).toBeUndefined();
+  });
+
+  it('sans rendez-vous ni créneau, aucun horaire n’est inventé', async () => {
+    const { dayAgenda } = await import('./schedule');
+    const { doc } = setup();
+    expect(dayAgenda(doc, 1).every((i) => !i.start && !i.computed)).toBe(true);
+  });
+
+  it('enchaîne bandes et bandeaux depuis le rendez-vous, selon les durées prévues', async () => {
+    const { addBanner, dayAgenda, agendaEnd, setStripMinutes, updateBanner } = await import('./schedule');
+    const { doc, a, b } = setup();
+    let inst = '';
+    let meal = '';
+    const next = produce(doc, (d) => {
+      updateDay(d, 1, { callTime: '07:00' });
+      inst = addBanner(d, 1, 'installation');
+      meal = addBanner(d, 1, 'repas');
+      setStripMinutes(d, 1, b, 45);
+    });
+    // Les bandeaux ajoutés se placent en fin de journée ; on remonte l'installation en tête.
+    const { moveBanner } = await import('./schedule');
+    const ordered = produce(next, (d) => {
+      moveBanner(d, 1, inst, -1);
+      moveBanner(d, 1, inst, -1);
+      moveBanner(d, 1, inst, -1);
+      moveBanner(d, 1, meal, -1);
+    });
+    const ag = dayAgenda(ordered, 1);
+    expect(ag.map((i) => (i.type === 'strip' ? i.strip.seqId : i.banner.kind))).toEqual(['installation', a, 'repas', b]);
+    expect(ag.map((i) => [i.start, i.end, i.computed])).toEqual([
+      ['07:00', '08:00', true],
+      ['08:00', '09:00', true],
+      ['09:00', '10:00', true],
+      ['10:00', '10:45', true],
+    ]);
+    expect(agendaEnd(ag)).toBe('10:45');
+    // Un début imposé fait foi ; la suite s'enchaîne après lui.
+    const fixed = produce(ordered, (d) => updateBanner(d, 1, meal, { start: '12:30', label: 'cantine' }));
+    const ag2 = dayAgenda(fixed, 1);
+    expect(ag2[2]).toMatchObject({ start: '12:30', end: '13:30', computed: false });
+    expect(ag2[3]).toMatchObject({ start: '13:30', end: '14:15', computed: true });
+  });
+
+  it('les créneaux de l’emploi du temps priment ; un bandeau orphelin reste en fin de journée', async () => {
+    const { addBanner, dayAgenda, dayItinerary, removeBanner } = await import('./schedule');
+    const { doc, a, b } = setup();
+    let pause = '';
+    const next = produce(doc, (d) => {
+      updateDay(d, 1, { callTime: '07:00' });
+      placeShot(d, 1, d.sequences[b].shotIds[0], '09:00', 60);
+      pause = addBanner(d, 1, 'pause');
+    });
+    const ag = dayAgenda(next, 1);
+    // Bande placée d'abord (09:00–10:00, saisie), puis la bande sans créneau, enchaînée après elle.
+    expect(ag[0]).toMatchObject({ type: 'strip', start: '09:00', end: '10:00', computed: false });
+    expect(ag[1]).toMatchObject({ type: 'strip', start: '10:00', end: '11:00', computed: true });
+    expect(ag[2]).toMatchObject({ type: 'banner', start: '11:00', end: '11:15' });
+    expect(dayItinerary(next, 1).map((x) => x.seqIds[0])).toEqual([b]);
+    const orphan = produce(next, (d) => assignShots(d, d.sequences[a].shotIds, undefined));
+    expect(dayAgenda(orphan, 1).at(-1)).toMatchObject({ type: 'banner' });
+    expect(dayAgenda(produce(next, (d) => removeBanner(d, 1, pause)), 1).some((i) => i.type === 'banner')).toBe(false);
+  });
+
+  it('créneau d’une séquence (institutionnel) : horaire si elle est entière, sinon sa part de durée', async () => {
+    const { dayAgenda, stripMinutes } = await import('./schedule');
+    const { doc, a, b } = setup();
+    const next = produce(doc, (d) => {
+      updateDay(d, 1, { callTime: '07:00' });
+      d.sequences[b].slot = '14:00–15:00';
+      d.sequences[a].slot = '08:00–10:00';
+      for (const id of d.sequences[b].shotIds.slice(1)) d.shots[id].status = 'abandonné';
+    });
+    const ag = dayAgenda(next, 1);
+    const sb = ag.find((i) => i.type === 'strip' && i.strip.seqId === b)!;
+    expect(sb).toMatchObject({ start: '14:00', end: '15:00', computed: false });
+    const sa = ag.find((i) => i.type === 'strip' && i.strip.seqId === a)!;
+    const share = Math.round((120 * 2) / next.sequences[a].shotIds.length / 5) * 5;
+    expect(sa.type === 'strip' && stripMinutes(next, 1, sa.strip)).toBe(Math.max(15, share));
+  });
+});

@@ -17,6 +17,8 @@ import { Minus, Plus, Scissors, X } from 'lucide-react';
 import { valueLabel } from '../../domain/vocabulary';
 import { shotCode, sequenceHeading } from '../../domain/numbering';
 import {
+  bannerLabel,
+  dayAgenda,
   dayItinerary,
   DEFAULT_DAY_END,
   DEFAULT_DAY_START,
@@ -157,7 +159,21 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
           {slots.map((m) => (
             <Slot key={m} minute={m} />
           ))}
-          {dayItinerary(doc, day).map((stop, i, all) => {
+          {dayAgenda(doc, day).map((it) => {
+            if (it.type !== 'banner' || !it.start || !it.end) return null;
+            const a = Math.max(toMin(it.start), start);
+            const b = Math.min(toMin(it.end), end);
+            if (b <= a) return null;
+            return (
+              <div key={it.banner.id} className={s.banner} style={{ top: ((a - start) / SLOT_MIN) * ROW, height: ((b - a) / SLOT_MIN) * ROW }} data-testid="timeline-banner">
+                <span>
+                  {[bannerLabel(it.banner), it.banner.label].filter(Boolean).join(' · ')} {it.start}–{it.end}
+                </span>
+              </div>
+            );
+          })}
+          {/* Changements de lieu : seulement aux horaires saisis dans l'emploi du temps. */}
+          {dayItinerary(doc, day).filter((stop) => !stop.computed).map((stop, i, all) => {
             const prev = all[i - 1];
             if (!stop.start || (prev && prev.address === stop.address && prev.decorId === stop.decorId))
               return null;

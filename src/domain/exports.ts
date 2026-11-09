@@ -9,7 +9,7 @@ import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterStats, decorStats } from './registry';
-import { callSheetStrips, dayStats, scheduleDays, stripsByDay, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
+import { bannerLabel, callSheetStrips, dayAgenda, dayStats, scheduleDays, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -96,13 +96,17 @@ export function breakdownCsv(doc: ProjectDoc): string {
 
 export function scheduleCsv(doc: ProjectDoc): string {
   const t = computeTiming(doc);
-  const strips = stripsByDay(doc);
-  const rows: Array<Array<string | number | undefined>> = [['Jour', 'Date', 'Séquence', 'Plans', 'Décor', 'Personnages', 'Durée d’écran du jour']];
+  const rows: Array<Array<string | number | undefined>> = [['Jour', 'Date', 'Début', 'Fin', 'Séquence', 'Plans', 'Décor', 'Personnages', 'Durée d’écran du jour']];
   for (const d of scheduleDays(doc)) {
     const st = dayStats(doc, t, d.n);
-    for (const s of strips.get(d.n) ?? []) {
+    for (const it of dayAgenda(doc, d.n)) {
+      if (it.type === 'banner') {
+        rows.push([`J${d.n}`, d.date, it.start, it.end, [bannerLabel(it.banner), it.banner.label].filter(Boolean).join(' · '), '', '', '', '']);
+        continue;
+      }
+      const s = it.strip;
       const seq = doc.sequences[s.seqId];
-      rows.push([`J${d.n}`, d.date, sequenceHeading(doc, s.seqId), s.shotIds.map((id) => shotCode(doc, id)).join(' '), seq.decorId ? doc.decors[seq.decorId]?.name : '', stripCharacterIds(doc, s).map((c) => doc.characters[c]?.name).join(', '), formatTc(st.screenSec)]);
+      rows.push([`J${d.n}`, d.date, it.start, it.end, sequenceHeading(doc, s.seqId), s.shotIds.map((id) => shotCode(doc, id)).join(' '), seq.decorId ? doc.decors[seq.decorId]?.name : '', stripCharacterIds(doc, s).map((c) => doc.characters[c]?.name).join(', '), formatTc(st.screenSec)]);
     }
   }
   return csv(rows);
@@ -116,7 +120,14 @@ export function callSheetCsv(doc: ProjectDoc, day: number): string {
     ['Feuille de service', doc.project.title, `Jour ${day}`, d?.date ?? '', d?.callTime ? `RDV ${d.callTime}` : ''],
     [],
     ['Lieux et horaires', 'Adresse', 'Début', 'Fin', 'Séquence'],
-    ...dayItinerary(doc, day).map((p) => [p.decorId ? doc.decors[p.decorId]?.name : '', p.address, p.start, p.end, p.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')]),
+    ...(() => {
+      const stops = dayItinerary(doc, day);
+      return dayAgenda(doc, day, strips).flatMap((it) => {
+        if (it.type === 'banner') return [[[bannerLabel(it.banner), it.banner.label].filter(Boolean).join(' · '), '', it.start, it.end, `${it.banner.minutes} min`]];
+        const p = stops.find((x) => x.seqIds[0] === it.strip.seqId);
+        return p ? [[p.decorId ? doc.decors[p.decorId]?.name : '', p.address, p.start, p.end, p.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')]] : [];
+      });
+    })(),
     [],
     ['Convocations', 'Comédien·ne', 'Heure'],
     ...st.characterIds.map((id) => [doc.characters[id]?.name, doc.characters[id]?.actor, d?.calls?.[id]]),
