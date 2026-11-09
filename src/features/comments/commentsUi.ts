@@ -3,6 +3,7 @@ import type { CommentAnchor, CommentMarks } from '../../domain/comments';
 import type { ID } from '../../domain/types';
 import { useCloud } from '../../store/cloud';
 import { useProjectStore } from '../../store/projectStore';
+import { reviewerName } from '../../store/review';
 import { useShare } from '../../store/share';
 
 interface CommentsUi {
@@ -32,8 +33,12 @@ export const closeComment = () => useCommentsUi.setState({ popover: null, drawin
 export const openCommentsPanel = (versionId: ID | '') => useCommentsUi.setState({ panel: versionId, popover: null });
 export const closeCommentsPanel = () => useCommentsUi.setState({ panel: null });
 
-/** Nom de l'auteur : le prénom donné en rejoignant un partage, sinon le compte Google, sinon la réalisation. */
+/**
+ * Nom de l'auteur : le prénom donné en rejoignant un partage (relecture en ligne : celui du compte
+ * Google, qui signe le commentaire), sinon le compte Google, sinon la réalisation.
+ */
 export function authorName(): string {
+  if (useShare.getState().role === 'guest' && useShare.getState().via === 'drive') return reviewerName();
   if (useShare.getState().role === 'guest') {
     try {
       const n = localStorage.getItem('ds-guest-name');

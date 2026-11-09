@@ -1,6 +1,9 @@
 import { redoHome, undoHome } from '../store/homeHistory';
 import { isShortcut } from '../store/shortcuts';
-import { useCanCopy, useReadOnly, useShare } from '../store/share';
+import { useCanCopy, useDriveReview, useReadOnly, useShare } from '../store/share';
+import { forgetReviewSession, resumeReview, startReviewSync } from '../store/review';
+import { ReviewPage } from '../features/review/Review';
+import { REVIEWED } from '../features/shell/steps';
 import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useMemo, useState } from 'react';
@@ -44,7 +47,7 @@ import { Button } from '../ui/Button';
 import { ContextMenuHost } from '../ui/ContextMenu';
 import { DialogHost } from '../ui/Modal';
 import { Toasts } from '../ui/Toasts';
-import { navigate, useLocation, type Route } from './router';
+import { navigate, parseHash, useLocation, type Route } from './router';
 import s from './App.module.css';
 
 /** Champ de saisie de texte (où ⌘Z annule la frappe) : pas les cases à cocher, curseurs ou listes. */
@@ -65,9 +68,16 @@ const SAVE_LABEL: Record<string, string> = {
 };
 
 async function boot(): Promise<void> {
+  const { route } = parseHash(window.location.hash);
+  // Lien de relecture : la page d'arrivée l'ouvre elle-même.
+  if (route === 'review') return;
   const seed = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('seed');
   if (seed === 'rav3') return openDoc(buildRav3());
   if (seed === 'fiction') return openDoc(buildFiction());
+  // Rechargement pendant une relecture en ligne : elle se rouvre (l'accueil la referme).
+  if (route === 'home') forgetReviewSession();
+  else if (await resumeReview()) return;
+  forgetReviewSession();
   const last = lastProjectId();
   if (last && (await openStoredProject(last))) return;
 }
@@ -103,6 +113,8 @@ export function App() {
     // Synchronisation Google Drive (si configurée) : envoi après chaque enregistrement, suppressions suivies.
     const stopCloud = startCloudPush();
     const stopSession = keepSessionAlive();
+    // Relecture en ligne (si configurée) : retours relevés, réponses renvoyées.
+    const stopReview = startReviewSync();
     setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => void cloudRestore(id) });
     if (useCloud.getState().enabled && useCloud.getState().user) void preloadGoogle().catch(() => undefined);
     void boot().finally(() => {
@@ -116,6 +128,7 @@ export function App() {
       stop();
       stopCloud();
       stopSession();
+      stopReview();
     };
   }, []);
 
@@ -258,8 +271,10 @@ function Page({ route }: { route: Route }) {
   const doc = useDoc();
   const readOnly = useReadOnly();
   const canCopy = useCanCopy();
+  const drive = useDriveReview();
   if (route === 'home') return <HomePage />;
   if (route === 'join') return <JoinPage />;
+  if (route === 'review') return <ReviewPage />;
   if (!doc) {
     return (
       <div className="page">
@@ -274,6 +289,8 @@ function Page({ route }: { route: Route }) {
     );
   }
   if (route === 'grid') return <GridPage doc={doc} />;
+  // Relecture en ligne : seuls le scénario et le découpage sont publiés.
+  if (drive && !REVIEWED.has(route)) return <GridPage doc={doc} />;
   // Invité sans droit de copie : rien à exporter, le découpage à la place.
   if (route === 'export') return canCopy ? <ExportPage doc={doc} /> : <GridPage doc={doc} />;
   if (route === 'registry') return <RegistryPage doc={doc} />;

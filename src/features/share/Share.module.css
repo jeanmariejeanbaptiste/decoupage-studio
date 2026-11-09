@@ -77,3 +77,12 @@
 .input input { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
 .banner { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 5px 12px; font-size: 12.5px; background: color-mix(in srgb, var(--navy) 10%, var(--paper)); color: var(--ink); border-bottom: 1px solid var(--rule); }
 .banner button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: var(--radius); padding: 1px 10px; font-size: 12px; cursor: pointer; }
+
+/* Relecture en ligne (Google Drive) : sous le partage en direct, séparée d'un filet. */
+.review { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.sectionTitle { margin: 0; font-size: 12px; font-weight: 600; color: var(--ink); }
+.linkRow { display: grid; grid-template-columns: 1fr auto auto; gap: 4px; align-items: center; }
+.linkRow code { font-family: var(--font-ui); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linkRow code.off { color: var(--ink-soft); text-decoration: line-through; }
+.linkRow button { display: inline-flex; padding: 4px; border: 0; border-radius: var(--radius); background: none; color: var(--ink-soft); cursor: pointer; }
+.linkRow button:hover { color: var(--ink); background: var(--hover); }
