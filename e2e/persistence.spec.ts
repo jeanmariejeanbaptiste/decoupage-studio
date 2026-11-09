@@ -52,6 +52,10 @@ test('aller-retour fichier .decoupage sans perte', async ({ page }) => {
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Ouvrir un fichier…' }).click();
   await (await chooser).setFiles({ name: 'rav3-v3.decoupage', mimeType: 'application/json', buffer: Buffer.from(content) });
+  // Si la copie abîmée a eu le temps d'être enregistrée, l'application demande avant de l'écraser.
+  const newer = page.getByRole('alertdialog', { name: /version plus récente/ });
+  await expect(newer.or(page.locator(ROWS).first())).toBeVisible();
+  if (await newer.isVisible()) await newer.getByRole('button', { name: 'Remplacer' }).click();
   await expect(page.locator(ROWS)).toHaveCount(53);
   const reopened = (await page.evaluate(getDoc)) as { project: { updatedAt: string } };
   const orig = original as { project: { updatedAt: string } };
