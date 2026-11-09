@@ -272,3 +272,8 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Dépouillement : vue « Scénario entier » avec la liste du film, rapports (éléments et séquences, PDF), numéros du scénario partout ; page de garde reconnue par indices ; filigrane Fade In retiré.
 - Divers : glisser des plans en liste triable, Entrée sans transformer une ligne en personnage, page d'erreur qui rouvre le projet, session Google gardée.
 - Tests : 387 unitaires, 101 parcours de bout en bout.
+
+## Comparer les versions du scénario (branche « comparer-versions »)
+- Menu des versions (Scénario et Découpage) : « Comparer les versions… » remplace les différences abrégées ; invités et relecteurs : un bouton à côté du nom de la version.
+- Sous-page `#/scenario?compare=A~B` : « Comparer [A] avec [B] » (par défaut la courante avec celle dont elle est partie), texte entier aux colonnes du scénario, marques sans couleur, résumé (séquences, mots, pages, durée), seulement les changements, J / K, séquence ouverte dans l'éditeur (version courante), export PDF.
+- Domaine : `domain/scriptDiff.ts` (séquences par `sceneAlign`, blocs, mots), `domain/scriptDiffLayout.ts` (pages A4 de l'export) ; `sceneAlign` compte les triplets communs par index (plus rapide, mêmes résultats).
