@@ -279,9 +279,21 @@ function TimeGrid({ dates, today, now, items, onCreate, onOpen, onDay }: ViewPro
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollTop = Math.max(0, (7 - range.from) * HOUR);
   }, [range.from]);
+  // Barre de défilement de la grille horaire (toujours visible sur certains systèmes) : l'en-tête et la
+  // rangée « journée » lui réservent la même largeur, sinon leurs colonnes ne tombent plus en face.
+  const [bar, setBar] = useState(0);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => setBar(el.offsetWidth - el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const single = dates.length === 1;
   return (
-    <div className={s.timeGrid} data-testid={single ? 'calendar-day' : 'calendar-week'}>
+    <div className={s.timeGrid} style={{ '--sb': `${bar}px` } as CSSProperties} data-testid={single ? 'calendar-day' : 'calendar-week'}>
       {/* Vue Jour : la date est déjà le titre de la page. */}
       {!single && (
         <div className={s.tgHead} style={cols}>

@@ -93,6 +93,7 @@
 .colHead:hover b:not(.today) { background: var(--hover); }
 .allDay { border-bottom: 1px solid var(--rule); }
 .tgHead + .allDay { border-top: 1px solid var(--rule); }
+.tgHead, .allDay { padding-right: var(--sb, 0px); }
 .gutterLabel { align-self: start; padding: 4px 8px 0 0; text-align: right; font-size: 10.5px; color: var(--ink-soft); }
 .allDayCell { display: flex; flex-direction: column; gap: 2px; min-width: 0; min-height: 26px; padding: 3px; border-left: 1px solid var(--rule); }
 .tgScroll { flex: 1; min-height: 0; overflow-y: auto; padding-top: 8px; }
