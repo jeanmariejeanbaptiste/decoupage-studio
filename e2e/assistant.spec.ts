@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
 interface Body {
@@ -12,18 +12,21 @@ const SHOTS = [
   { subject: 'Marc', value: 'Gros plan', angle: ['3/4 Face', 'Hauteur regard'], movement: ['Trav avant'], focal: 85, link_with_previous: true },
 ];
 
-test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d’annulation (API simulée)', async ({ page }) => {
+const CORS = { 'access-control-allow-origin': '*' };
+const PREFLIGHT = { status: 204, headers: { ...CORS, 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST' } };
+
+const go = (page: Page, hash: string) => page.evaluate((h) => void (location.hash = h), hash);
+
+test('assistant : réglé dans les paramètres, il apparaît en haut à droite et ajoute des plans en un seul pas d’annulation (API simulée)', async ({ page }) => {
   const bodies: Body[] = [];
   const probes: Body[] = [];
   await page.route('https://api.anthropic.com/**', async (route) => {
-    if (route.request().method() === 'OPTIONS') {
-      return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST' } });
-    }
-    // Vérification de la clé : liste des modèles, puis un essai sans outils.
+    if (route.request().method() === 'OPTIONS') return route.fulfill(PREFLIGHT);
+    // Vérification de la clé : liste des modèles, puis un essai sans outils de chacun.
     if (route.request().method() === 'GET') {
       return route.fulfill({
         contentType: 'application/json',
-        headers: { 'access-control-allow-origin': '*' },
+        headers: CORS,
         body: JSON.stringify({ data: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'].map((id) => ({ id, type: 'model', display_name: id, created_at: '2026-01-01T00:00:00Z' })), has_more: false, first_id: null, last_id: null }),
       });
     }
@@ -32,7 +35,7 @@ test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d
       probes.push(body);
       return route.fulfill({
         contentType: 'application/json',
-        headers: { 'access-control-allow-origin': '*' },
+        headers: CORS,
         body: JSON.stringify({ id: 'msg_probe', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', stop_sequence: null, content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 5, output_tokens: 1 } }),
       });
     }
@@ -41,7 +44,7 @@ test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      headers: { 'access-control-allow-origin': '*' },
+      headers: CORS,
       body: JSON.stringify({
         id: `msg_${bodies.length}`,
         type: 'message',
@@ -60,18 +63,27 @@ test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d
     });
   });
 
-  await page.goto('/#/grid?seed=fiction');
+  await page.goto('/#/settings?seed=fiction&section=assistant');
+  const toggle = page.getByTestId('assistant-toggle');
+  // Pas réglé : rien en haut à droite.
+  await expect(toggle).toHaveCount(0);
+  const form = page.getByTestId('ai-settings');
+  await form.getByLabel('Clé API Anthropic').fill('sk-ant-test-123');
+  // La clé est essayée sur chaque modèle ; le plus rapide de ceux qui répondent est choisi.
+  await expect(form.getByTestId('ai-probe')).toHaveText('Connecté · 3 modèles disponibles');
+  await expect(form.getByLabel('Modèle')).toHaveValue('claude-haiku-5-5');
+  expect(probes.map((b) => b.model).sort()).toEqual(['claude-haiku-5-5', 'claude-opus-5-5', 'claude-sonnet-5-5']);
+  await expect(toggle).toHaveCount(0);
+  await page.getByTestId('settings-save').click();
+  await expect(toggle).toBeVisible();
+
+  await go(page, '#/grid');
   const rows = page.locator('[data-testid="shot-row"]');
   await expect(rows).toHaveCount(11);
-  await page.getByTestId('assistant-toggle').click();
+  await toggle.click();
   const panel = page.getByTestId('assistant-panel');
-  // Sans clé : le panneau s'ouvre sur le choix du fournisseur.
-  await panel.getByLabel('Clé API Anthropic').fill('sk-ant-test-123');
-  // La clé est essayée, et le plus rapide des modèles qui répondent est choisi.
-  await expect(panel.getByTestId('ai-probe')).toHaveText('Clé valide · claude-haiku-5-5 répond');
-  await expect(panel.getByLabel('Modèle')).toHaveValue('claude-haiku-5-5');
-  expect(probes.map((b) => b.model)).toEqual(['claude-haiku-5-5']);
-  await panel.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  // Le panneau ne porte que la conversation.
+  await expect(panel.getByTestId('ai-settings')).toHaveCount(0);
   await panel.getByTestId('assistant-input').fill('Ajoute deux plans de Marc à la séquence 3');
   await panel.getByTestId('assistant-input').press('Enter');
   await expect(panel.getByTestId('assistant-assistant')).toContainText('Deux plans ajoutés');
@@ -91,30 +103,74 @@ test('assistant : réglé dans son panneau, il ajoute des plans en un seul pas d
   await panel.getByTestId('assistant-undo').click();
   await expect(rows).toHaveCount(11);
 
+  // Au lancement suivant, le bouton revient d'office ; seul le modèle retenu est réessayé.
+  const before = probes.length;
+  await page.reload();
+  await expect(toggle).toBeVisible();
+  await expect.poll(() => probes.slice(before).map((b) => b.model)).toEqual(['claude-haiku-5-5']);
+
   // La clé n'est jamais exportée.
-  await page.goto('/#/export');
+  await go(page, '#/export');
   const dl = page.waitForEvent('download');
   await page.getByTestId('export-json').click();
   expect(readFileSync(await (await dl).path(), 'utf8')).not.toContain('sk-ant-test-123');
 });
 
-test('assistant : clé refusée, message clair et rien de modifié', async ({ page }) => {
-  await page.route('https://api.anthropic.com/**', (route) =>
-    route.request().method() === 'OPTIONS'
-      ? route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } })
-      : route.fulfill({
-          status: 401,
-          contentType: 'application/json',
-          headers: { 'access-control-allow-origin': '*' },
-          body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }),
-        }),
-  );
-  await page.addInitScript(() => localStorage.setItem('ds-ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-ant-faux' }, models: {} })));
+test('assistant : clé refusée, message clair et pas de bouton en haut à droite', async ({ page }) => {
+  let calls = 0;
+  await page.route('https://api.anthropic.com/**', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill(PREFLIGHT);
+    calls++;
+    return route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      headers: CORS,
+      body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }),
+    });
+  });
+  // Clé déjà enregistrée : essayée sans bruit au lancement.
+  await page.addInitScript(() => localStorage.setItem('ds-ai', JSON.stringify({ provider: 'anthropic', keys: { anthropic: 'sk-ant-fausse-cle' }, models: {} })));
   await page.goto('/#/grid?seed=fiction');
-  await page.getByTestId('assistant-toggle').click();
-  const panel = page.getByTestId('assistant-panel');
-  await panel.getByTestId('assistant-input').fill('Ajoute un plan');
-  await panel.getByTestId('assistant-send').click();
-  await expect(panel.getByTestId('assistant-error')).toContainText('Clé API refusée');
-  await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(11);
+  await expect.poll(() => calls).toBeGreaterThan(0);
+  const toggle = page.getByTestId('assistant-toggle');
+  await expect(toggle).toHaveCount(0);
+
+  await go(page, '#/settings?section=assistant');
+  const form = page.getByTestId('ai-settings');
+  await form.getByLabel('Clé API Anthropic').fill('sk-ant-autre-fausse-cle');
+  await expect(form.getByTestId('ai-probe')).toHaveText('Clé API refusée.');
+  await expect(form.getByLabel('Modèle')).toHaveCount(0);
+  await page.getByTestId('settings-save').click();
+  await expect(toggle).toHaveCount(0);
+});
+
+test('assistant : seuls les modèles qui répondent sont proposés, gratuits et payants séparés (OpenRouter simulé)', async ({ page }) => {
+  const models = [
+    { id: 'google/gemini-2.5-flash:free', pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] },
+    { id: 'meta-llama/llama-4-maverick:free', pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] },
+    { id: 'anthropic/claude-haiku-5.5', pricing: { prompt: '0.000001', completion: '0.000005' }, supported_parameters: ['tools'] },
+    { id: 'openai/gpt-5-mini', pricing: { prompt: '0.0000003', completion: '0.000002' }, supported_parameters: ['tools'] },
+  ];
+  await page.route('https://openrouter.ai/api/v1/**', (route) => {
+    const req = route.request();
+    if (req.method() === 'OPTIONS') return route.fulfill(PREFLIGHT);
+    if (req.method() === 'GET') return route.fulfill({ contentType: 'application/json', headers: CORS, body: JSON.stringify({ data: models }) });
+    // Un modèle gratuit saturé ne répond pas : il n'est pas proposé.
+    const { model } = req.postDataJSON() as Body;
+    if (model === 'meta-llama/llama-4-maverick:free') return route.fulfill({ status: 429, contentType: 'application/json', headers: CORS, body: JSON.stringify({ error: { message: 'Rate limited' } }) });
+    return route.fulfill({ contentType: 'application/json', headers: CORS, body: JSON.stringify({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }) });
+  });
+
+  await page.goto('/#/settings?seed=fiction&section=assistant');
+  const form = page.getByTestId('ai-settings');
+  await form.getByLabel('Fournisseur').selectOption('openrouter');
+  await form.getByLabel('Clé API OpenRouter').fill('sk-or-test-1234567890');
+  await expect(form.getByTestId('ai-probe')).toHaveText('Connecté · 3 modèles disponibles');
+  const select = form.getByLabel('Modèle');
+  await expect(select.locator('optgroup[label="Gratuits"] option')).toHaveText(['google/gemini-2.5-flash:free']);
+  await expect(select.locator('optgroup[label="Payants"] option')).toHaveText(['anthropic/claude-haiku-5.5', 'openai/gpt-5-mini']);
+  // Le meilleur gratuit est retenu d'office.
+  await expect(select).toHaveValue('google/gemini-2.5-flash:free');
+  await page.getByTestId('settings-save').click();
+  await expect(page.getByTestId('assistant-toggle')).toBeVisible();
 });

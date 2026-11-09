@@ -59,8 +59,8 @@ import { useUi } from '../../store/uiStore';
 import { putBlob } from '../../store/db';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { aiPlanInstructions, extractPlanText, parsePlanFile, placePlan, type ParsedPlan } from '../../domain/planImport';
-import { toggleAssistant } from '../assistant/assistant';
 import { askWithImage, isConfigured, loadAiSettings, modelOf, type ImageInput } from '../assistant/providers';
+import { navigate } from '../../app/router';
 import { LIGHT_PRESETS, ROOM_PRESETS, WORLD, lightSpecs, roomSize, setRoom, type FloorPlan, type Room } from '../../domain/floorplan';
 import { Button } from '../../ui/Button';
 import s from './FloorPlanPage.module.css';
@@ -876,7 +876,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                         const settings = loadAiSettings();
                         if (!isConfigured(settings)) {
                           setPlanMenu(false);
-                          toggleAssistant(true);
+                          navigate('settings', { section: 'assistant' });
                           return;
                         }
                         if (!bgUrl) return;

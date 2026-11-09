@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Plus, RotateCcw, X } from 'lucide-react';
+import { Check, ExternalLink, Plus, RotateCcw, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
 import { isMusicalFormat, newId } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
@@ -11,8 +11,8 @@ import { mutateDoc } from '../../store/projectStore';
 import { registerFlush } from '../../store/persistence';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
-import { AiSettingsForm } from '../assistant/AssistantPanel';
-import { loadAiSettings, saveAiSettings, type AiSettings } from '../assistant/providers';
+import { accessOf, forgetProbe, refreshAiStatus, rememberProbe, verifiedFor } from '../assistant/aiStatus';
+import { keyOf, loadAiSettings, probeProvider, providerInfo, PROVIDERS, saveAiSettings, type AiSettings, type ModelEntry, type ProviderId } from '../assistant/providers';
 import s from './SettingsPage.module.css';
 
 import { conflictOf, comboFromEvent, formatCombo, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId, type ShortcutMap } from '../../domain/shortcuts';
@@ -70,7 +70,10 @@ function apply(p: Pending) {
       for (const [k, v] of Object.entries(p.vocab)) d.customVocabulary[k as VocabKind] = structuredClone(v);
     });
   }
-  if (p.ai) saveAiSettings(p.ai);
+  if (p.ai) {
+    saveAiSettings(p.ai);
+    refreshAiStatus();
+  }
   for (const [id, combo] of Object.entries(p.keys)) setShortcut(id as ShortcutId, combo);
 }
 
@@ -256,10 +259,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
             <CameraSection />
             <CuttingSection />
             <VocabularySection />
-            <Section id="assistant" title="Assistant IA">
-              <p className={s.note}>Fournisseur, clé et modèle restent dans ce navigateur : jamais enregistrés dans le projet ni exportés.</p>
-              <AiSettingsForm value={api.ai} onChange={api.setAi} />
-            </Section>
+            <AssistantSection />
             <ShortcutsSection />
 
             <div className={s.saveBar} data-testid="settings-savebar">
@@ -443,6 +443,129 @@ function CuttingSection() {
           ]}
         />
       </Row>
+    </Section>
+  );
+}
+
+/**
+ * Assistant : fournisseur et clé ; la clé saisie est essayée d'office et seuls les modèles qui répondent
+ * sont proposés (gratuits et payants séparés quand le fournisseur publie ses prix).
+ */
+function AssistantSection() {
+  const { ai, setAi } = useSettings();
+  const ids = { provider: useId(), url: useId(), key: useId(), model: useId() };
+  const info = providerInfo(ai.provider);
+  const key = keyOf(ai);
+  const chosen = ai.models[ai.provider]?.trim() ?? '';
+  const access = accessOf(ai);
+  const [, setTick] = useState(0);
+  const verified = verifiedFor(ai);
+  const needsProbe = !verified || (!!chosen && !verified.models.some((m) => m.id === chosen));
+  const [probe, setProbe] = useState<{ busy: boolean; text: string } | null>(null);
+  const latest = useRef({ ai, setAi });
+  latest.current = { ai, setAi };
+  const setFor = (field: 'keys' | 'models', v: string) => setAi({ ...ai, [field]: { ...ai[field], [ai.provider]: v } });
+
+  useEffect(() => {
+    setProbe(null);
+    if (!needsProbe || (!info.keyOptional && key.length < 12)) return;
+    const ctrl = new AbortController();
+    const t = window.setTimeout(() => {
+      const tried = latest.current.ai;
+      setProbe({ busy: true, text: 'Essai des modèles…' });
+      probeProvider(tried, ctrl.signal)
+        .then((r) => {
+          rememberProbe(tried, r);
+          const { ai: now, setAi: set } = latest.current;
+          if (accessOf(now) === accessOf(tried) && now.models[now.provider] !== r.model) set({ ...now, models: { ...now.models, [now.provider]: r.model } });
+          setProbe(null);
+          setTick((x) => x + 1);
+        })
+        .catch((e: Error) => {
+          if (e.name === 'AbortError') return;
+          forgetProbe(tried);
+          setProbe({ busy: false, text: e.message });
+        });
+    }, 600);
+    return () => {
+      window.clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [access, needsProbe ? chosen : '']); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const models = verified?.models ?? [];
+  const priced = models.some((m) => m.free !== undefined);
+  const groups: Array<[string, ModelEntry[]]> = priced
+    ? ([
+        ['Gratuits', models.filter((m) => m.free)],
+        ['Payants', models.filter((m) => !m.free)],
+      ] as Array<[string, ModelEntry[]]>).filter(([, list]) => list.length)
+    : [];
+  const freeText = ai.provider === 'custom' && !verified?.listed;
+  const status = probe ? probe.text : verified && !needsProbe ? `Connecté · ${models.length} ${models.length > 1 ? 'modèles disponibles' : 'modèle disponible'}` : '';
+
+  return (
+    <Section id="assistant" title="Assistant IA">
+      <p className={s.note}>Fournisseur, clé et modèle restent dans ce navigateur : jamais enregistrés dans le projet ni exportés.</p>
+      <div data-testid="ai-settings">
+        <Row label="Fournisseur" htmlFor={ids.provider}>
+          <select id={ids.provider} className={s.text} value={ai.provider} onChange={(e) => setAi({ ...ai, provider: e.target.value as ProviderId })}>
+            {PROVIDERS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </Row>
+        {ai.provider === 'custom' && (
+          <Row label="Adresse de l’API" htmlFor={ids.url}>
+            <input id={ids.url} className={s.text} value={ai.baseUrl ?? info.baseUrl ?? ''} onChange={(e) => setAi({ ...ai, baseUrl: e.target.value })} placeholder="http://localhost:11434/v1" />
+          </Row>
+        )}
+        <Row label={info.keyLabel} htmlFor={ids.key}>
+          <input id={ids.key} className={s.text} type="password" autoComplete="off" value={ai.keys[ai.provider] ?? ''} onChange={(e) => setFor('keys', e.target.value)} placeholder={info.keyPlaceholder} />
+          {(status || info.keyUrl) && (
+            <div className={s.aiMeta}>
+              <span className={[probe && !probe.busy ? s.error : s.status].join(' ')} role="status" data-testid="ai-probe">
+                {status}
+              </span>
+              {info.keyUrl && (
+                <a href={info.keyUrl} target="_blank" rel="noopener noreferrer" className={s.keyLink}>
+                  Obtenir une clé
+                  <ExternalLink size={12} strokeWidth={1.4} aria-hidden="true" />
+                </a>
+              )}
+            </div>
+          )}
+        </Row>
+        {freeText ? (
+          <Row label="Modèle" htmlFor={ids.model}>
+            <input id={ids.model} className={s.text} value={chosen} onChange={(e) => setFor('models', e.target.value)} placeholder="nom du modèle" />
+          </Row>
+        ) : (
+          models.length > 0 && (
+            <Row label="Modèle" htmlFor={ids.model}>
+              <select id={ids.model} className={s.text} value={chosen} onChange={(e) => setFor('models', e.target.value)}>
+                {priced
+                  ? groups.map(([label, list]) => (
+                      <optgroup key={label} label={label}>
+                        {list.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.id}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))
+                  : models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.id}
+                      </option>
+                    ))}
+              </select>
+            </Row>
+          )
+        )}
+      </div>
     </Section>
   );
 }

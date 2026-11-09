@@ -31,6 +31,7 @@ import { SettingsPage } from '../features/shell/SettingsPage';
 import { Sidebar } from '../features/shell/Sidebar';
 import { Topbar } from '../features/shell/Topbar';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { recheckAi, useAiStatus } from '../features/assistant/aiStatus';
 import { useIsMobile } from '../ui/useIsMobile';
 import { lastProjectId, openDoc, openStoredProject, pruneOrphanBlobs, saveToFile, startAutosave } from '../store/persistence';
 import { cloudForget, cloudRestore, keepSessionAlive, preloadGoogle, startCloudPush, syncAll, useCloud } from '../store/cloud';
@@ -92,9 +93,12 @@ export function App() {
   const readOnly = useReadOnly();
   const canCopy = useCanCopy();
   const phone = useIsMobile();
+  const aiReady = useAiStatus((a) => a.ready);
 
   useEffect(() => {
     const stop = startAutosave();
+    // Assistant réglé : essai silencieux, il n'est proposé que s'il répond.
+    void recheckAi();
     // Synchronisation Google Drive (si configurée) : envoi après chaque enregistrement, suppressions suivies.
     const stopCloud = startCloudPush();
     const stopSession = keepSessionAlive();
@@ -235,7 +239,7 @@ export function App() {
             </ErrorBoundary>
           )}
         </main>
-        {doc && !readOnly && route !== 'home' && <AssistantPanel />}
+        {doc && !readOnly && route !== 'home' && aiReady && <AssistantPanel />}
       </div>
       <Toasts />
       <CommentPopover />
