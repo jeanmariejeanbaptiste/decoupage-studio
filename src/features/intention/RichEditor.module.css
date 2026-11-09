@@ -46,6 +46,8 @@
 }
 .editor ::selection { background: rgba(17, 19, 24, 0.16); }
 :global(:root[data-theme='encre']) .editor ::selection { background: rgba(242, 243, 245, 0.24); }
+/* Surlignage : la teinte enregistrée (sombre, pour le papier) est éclaircie sur le thème encre. */
+.editor [style*='rgba(17, 19, 24, 0.12)'] { background-color: var(--note-hl) !important; }
 .editor > *, .editor li { margin-top: 0; }
 .editor p { margin: 0 0 6pt; }
 .editor h1 { margin: 0 0 10pt; font-size: 24pt; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }

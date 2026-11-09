@@ -58,3 +58,16 @@ test('note d’intention : ⌘S emporte la frappe la plus récente', async ({ pa
   const content = readFileSync(await (await dl).path(), 'utf8');
   expect(content).toContain('DERNIERSMOTS');
 });
+
+test('note d’intention : le surlignage se voit sur le thème encre, sans changer la valeur enregistrée', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('ds-theme', 'encre'));
+  await page.goto('/#/intention?seed=fiction');
+  const ed = page.getByTestId('note-editor');
+  await ed.locator('blockquote').click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+Home');
+  await page.getByTestId('note-highlight').click();
+  const mark = ed.locator('[style*="background-color"]').first();
+  await expect(mark).toHaveCSS('background-color', 'rgba(242, 243, 245, 0.2)');
+  expect(await mark.getAttribute('style')).toContain('rgba(17, 19, 24, 0.12)');
+});
