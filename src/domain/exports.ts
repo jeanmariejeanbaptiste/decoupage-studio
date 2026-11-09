@@ -9,7 +9,7 @@ import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, characterUsage, decorStats, decorUsage, usageDayLabel } from './registry';
-import { bannerLabel, callSheetStrips, dayAgenda, dayStats, scheduleDays, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
+import { bannerLabel, callSheetStrips, dayAgenda, dayKeyTimes, dayStats, scheduleDays, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
 import { decorLocation } from './locations';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
@@ -123,6 +123,17 @@ export function callSheetCsv(doc: ProjectDoc, day: number): string {
   const rows: Array<Array<string | number | undefined>> = [
     ['Feuille de service', doc.project.title, `Jour ${day}`, d?.date ?? '', d?.callTime ? `RDV ${d.callTime}` : ''],
     [],
+    ...(() => {
+      // Horaires clés : repas et reprise de … à …, fin prévue.
+      const k = dayKeyTimes(doc, day, dayAgenda(doc, day, strips));
+      const lines = [
+        d?.pat && ['Prêt à tourner', d.pat],
+        k.meal && ['Repas', k.meal.start, k.meal.end],
+        k.restart && ['Reprise', k.restart.start, k.restart.end],
+        !k.restart?.end && k.wrap && ['Fin prévue', '', k.wrap],
+      ].filter((x): x is Array<string | undefined> => !!x);
+      return lines.length ? [['Horaires', 'Début', 'Fin'], ...lines, []] : [];
+    })(),
     ['Lieux et horaires', 'Adresse', 'Début', 'Fin', 'Séquence'],
     ...(() => {
       const stops = dayItinerary(doc, day);

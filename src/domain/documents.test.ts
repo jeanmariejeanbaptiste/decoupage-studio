@@ -59,7 +59,9 @@ describe('documents imprimables', () => {
     expect(sched).toContain('<b>Repas</b> · cantine · 60 min');
     // Feuille de service : seules les séquences placées comptent ; le repas suit la dernière (14:00–14:30).
     const sheet = callSheetDocument(next, 1).html;
-    expect(sheet).toContain('<th>Repas</th><td class="time">14:30</td>');
+    expect(sheet).toContain('<th>Repas</th><td class="time">de 14:30 à 15:30</td>');
+    // Rien ne suit le repas : pas de reprise, la fin prévue reste.
+    expect(sheet).not.toContain('<th>Reprise</th>');
     expect(sheet).toContain('<th>Fin prévue</th><td class="time">15:30</td>');
     expect(scheduleCsv(next)).toContain('Repas · cantine');
     expect(callSheetCsv(next, 1)).toContain('60 min');

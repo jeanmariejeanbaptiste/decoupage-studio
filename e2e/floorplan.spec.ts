@@ -15,7 +15,8 @@ test('plan au sol : caméra liée à un plan, comédien, mur', async ({ page }) 
   await expect(page.getByTestId('fp-camera')).toHaveCount(1);
   const props = page.getByTestId('fp-properties');
   await expect(props).toContainText('Caméra');
-  await props.getByLabel(/1\.1/).check();
+  // Plans couverts : cochés dans la liste des plans du panneau, caméra sélectionnée.
+  await page.getByTestId('fp-shots').getByLabel('Plan 1.1 couvert par CAM A').check();
   await expect(page.getByTestId('fp-camera')).toContainText('CAM A · 16mm · 97°');
   await expect(props).toContainText('angle horizontal 96,7°');
 
@@ -217,10 +218,9 @@ test('plan au sol : l’assistant trace les murs depuis l’image du plan des lo
 
 test('plan au sol : pièce aux dimensions réelles et projecteur chiffré (W, K)', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
-  await page.getByTestId('fp-plan-menu').click();
-  await page.getByRole('button', { name: 'Pièce moyenne' }).click();
+  await page.getByTestId('fp-panel').getByRole('button', { name: 'Pièce moyenne' }).click();
   await expect(page.getByTestId('fp-room-size')).toContainText('Superficie 45 m² · volume 135 m³');
-  await page.getByTestId('fp-plan-menu').click();
+  await expect(page.getByTestId('fp-items')).toContainText('4 murs');
   await page.getByRole('button', { name: /^Projecteur/ }).first().click();
   const svg = page.locator('svg').filter({ has: page.locator('pattern') }).first();
   const box = (await svg.boundingBox())!;
@@ -233,3 +233,47 @@ test('plan au sol : pièce aux dimensions réelles et projecteur chiffré (W, K)
   await expect(page.getByText('HMI 1 800 W (M18) (1800 W, 5600 K)')).toBeVisible();
 });
 
+
+test('plan au sol : panneau latéral, caméra posée depuis un plan, éléments du plan sélectionnables', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=fiction');
+  const panel = page.getByTestId('fp-panel');
+  const shots = panel.getByTestId('fp-shot');
+  await expect(shots).toHaveCount(4);
+  await expect(shots.first()).toContainText('Général · 24mm');
+  await expect(panel.getByTestId('fp-shots')).toContainText('0 / 4 avec caméra');
+  // Un plan sans caméra : on la pose d'un clic, liée au plan, et elle est sélectionnée.
+  await panel.getByRole('button', { name: 'Placer une caméra pour le plan 1.1' }).click();
+  await expect(page.getByTestId('fp-camera')).toHaveCount(1);
+  await expect(page.getByTestId('fp-camera')).toContainText('CAM A · 24mm');
+  await expect(page.getByTestId('fp-properties')).toContainText('Caméra');
+  await expect(panel.getByTestId('fp-shots')).toContainText('1 / 4 avec caméra');
+  await expect(shots.first().getByRole('button', { name: 'CAM A' })).toBeVisible();
+  // Inventaire de la vue : un projecteur posé, puis repris depuis la liste.
+  await page.getByTestId('tool-light').click();
+  const box = (await page.getByTestId('floorplan').boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.3);
+  await page.getByTestId('tool-select').click();
+  const items = panel.getByTestId('fp-item');
+  await expect(items).toHaveCount(2);
+  await expect(items.first()).toContainText('CAM A');
+  await expect(items.nth(1)).toContainText('L1');
+  await items.first().click();
+  await expect(page.getByTestId('fp-properties')).toContainText('Caméra');
+  await shots.first().getByRole('button', { name: 'CAM A' }).click();
+  await expect(items.first()).toHaveAttribute('aria-pressed', 'true');
+  // Un rail tracé : sa longueur s'affiche.
+  await page.getByTestId('tool-rail').click();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.8);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.8, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId('fp-length')).toContainText(/Longueur \d+(,\d+)? m/);
+  // Tout sélectionner : un seul bouton pour retirer la sélection.
+  await page.getByTestId('tool-select').click();
+  await page.getByTestId('floorplan').focus();
+  await page.keyboard.press('Control+a');
+  await expect(panel.getByTestId('fp-multi')).toContainText('3 éléments');
+  await panel.getByTestId('fp-multi').getByRole('button', { name: 'Retirer' }).click();
+  await expect(page.getByTestId('fp-items')).toHaveCount(0);
+  await expect(panel.getByTestId('fp-shots')).toContainText('0 / 4 avec caméra');
+});

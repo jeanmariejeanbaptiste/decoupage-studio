@@ -358,14 +358,93 @@ export function cameraCone(
 
 /** Caméras des plans au sol liées à un plan. */
 export function camerasForShot(doc: ProjectDoc, shotId: ID): string[] {
+  return shotCameras(doc, shotId).map((c) => c.label);
+}
+
+/** Caméras liées à un plan du découpage, avec la vue où elles sont posées. */
+export function shotCameras(doc: ProjectDoc, shotId: ID): Array<{ planKey: string; id: ID; label: string }> {
   const seqId = doc.shots[shotId]?.sequenceId;
   if (!seqId) return [];
-  return [...plansOf(doc, seqId), ...oneShotPlansOf(doc, seqId)]
-    .flatMap((ref) => planOf(doc, ref.key).items)
-    .filter(
-      (i): i is Extract<FloorItem, { kind: 'camera' }> => i.kind === 'camera' && i.shotIds.includes(shotId),
-    )
-    .map((c) => c.label ?? 'CAM');
+  return [...plansOf(doc, seqId), ...oneShotPlansOf(doc, seqId)].flatMap((ref) =>
+    planOf(doc, ref.key)
+      .items.filter((i): i is Extract<FloorItem, { kind: 'camera' }> => i.kind === 'camera' && i.shotIds.includes(shotId))
+      .map((c) => ({ planKey: ref.key, id: c.id, label: c.label ?? 'CAM' })),
+  );
+}
+
+/** Pose une caméra liée à un plan du découpage et renvoie son identifiant. */
+export function placeCameraForShot(doc: ProjectDoc, planKey: string, shotId: ID, at: Point): ID {
+  const id = addFloorItem(doc, planKey, 'camera', at);
+  updateFloorItem(doc, planKey, id, { shotIds: [shotId] } as Partial<FloorItem>);
+  return id;
+}
+
+export const FLOOR_KIND_LABEL: Record<FloorKind, string> = {
+  camera: 'Caméra',
+  actor: 'Comédien',
+  wall: 'Mur',
+  rail: 'Rails',
+  door: 'Porte',
+  window: 'Fenêtre',
+  light: 'Projecteur',
+  reflector: 'Réflecteur',
+  diffuser: 'Diffuseur',
+  flag: 'Drapeau (négatif)',
+};
+
+/** Longueur d'un élément tracé, en mètres (1 unité du plan = 1 cm). */
+export const itemLength = (i: { x: number; y: number; x2: number; y2: number }) => Math.round(Math.hypot(i.x2 - i.x, i.y2 - i.y)) / 100;
+export const formatMeters = (m: number) => `${String(Math.round(m * 100) / 100).replace('.', ',')} m`;
+
+export interface InventoryRow {
+  id: ID;
+  kind: FloorKind;
+  practical?: boolean;
+  name: string;
+  detail: string;
+}
+
+const INVENTORY_ORDER: FloorKind[] = ['camera', 'actor', 'light', 'reflector', 'diffuser', 'flag', 'rail'];
+
+/**
+ * Éléments posés sur une vue, dans l'ordre du plateau (caméras, comédiens, lumière, rails), avec un
+ * nom et l'essentiel : plans couverts et focale, personnage, puissance, longueur. Le décor (murs,
+ * portes, fenêtres) est résumé à part (`decorSummary`).
+ */
+export function planInventory(doc: ProjectDoc, items: readonly FloorItem[]): InventoryRow[] {
+  const beat = (b?: number) => (b ? `T${b}` : '');
+  const join = (...xs: Array<string | undefined>) => xs.filter(Boolean).join(' · ');
+  return INVENTORY_ORDER.flatMap((kind) =>
+    items
+      .filter((i) => i.kind === kind)
+      .map((i): InventoryRow => {
+        switch (i.kind) {
+          case 'camera': {
+            const f = cameraFocal(doc, i);
+            return { id: i.id, kind: i.kind, name: i.label ?? 'CAM', detail: join(i.shotIds.filter((id) => doc.shots[id]).map((id) => shotCode(doc, id)).join(', '), f ? `${f}mm` : '', beat(i.beat)) };
+          }
+          case 'actor': {
+            const name = (i.characterId && doc.characters[i.characterId]?.name) || i.label;
+            return { id: i.id, kind: i.kind, name, detail: join(i.to ? 'déplacement' : '', beat(i.beat)) };
+          }
+          case 'light':
+            return { id: i.id, kind: i.kind, practical: i.practical, name: i.label ?? 'L', detail: i.practical ? 'Lampe de jeu' : join(i.model, lightSpecs(i)) || FLOOR_KIND_LABEL.light };
+          case 'reflector':
+          case 'diffuser':
+          case 'flag':
+            return { id: i.id, kind: i.kind, name: i.label ?? '', detail: join(FLOOR_KIND_LABEL[i.kind], formatMeters(itemLength(i))) };
+          default:
+            return { id: i.id, kind: i.kind, name: FLOOR_KIND_LABEL[i.kind], detail: 'x2' in i ? formatMeters(itemLength(i)) : '' };
+        }
+      }),
+  );
+}
+
+/** Décor de la vue en bref : « 4 murs · 1 porte · 2 fenêtres » (vide sans décor). */
+export function decorSummary(items: readonly FloorItem[]): string {
+  const n = (k: FloorKind) => items.filter((i) => i.kind === k).length;
+  const word = (c: number, one: string, many: string) => (c ? `${c} ${c > 1 ? many : one}` : '');
+  return [word(n('wall'), 'mur', 'murs'), word(n('door'), 'porte', 'portes'), word(n('window'), 'fenêtre', 'fenêtres')].filter(Boolean).join(' · ');
 }
 
 // --- Lumière : faisceau et réflecteurs ------------------------------------------------------

@@ -9,10 +9,14 @@ import {
   callSheetStrips,
   dayAgenda,
   dayItinerary,
+  dayKeyTimes,
   dayStats,
   scheduleDays,
   firstSlot,
+  fromMin,
+  setDayMeal,
   shotSlotsText,
+  toMin,
   updateDay,
 } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
@@ -68,6 +72,16 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
   const nums = characterNumbers(doc);
+  const keys = dayKeyTimes(doc, day.n, agenda);
+  const wrapInput = (
+    <input
+      type="time"
+      className={keys.wrapComputed ? s.computed : undefined}
+      value={keys.wrap ? fromMin(toMin(keys.wrap) % 1440) : ''}
+      onChange={(e) => set({ wrap: e.target.value || undefined })}
+      aria-label="Fin prévue"
+    />
+  );
   const cast = stats.characterIds
     .map((id) => doc.characters[id])
     .filter(Boolean)
@@ -206,11 +220,49 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
         <section className={s.block} data-testid="callsheet-keys">
           <h3>Repères du jour</h3>
           <div className={s.keys}>
+            <label className={s.key}>
+              <span>Prêt à tourner</span>
+              <input type="time" value={day.pat ?? ''} onChange={(e) => set({ pat: e.target.value || undefined })} aria-label="Prêt à tourner" />
+            </label>
+            <div className={s.key} role="group" aria-label="Repas" data-testid="callsheet-meal">
+              <span>Repas</span>
+              <div className={s.range}>
+                <input
+                  type="time"
+                  className={keys.meal?.computed.start ? s.computed : undefined}
+                  value={keys.meal?.start ?? ''}
+                  onChange={(e) => mutateDoc((d) => setDayMeal(d, day.n, { start: e.target.value || undefined }))}
+                  aria-label="Début du repas"
+                />
+                <span>à</span>
+                <input
+                  type="time"
+                  className={keys.meal?.computed.end ? s.computed : undefined}
+                  value={keys.meal?.end ?? ''}
+                  onChange={(e) => mutateDoc((d) => setDayMeal(d, day.n, { end: e.target.value || undefined }))}
+                  aria-label="Fin du repas"
+                />
+              </div>
+            </div>
+            {keys.meal ? (
+              <div className={s.key} role="group" aria-label="Reprise" data-testid="callsheet-restart">
+                <span>Reprise</span>
+                <div className={s.range}>
+                  <output className={s.rangeFixed} aria-label="Début de la reprise">
+                    {keys.restart?.start ?? keys.meal.end}
+                  </output>
+                  <span>à</span>
+                  {wrapInput}
+                </div>
+              </div>
+            ) : (
+              <label className={s.key}>
+                <span>Fin prévue</span>
+                {wrapInput}
+              </label>
+            )}
             {(
               [
-                ['pat', 'Prêt à tourner'],
-                ['meal', 'Repas'],
-                ['wrap', 'Fin prévue'],
                 ['sunrise', 'Lever du soleil'],
                 ['sunset', 'Coucher du soleil'],
               ] as const
@@ -220,7 +272,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                 <input type="time" value={day[k] ?? ''} onChange={(e) => set({ [k]: e.target.value || undefined })} aria-label={label} />
               </label>
             ))}
-            <label className={[s.key, s.keyWide].join(' ')}>
+            <label className={s.key}>
               <span>Météo</span>
               <input value={day.weather ?? ''} placeholder="Ensoleillé, 14 °C" onChange={(e) => set({ weather: e.target.value || undefined })} aria-label="Météo" />
             </label>
