@@ -52,7 +52,31 @@ const dice = (a: Set<string>, b: Set<string>) => {
 };
 
 export function sceneSimilarity(a: Features, b: Features): number {
-  return 0.3 * jaccard(a.loc, b.loc) + 0.05 * (a.intExt === b.intExt ? 1 : 0) + 0.05 * (a.effect === b.effect ? 1 : 0) + 0.15 * jaccard(a.speakers, b.speakers) + 0.45 * dice(a.grams, b.grams);
+  return similarityWith(a, b, dice(a.grams, b.grams));
+}
+
+function similarityWith(a: Features, b: Features, textDice: number): number {
+  return 0.3 * jaccard(a.loc, b.loc) + 0.05 * (a.intExt === b.intExt ? 1 : 0) + 0.05 * (a.effect === b.effect ? 1 : 0) + 0.15 * jaccard(a.speakers, b.speakers) + 0.45 * textDice;
+}
+
+/**
+ * Similarités de toutes les paires. Les triplets communs se comptent par un index (triplet → scènes) :
+ * la plupart n'appartiennent qu'à une scène, et un long scénario se compare sans tout croiser.
+ */
+function similarities(A: readonly Features[], B: readonly Features[]): number[][] {
+  const index = new Map<string, number[]>();
+  B.forEach((b, j) => {
+    for (const g of b.grams) {
+      const l = index.get(g);
+      if (l) l.push(j);
+      else index.set(g, [j]);
+    }
+  });
+  return A.map((a) => {
+    const common = new Uint32Array(B.length);
+    for (const g of a.grams) for (const j of index.get(g) ?? []) common[j]++;
+    return B.map((b, j) => similarityWith(a, b, !a.grams.size && !b.grams.size ? 1 : (2 * common[j]) / (a.grams.size + b.grams.size)));
+  });
 }
 
 export interface SceneMatch {
@@ -82,7 +106,7 @@ export function alignScenes(before: string, after: string): SceneAlignment {
   const newScenes = scenesOf(after);
   const A = oldScenes.map((s) => featuresOf(before, s));
   const B = newScenes.map((s) => featuresOf(after, s));
-  const sim = A.map((a) => B.map((b) => sceneSimilarity(a, b)));
+  const sim = similarities(A, B);
   // Programmation dynamique : meilleur appariement dans l'ordre.
   const n = A.length;
   const m = B.length;
