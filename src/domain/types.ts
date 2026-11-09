@@ -299,6 +299,8 @@ export interface ProjectDoc {
   clearedScenarios?: import('./versions').ClearedScenario[];
   /** Calendrier : rendez-vous du projet (les jours de tournage viennent du plan de travail). */
   calendar?: import('./calendar').CalendarEvent[];
+  /** Calendrier de production : phases, étapes et jalons du film (`production.ts`), communs à toutes les versions. */
+  production?: import('./production').Production;
 }
 
 export const SCHEMA_VERSION = 1;

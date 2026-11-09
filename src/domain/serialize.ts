@@ -5,6 +5,7 @@ import { normalizeScenario } from './fountain';
 import { storedShots } from './versions';
 import { commentAttachments } from './comments';
 import { migrateDecorLocations } from './locations';
+import { normalizeProduction, syncProduction } from './production';
 import { activeColumns } from './columns';
 import { normalizeTiming } from './factory';
 import { EMPTY_CUSTOM_VOCABULARY } from './vocabulary';
@@ -165,6 +166,9 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   normalizeScenario(doc);
   // Plans d'interview remis d'accord avec la fiche (fichier modifié ailleurs, ancienne version).
   syncInterviewShots(doc);
+  // Calendrier de production relu : données abîmées écartées, étape liée recalée sur le plan de travail.
+  normalizeProduction(doc);
+  syncProduction(doc);
   return doc;
 }
 

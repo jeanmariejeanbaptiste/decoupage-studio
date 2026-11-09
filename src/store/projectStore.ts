@@ -6,6 +6,7 @@ import { produce } from 'immer';
 import { apply, type Op } from '../domain/patch';
 import type { ProjectDoc } from '../domain/types';
 import { syncInterviewShots } from '../domain/interview';
+import { syncProduction } from '../domain/production';
 
 interface ProjectState {
   doc: ProjectDoc | null;
@@ -44,6 +45,8 @@ export const useProjectStore = create<ProjectState>()(
           doc: produce(next, (d) => {
             // Institutionnel : les plans d'interview suivent la fiche (caméras, intervenant, place).
             syncInterviewShots(d);
+            // Calendrier de production : l'étape liée suit les jours de tournage datés.
+            syncProduction(d);
             d.project.updatedAt = new Date().toISOString();
           }),
         });

@@ -162,10 +162,14 @@ export interface CalendarItem {
   allDay: boolean;
   kind?: CalendarKind;
   note?: string;
-  source: 'project' | 'shooting';
+  source: 'project' | 'shooting' | 'production';
   eventId?: ID;
   /** Jour de tournage (plan de travail). */
   day?: number;
+  /** Étape ou jalon du calendrier de production, et sa phase. */
+  taskId?: ID;
+  milestone?: boolean;
+  group?: string;
 }
 
 /** Rendez-vous du projet mis à plat ; dates invalides écartées, fin manquante ou antérieure corrigée. */
@@ -214,7 +218,28 @@ export function shootingItems(doc: ProjectDoc): CalendarItem[] {
     });
 }
 
+/**
+ * Étapes et jalons du calendrier de production, en journées entières. L'étape liée au plan de travail
+ * n'y figure pas quand des jours de tournage sont datés : ils sont déjà dans le calendrier, un par un.
+ */
+export function productionItems(doc: ProjectDoc, opts: { withLinked?: boolean } = {}): CalendarItem[] {
+  const plan = doc.production;
+  const dated = scheduleDays(doc).some((d) => isValidDate(d.date));
+  const out: CalendarItem[] = [];
+  for (const phase of plan?.phases ?? [])
+    for (const t of phase.tasks) {
+      if (!isValidDate(t.start) || (t.linked && dated && !opts.withLinked)) continue;
+      const end = t.milestone || !isValidDate(t.end) || t.end < t.start ? t.start : t.end;
+      out.push({ key: `p:${t.id}`, title: t.name, date: t.start, endDate: end, allDay: true, source: 'production', taskId: t.id, milestone: t.milestone || undefined, group: phase.name });
+    }
+  return out;
+}
+
+/** Rang d'une source dans une journée : tournage et rendez-vous avant les étapes de production. */
+const sourceRank = (it: CalendarItem) => (it.source === 'production' ? 1 : 0);
+
 const order = (a: CalendarItem, b: CalendarItem) =>
+  sourceRank(a) - sourceRank(b) ||
   a.date.localeCompare(b.date) ||
   Number(b.allDay) - Number(a.allDay) ||
   (a.start ?? '').localeCompare(b.start ?? '') ||
@@ -224,12 +249,14 @@ const order = (a: CalendarItem, b: CalendarItem) =>
 /** Tout le calendrier du projet, trié. */
 export function calendarItems(doc: ProjectDoc): CalendarItem[] {
   const own = (doc.calendar ?? []).map(eventItem).filter((x): x is CalendarItem => !!x);
-  return [...shootingItems(doc), ...own].sort(order);
+  return [...shootingItems(doc), ...own, ...productionItems(doc)].sort(order);
 }
 
 /** Éléments présents un jour donné : journées entières d'abord, puis par heure. */
 export function itemsOn(items: readonly CalendarItem[], date: string): CalendarItem[] {
-  return items.filter((it) => it.date <= date && it.endDate >= date).sort((a, b) => Number(b.allDay) - Number(a.allDay) || (a.start ?? '').localeCompare(b.start ?? '') || order(a, b));
+  return items
+    .filter((it) => it.date <= date && it.endDate >= date)
+    .sort((a, b) => Number(b.allDay) - Number(a.allDay) || sourceRank(a) - sourceRank(b) || (a.start ?? '').localeCompare(b.start ?? '') || order(a, b));
 }
 
 /** Jours occupés (vue Année). */
@@ -408,19 +435,21 @@ function fold(line: string): string {
   return parts.join('\r\n ');
 }
 
-/** Fichier .ics : rendez-vous du projet et jours de tournage, heures locales « flottantes ». */
+const uid = (it: CalendarItem) => (it.source === 'shooting' ? `jour-${it.day}` : it.source === 'production' ? `etape-${it.taskId}` : it.eventId);
+
+/** Fichier .ics : rendez-vous du projet, jours de tournage et étapes de production, heures locales « flottantes ». */
 export function calendarIcs(items: readonly CalendarItem[], name: string, now = new Date()): string {
   const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const kindLabel = (k?: CalendarKind) => CALENDAR_KINDS.find((x) => x.kind === k)?.label;
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Découpage Studio//Calendrier//FR', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${icsText(name)}`];
   for (const it of items) {
-    lines.push('BEGIN:VEVENT', `UID:${it.source === 'shooting' ? `jour-${it.day}` : it.eventId}@decoupage-studio`, `DTSTAMP:${stamp}`);
+    lines.push('BEGIN:VEVENT', `UID:${uid(it)}@decoupage-studio`, `DTSTAMP:${stamp}`);
     if (it.allDay) lines.push(`DTSTART;VALUE=DATE:${icsDate(it.date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(it.endDate, 1))}`);
     else lines.push(`DTSTART:${icsDateTime(it.date, it.start!)}`, `DTEND:${icsDateTime(it.endDate, it.end!)}`);
-    const summary = it.allDay && it.start ? `${it.title} · RDV ${it.start}` : it.title;
+    const summary = it.milestone ? `◆ ${it.title}` : it.allDay && it.start ? `${it.title} · RDV ${it.start}` : it.title;
     lines.push(`SUMMARY:${icsText(summary)}`);
     if (it.note?.trim()) lines.push(`DESCRIPTION:${icsText(it.note.trim())}`);
-    const cat = kindLabel(it.kind);
+    const cat = kindLabel(it.kind) ?? it.group;
     if (cat) lines.push(`CATEGORIES:${icsText(cat)}`);
     lines.push('END:VEVENT');
   }
