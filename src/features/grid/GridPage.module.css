@@ -2,14 +2,19 @@
 .left, .right { display: flex; align-items: center; gap: 10px; }
 .icons { display: inline-flex; align-items: center; gap: 2px; }
 .iconOn { color: var(--rust) !important; background: var(--selected) !important; }
-.views { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--kraft); }
-.views button { border: 0; background: none; padding: 5px 14px; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; }
+.views { display: inline-flex; height: 32px; box-sizing: border-box; padding: 2px; border-radius: 8px; background: var(--kraft); }
+.views button { height: 28px; border: 0; background: none; padding: 0 14px; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; }
 .views .viewOn { background: var(--paper-card); color: var(--ink); box-shadow: 0 1px 2px rgba(17, 19, 24, 0.08); }
 /* Aperçu : bouton à bascule, à côté des vues (il montre la vue en cours telle qu'à l'export). */
-.preview { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 8px; background: none; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; }
+.preview { display: inline-flex; align-items: center; gap: 7px; height: 32px; box-sizing: border-box; padding: 0 8px 0 11px; border: 1px solid var(--rule); border-radius: 8px; background: none; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; }
 .preview:hover { color: var(--ink); background: var(--hover); }
-.previewOn { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-.previewOn:hover { background: var(--ink); color: var(--paper); }
+/* Levier de l'aperçu : la pastille glisse, le rail se remplit. */
+.lever { position: relative; display: inline-block; width: 28px; height: 16px; border-radius: 999px; background: var(--rule); transition: background-color 220ms var(--ease, ease); }
+.lever span { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--paper-card); box-shadow: 0 1px 2px rgba(17, 19, 24, 0.25); transition: transform 220ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.previewOn { color: var(--ink); border-color: var(--ink-soft); }
+.previewOn .lever { background: var(--ink); }
+.previewOn .lever span { transform: translateX(12px); }
+@media (prefers-reduced-motion: reduce) { .lever, .lever span { transition: none; } }
 .sep { width: 1px; height: 20px; background: var(--rule); margin: 0 4px; }
 .menuWrap { position: relative; }
 .menu {

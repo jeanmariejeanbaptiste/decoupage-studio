@@ -4,7 +4,7 @@ import { buildFiction } from '../../seed/fiction';
 import { addBreakdownItems, breakdownOf } from './breakdown';
 import { alignScenes } from './sceneAlign';
 import { reviseScenario, revisionSummary } from './revision';
-import { compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion } from './versions';
+import { clearScenario, clearedOf, restoreScenario, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion } from './versions';
 
 const V1 = `INT. GARE — HALL - JOUR
 
@@ -155,5 +155,23 @@ describe('versions', () => {
     expect(marks.get(1)).toBe('new');
     expect(marks.get(2)).toBe('changed');
     expect(marks.has(0)).toBe(false);
+  });
+
+  it('effacer le scénario : cette version ou toutes ; le découpage reste ; le texte se rétablit avec ses liens', () => {
+    const doc = produce(buildFiction(), (d) => void createVersion(d));
+    const text = doc.scenario!;
+    const seq = doc.project.sequenceIds[0];
+    const one = produce(doc, (d) => clearScenario(d, 'current'));
+    expect(one.scenario).toBe('');
+    expect(one.project.sequenceIds).toHaveLength(3);
+    expect(one.sequences[seq].scenarioAnchor).toBeUndefined();
+    expect(one.versions![0].slice!.scenario).toBe(text);
+    expect(clearedOf(one)?.text).toBe(text);
+    const back = produce(one, (d) => void restoreScenario(d));
+    expect(back.scenario).toBe(text);
+    expect(back.sequences[seq].scenarioAnchor).toEqual(doc.sequences[seq].scenarioAnchor);
+    const all = produce(doc, (d) => clearScenario(d, 'all'));
+    expect(all.versions![0].slice!.scenario).toBe('');
+    expect(all.clearedScenarios).toHaveLength(2);
   });
 });

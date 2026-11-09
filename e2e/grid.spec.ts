@@ -116,7 +116,7 @@ test('coller depuis un tableur à cheval sur deux séquences : les lignes suiven
 
 test('relecture par l’auteur : schéma, tracé sur la page ; en V2, le commentaire de V1 reste et reçoit sa réponse', async ({ page }) => {
   await page.goto('/#/grid?seed=fiction');
-  await page.getByRole('button', { name: /Aperçu/ }).click();
+  await page.getByTestId('toggle-print').click();
   const cell = page.locator('tr[data-shot] td[data-col="value"]').first();
   await cell.click();
   await page.getByTestId('comment-text').fill('Plan large ?');

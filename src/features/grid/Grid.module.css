@@ -32,6 +32,9 @@
 .col_dialogue, .col_notes, .col_grip { width: 13%; }
 
 .th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   position: sticky;
   top: 0;
   z-index: 3;
@@ -249,3 +252,5 @@ tr[data-lifted], tbody[data-lifted] { filter: drop-shadow(0 8px 16px rgba(17, 19
 /* Plans d'interview : mêmes colonnes, fond kraft et filet d'encre à gauche (réglés dans la fiche). */
 .itwRow > td:not(.c_sequence) { background: var(--kraft); }
 .itwRow .c_action { font-style: italic; }
+
+.thLabel { white-space: nowrap; }

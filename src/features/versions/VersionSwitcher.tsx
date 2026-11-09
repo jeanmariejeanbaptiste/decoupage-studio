@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, MessageSquare, Pencil, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, Eraser, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
+import { scenesOf } from '../../domain/fountain';
+import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
 import { openCommentsPanel } from '../comments/commentsUi';
-import { activeVersion, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
+import { activeVersion, clearScenario, clearedOf, compareVersions, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, undo } from '../../store/projectStore';
 import { useReadOnly } from '../../store/share';
 import { ask } from '../../ui/dialogStore';
 import s from './VersionSwitcher.module.css';
@@ -152,8 +154,60 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
               <Plus size={13} strokeWidth={1.5} /> Nouvelle version ({nextVersionName(list.map((v) => v.name))})
             </button>
           )}
+          {!readOnly && <ClearScenario doc={doc} name={current.name} onDone={() => setOpen(false)} />}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Effacer le texte du scénario (cette version ou toutes), avec un garde-fou qui ne gêne pas : une
+ * seule confirmation qui dit ce qui part et ce qui reste ; le texte est mis de côté et se rétablit
+ * ici même, ou par ⌘Z.
+ */
+function ClearScenario({ doc, name, onDone }: { doc: ProjectDoc; name: string; onDone: () => void }) {
+  const cleared = clearedOf(doc);
+  if (cleared)
+    return (
+      <button
+        type="button"
+        className={s.add}
+        onClick={() => {
+          mutateDoc((d) => void restoreScenario(d));
+          onDone();
+        }}
+        data-testid="scenario-restore"
+      >
+        <RotateCcw size={13} strokeWidth={1.5} /> Rétablir le scénario effacé
+      </button>
+    );
+  const here = (doc.scenario ?? '').trim();
+  const others = (doc.versions ?? []).filter((v) => v.slice?.scenario?.trim()).length;
+  if (!here && !others) return null;
+  return (
+    <button
+      type="button"
+      className={[s.add, s.quiet].join(' ')}
+      onClick={async () => {
+        onDone();
+        flushEditors();
+        const n = scenesOf(doc.scenario ?? '').length;
+        const r = await ask({
+          title: here ? `Effacer le scénario de ${name} ?` : 'Effacer le scénario des autres versions ?',
+          body: `${here ? `${n} séquence${n > 1 ? 's' : ''} dans ${name}. ` : ''}Le découpage, ses plans et la préparation restent. Le texte est mis de côté : « Rétablir le scénario effacé », dans ce menu.`,
+          confirmLabel: here ? `Effacer ${name}` : 'Effacer',
+          altLabel: here && others ? 'Toutes les versions' : undefined,
+          danger: true,
+        });
+        if (!r.ok && !r.alt) return;
+        const scope = r.alt || !here ? 'all' : 'current';
+        mutateDoc((d) => clearScenario(d, scope));
+        useUi.getState().toast({ message: scope === 'all' ? 'Scénario effacé dans toutes les versions.' : `Scénario de ${name} effacé.`, actionLabel: 'Annuler', action: undo });
+      }}
+      data-testid="scenario-clear"
+    >
+      <Eraser size={13} strokeWidth={1.5} /> Effacer le scénario…
+    </button>
   );
 }

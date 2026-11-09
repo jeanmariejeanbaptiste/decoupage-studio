@@ -415,3 +415,26 @@ test('versions : un nouveau texte importé devient la V2, chaque scène retrouve
   await page.getByTestId('version-item').filter({ hasText: 'V1' }).getByRole('menuitemradio').click();
   await expect(page.locator('tbody[data-seq]')).toHaveCount(3);
 });
+
+test('versions : effacer le scénario de la version courante, puis le rétablir', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction');
+  const switcher = page.getByTestId('version-switcher');
+  await switcher.click();
+  await page.getByTestId('version-new').click();
+  await switcher.click();
+  await page.getByTestId('scenario-clear').click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('Le découpage, ses plans et la préparation restent');
+  await dialog.getByRole('button', { name: 'Effacer V2' }).click();
+  await expect(page.getByTestId('scenario-outline')).toHaveCount(0);
+  // V1 garde son texte.
+  await switcher.click();
+  await page.getByTestId('version-item').filter({ hasText: 'V1' }).getByRole('menuitemradio').click();
+  await expect(page.getByTestId('scenario-outline')).toContainText('GARE — HALL');
+  // Retour en V2 : le texte effacé se rétablit.
+  await switcher.click();
+  await page.getByTestId('version-item').filter({ hasText: 'V2' }).getByRole('menuitemradio').click();
+  await switcher.click();
+  await page.getByTestId('scenario-restore').click();
+  await expect(page.getByTestId('scenario-outline')).toContainText('PARVIS DE LA GARE');
+});

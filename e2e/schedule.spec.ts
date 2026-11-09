@@ -21,9 +21,9 @@ test('plan de travail : jours, glisser une séquence, suggestion', async ({ page
   await expect(page.getByTestId('band-1').getByTestId('strip')).toHaveCount(1);
   await expect(page.getByTestId('day-stats-1')).toContainText('6 plans');
   await page.getByTestId('suggest-schedule').click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Suggérer' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Répartir' }).click();
   await expect(page.getByTestId('band-0').getByTestId('strip')).toHaveCount(0);
-  await expect(page.getByTestId('toast')).toContainText('Plan de travail suggéré');
+  await expect(page.getByTestId('toast')).toContainText('Plan de travail réparti');
   await expect(page.getByTestId('band-3')).toBeVisible();
 });
 

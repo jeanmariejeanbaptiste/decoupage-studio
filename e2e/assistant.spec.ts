@@ -118,37 +118,3 @@ test('assistant : clé refusée, message clair et rien de modifié', async ({ pa
   await expect(panel.getByTestId('assistant-error')).toContainText('Clé API refusée');
   await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(11);
 });
-
-test('raccourcis de l’assistant : dépouiller une scène, proposer le découpage d’une séquence (API simulée)', async ({ page }) => {
-  // Fournisseur compatible OpenAI simulé : un appel d'outil, puis la réponse finale.
-  await page.addInitScript(() => localStorage.setItem('ds-ai', JSON.stringify({ provider: 'custom', keys: {}, models: { custom: 'test' }, baseUrl: 'https://ia.test/v1' })));
-  const prompts: string[] = [];
-  let pending: { name: string; args: unknown } | null = null;
-  await page.route('https://ia.test/v1/chat/completions', async (route) => {
-    const body = route.request().postDataJSON() as { messages: Array<{ role: string; content: unknown }> };
-    const last = body.messages[body.messages.length - 1];
-    const json = (content: string | null, calls?: unknown[]) => ({ choices: [{ message: { role: 'assistant', content, ...(calls ? { tool_calls: calls } : {}) }, finish_reason: calls ? 'tool_calls' : 'stop' }] });
-    let reply;
-    if (last.role === 'user' && pending) {
-      prompts.push(String(last.content));
-      reply = json(null, [{ id: 'call_1', type: 'function', function: { name: pending.name, arguments: JSON.stringify(pending.args) } }]);
-    } else reply = json('C’est fait.');
-    await route.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(reply) });
-  });
-
-  await page.goto('/#/breakdown?seed=fiction');
-  pending = { name: 'add_breakdown_items', args: { sequence: 1, category: 'accessoires', items: ['Horloge de gare'] } };
-  await page.getByTestId('breakdown-ai').click();
-  await expect(page.getByTestId('assistant-assistant').last()).toContainText('C’est fait.');
-  expect(prompts[0]).toContain('Dépouillement de la séquence 1');
-  await expect(page.getByLabel('Fiche de dépouillement')).toContainText('Horloge de gare');
-
-  await page.goto('/#/grid?seed=fiction');
-  const rows = page.locator('[data-testid="shot-row"]');
-  await expect(rows).toHaveCount(11);
-  await page.locator('[data-cell="0:subject"]').click();
-  pending = { name: 'add_shots', args: { sequence: 1, shots: [{ subject: 'Hall', value: 'Ensemble', action: 'Le hall bruisse.' }] } };
-  await page.getByTestId('grid-ai').click();
-  await expect(rows).toHaveCount(12);
-  expect(prompts[1]).toContain('Découpage technique de la séquence 1');
-});

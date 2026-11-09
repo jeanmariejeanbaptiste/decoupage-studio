@@ -4,8 +4,7 @@ import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Sparkles, Unlink2 } from 'lucide-react';
-import { suggestShots } from '../assistant/quickActions';
+import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -132,7 +131,9 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   const previewToggle = readOnly ? null : (
     <button
       type="button"
+      role="switch"
       className={[s.preview, printView ? s.previewOn : ''].join(' ')}
+      aria-checked={printView}
       aria-pressed={printView}
       onClick={() => setUi({ printView: !printView, editing: null })}
       title={board ? 'Planches du storyboard telles qu’à l’export' : itwSelected ? 'Fiche d’interview telle qu’à l’export' : 'Découpage tel qu’à l’export'}
@@ -140,6 +141,9 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     >
       <Eye {...IC} />
       Aperçu
+      <span className={s.lever} aria-hidden="true">
+        <span />
+      </span>
     </button>
   );
 
@@ -174,7 +178,12 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
             {previewToggle}
           </>
         }
-        trail={<CutExport doc={storeDoc} defaultContent="storyboard" />}
+        trail={
+          <>
+            <VersionSwitcher doc={storeDoc} />
+            <CutExport doc={storeDoc} defaultContent="storyboard" />
+          </>
+        }
         selectedShot={selectedShot}
         onSelect={(id) => {
           const row = rowOfShot(storeDoc, id);
@@ -208,19 +217,6 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <div className={s.right}>
             {!printView && !interviewView && (
               <div className={s.icons}>
-                {!readOnly && nSeq > 0 && (
-                  <Button
-                    variant="icon"
-                    icon={<Sparkles {...IC} />}
-                    aria-label="Proposer un découpage avec l’assistant"
-                    title="L’assistant propose des plans pour la séquence sélectionnée et les ajoute à sa suite (annulable en une fois)"
-                    onClick={() => {
-                      const seqId = (focusRow !== undefined ? model.rows[focusRow]?.seqId : undefined) ?? doc.project.sequenceIds.find((id) => !doc.sequences[id]?.shotIds.length) ?? doc.project.sequenceIds[0];
-                      if (seqId) suggestShots(storeDoc, seqId);
-                    }}
-                    data-testid="grid-ai"
-                  />
-                )}
                 <ColumnsMenu doc={doc} />
                 <Button
                   variant="icon"

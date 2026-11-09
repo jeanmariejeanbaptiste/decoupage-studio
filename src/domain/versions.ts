@@ -170,3 +170,54 @@ export function revisedScenes(doc: ProjectDoc): Map<number, 'new' | 'changed'> |
   for (const m of al.matches) if (!m.same) out.set(m.to, 'changed');
   return out;
 }
+
+/** Texte effacé mis de côté (un par version), pour le rétablir même après un rechargement. */
+export interface ClearedScenario {
+  versionId?: ID;
+  text: string;
+  at: string;
+  /** Liens au texte des séquences et des actions, rendus au rétablissement. */
+  anchors?: Record<ID, { start: number; end: number }>;
+}
+
+/**
+ * Efface le texte du scénario de la version courante, ou de toutes. Le découpage, ses plans et la
+ * préparation restent (seuls leurs liens au texte tombent) ; le texte effacé est mis de côté.
+ */
+export function clearScenario(doc: ProjectDoc, scope: 'current' | 'all'): void {
+  const keep: ClearedScenario[] = [];
+  const at = new Date().toISOString();
+  const strip = (s: { scenario?: string; sequences: Record<ID, Sequence>; blocks: Record<ID, ActionBlock> }, versionId?: ID) => {
+    const anchors: Record<ID, { start: number; end: number }> = {};
+    for (const o of [...Object.values(s.sequences), ...Object.values(s.blocks)])
+      if (o.scenarioAnchor) {
+        anchors[o.id] = { ...o.scenarioAnchor };
+        delete o.scenarioAnchor;
+      }
+    if (s.scenario?.trim()) keep.push({ versionId, text: s.scenario, at, anchors });
+    s.scenario = '';
+  };
+  strip(doc, doc.activeVersionId);
+  if (scope === 'all') for (const v of doc.versions ?? []) if (v.slice) strip(v.slice, v.id);
+  const ids = new Set(keep.map((k) => k.versionId));
+  doc.clearedScenarios = [...(doc.clearedScenarios ?? []).filter((c) => !ids.has(c.versionId)), ...keep];
+}
+
+/** Texte effacé de la version courante, s'il peut être rétabli (la version est restée vide). */
+export function clearedOf(doc: ProjectDoc): ClearedScenario | undefined {
+  if ((doc.scenario ?? '').trim()) return undefined;
+  return doc.clearedScenarios?.find((c) => c.versionId === doc.activeVersionId);
+}
+
+/** Rétablit le texte effacé de la version courante (les passages liés se retrouvent par leur texte). */
+export function restoreScenario(doc: ProjectDoc): boolean {
+  const c = clearedOf(doc);
+  if (!c) return false;
+  doc.scenario = c.text;
+  for (const [id, a] of Object.entries(c.anchors ?? {})) {
+    const o = doc.sequences[id] ?? doc.blocks[id];
+    if (o && !o.scenarioAnchor) o.scenarioAnchor = a;
+  }
+  doc.clearedScenarios = doc.clearedScenarios!.filter((x) => x !== c);
+  return true;
+}

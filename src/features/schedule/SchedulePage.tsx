@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Clock, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarRange, ChevronDown, ChevronRight, Clock, Plus, Trash2, X } from 'lucide-react';
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
@@ -51,11 +51,11 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
 
   const suggest = async () => {
     if (days.length) {
-      const r = await ask({ title: 'Remplacer le plan de travail ?', body: 'Tous les plans seront réaffectés : regroupement par décor, puis par comédiens, puis par axes.', confirmLabel: 'Suggérer' });
+      const r = await ask({ title: 'Remplacer le plan de travail ?', body: 'Tous les plans seront réaffectés : regroupement par décor, puis par comédiens, puis par axes.', confirmLabel: 'Répartir' });
       if (!r.ok) return;
     }
     const n = mutateDoc((d) => suggestSchedule(d, capacity)) ?? 0;
-    toast({ message: `Plan de travail suggéré sur ${n} jour${n > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
+    toast({ message: `Plan de travail réparti sur ${n} jour${n > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
   };
 
   const total = [...strips.values()].flat().reduce((n, x) => n + x.shotIds.length, 0);
@@ -70,8 +70,8 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
             <span>plans / jour</span>
             <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value) || 1))} aria-label="Plans par jour au maximum" />
           </label>
-          <Button variant="outline" icon={<Sparkles size={15} strokeWidth={1.25} />} onClick={suggest} data-testid="suggest-schedule">
-            Suggérer
+          <Button variant="outline" icon={<CalendarRange size={15} strokeWidth={1.25} />} onClick={suggest} title="Répartir les plans sur les jours : par décor, puis par comédiens, puis par axes" data-testid="suggest-schedule">
+            Répartir
           </Button>
           <Button variant="primary" icon={<Plus size={15} strokeWidth={1.5} />} onClick={() => mutateDoc((d) => addDay(d))} data-testid="add-day">
             Ajouter un jour

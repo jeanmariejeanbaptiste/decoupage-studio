@@ -5,7 +5,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type D
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowUpRight, Crop, ImagePlus, PenLine, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, Crop, ImagePlus, PenLine, Trash2 } from 'lucide-react';
 import { ShotSketch } from './ShotSketch';
 import { SketchEditor } from './SketchEditor';
 import { exportNodePages, waitForImages, waitForPages, type PageExportOptions } from '../export/imageExport';
@@ -128,8 +128,10 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
         <div className={s.bar}>
           <div className={s.barLead}>{lead}</div>
           <div className={s.toolbar}>
-            <AspectPicker doc={doc} />
-            <PerRowPicker doc={doc} />
+            <span className={s.opts} data-edit>
+              <AspectPicker doc={doc} />
+              <PerRowPicker doc={doc} />
+            </span>
             {trail}
           </div>
         </div>
@@ -260,8 +262,10 @@ function FrameCell({ printing, children }: { printing: boolean; children: React.
 function PerRowPicker({ doc }: { doc: ProjectDoc }) {
   const v = doc.project.settings.storyboardPerRow;
   return (
-    <label className={s.aspect} data-edit>
-      <span>Par ligne</span>
+    <label className={s.opt}>
+      <span className={s.optName}>Par ligne</span>
+      <span className={s.optValue}>{v ?? 'Auto'}</span>
+      <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
       <select
         value={v ?? ''}
         onChange={(e) => mutateDoc((d) => void (d.project.settings.storyboardPerRow = e.target.value ? Number(e.target.value) : undefined))}
@@ -307,8 +311,11 @@ function AspectPicker({ doc }: { doc: ProjectDoc }) {
   useEffect(() => setCustom(preset < 0), [a.w, a.h]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (v: { w: number; h: number }) => mutateDoc((d) => void (d.project.settings.storyboardAspect = v));
   return (
-    <label className={s.aspect} data-edit>
-      <span>Format</span>
+    <label className={s.opt}>
+      <span className={s.optName}>Format</span>
+      {/* Fermé, le format seul (« 16:9 ») ; ouvert, la liste décrite. */}
+      <span className={s.optValue}>{custom ? 'Personnalisé' : formatAspect(a)}</span>
+      <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
       <select
         value={custom ? 'custom' : String(preset)}
         onChange={(e) => {

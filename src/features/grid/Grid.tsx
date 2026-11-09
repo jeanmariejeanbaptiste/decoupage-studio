@@ -2,9 +2,9 @@ import { useFlip } from '../../ui/useFlip';
 import { useEvenRowSpans } from './useEvenRowSpans';
 import { isShortcut } from '../../store/shortcuts';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
-import { Fragment, useCallback, useEffect, useMemo, useRef, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { editableText, isEditable, parseTsv, toTsv } from '../../domain/cells';
-import { COLUMN_DEFS } from '../../domain/columns';
+import { COLUMN_DEFS, shortLabel } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { redo, undo } from '../../store/projectStore';
 import { openInterviewFiche, useUi, type CellPos } from '../../store/uiStore';
@@ -261,8 +261,8 @@ export function Grid({ doc, model, animate = false }: Props) {
             {columns.map((c, i) => (
               <Fragment key={c}>
                 {i === 1 && <th className={[s.th, s.gutter].join(' ')} aria-hidden="true" />}
-                <th scope="col" className={[s.th, s[`th_${c}`]].join(' ')}>
-                  {COLUMN_DEFS[c].label}
+                <th scope="col" className={[s.th, s[`th_${c}`]].join(' ')} title={COLUMN_DEFS[c].label}>
+                  <HeadLabel col={c} />
                 </th>
               </Fragment>
             ))}
@@ -294,3 +294,39 @@ export function Grid({ doc, model, animate = false }: Props) {
 }
 
 export type GridColumn = ColumnKey;
+
+/**
+ * Intitulé de colonne sur une seule ligne ; s'il ne tient pas dans la largeur de la colonne, et
+ * seulement alors, son abrégé (« Mouvement » pour « Mouvement de caméra »).
+ */
+function HeadLabel({ col }: { col: ColumnKey }) {
+  const def = COLUMN_DEFS[col];
+  const ref = useRef<HTMLSpanElement>(null);
+  const [short, setShort] = useState(false);
+  useLayoutEffect(() => {
+    const span = ref.current;
+    const th = span?.parentElement;
+    if (!span || !th) return;
+    const measure = () => {
+      // Largeur de l'intitulé entier, mesurée hors de la cellule.
+      const probe = span.cloneNode() as HTMLSpanElement;
+      probe.textContent = def.label;
+      probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+      th.appendChild(probe);
+      const need = probe.getBoundingClientRect().width;
+      probe.remove();
+      const cs = getComputedStyle(th);
+      const room = th.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      setShort(need > room + 0.5);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(th);
+    return () => ro.disconnect();
+  }, [def.label]);
+  return (
+    <span ref={ref} className={s.thLabel}>
+      {short ? shortLabel(def) : def.label}
+    </span>
+  );
+}

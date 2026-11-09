@@ -74,7 +74,9 @@ export function useGridDnd(doc: ProjectDoc) {
     const l = lift.current;
     const d = dragRef.current;
     if (!l || !d) return;
-    const y = (l.startY ?? l.fallbackY) + l.dy;
+    // Comme une liste triable : en montant, le haut de ce qu'on tient ; en descendant, son bas.
+    const held = els(l.sels).map((el) => el.getBoundingClientRect());
+    const y = held.length ? (l.dy < 0 ? Math.min(...held.map((r) => r.top)) : Math.max(...held.map((r) => r.bottom))) : (l.startY ?? l.fallbackY) + l.dy;
     const bodies = Array.from(document.querySelectorAll<HTMLElement>('tbody[data-seq]'));
     if (d.kind === 'seq') {
       const others = bodies.filter((b) => !b.hasAttribute('data-lifted'));

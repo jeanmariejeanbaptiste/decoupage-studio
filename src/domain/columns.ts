@@ -6,7 +6,12 @@ export interface ColumnDef {
   /** Largeur relative à l'export (en %, §8.2). */
   width: number;
   optional: boolean;
+  /** Intitulé abrégé, affiché seulement si l'intitulé entier ne tient pas sur une ligne. */
+  short?: string;
 }
+
+/** Abrégé d'un intitulé : celui déclaré, sinon son premier mot. */
+export const shortLabel = (d: Pick<ColumnDef, 'label' | 'short'>) => d.short ?? d.label.split(/\s+/)[0];
 
 export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
   sequence: { key: 'sequence', label: 'SÉQUENCE', width: 16, optional: false },
@@ -14,7 +19,7 @@ export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
   subject: { key: 'subject', label: 'Sujet', width: 8, optional: false },
   value: { key: 'value', label: 'Valeur', width: 7, optional: false },
   angle: { key: 'angle', label: 'Angle', width: 14.5, optional: false },
-  movement: { key: 'movement', label: 'Mouvement de caméra', width: 14, optional: false },
+  movement: { key: 'movement', label: 'Mouvement de caméra', width: 14, optional: false, short: 'Mouvement' },
   focal: { key: 'focal', label: 'Focale', width: 7.5, optional: false },
   action: { key: 'action', label: 'Action', width: 23.5, optional: false },
   tc: { key: 'tc', label: 'TC MIN', width: 7, optional: false },

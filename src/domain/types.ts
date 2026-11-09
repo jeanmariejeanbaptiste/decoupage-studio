@@ -295,6 +295,8 @@ export interface ProjectDoc {
   activeVersionId?: ID;
   /** Commentaires de relecture (scénario, découpage), par version (`comments.ts`). */
   comments?: import('./comments').ReviewComment[];
+  /** Textes de scénario effacés, mis de côté pour être rétablis (`versions.ts`). */
+  clearedScenarios?: import('./versions').ClearedScenario[];
 }
 
 export const SCHEMA_VERSION = 1;
