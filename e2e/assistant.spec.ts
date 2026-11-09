@@ -110,9 +110,9 @@ test('assistant : réglé dans les paramètres, il apparaît en haut à droite e
   await expect.poll(() => probes.slice(before).map((b) => b.model)).toEqual(['claude-haiku-5-5']);
 
   // La clé n'est jamais exportée.
-  await go(page, '#/export');
+  await page.evaluate(() => delete (window as unknown as Record<string, unknown>).showSaveFilePicker);
   const dl = page.waitForEvent('download');
-  await page.getByTestId('export-json').click();
+  await page.keyboard.press('Control+s');
   expect(readFileSync(await (await dl).path(), 'utf8')).not.toContain('sk-ant-test-123');
 });
 

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Braces, Download, Eye, FolderArchive, FileSpreadsheet, FileUp, Printer, Table2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Eye, FolderArchive, FileSpreadsheet, Printer, Save, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { ALL_COLUMNS, columnMenuLabel, moveColumn, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
-import { serializeDoc, exportBase } from '../../domain/serialize';
+import { exportBase } from '../../domain/serialize';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
-import { downloadBlob, openFromFile, pickFile } from '../../store/persistence';
+import { downloadBlob, pickFile, saveToFile } from '../../store/persistence';
+import { useCanCopy, useReadOnly } from '../../store/share';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
@@ -19,6 +20,8 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
   const [csvText, setCsvText] = useState<string | null>(null);
   const base = exportBase(doc);
   const toast = useUi((u) => u.toast);
+  const readOnly = useReadOnly();
+  const canCopy = useCanCopy();
 
   const xlsx = async () => {
     const { exportXlsx } = await import('./xlsx');
@@ -161,29 +164,23 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
 
       <section className={s.card}>
         <header className={s.cardHead}>
-          <h2>Fichier du projet</h2>
+          <h2>{readOnly ? 'Fichier du projet' : 'Importer'}</h2>
         </header>
-        <div className={s.fileRow} data-view>
-          <div>
-            <strong>Sauvegarde complète</strong>
-            <span>Le projet entier au format JSON, identique au fichier .decoupage.</span>
+        {/* Enregistrer et ouvrir un fichier sont en haut de l'écran ; en lecture seule, l'icône Enregistrer n'y est pas. */}
+        {readOnly && canCopy && (
+          <div className={s.fileRow} data-view data-export>
+            <div>
+              <strong>Sauvegarde complète</strong>
+              <span>Le projet entier, images comprises.</span>
+            </div>
+            <Button variant="outline" icon={<Save size={15} strokeWidth={1.3} />} onClick={() => void saveToFile()} data-testid="export-project">
+              .decoupage
+            </Button>
           </div>
-          <Button variant="outline" icon={<Braces size={15} strokeWidth={1.3} />} onClick={() => downloadBlob(new Blob([serializeDoc(doc)], { type: 'application/json' }), `${base}.json`)} data-testid="export-json">
-            JSON
-          </Button>
-        </div>
+        )}
         <div className={s.fileRow} data-edit>
           <div>
-            <strong>Ouvrir un projet</strong>
-            <span>Remplace le projet ouvert, qui reste dans l’accueil.</span>
-          </div>
-          <Button variant="outline" icon={<FileUp size={15} strokeWidth={1.3} />} onClick={async () => (await openFromFile()) && navigate('grid')}>
-            .decoupage / JSON…
-          </Button>
-        </div>
-        <div className={s.fileRow} data-edit>
-          <div>
-            <strong>Importer un découpage</strong>
+            <strong>Découpage</strong>
             <span>Depuis un tableur : une ligne par plan.</span>
           </div>
           <Button
