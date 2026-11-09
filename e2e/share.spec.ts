@@ -102,6 +102,23 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await guest.evaluate(() => void (window.location.hash = '#/floorplan'));
   await expect(guest.getByRole('toolbar', { name: 'Outils du plan au sol' })).toBeHidden();
   await expect(guest.getByTestId('fp-fit')).toBeVisible();
+  // Dépouillement : on change de vue et de séquence, sans rien pouvoir ajouter.
+  await guest.evaluate(() => void (window.location.hash = '#/breakdown'));
+  await expect(guest.getByTestId('breakdown-view-full')).toBeVisible();
+  const parc = guest.getByTestId('breakdown-scene').filter({ hasText: 'PARC DES COQUELICOTS' });
+  await parc.click();
+  await expect(parc).toHaveAttribute('aria-current', 'true');
+  await expect(guest.getByPlaceholder('Ajouter…').first()).toBeHidden();
+  // Matériel : les postes et les codes de plan mènent toujours quelque part.
+  await guest.evaluate(() => void (window.location.hash = '#/equipment'));
+  await guest.getByRole('navigation', { name: 'Postes' }).getByRole('button', { name: /^Image/ }).click();
+  await expect(guest.getByTestId('equipment-Son')).toHaveCount(0);
+  await guest.getByTestId('equipment-Image').locator('li button').first().click();
+  await expect(guest).toHaveURL(/#\/grid/);
+  // Registre : en-têtes de colonnes et numéros de séquence restent visibles.
+  await guest.evaluate(() => void (window.location.hash = '#/registry'));
+  await expect(guest.getByRole('button', { name: 'Libellé', exact: true })).toBeVisible();
+  await expect(guest.getByTitle('Ouvrir dans la grille').first()).toBeVisible();
   // Fermeture sans copie permise : retour à l'accueil, rien de conservé.
   await host.getByTestId('share-stop').click();
   await expect(guest.getByTestId('home')).toBeVisible();

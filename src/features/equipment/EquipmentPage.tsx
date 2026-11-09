@@ -45,7 +45,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <nav className={[s.summary, 'no-print'].join(' ')} aria-label="Postes">
+        <nav className={[s.summary, 'no-print'].join(' ')} aria-label="Postes" data-view>
           <button type="button" className={only === null ? s.chipOn : s.chip} onClick={() => setOnly(null)}>
             Tous <em>{cats.reduce((n, c) => n + lists[c].length, 0)}</em>
           </button>
@@ -115,7 +115,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                     </span>
                     <span className={s.nb}>{l.shotIds.length ? `${l.shotIds.length} plan${l.shotIds.length > 1 ? 's' : ''}` : ''}</span>
                     {showShots && (
-                    <span className={s.shots}>
+                    <span className={s.shots} data-view>
                       {l.shotIds.map((id) => (
                         <button key={id} type="button" onClick={() => goToShot(doc, id)}>
                           {shotCode(doc, id)}

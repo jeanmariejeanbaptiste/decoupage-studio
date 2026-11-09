@@ -137,7 +137,7 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
       label: 'N°',
       width: '48px',
       render: (q) => (
-        <button type="button" className={s.jump} onClick={() => goToShot(doc, q.shotIds[0])} title="Ouvrir dans la grille">
+        <button type="button" className={s.jump} onClick={() => goToShot(doc, q.shotIds[0])} title="Ouvrir dans la grille" data-view>
           {sequenceNumber(doc, q.id)}
         </button>
       ),
@@ -348,7 +348,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
       render: (c) => (
         <span className={s.chips}>
           {(stats.get(c.id)?.sequenceIds ?? []).map((id) => (
-            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])}>
+            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])} data-view>
               {sequenceNumber(doc, id)}
             </button>
           ))}
@@ -463,7 +463,7 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
       render: (d) => (
         <span className={s.chips}>
           {(stats.get(d.id)?.sequenceIds ?? []).map((id) => (
-            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])}>
+            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])} data-view>
               {sequenceNumber(doc, id)}
             </button>
           ))}
@@ -541,7 +541,7 @@ function ShotsTab({ doc, search }: { doc: ProjectDoc; search: string }) {
       label: 'Plan',
       width: '60px',
       render: (r) => (
-        <button type="button" className={s.jump} onClick={() => goToShot(doc, r.shot.id)}>
+        <button type="button" className={s.jump} onClick={() => goToShot(doc, r.shot.id)} data-view>
           {r.code}
         </button>
       ),
@@ -588,7 +588,7 @@ function ShotsTab({ doc, search }: { doc: ProjectDoc; search: string }) {
   ];
   return (
     <>
-      <div className={s.filters}>
+      <div className={s.filters} data-view>
         {FILTERS.map(([k, label]) => (
           <label key={k}>
             <span>{label}</span>

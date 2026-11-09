@@ -41,7 +41,7 @@ export function ChecksPage({ doc }: { doc: ProjectDoc }) {
                 <ul className={s.list}>
                   {bySeq.get(seqId)!.map((i) => (
                     <li key={i.id} className={i.level === 'info' ? s.info : s.warn} data-testid="issue">
-                      <button type="button" className={s.where} onClick={() => goToShot(doc, i.shotId ?? doc.sequences[seqId]?.shotIds[0])}>
+                      <button type="button" className={s.where} data-view onClick={() => goToShot(doc, i.shotId ?? doc.sequences[seqId]?.shotIds[0])}>
                         {i.where}
                       </button>
                       <span className={s.label}>{CHECK_LABELS[i.code]}</span>

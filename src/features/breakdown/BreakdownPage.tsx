@@ -179,7 +179,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
     <div className={['page page--wide', s.page].join(' ')}>
       <header className={s.toolbar}>
         <div className={s.lead}>
-          <div className={s.seg} role="radiogroup" aria-label="Affichage du texte">
+          <div className={s.seg} role="radiogroup" aria-label="Affichage du texte" data-view>
             {(
               [
                 ['sequence', 'Par séquence'],
@@ -214,7 +214,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         />
       ) : (
       <div className={s.layout}>
-        <nav className={s.scenes} aria-label="Séquences">
+        <nav className={s.scenes} aria-label="Séquences" data-view>
           <ol>
             {entries.map((e) => {
               const n = e.seqId ? Object.values(breakdownOf(doc, e.seqId)).reduce((k, l) => k + (l?.length ?? 0), 0) : 0;
@@ -388,7 +388,7 @@ function WholeSheet({
                   return (
                     <li key={e.item} className={[on ? s.here : '', e.manualSeqIds.length ? '' : s.fromCut].join(' ')} onMouseEnter={() => onHot(e.item)} onMouseLeave={() => onHot(null)} data-testid="whole-item">
                       <span className={s.wName}>{e.item}</span>
-                      <span className={s.wSeqs}>
+                      <span className={s.wSeqs} data-view>
                         {[...e.seqIds]
                           .sort((a, b) => (numberOf(a) ?? 0) - (numberOf(b) ?? 0))
                           .map((id) => (
