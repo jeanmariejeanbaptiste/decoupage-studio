@@ -179,6 +179,38 @@ describe('interview placée dans le découpage', () => {
 });
 
 describe('interview : préparation gardée, liens et libellés', () => {
+  it('changer de séquence déplace les plans du cadre sans perdre jour, créneaux, storyboard ni statut', () => {
+    const { doc, seq, setup } = project();
+    const other = addSequence(doc, undefined, { label: 'Bureau' });
+    placeSetup(doc, setup.id, seq);
+    syncInterviewShots(doc);
+    const ids = setupShotIds(doc, setup.id);
+    for (const id of ids) {
+      doc.shots[id].shootingDay = 2;
+      doc.shots[id].status = 'tourné';
+      doc.shots[id].storyboard = { blobKey: `img-${id}` };
+    }
+    doc.schedule = { days: [{ n: 1 }, { n: 2, timeline: Object.fromEntries(ids.map((id) => [id, { start: '09:00', end: '09:30' }])) }] };
+    placeSetup(doc, setup.id, other);
+    syncInterviewShots(doc);
+    expect(setupShotIds(doc, setup.id)).toEqual(ids);
+    expect(order(doc, other)).toEqual(['1', '2A', '2B']);
+    expect(order(doc, seq)).toEqual(['1', '2']);
+    expect(ids.map((id) => doc.shots[id].sequenceId)).toEqual([other, other]);
+    expect(ids.map((id) => doc.shots[id].shootingDay)).toEqual([2, 2]);
+    expect(ids.map((id) => doc.shots[id].status)).toEqual(['tourné', 'tourné']);
+    expect(ids.map((id) => doc.shots[id].storyboard?.blobKey)).toEqual(ids.map((id) => `img-${id}`));
+    expect(Object.keys(doc.schedule.days[1].timeline!)).toEqual(ids);
+    expect(setup.sequenceId).toBe(other);
+    expect(checkInvariants(doc)).toEqual([]);
+    // Nouvelle séquence : même chose.
+    placeSetup(doc, setup.id, 'new');
+    syncInterviewShots(doc);
+    expect(setupShotIds(doc, setup.id)).toEqual(ids);
+    expect(doc.shots[ids[0]].shootingDay).toBe(2);
+    expect(checkInvariants(doc)).toEqual([]);
+  });
+
   it('dupliquer une caméra : la copie vient après le cadre, avec sa propre action', () => {
     const { doc, seq, setup } = project();
     placeSetup(doc, setup.id, seq);

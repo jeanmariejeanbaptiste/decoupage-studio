@@ -6,7 +6,7 @@
 import { newId } from './factory';
 import { recognizeCharacters } from './characters';
 import { shotNumber } from './numbering';
-import { addSequence, addShot, normalizeBlocks, removeShot } from './ops';
+import { addSequence, addShot, moveShotTo, normalizeBlocks, removeShot } from './ops';
 import type { ID, ProjectDoc, Shot } from './types';
 
 export interface InterviewCamera {
@@ -289,20 +289,31 @@ export function placeSetup(doc: ProjectDoc, setupId: ID, seqId?: ID | 'new'): vo
   const found = findSetup(doc, setupId);
   if (!found) return;
   const { subject, setup } = found;
-  for (const id of setupShotIds(doc, setupId)) removeShot(doc, id);
-  setup.sequenceId = undefined;
+  const placed = setupShotIds(doc, setupId);
   let target = seqId === 'new' ? undefined : seqId && doc.sequences[seqId] ? seqId : undefined;
+  if (!target && seqId !== 'new') {
+    // Annexe seule : le cadre sort du découpage.
+    for (const id of placed) removeShot(doc, id);
+    setup.sequenceId = undefined;
+    return;
+  }
   if (seqId === 'new') target = addSequence(doc, undefined, { label: interviewSequenceLabel(subject) }, false);
   if (!target) return;
   setup.sequenceId = target;
   // Après les autres cadres du même intervenant s'il en a déjà dans la séquence, sinon en fin de séquence.
-  const ids = doc.sequences[target].shotIds;
+  const ids = doc.sequences[target].shotIds.filter((id) => !placed.includes(id));
   let index: number | undefined;
   for (let i = ids.length - 1; i >= 0; i--)
     if (doc.shots[ids[i]]?.interview?.subjectId === subject.id) {
       index = i + 1;
       break;
     }
+  // Déjà placé : le groupe se déplace comme au glisser-déposer, avec son jour de tournage, ses créneaux,
+  // son storyboard et son statut (seuls les liens aux plans au sol, propres à la séquence, se perdent).
+  if (placed.length) {
+    moveShotTo(doc, placed[0], target, index ?? ids.length);
+    return;
+  }
   let blockId: ID | undefined;
   setup.cameras.forEach((cam, k) => {
     const id = addShot(doc, target!, { blockId, index: index === undefined ? undefined : index + k, action: { text: interviewAction(subject, setup, doc.interview) }, init: cameraShot(subject, setup, cam, doc) });
