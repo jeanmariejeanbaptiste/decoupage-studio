@@ -105,7 +105,7 @@ export function CharactersPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectD
                       setOpen(v.trim().toLocaleUpperCase('fr'));
                     }}
                   />
-                  <Field label="Comédien·ne" value={fiche?.actor ?? ''} readOnly={readOnly} onCommit={(v) => edit(c.name, { actor: v.trim() || undefined })} />
+                  <Field label="Interprète" value={fiche?.actor ?? ''} readOnly={readOnly} onCommit={(v) => edit(c.name, { actor: v.trim() || undefined })} />
                   <div className={s.two}>
                     <Field label="Âge" value={fiche?.age ?? ''} readOnly={readOnly} onCommit={(v) => edit(c.name, { age: v.trim() || undefined })} />
                     <Field label="Costume" value={fiche?.costume ?? ''} readOnly={readOnly} onCommit={(v) => edit(c.name, { costume: v.trim() || undefined })} />

@@ -238,7 +238,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               <tr>
                 <th>N°</th>
                 <th>Rôle</th>
-                <th>Comédien·ne</th>
+                <th>Interprète</th>
                 <th>Départ</th>
                 <th>Convocation</th>
                 <th>HMC</th>

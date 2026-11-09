@@ -44,6 +44,7 @@
 }
 
 :root[data-theme='encre'] {
+  color-scheme: dark;
   --paper: #0f1115;
   --paper-card: #16181d;
   --sheet: #16181d;

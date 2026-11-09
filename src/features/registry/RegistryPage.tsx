@@ -334,7 +334,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
     },
     {
       key: 'actor',
-      label: 'Comédien·ne',
+      label: 'Interprète',
       render: (c) => c.actor || '—',
       text: (c) => c.actor ?? '',
       edit: { get: (c) => c.actor ?? '', set: (c, v) => mutateDoc((d) => void (d.characters[c.id].actor = v.trim() || undefined)) },

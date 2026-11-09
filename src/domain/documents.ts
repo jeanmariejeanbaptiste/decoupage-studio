@@ -211,7 +211,7 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
       return `<tr><td class="code">${nums.get(id) ?? ''}</td><td>${esc(c?.name)}</td><td>${esc(c?.actor || '—')}</td><td class="time">${esc(x.pickup || '')}</td><td class="time">${esc(d?.calls?.[id] || '—')}</td><td class="time">${esc(x.makeup || '')}</td><td class="time">${esc(x.costume || '')}</td><td class="time">${esc(x.onSet || '')}</td></tr>`;
     })
     .join('');
-  const cast = `<h3>Comédiens</h3><table><thead><tr><th>N°</th><th>Rôle</th><th>Comédien·ne</th><th>Départ</th><th>Convocation</th><th>HMC</th><th>Costume</th><th>Sur le plateau</th></tr></thead><tbody>${castRows || '<tr><td colspan="8" class="muted">Aucun comédien.</td></tr>'}</tbody></table>`;
+  const cast = `<h3>Comédiens</h3><table><thead><tr><th>N°</th><th>Rôle</th><th>Interprète</th><th>Départ</th><th>Convocation</th><th>HMC</th><th>Costume</th><th>Sur le plateau</th></tr></thead><tbody>${castRows || '<tr><td colspan="8" class="muted">Aucun comédien.</td></tr>'}</tbody></table>`;
 
   // Besoins des postes, tirés du dépouillement des séquences du jour.
   const needs = new Map<string, Set<string>>();
@@ -263,7 +263,7 @@ export function registryDocument(doc: ProjectDoc): DocPage {
       return `<tr><td class="code">${i + 1}</td><td>${esc(s.label)}</td><td>${esc(s.decorId ? doc.decors[s.decorId]?.name : '')}</td><td>${esc([s.intExt, s.effect].filter(Boolean).join(' · '))}</td><td>${esc(sequenceCharacterIds(doc, id).map((c) => doc.characters[c]?.name).join(', '))}</td><td>${s.shotIds.length}</td><td class="time">${s.estimatedSec !== undefined ? formatTc(s.estimatedSec) : '—'}</td><td class="time">${formatTc(st?.durationSec ?? 0)}</td><td class="time">${st?.gap ? esc(formatGap(st.gap)) : '—'}</td></tr>`;
     })
     .join('')}</tbody></table>
-<h2>Personnages</h2><table><thead><tr><th>N°</th><th>Nom</th><th>Type</th><th>Comédien·ne</th><th>Séquences</th><th>Plans</th><th>1er jour</th><th>Jours</th></tr></thead><tbody>${Object.values(doc.characters)
+<h2>Personnages</h2><table><thead><tr><th>N°</th><th>Nom</th><th>Type</th><th>Interprète</th><th>Séquences</th><th>Plans</th><th>1er jour</th><th>Jours</th></tr></thead><tbody>${Object.values(doc.characters)
     .sort((a, b) => (nums.get(a.id) ?? 0) - (nums.get(b.id) ?? 0))
     .map((c) => {
       const u = cu.get(c.id);

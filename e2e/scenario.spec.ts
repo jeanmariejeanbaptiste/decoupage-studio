@@ -86,7 +86,7 @@ test.describe('scénario et liaison', () => {
     await page.locator('tbody[data-seq]').nth(3).getByRole('button', { name: 'Ajouter un plan' }).click();
     await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(12);
     await page.goto('/#/registry?tab=characters');
-    await expect(page.getByTestId('character-row').filter({ has: page.locator('td:first-child', { hasText: 'Nina' }) })).toHaveCount(1);
+    await expect(page.getByTestId('character-row').filter({ has: page.locator('td:nth-child(2)', { hasText: 'Nina' }) })).toHaveCount(1);
   });
 
   test('pages A4, page de titre, vue découpage, import et export .fountain', async ({ page }) => {
@@ -203,7 +203,7 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   const lea = page.getByTestId('character-row').filter({ hasText: 'LÉA' });
   await expect(lea).toContainText('2 répl. · 3 séq. (1 muette) · dès la séq. 1');
   await lea.click();
-  await page.getByLabel('Comédien·ne').fill('Alice Martin');
+  await page.getByLabel('Interprète').fill('Alice Martin');
   await page.getByLabel('Costume').click();
   await expect(page.getByTestId('scenario-characters')).toContainText('Je ne sais pas encore');
   // Renommer : partout dans le scénario et le projet.

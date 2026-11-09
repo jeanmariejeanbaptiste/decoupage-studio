@@ -56,7 +56,7 @@ export function charactersCsv(doc: ProjectDoc): string {
   const nums = characterNumbers(doc);
   const u = characterUsage(doc);
   return csv([
-    ['N°', 'Nom', 'Alias', 'Type', 'Comédien·ne', 'Séquences', 'Plans', '1er jour', 'Jours'],
+    ['N°', 'Nom', 'Alias', 'Type', 'Interprète', 'Séquences', 'Plans', '1er jour', 'Jours'],
     ...Object.values(doc.characters)
       .sort((a, b) => (nums.get(a.id) ?? 0) - (nums.get(b.id) ?? 0))
       .map((c) => [nums.get(c.id), c.name, (c.aliases ?? []).join(', '), c.kind, c.actor, (st.get(c.id)?.sequenceIds ?? []).map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(' '), st.get(c.id)?.shotIds.length ?? 0, usageDayLabel(doc, u.get(c.id)), u.get(c.id)?.days.length ?? 0]),
@@ -133,7 +133,7 @@ export function callSheetCsv(doc: ProjectDoc, day: number): string {
       });
     })(),
     [],
-    ['Convocations', 'Comédien·ne', 'Heure'],
+    ['Convocations', 'Interprète', 'Heure'],
     ...st.characterIds.map((id) => [doc.characters[id]?.name, doc.characters[id]?.actor, d?.calls?.[id]]),
     [],
     ['Matériel requis'],

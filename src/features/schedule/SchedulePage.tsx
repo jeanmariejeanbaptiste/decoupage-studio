@@ -119,7 +119,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     onChange={(e) => e.target.value && mutateDoc((x) => void addBanner(x, d.n, e.target.value as BannerKind))}
                     data-testid={`add-banner-${d.n}`}
                   >
-                    <option value="">+ Bandeau</option>
+                    <option value="" hidden>
+                      + Bandeau
+                    </option>
                     {BANNER_KINDS.map((k) => (
                       <option key={k.kind} value={k.kind}>
                         {k.label}
