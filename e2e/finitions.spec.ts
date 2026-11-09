@@ -87,6 +87,8 @@ async function tabExport(page: import('@playwright/test').Page, format: string) 
 }
 
 test('exports mis en page : PDF sans interface et Word', async ({ page }) => {
+  // L'adresse saisie fait paraître la carte : aucune requête ne part vers OpenStreetMap.
+  await page.route(/openstreetmap\.org/, (r) => r.abort());
   await page.goto('/#/equipment?seed=rav3');
   await page.getByTestId('show-shots').uncheck();
   await expect(page.getByTestId('equipment-Image').getByRole('button', { name: '1.1' })).toHaveCount(0);

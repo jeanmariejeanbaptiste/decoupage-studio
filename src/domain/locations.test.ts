@@ -53,7 +53,7 @@ describe('lieux de tournage distincts des décors', () => {
     });
     expect(dayItinerary(next, 1)[0].address).toBe('101 avenue de la République');
     const sheet = callSheetDocument(next, 1).html;
-    expect(sheet).toContain('<b>Lycée Voltaire</b><br>101 avenue de la République<br><span class="muted">Accès : Parking rue Sedaine</span><br><span class="muted">Contact : M. Roux</span>');
+    expect(sheet).toContain('<b>Lycée Voltaire</b><br>101 avenue de la République<br><a class="route" href="https://www.openstreetmap.org/search?query=101%20avenue%20de%20la%20R%C3%A9publique">Itinéraire</a><br><span class="muted">Accès : Parking rue Sedaine</span><br><span class="muted">Contact : M. Roux</span>');
     // L'adresse propre au jour remplace celle du lieu, le reste demeure.
     const dayAddr = produce(next, (d) => updateDay(d, 1, { addresses: { [decorId]: 'Gymnase' } }));
     expect(callSheetDocument(dayAddr, 1).html).toContain('<b>Lycée Voltaire</b><br>Gymnase<br>');

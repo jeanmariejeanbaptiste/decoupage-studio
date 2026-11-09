@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { ArrowDown, ArrowUp, CalendarRange, ChevronDown, ChevronRight, Clock, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRight, Clock, Map as MapIcon, Plus, Trash2, X } from 'lucide-react';
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
@@ -10,7 +10,8 @@ import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
 import { mutateDoc, undo } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
-import { useLocation } from '../../app/router';
+import { navigate, useLocation } from '../../app/router';
+import { eventsOn, timeOn } from '../../domain/calendar';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { ask } from '../../ui/dialogStore';
@@ -19,6 +20,9 @@ import { TabExport } from '../export/TabExport';
 import { scheduleCsv } from '../../domain/exports';
 import { scheduleDocument } from '../../domain/documents';
 import { exportBase } from '../../domain/serialize';
+import { mapPlaces } from '../../domain/geo';
+import { ScheduleMap } from '../map/PlacesMap';
+import { useMapVisible } from '../map/visibility';
 
 const TONE: Record<StripTone, string> = {
   'int-day': s.tIntDay,
@@ -35,6 +39,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const strips = useMemo(() => stripsByDay(doc), [doc]);
   const nums = useMemo(() => characterNumbers(doc), [doc]);
   const days = scheduleDays(doc);
+  const places = useMemo(() => mapPlaces(doc), [doc]);
+  const [mapOn, toggleMap] = useMapVisible();
+  const showMap = mapOn && places.length > 0;
   const [capacity, setCapacity] = useState(20);
   const [openDays, setOpenDays] = useState<number[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
@@ -83,6 +90,11 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           <Button variant="primary" icon={<Plus size={15} strokeWidth={1.5} />} onClick={() => mutateDoc((d) => addDay(d))} data-testid="add-day">
             Ajouter un jour
           </Button>
+          {places.length > 0 && (
+            <Button variant={showMap ? 'primary' : 'outline'} icon={<MapIcon size={15} strokeWidth={1.25} />} aria-pressed={showMap} onClick={toggleMap} data-view data-testid="map-toggle">
+              Carte
+            </Button>
+          )}
         </div>
       </header>
       <p className={s.summary}>
@@ -91,6 +103,13 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
         </Hand>
       </p>
 
+      <div className={s.layout}>
+      <div className={[s.columns, showMap ? s.withMap : ''].join(' ')}>
+      {showMap && (
+        <aside className={s.mapSide}>
+          <ScheduleMap doc={doc} places={places} days={days.map((d) => d.n)} />
+        </aside>
+      )}
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <div className={s.bands}>
           {days.map((d) => {
@@ -152,6 +171,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     icon={<Trash2 size={13} strokeWidth={1.25} />}
                     onClick={() => mutateDoc((x) => removeDay(x, d.n))}
                   />
+                  <DayEvents doc={doc} date={d.date} />
                 </div>
               </Band>
             );
@@ -164,7 +184,30 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           </Band>
         </div>
       </DndContext>
+      </div>
+      </div>
     </div>
+  );
+}
+
+/** Rendez-vous du calendrier ce jour-là : une ligne discrète, un clic ouvre le jour dans le calendrier. */
+function DayEvents({ doc, date }: { doc: ProjectDoc; date?: string }) {
+  const items = eventsOn(doc, date);
+  if (!date || !items.length) return null;
+  const open = () => navigate('calendar', { date });
+  return (
+    <p className={s.events} data-view data-testid="day-events">
+      <CalendarDays size={13} strokeWidth={1.25} aria-hidden />
+      {items.map((it) => {
+        const time = timeOn(it, date);
+        return (
+          <button key={it.key} type="button" className={s.event} onClick={open} title="Ouvrir ce jour dans le calendrier" data-testid="day-event">
+            {time && <span className={s.eventTime}>{time}</span>}
+            {it.title}
+          </button>
+        );
+      })}
+    </p>
   );
 }
 

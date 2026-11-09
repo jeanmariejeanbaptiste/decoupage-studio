@@ -13,6 +13,7 @@ import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
 import { bannerLabel, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
 import { decorLocation } from './locations';
+import { cleanAddress, routeUrl, storedGeocode } from './geo';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
 import { renderTokens } from './tokens';
@@ -64,6 +65,7 @@ tr.banner td { border-bottom: .6pt dashed #b9bbc0; color: #6b7079; font-style: i
 .plan.gantt svg { border: 0; }
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
 p.text { white-space: pre-wrap; line-height: 1.6; font-size: 11pt; }
+a.route { color: #111318; font-size: 8pt; text-decoration: underline; text-decoration-thickness: .5pt; }
 `;
 
 export interface DocPage {
@@ -154,6 +156,11 @@ export function scheduleDocument(doc: ProjectDoc): DocPage {
  * jour et rendez-vous, météo, horaires clés et hôpital), puis séquences, plans, comédiens, figuration,
  * besoins par poste, prévisions du lendemain et notes.
  */
+/** Lien d'itinéraire OpenStreetMap vers une adresse (coordonnées du géocodage si connues). */
+function routeLink(doc: ProjectDoc, address: string): string {
+  return `<a class="route" href="${esc(routeUrl(address, storedGeocode(doc, address)))}">Itinéraire</a>`;
+}
+
 export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
   const days = scheduleDays(doc);
   const d = days.find((x) => x.n === day);
@@ -183,7 +190,7 @@ ${doc.project.director ? `<p>Réalisation : ${esc(doc.project.director)}</p>` : 
 <div class="cs-mid"><p class="cs-title">${esc(date)}</p><p>Jour ${day}${days.length ? ` sur ${days.length}` : ''}</p><p class="cs-call">RDV&nbsp;: ${esc(d?.callTime || '—')}</p></div>
 <div><h3>Météo</h3><p>${esc(d?.weather || '—')}</p>${sun ? `<p class="muted">${esc(sun)}</p>` : ''}
 ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></table>` : ''}
-<h3>Hôpital le plus proche</h3><p>${esc(d?.hospital || '—')}</p></div>
+<h3>Hôpital le plus proche</h3><p>${esc(d?.hospital || '—')}${d?.hospital?.trim() ? `<br>${routeLink(doc, cleanAddress(d.hospital))}` : ''}</p></div>
 </div>`;
 
   const seqRows = agenda
@@ -199,7 +206,7 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
       const loc = decorLocation(decor);
       // Lieu de tournage : nom, adresse (celle du jour d'abord), accès et contact.
       const address = d?.seqAddresses?.[strip.seqId] ?? (seq?.decorId ? d?.addresses?.[seq.decorId] : undefined) ?? loc.address ?? '';
-      const place = [loc.name && `<b>${esc(loc.name)}</b>`, esc(address), loc.access && `<span class="muted">Accès : ${esc(loc.access)}</span>`, loc.contact && `<span class="muted">Contact : ${esc(loc.contact)}</span>`].filter(Boolean).join('<br>');
+      const place = [loc.name && `<b>${esc(loc.name)}</b>`, esc(address), address.trim() && routeLink(doc, address), loc.access && `<span class="muted">Accès : ${esc(loc.access)}</span>`, loc.contact && `<span class="muted">Contact : ${esc(loc.contact)}</span>`].filter(Boolean).join('<br>');
       return `<tr><td class="time">${r ? `${r.start} – ${r.end}` : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${seq?.summary ? `<br><span class="muted">${esc(seq.summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
     })
     .join('');

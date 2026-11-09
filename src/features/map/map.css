@@ -1,0 +1,34 @@
+/* Carte des lieux (Leaflet) à la charte : tuiles OpenStreetMap en niveaux de gris, repères noir et blanc. */
+.ds-map { width: 100%; height: 100%; min-height: 160px; border-radius: var(--radius); }
+.ds-map.leaflet-container { background: var(--kraft); font-family: var(--font-ui); font-size: 12px; color: var(--ink); outline: 0; }
+.ds-map .leaflet-tile-pane { filter: grayscale(1) contrast(0.92) brightness(1.04); }
+:root[data-theme='encre'] .ds-map .leaflet-tile-pane { filter: grayscale(1) invert(1) contrast(0.82) brightness(0.86); }
+
+/* Attribution OSM : visible, discrète. */
+.ds-map .leaflet-control-attribution { background: color-mix(in srgb, var(--paper-card) 70%, transparent); color: var(--ink-soft); font-size: 10px; line-height: 1.5; padding: 0 5px; border-top-left-radius: 3px; }
+.ds-map .leaflet-control-attribution a { color: inherit; text-decoration: none; }
+.ds-map .leaflet-control-attribution a:hover { color: var(--ink); text-decoration: underline; }
+
+/* Zoom : boutons fins, sans ombre. */
+.ds-map .leaflet-bar { border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: none; background-clip: padding-box; }
+.ds-map .leaflet-bar a,
+.ds-map .leaflet-bar a:hover { width: 24px; height: 24px; line-height: 22px; background: var(--paper-card); color: var(--ink); border-bottom: 1px solid var(--rule); font: 300 16px/22px var(--font-ui); }
+.ds-map .leaflet-bar a:last-child { border-bottom: 0; }
+.ds-map .leaflet-bar a:hover { background: var(--kraft); }
+.ds-map .leaflet-bar a.leaflet-disabled { color: var(--ink-soft); background: var(--paper-card); opacity: 0.5; }
+.ds-map .leaflet-control-zoom { margin: 8px 0 0 8px; }
+
+/* Repères : pastille noire numérotée ; estompée hors du jour choisi ; carrée pour l'hôpital. */
+.ds-pin { display: flex !important; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 11px; background: var(--ink); color: var(--paper-card); border: 1.5px solid var(--paper-card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); font: 600 11px/1 var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; white-space: nowrap; transition: opacity var(--t-fast) var(--ease); }
+.ds-pin--h { border-radius: 4px; }
+.ds-pin--off { background: var(--paper-card); color: var(--ink-soft); border-color: var(--ink-soft); box-shadow: none; opacity: 0.85; }
+.ds-pin--free { border-radius: 50%; background: var(--paper-card); border: 1.5px solid var(--ink); box-shadow: none; }
+.ds-pin--on { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 18%, transparent), 0 1px 3px rgba(0, 0, 0, 0.35); }
+.ds-pin:focus-visible { outline: 1px solid var(--focus); outline-offset: 2px; }
+
+/* Infobulle : décor et adresse. */
+.leaflet-tooltip.ds-tip { background: var(--paper-card); color: var(--ink); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); font: 12px/1.35 var(--font-ui); padding: 5px 8px; max-width: 240px; white-space: normal; }
+.leaflet-tooltip.ds-tip div { display: flex; flex-direction: column; gap: 1px; min-width: 140px; }
+.leaflet-tooltip.ds-tip strong { font-weight: 600; }
+.leaflet-tooltip.ds-tip span { color: var(--ink-soft); }
+.leaflet-tooltip-top.ds-tip::before { border-top-color: var(--rule); }

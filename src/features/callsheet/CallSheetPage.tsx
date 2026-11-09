@@ -34,6 +34,10 @@ import { callSheetDocument } from '../../domain/documents';
 import { characterNumbers } from '../../domain/registry';
 import { decorLocation } from '../../domain/locations';
 import { exportBase } from '../../domain/serialize';
+import { dayPlaces, mapPlaces } from '../../domain/geo';
+import { Map as MapIcon } from 'lucide-react';
+import { DayMap } from '../map/PlacesMap';
+import { useMapVisible } from '../map/visibility';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',
@@ -50,6 +54,8 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const sheetRef = useRef<HTMLElement>(null);
   useA4Pages(sheetRef, [doc, day?.n]);
+  const places = useMemo(() => mapPlaces(doc), [doc]);
+  const [mapOn, toggleMap] = useMapVisible();
 
   if (!day) {
     return (
@@ -83,6 +89,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
       aria-label="Fin prévue"
     />
   );
+  const hasPlaces = dayPlaces(places, doc, day.n).length > 0;
   const cast = stats.characterIds
     .map((id) => doc.characters[id])
     .filter(Boolean)
@@ -116,6 +123,11 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               content: () => callSheetCsv(doc, day.n),
             }}
           />
+          {hasPlaces && (
+            <Button variant={mapOn ? 'primary' : 'outline'} icon={<MapIcon size={15} strokeWidth={1.25} />} aria-pressed={mapOn} onClick={toggleMap} data-view data-testid="map-toggle">
+              Carte
+            </Button>
+          )}
         </div>
       </header>
 
@@ -216,6 +228,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
               </tbody>
             </table>
           )}
+          {mapOn && hasPlaces && <DayMap doc={doc} places={places} day={day.n} />}
         </section>
 
         <section className={s.block} data-testid="callsheet-keys">

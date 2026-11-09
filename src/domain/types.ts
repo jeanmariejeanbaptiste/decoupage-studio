@@ -305,6 +305,8 @@ export interface ProjectDoc {
   review?: import('./reviewSnapshot').ReviewPublication;
   /** Calendrier de production : phases, étapes et jalons du film (`production.ts`), communs à toutes les versions. */
   production?: import('./production').Production;
+  /** Adresses géocodées pour la carte des lieux (`geo.ts`), par clé d'adresse. */
+  geocodes?: Record<string, import('./geo').GeocodeEntry>;
 }
 
 export const SCHEMA_VERSION = 1;

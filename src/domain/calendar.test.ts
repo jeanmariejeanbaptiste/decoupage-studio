@@ -11,6 +11,8 @@ import {
   eventFields,
   eventFromFields,
   eventItem,
+  eventsOn,
+  timeOn,
   hourRange,
   newEventFields,
   isoWeek,
@@ -118,6 +120,28 @@ describe('éléments du calendrier', () => {
     expect(day.title).toBe(decor ? `Jour 1 · ${decor}` : 'Jour 1');
     expect(itemsOn(items, '2026-11-16').map((x) => x.source)).toEqual(['shooting', 'project']);
     expect([...busyDates(items, '2026-11-01', '2026-11-30')]).toEqual(['2026-11-16']);
+  });
+});
+
+describe('rendez-vous dans le plan de travail', () => {
+  it('rappelle les rendez-vous d’un jour daté, sans les jours de tournage', () => {
+    const doc = buildRav3();
+    const next = produce(doc, (d) => {
+      assignShots(d, doc.sequences[doc.project.sequenceIds[0]].shotIds, 1);
+      updateDay(d, 1, { date: '2026-11-16', callTime: '07:30' });
+      addEvent(d, { title: 'Réunion', start: '2026-11-16T18:00' });
+      addEvent(d, { title: 'Casting', start: '2026-11-15', end: '2026-11-17', allDay: true });
+      addEvent(d, { title: 'Nuit', start: '2026-11-15T22:00', end: '2026-11-16T02:00' });
+      addEvent(d, { title: 'Autre jour', start: '2026-11-18T09:00' });
+    });
+    const items = eventsOn(next, '2026-11-16');
+    expect(items.map((x) => x.title)).toEqual(['Casting', 'Nuit', 'Réunion']);
+    expect(items.map((x) => timeOn(x, '2026-11-16'))).toEqual(['', '→ 02:00', '18:00']);
+    expect(eventsOn(next, undefined)).toEqual([]);
+    expect(eventsOn(next, '2026-11-19')).toEqual([]);
+    // Le rendez-vous déplacé suit : il quitte ce jour.
+    const moved = produce(next, (d) => updateEvent(d, d.calendar![0].id, { start: '2026-11-18T18:00' }));
+    expect(eventsOn(moved, '2026-11-16').map((x) => x.title)).toEqual(['Casting', 'Nuit']);
   });
 });
 
