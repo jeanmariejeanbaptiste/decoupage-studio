@@ -221,3 +221,26 @@ export function restoreScenario(doc: ProjectDoc): boolean {
   doc.clearedScenarios = doc.clearedScenarios!.filter((x) => x !== c);
   return true;
 }
+
+/** Texte du scénario d'une version (la courante vit dans le projet) ; `null` si elle n'existe pas. */
+export function versionText(doc: ProjectDoc, id: ID): string | null {
+  const v = doc.versions?.find((x) => x.id === id);
+  if (!v) return null;
+  return (v.id === doc.activeVersionId ? doc.scenario : v.slice?.scenario) ?? '';
+}
+
+/**
+ * Versions à comparer : celles de l'adresse (« idA~idB » : A lue, B la référence) si elles existent,
+ * sinon la courante avec celle dont elle est partie (à défaut, sa voisine). `null` sans deux versions.
+ */
+export function comparisonPair(doc: ProjectDoc, spec?: string | null): { a: ID; b: ID } | null {
+  const list = doc.versions ?? [];
+  if (list.length < 2) return null;
+  const has = (id?: string) => !!id && list.some((v) => v.id === id);
+  const [a, b] = (spec ?? '').split('~');
+  if (has(a) && has(b) && a !== b) return { a, b };
+  const cur = list.find((v) => v.id === doc.activeVersionId) ?? list[list.length - 1];
+  const k = list.indexOf(cur);
+  const from = cur.from && cur.from !== cur.id && has(cur.from) ? cur.from : (list[k - 1] ?? list[k + 1]).id;
+  return { a: cur.id, b: from };
+}

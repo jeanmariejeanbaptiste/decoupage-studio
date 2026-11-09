@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Eraser, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
+import { Check, ChevronDown, Eraser, GitCompare, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
 import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
 import { openCommentsPanel } from '../comments/commentsUi';
-import { activeVersion, clearScenario, clearedOf, compareVersions, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
+import { activeVersion, clearScenario, clearedOf, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
 import { mutateDoc, undo } from '../../store/projectStore';
 import { useDriveReview, useReadOnly } from '../../store/share';
 import { ask } from '../../ui/dialogStore';
+import { openCompare } from './compareUi';
 import s from './VersionSwitcher.module.css';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
@@ -39,32 +40,45 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
     };
   }, [open]);
 
+  // Comparer : deux versions au moins (invités et relecteurs compris : on consulte, rien ne change).
+  const comparable = (doc.versions?.length ?? 0) > 1;
+  const compareIcon = comparable ? (
+    <button type="button" className={s.compare} onClick={() => openCompare(doc)} aria-label="Comparer les versions" title="Comparer les versions" data-view data-testid="version-compare">
+      <GitCompare size={14} strokeWidth={1.4} aria-hidden="true" />
+    </button>
+  ) : null;
   // Relecture en ligne : la version publiée, qui ouvre la liste de ses commentaires (sans les commandes de version).
   if (drive) {
     const all = doc.comments?.length ? shownComments(doc) : [];
     const n = all.filter((x) => !x.c.resolved).length;
     return (
-      <button
-        type="button"
-        className={s.trigger}
-        onClick={() => openCommentsPanel(current.id)}
-        // Lecture seule : un bouton qui sert à regarder reste visible.
-        data-view
-        aria-label={`Commentaires de ${current.name}`}
-        title={all.length ? `${n} à traiter, ${all.length} en tout` : 'Commentaires'}
-        data-testid="version-switcher"
-      >
-        <span data-testid="version-name">{current.name}</span>
-        <MessageSquare size={12} strokeWidth={1.4} aria-hidden="true" />
-        {n > 0 && <span className={s.count}>{n}</span>}
-      </button>
+      <span className={s.wrap}>
+        <button
+          type="button"
+          className={s.trigger}
+          onClick={() => openCommentsPanel(current.id)}
+          // Lecture seule : un bouton qui sert à regarder reste visible.
+          data-view
+          aria-label={`Commentaires de ${current.name}`}
+          title={all.length ? `${n} à traiter, ${all.length} en tout` : 'Commentaires'}
+          data-testid="version-switcher"
+        >
+          <span data-testid="version-name">{current.name}</span>
+          <MessageSquare size={12} strokeWidth={1.4} aria-hidden="true" />
+          {n > 0 && <span className={s.count}>{n}</span>}
+        </button>
+        {compareIcon}
+      </span>
     );
   }
   // Invité : la version partagée s'affiche, sans menu (un simple libellé, pas un bouton).
   if (readOnly)
     return (
-      <span className={s.label} data-testid="version-switcher">
-        {current.name}
+      <span className={s.wrap}>
+        <span className={s.label} data-testid="version-switcher">
+          {current.name}
+        </span>
+        {compareIcon}
       </span>
     );
 
@@ -86,7 +100,6 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
           <ul>
             {list.map((v) => {
               const on = v.id === current.id;
-              const diff = !on && v.id ? compareVersions(doc, v.id) : null;
               return (
                 <li key={v.id || 'v'} className={on ? s.on : ''} data-testid="version-item">
                   {editing === v.id ? (
@@ -113,11 +126,6 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
                       <b>{v.name}</b>
                       <span className={s.meta}>
                         {dateFmt.format(new Date(v.createdAt))} · {versionScenes(doc, v)} séq.
-                        {diff && (diff.added.length || diff.removed.length || diff.changed.length) ? (
-                          <em title={`Par rapport à ${current.name} : ${diff.removed.length} séquence(s) en plus, ${diff.added.length} en moins, ${diff.changed.length} différente(s)`}>
-                            {[diff.removed.length ? `+${diff.removed.length}` : '', diff.added.length ? `−${diff.added.length}` : '', diff.changed.length ? `${diff.changed.length} modif.` : ''].filter(Boolean).join(' · ').replace(/^/, ' · ')}
-                          </em>
-                        ) : null}
                       </span>
                     </button>
                   )}
@@ -168,10 +176,23 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
               );
             })}
           </ul>
-          {!readOnly && (
+          {comparable && (
             <button
               type="button"
               className={s.add}
+              onClick={() => {
+                setOpen(false);
+                openCompare(doc);
+              }}
+              data-testid="version-compare"
+            >
+              <GitCompare size={13} strokeWidth={1.5} /> Comparer les versions…
+            </button>
+          )}
+          {!readOnly && (
+            <button
+              type="button"
+              className={[s.add, comparable ? s.flat : ''].join(' ')}
               onClick={() => {
                 flushEditors();
                 mutateDoc((d) => void createVersion(d));
