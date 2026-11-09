@@ -69,6 +69,15 @@ describe('page de garde à l’import', () => {
     expect(r?.title.Title).toBe('LA CONSIGNE');
     expect(r?.used).toBe(1);
   });
+  it('première page sans crédit : la ligne sous le titre est l’auteur', async () => {
+    const { detectTitlePage } = await import('./scenarioImport');
+    const r = detectTitlePage([
+      { text: 'LONG ESSAI', center: true, page: 1 },
+      { text: 'Nina Roy', center: true, page: 1 },
+      { text: 'INT. GARE - JOUR', page: 2 },
+    ]);
+    expect(r?.title).toEqual({ Title: 'LONG ESSAI', Author: 'Nina Roy' });
+  });
   it('un début de film sans en-tête (oubli) n’est pas une page de garde', async () => {
     const { detectTitlePage, textToLines } = await import('./scenarioImport');
     expect(detectTitlePage(textToLines('La pluie tombe sur la gare.\n\nLÉA\nTu es en retard.\n\nMARC\nJe sais.\n\nINT. GARE - JOUR\n\nIls entrent.\n'))).toBeNull();

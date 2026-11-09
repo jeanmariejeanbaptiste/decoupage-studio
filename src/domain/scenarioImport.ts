@@ -125,10 +125,12 @@ export function detectTitlePage(lines: readonly SourceLine[]): { title: Record<s
   const title: Record<string, string> = {};
   const contact: string[] = [];
   const source: string[] = [];
+  let titleAt = -1;
   for (let i = 0; i < head.length; i++) {
     const t = head[i];
     if (!title.Title && !CREDIT.test(t) && !DATE.test(t) && !CONTACT.test(t)) {
       title.Title = t;
+      titleAt = i;
       continue;
     }
     if (/^(écrit|ecrit|scénario|scenario|written|screenplay|un film de|réalisé|realise|réalisation|story by|histoire|auteur|par\b|by\b)/i.test(t) && !title.Credit) {
@@ -145,7 +147,8 @@ export function detectTitlePage(lines: readonly SourceLine[]): { title: Record<s
     if (/^(d['’]après|based on|adapt)/i.test(t)) source.push(t);
     else if (DATE.test(t) && !/@/.test(t) && !title['Draft date']) title['Draft date'] = t;
     else if (CONTACT.test(t)) contact.push(t);
-    else if (!title.Author && title.Credit) title.Author = t;
+    // Auteur : après un crédit, ou juste sous le titre (page de garde sans crédit, comme l'outil l'exporte).
+    else if (!title.Author && (title.Credit || i === titleAt + 1)) title.Author = t;
     else source.push(t);
   }
   if (!title.Title) return null;
