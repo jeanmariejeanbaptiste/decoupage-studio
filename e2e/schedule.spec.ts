@@ -24,7 +24,6 @@ test('plan de travail : jours, glisser une séquence, suggestion', async ({ page
   await page.getByTestId('suggest-schedule').click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Répartir' }).click();
   await expect(page.getByTestId('band-0').getByTestId('strip')).toHaveCount(0);
-  await expect(page.getByTestId('toast')).toContainText('Plan de travail réparti');
   await expect(page.getByTestId('band-3')).toBeVisible();
 });
 

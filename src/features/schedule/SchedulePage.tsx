@@ -8,8 +8,7 @@ import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, m
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
-import { mutateDoc, undo } from '../../store/projectStore';
-import { useUi } from '../../store/uiStore';
+import { mutateDoc } from '../../store/projectStore';
 import { navigate, useLocation } from '../../app/router';
 import { eventsOn, timeOn } from '../../domain/calendar';
 import { Button } from '../../ui/Button';
@@ -45,7 +44,6 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const [capacity, setCapacity] = useState(20);
   const [openDays, setOpenDays] = useState<number[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
-  const toast = useUi((u) => u.toast);
   // Venu du calendrier (« ?day=n ») : la journée demandée s'affiche en haut.
   const focusDay = useLocation().params.get('day');
   useEffect(() => {
@@ -68,8 +66,8 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
       const r = await ask({ title: 'Remplacer le plan de travail ?', body: 'Tous les plans seront réaffectés : regroupement par décor, puis par comédiens, puis par axes.', confirmLabel: 'Répartir' });
       if (!r.ok) return;
     }
-    const n = mutateDoc((d) => suggestSchedule(d, capacity)) ?? 0;
-    toast({ message: `Plan de travail réparti sur ${n} jour${n > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
+    // Sans toast : la confirmation précède, l'annulation générale défait la répartition.
+    mutateDoc((d) => void suggestSchedule(d, capacity));
   };
 
   const total = [...strips.values()].flat().reduce((n, x) => n + x.shotIds.length, 0);
