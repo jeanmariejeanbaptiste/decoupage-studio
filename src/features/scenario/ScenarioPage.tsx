@@ -205,6 +205,31 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     <div className={['page page--wide', s.page].join(' ')}>
       <header className={s.toolbar}>
         <div className={s.tools}>
+          {/* La bascule de vue en tête, toujours à la même place : les outils d'écriture viennent après. */}
+          <div className={s.seg} role="radiogroup" aria-label="Affichage du scénario">
+            {(
+              [
+                ['script', 'Scénario', 'Le texte, page par page'],
+                ['cut', 'Découpage', 'Le découpage technique mis en forme comme un scénario (lecture seule)'],
+              ] as const
+            ).map(([v, label, hint]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={view === v}
+                className={view === v ? s.on : ''}
+                title={hint}
+                data-view
+                onClick={() => {
+                  api.current?.flush();
+                  setView(v);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {!readOnly && view === 'script' && (
             <>
               <TypePicker type={activeType} onPick={(t) => api.current?.setType(t)} />
@@ -255,30 +280,6 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
               Commenter
             </Button>
           )}
-          <div className={s.seg} role="radiogroup" aria-label="Affichage du scénario">
-            {(
-              [
-                ['script', 'Scénario', 'Le texte, page par page'],
-                ['cut', 'Découpage', 'Le découpage technique mis en forme comme un scénario (lecture seule)'],
-              ] as const
-            ).map(([v, label, hint]) => (
-              <button
-                key={v}
-                type="button"
-                role="radio"
-                aria-checked={view === v}
-                className={view === v ? s.on : ''}
-                title={hint}
-                data-view
-                onClick={() => {
-                  api.current?.flush();
-                  setView(v);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
         <div className={s.tools}>
           {view === 'script' && !phone && <Chrono settings={doc.project.settings.scriptChrono} />}
