@@ -98,6 +98,8 @@ export function App() {
   }, [doc]);
   const theme = useUi((u) => u.theme);
   const saveStatus = useUi((u) => u.saveStatus);
+  // Invité sans copie : rien n'est enregistré ici, aucun état d'enregistrement à afficher.
+  const savesHere = useShare((x) => x.role !== 'guest' || x.keep);
   const sidebarOpen = useUi((u) => u.sidebarOpen);
   const setUi = useUi((u) => u.set);
   const { canUndo, canRedo } = useHistory();
@@ -223,7 +225,7 @@ export function App() {
           sidebarOpen={sidebarOpen}
           onToggleSidebar={showSidebar ? () => toggleSidebar() : undefined}
           doc={doc}
-          saveStatus={doc ? SAVE_LABEL[saveStatus] : ''}
+          saveStatus={doc && savesHere ? SAVE_LABEL[saveStatus] : ''}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={undo}

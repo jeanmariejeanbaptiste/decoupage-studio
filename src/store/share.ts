@@ -290,9 +290,14 @@ export async function joinSession(room: string, password: string, name: string):
         const m = raw as Msg;
         if (m.t === 'welcome') {
           clearTimeout(timer);
-          useShare.setState({ status: 'joined', mode: m.mode, keep: m.keep, hostName: m.hostName, guests: m.guests });
+          useShare.setState({ mode: m.mode, keep: m.keep, hostName: m.hostName, guests: m.guests });
           installGuards();
+          // Projet partagé chargé avant d'être « rejoint » : il remplace le projet ouvert ici sans
+          // être pris pour l'ouverture d'un autre projet (qui ferait quitter le partage).
           useProjectStore.getState().loadDoc(m.doc);
+          useShare.setState({ status: 'joined' });
+          // Rien de ce projet n'est enregistré ici (sauf copie accordée) : pas d'état hérité du précédent.
+          useUi.getState().set({ saveStatus: 'idle', selection: null, editing: null });
           resolve(true);
         } else if (m.t === 'denied') fail(m.reason);
         else if (m.t === 'ops') applyRemote(m.ops);

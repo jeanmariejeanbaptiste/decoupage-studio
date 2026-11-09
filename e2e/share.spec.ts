@@ -180,6 +180,9 @@ test('relecture : l’invité commente le découpage et le scénario ; l’auteu
   await guest.getByLabel('Mot de passe').fill(password!);
   await guest.getByTestId('join-go').click();
   await expect(guest.getByTestId('guest-banner')).toContainText('relecture');
+  // On choisit ce qu'on regarde : tableau ou storyboard.
+  await expect(guest.getByTestId('view-table')).toBeVisible();
+  await expect(guest.getByTestId('view-storyboard')).toBeVisible();
   // Le découpage en aperçu ; un clic sur une cellule ouvre la bulle.
   await guest.locator('tr[data-shot] td[data-col="value"]').first().click();
   await guest.getByTestId('comment-text').fill('Plutôt un plan large ici ?');
@@ -208,6 +211,15 @@ test('relecture : l’invité commente le découpage et le scénario ; l’auteu
   });
   await guest.getByTestId('comment-selection').click();
   await guest.getByTestId('comment-text').fill('Quelle valise ? On la voit avant ?');
+  // Un tracé sur la page : la barre du tracé est là aussi pour l'invité, et le rend à la bulle.
+  await guest.getByTestId('comment-draw').click();
+  await expect(guest.getByTestId('marks-done')).toBeInViewport();
+  await guest.mouse.move(500, 400);
+  await guest.mouse.down();
+  await guest.mouse.move(640, 430, { steps: 5 });
+  await guest.mouse.up();
+  await guest.getByTestId('marks-done').click();
+  await expect(guest.getByTestId('comment-popover')).toContainText('1 tracé');
   await guest.getByTestId('comment-send').click();
   await expect(guest.getByTestId('comment-popover')).toContainText('Quelle valise');
 
@@ -232,4 +244,36 @@ test('relecture : l’invité commente le découpage et le scénario ; l’auteu
   // « Voir » mène au passage du scénario, bulle ouverte.
   await panel.getByRole('button', { name: /Scénario · « valise/ }).click();
   await expect(host.getByTestId('comment-popover')).toContainText('Quelle valise');
+});
+
+test('invité qui a déjà un projet ouvert : il rejoint le partage, rien ne se dit enregistré ici', async ({ browser }) => {
+  const host = await participant(browser);
+  await host.goto('/#/grid?seed=fiction');
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-panel').getByText('Commenter').click();
+  await host.getByTestId('share-start').click();
+  const link = await host.getByTestId('share-link').textContent();
+  const password = await host.getByTestId('share-password').textContent();
+  await host.getByTestId('share-button').click();
+
+  const guest = await participant(browser);
+  // Son propre projet, enregistré dans ce navigateur, rouvert au démarrage.
+  await guest.goto('/#/grid?seed=rav3');
+  await expect(guest.getByText('Enregistré dans le navigateur')).toBeVisible();
+  await guest.goto(link!);
+  await guest.getByLabel('Votre nom').fill('Nina');
+  await guest.getByLabel('Mot de passe').fill(password!);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('guest-banner')).toContainText('relecture');
+  await expect(guest.getByTestId('version-switcher')).toBeVisible();
+  // Le projet partagé, pas le sien ; et aucun état d'enregistrement.
+  await expect(guest.locator('tr[data-shot]').first()).toBeVisible();
+  await expect(guest.getByText('Enregistré dans le navigateur')).toHaveCount(0);
+  await guest.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await guest.getByTestId('comment-text').fill('Vu.');
+  await guest.getByTestId('comment-send').click();
+  await expect(guest.getByTestId('guest-banner')).toBeVisible();
+  await expect(guest.getByText('Enregistré dans le navigateur')).toHaveCount(0);
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-stop').click();
 });
