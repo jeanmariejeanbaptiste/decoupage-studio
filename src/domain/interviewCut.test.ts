@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
 import { addInterviewee, addSetup, ensureInterview, maxSetupNumber, placeSetup, setSetupNumber, setupNumber, setupShotIds, syncInterviewShots } from './interview';
-import { addSequence, addShot, addShotAfter, deleteShot, duplicateShot, moveShot } from './ops';
+import { addSequence, addShot, addShotAfter, checkInvariants, deleteShot, duplicateShot, moveShot } from './ops';
 import { shotCode, shotNumberLabel } from './numbering';
 import { buildSequenceRows, sequenceMerges } from './rows';
 import { computeTiming } from './timing';
@@ -175,5 +175,21 @@ describe('interview placée dans le découpage', () => {
     const before = JSON.stringify(doc);
     syncInterviewShots(doc);
     expect(JSON.stringify(doc)).toBe(before);
+  });
+});
+
+describe('interview : préparation gardée, liens et libellés', () => {
+  it('dupliquer une caméra : la copie vient après le cadre, avec sa propre action', () => {
+    const { doc, seq, setup } = project();
+    placeSetup(doc, setup.id, seq);
+    syncInterviewShots(doc);
+    const [ca, cb] = setupShotIds(doc, setup.id);
+    const copy = duplicateShot(doc, ca);
+    syncInterviewShots(doc);
+    const ids = doc.sequences[seq].shotIds;
+    expect(ids.indexOf(copy)).toBe(ids.indexOf(cb) + 1);
+    expect(doc.shots[copy].actionBlockId).not.toBe(doc.shots[ca].actionBlockId);
+    expect(order(doc, seq)).toEqual(['1', '2', '3A', '3B', '4']);
+    expect(checkInvariants(doc)).toEqual([]);
   });
 });

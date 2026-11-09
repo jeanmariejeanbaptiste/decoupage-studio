@@ -63,7 +63,7 @@ export function addShotAfter(doc: ProjectDoc, afterShotId: ID): ID {
   });
 }
 
-/** Duplique un plan juste en dessous ; la copie couvre la même action. */
+/** Duplique un plan juste en dessous ; la copie couvre la même action (sauf plan-séquence ou caméra d'interview). */
 export function duplicateShot(doc: ProjectDoc, shotId: ID): ID {
   const src = doc.shots[shotId];
   if (!src) throw new Error('Plan inconnu');
@@ -76,13 +76,16 @@ export function duplicateShot(doc: ProjectDoc, shotId: ID): ID {
   copy.keyframes = undefined;
   copy.shootingDay = undefined;
   copy.mergeBreak = undefined;
-  // Une copie d'un plan d'interview devient un plan ordinaire (la fiche n'a qu'un plan par caméra).
+  // Une copie d'un plan d'interview devient un plan ordinaire (la fiche n'a qu'un plan par caméra) :
+  // elle se pose après toutes les caméras du cadre, avec sa propre action.
+  const itw = !!src.interview;
+  const after = itw ? (interviewGroupOf(doc, shotId).filter((id) => seq.shotIds.includes(id)).at(-1) ?? shotId) : shotId;
   copy.interview = undefined;
   doc.shots[copy.id] = copy;
-  seq.shotIds.splice(seq.shotIds.indexOf(shotId) + 1, 0, copy.id);
+  seq.shotIds.splice(seq.shotIds.indexOf(after) + 1, 0, copy.id);
   normalizeBlocks(doc, seq.id);
   // Un plan-séquence a sa propre chorégraphie : la copie ne partage pas son action.
-  if (copy.oneShot) detachAction(doc, copy.id);
+  if (copy.oneShot || itw) detachAction(doc, copy.id);
   return copy.id;
 }
 
