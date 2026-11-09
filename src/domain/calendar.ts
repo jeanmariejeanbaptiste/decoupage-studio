@@ -166,6 +166,8 @@ export interface CalendarItem {
   eventId?: ID;
   /** Jour de tournage (plan de travail). */
   day?: number;
+  /** Identifiant .ics d'un jour de tournage : projet et jour, stables quand on renumérote ou redate. */
+  uid?: string;
   /** Étape ou jalon du calendrier de production, et sa phase. */
   taskId?: ID;
   milestone?: boolean;
@@ -214,6 +216,7 @@ export function shootingItems(doc: ProjectDoc): CalendarItem[] {
         note: d.notes,
         source: 'shooting' as const,
         day: d.n,
+        uid: `jour-${doc.project.id}-${d.id ?? d.n}`,
       };
     });
 }
@@ -454,7 +457,7 @@ function fold(line: string): string {
   return parts.join('\r\n ');
 }
 
-const uid = (it: CalendarItem) => (it.source === 'shooting' ? `jour-${it.day}` : it.source === 'production' ? `etape-${it.taskId}` : it.eventId);
+const uid = (it: CalendarItem) => (it.source === 'shooting' ? (it.uid ?? `jour-${it.day}`) : it.source === 'production' ? `etape-${it.taskId}` : it.eventId);
 
 /** Fichier .ics : rendez-vous du projet, jours de tournage et étapes de production, heures locales « flottantes ». */
 export function calendarIcs(items: readonly CalendarItem[], name: string, now = new Date()): string {

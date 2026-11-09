@@ -184,3 +184,31 @@ describe('export iCalendar', () => {
     expect(ics).toMatch(/SUMMARY:É+\r\n É+/);
   });
 });
+
+describe('export iCalendar : identifiants des jours de tournage', () => {
+  it('propres au projet et au jour, stables quand on supprime un jour ou change sa date', async () => {
+    const { removeDay, suggestSchedule, updateDay } = await import('./schedule');
+    const { migrate } = await import('./serialize');
+    const dated = (id: string) =>
+      produce(buildRav3(), (d) => {
+        d.project.id = id;
+        suggestSchedule(d, 15);
+        updateDay(d, 1, { date: '2026-11-16' });
+        updateDay(d, 2, { date: '2026-11-17' });
+      });
+    const uids = (doc: ReturnType<typeof buildRav3>) => [...calendarIcs(calendarItems(doc), 'x').matchAll(/UID:(jour-[^@]+)@/g)].map((m) => m[1]);
+    const a = dated('projet-a');
+    const b = dated('projet-b');
+    expect(uids(a)).toHaveLength(2);
+    expect(uids(a).some((u) => uids(b).includes(u))).toBe(false);
+    const day2 = uids(a)[1];
+    const removed = produce(a, (d) => removeDay(d, 1));
+    expect(uids(removed)).toEqual([day2]);
+    expect(uids(produce(removed, (d) => updateDay(d, 1, { date: '2026-12-01' })))).toEqual([day2]);
+    // Jours d'un ancien fichier : un identifiant leur est donné au chargement.
+    const old = produce(a, (d) => {
+      for (const x of d.schedule!.days) delete x.id;
+    });
+    expect(migrate(old).schedule!.days.every((x) => !!x.id)).toBe(true);
+  });
+});

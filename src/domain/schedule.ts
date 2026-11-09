@@ -10,6 +10,8 @@ import type { ID, ProjectDoc } from './types';
 
 export interface ShootingDay {
   n: number;
+  /** Identifiant stable (le numéro est renuméroté, la date peut changer) : sert à l'export .ics. */
+  id?: ID;
   date?: string;
   label?: string;
   callTime?: string;
@@ -117,6 +119,11 @@ export function stripsByDay(doc: ProjectDoc): Map<number, Strip[]> {
   return out;
 }
 
+/** Jours d'avant l'identifiant stable : ils en reçoivent un (au chargement). */
+export function ensureDayIds(doc: ProjectDoc): void {
+  for (const d of doc.schedule?.days ?? []) d.id ??= newId();
+}
+
 export function ensureSchedule(doc: ProjectDoc): Schedule & { order?: ID[] } {
   doc.schedule ??= { days: [] };
   return doc.schedule;
@@ -125,7 +132,7 @@ export function ensureSchedule(doc: ProjectDoc): Schedule & { order?: ID[] } {
 export function addDay(doc: ProjectDoc): number {
   const sch = ensureSchedule(doc);
   const n = Math.max(0, ...scheduleDays(doc).map((d) => d.n)) + 1;
-  sch.days.push({ n });
+  sch.days.push({ n, id: newId() });
   return n;
 }
 
@@ -133,7 +140,7 @@ export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay
   const sch = ensureSchedule(doc);
   const d = sch.days.find((x) => x.n === n);
   if (d) Object.assign(d, patch);
-  else sch.days.push({ n, ...patch });
+  else sch.days.push({ n, id: newId(), ...patch });
 }
 
 /** Supprime un jour : ses plans redeviennent non planifiés, les jours suivants sont renumérotés (« jour n sur N » sans trou). */
@@ -237,7 +244,7 @@ export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
   if (ordered.length === 0) return 0;
   const sch = ensureSchedule(doc);
   sch.order = ordered;
-  for (let n = 1; n <= day; n++) if (!sch.days.some((d) => d.n === n)) sch.days.push({ n });
+  for (let n = 1; n <= day; n++) if (!sch.days.some((d) => d.n === n)) sch.days.push({ n, id: newId() });
   sch.days.sort((a, b) => a.n - b.n);
   // Créneaux qui ne correspondent plus au jour du plan : retirés (l'emploi du temps est à refaire),
   // sauf ceux qu'une version rangée tient encore ce jour-là (l'emploi du temps est commun aux versions).
