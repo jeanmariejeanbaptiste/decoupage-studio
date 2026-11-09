@@ -4,7 +4,7 @@ import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
 import { openCommentsPanel } from '../comments/commentsUi';
-import { activeVersion, clearScenario, clearedOf, compareVersions, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
+import { activeVersion, clearScenario, clearedOf, compareVersions, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionHeir, versionSequences } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
 import { mutateDoc, undo } from '../../store/projectStore';
@@ -112,7 +112,7 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
                       <span className={s.check}>{on && <Check size={13} strokeWidth={1.6} />}</span>
                       <b>{v.name}</b>
                       <span className={s.meta}>
-                        {dateFmt.format(new Date(v.createdAt))} · {versionScenes(doc, v)} séq.
+                        {dateFmt.format(new Date(v.createdAt))} · {versionSequences(doc, v)} séq.
                         {diff && (diff.added.length || diff.removed.length || diff.changed.length) ? (
                           <em title={`Par rapport à ${current.name} : ${diff.removed.length} séquence(s) en plus, ${diff.added.length} en moins, ${diff.changed.length} différente(s)`}>
                             {[diff.removed.length ? `+${diff.removed.length}` : '', diff.added.length ? `−${diff.added.length}` : '', diff.changed.length ? `${diff.changed.length} modif.` : ''].filter(Boolean).join(' · ').replace(/^/, ' · ')}
@@ -150,18 +150,24 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
                       <button type="button" aria-label={`Renommer ${v.name}`} onClick={() => setEditing(v.id)}>
                         <Pencil size={12} strokeWidth={1.4} />
                       </button>
-                      {!on && (
-                        <button
-                          type="button"
-                          aria-label={`Supprimer ${v.name}`}
-                          onClick={async () => {
-                            const r = await ask({ title: `Supprimer la version ${v.name} ?`, body: 'Son scénario et son découpage disparaissent ; les autres versions et la préparation restent (annulable avec ⌘Z).', confirmLabel: 'Supprimer', danger: true });
-                            if (r.ok) mutateDoc((d) => deleteVersion(d, v.id));
-                          }}
-                        >
-                          <X size={12} strokeWidth={1.4} />
-                        </button>
-                      )}
+                      {/* Toujours rendu (caché pour la courante) : les colonnes restent fixes d'une ligne à l'autre. */}
+                      <button
+                        type="button"
+                        aria-label={on ? undefined : `Supprimer ${v.name}`}
+                        aria-hidden={on || undefined}
+                        disabled={on}
+                        tabIndex={on ? -1 : undefined}
+                        className={on ? s.placeholder : undefined}
+                        onClick={async () => {
+                          const n = (doc.comments ?? []).filter((c) => c.versionId === v.id).length;
+                          const heir = list.find((x) => x.id === versionHeir(doc, v.id))?.name;
+                          const notes = n && heir ? ` ${n > 1 ? `Ses ${n} commentaires passent` : 'Son commentaire passe'} à ${heir}.` : '';
+                          const r = await ask({ title: `Supprimer la version ${v.name} ?`, body: `Son scénario et son découpage disparaissent ; les autres versions et la préparation restent (annulable avec ⌘Z).${notes}`, confirmLabel: 'Supprimer', danger: true });
+                          if (r.ok) mutateDoc((d) => deleteVersion(d, v.id));
+                        }}
+                      >
+                        <X size={12} strokeWidth={1.4} />
+                      </button>
                     </span>
                   )}
                 </li>

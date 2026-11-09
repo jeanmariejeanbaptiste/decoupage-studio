@@ -4,7 +4,8 @@ import { buildFiction } from '../../seed/fiction';
 import { addBreakdownItems, breakdownOf } from './breakdown';
 import { alignScenes } from './sceneAlign';
 import { reviseScenario, revisionSummary } from './revision';
-import { clearScenario, clearedOf, restoreScenario, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion } from './versions';
+import { addComment, commentsOf, replyComment, shownComments } from './comments';
+import { clearScenario, clearedOf, restoreScenario, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion, versionSequences } from './versions';
 
 const V1 = `INT. GARE — HALL - JOUR
 
@@ -173,5 +174,65 @@ describe('versions', () => {
     const all = produce(doc, (d) => clearScenario(d, 'all'));
     expect(all.versions![0].slice!.scenario).toBe('');
     expect(all.clearedScenarios).toHaveLength(2);
+  });
+
+  it('supprimer une version : ses commentaires passent à celle qui en hérite, passage retrouvé', () => {
+    const base = buildFiction();
+    const q = 'valise cabossée';
+    const v1 = produce(base, (d) => void ensureVersions(d));
+    const v1Id = v1.activeVersionId!;
+    const commented = produce(v1, (d) => {
+      const at = d.scenario!.indexOf(q);
+      const id = addComment(d, { kind: 'script', start: at, end: at + q.length, quote: q }, 'Nina', 'Quelle valise ?')!;
+      replyComment(d, id, 'Moi', 'Celle du père.');
+      addComment(d, { kind: 'script', start: 0, end: 5, quote: 'introuvable ailleurs' }, 'Nina', 'Disparu ?');
+      clearScenario(d, 'current');
+      restoreScenario(d);
+    });
+    const v2 = produce(commented, (d) => {
+      createVersion(d);
+      d.scenario = `INT. TRAIN - JOUR\n\nUn contrôleur passe.\n\n${d.scenario}`;
+      d.clearedScenarios = [{ versionId: v1Id, text: 'x', at: '' }];
+    });
+    const v2Id = v2.activeVersionId!;
+    const after = produce(v2, (d) => deleteVersion(d, v1Id));
+    expect(after.versions!.map((v) => v.id)).toEqual([v2Id]);
+    expect(after.comments).toHaveLength(2);
+    expect(commentsOf(after)).toHaveLength(2);
+    expect(shownComments(after)).toHaveLength(2);
+    const [kept, lost] = after.comments!;
+    expect(kept.versionId).toBe(v2Id);
+    expect(kept.replies[0].versionId).toBe(v2Id);
+    expect(kept.anchor.kind === 'script' && after.scenario!.slice(kept.anchor.start, kept.anchor.end)).toBe(q);
+    // Introuvable : ancre vide, citation gardée.
+    expect(lost.anchor).toMatchObject({ kind: 'script', quote: 'introuvable ailleurs' });
+    expect(lost.anchor.kind === 'script' && lost.anchor.end - lost.anchor.start).toBe(0);
+    expect(after.clearedScenarios ?? []).toEqual([]);
+  });
+
+  it('supprimer une version intermédiaire : la suivante hérite (texte rangé)', () => {
+    const base = produce(buildFiction(), (d) => void ensureVersions(d));
+    const v1Id = base.activeVersionId!;
+    const v2 = produce(base, (d) => void createVersion(d));
+    const v2Id = v2.activeVersionId!;
+    const withNote = produce(v2, (d) => {
+      const shotId = d.sequences[d.project.sequenceIds[0]].shotIds[0];
+      addComment(d, { kind: 'shot', shotId }, 'Nina', 'Plan large ?');
+    });
+    const v3 = produce(withNote, (d) => void createVersion(d));
+    const back = produce(v3, (d) => switchVersion(d, v1Id));
+    const after = produce(back, (d) => deleteVersion(d, v2Id));
+    const v3Id = v3.activeVersionId!;
+    expect(after.comments![0].versionId).toBe(v3Id);
+    expect(after.versions!.find((v) => v.id === v3Id)!.from).toBe(v1Id);
+  });
+
+  it('nombre de séquences d’une version : celles de son découpage, même sans texte', () => {
+    const doc = produce(buildFiction(), (d) => void createVersion(d));
+    const n = doc.project.sequenceIds.length;
+    expect(n).toBeGreaterThan(0);
+    for (const v of doc.versions!) expect(versionSequences(doc, v)).toBe(n);
+    const cleared = produce(doc, (d) => clearScenario(d, 'all'));
+    for (const v of cleared.versions!) expect(versionSequences(cleared, v)).toBe(n);
   });
 });

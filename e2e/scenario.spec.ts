@@ -602,3 +602,53 @@ test('scénario : les notes ne comptent ni dans les pages ni dans la durée ; ba
   await expect(kpi('Durée')).toHaveText(total);
   await expect(kpi('Pages')).toHaveText(String(pages));
 });
+
+test('commenter en traçant sur la page réduite : barre visible, Échap rend la bulle ; versions : compteurs alignés, suppression sans perte', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/#/scenario?seed=fiction');
+  await selectText(page, 'Marc attend');
+  await page.getByTestId('script-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
+  await page.getByRole('menuitem', { name: 'Commenter' }).click();
+  await page.getByTestId('comment-text').fill('Plus de pluie.');
+  await page.getByTestId('comment-draw').click();
+  // La barre du tracé reste à l'écran, quel que soit le zoom de la page.
+  const done = page.getByTestId('marks-done');
+  await expect(done).toBeInViewport();
+  await page.mouse.move(500, 400);
+  await page.mouse.down();
+  await page.mouse.move(640, 420, { steps: 5 });
+  await page.mouse.up();
+  // Échap quitte le tracé : la bulle revient avec son brouillon et le tracé.
+  await page.keyboard.press('Escape');
+  await expect(done).toHaveCount(0);
+  const pop = page.getByTestId('comment-popover');
+  await expect(pop.getByTestId('comment-text')).toHaveValue('Plus de pluie.');
+  await expect(pop).toContainText('1 tracé');
+  await pop.getByTestId('comment-send').click();
+  await expect(pop.getByTestId('comment')).toContainText('Plus de pluie.');
+  await page.keyboard.press('Escape');
+
+  // V2 : les compteurs de commentaires de V1 et V2 tombent l'un sous l'autre ; « séq. » compte le découpage.
+  const switcher = page.getByTestId('version-switcher');
+  await switcher.click();
+  await page.getByTestId('version-new').click();
+  await switcher.click();
+  const counters = page.getByTestId('version-comments');
+  await expect(counters).toHaveCount(2);
+  const [a, b] = [(await counters.nth(0).boundingBox())!, (await counters.nth(1).boundingBox())!];
+  expect(Math.abs(a.x - b.x)).toBeLessThan(1);
+  await expect(page.getByTestId('version-item').first()).toContainText(/· [1-9]\d* séq\./);
+  // Supprimer V1 : son commentaire passe à V2, rien ne disparaît.
+  const v1 = page.getByTestId('version-item').filter({ hasText: 'V1' });
+  await v1.hover();
+  await v1.getByRole('button', { name: 'Supprimer V1' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('Son commentaire passe à V2.');
+  await dialog.getByRole('button', { name: 'Supprimer' }).click();
+  await expect(dialog).toHaveCount(0);
+  if ((await switcher.getAttribute('aria-expanded')) !== 'true') await switcher.click();
+  await expect(page.getByTestId('version-item')).toHaveCount(1);
+  await expect(page.getByTestId('version-comments')).toContainText('1');
+  await page.getByTestId('version-comments').click();
+  await expect(page.getByTestId('comments-panel').getByTestId('comment')).toContainText('Plus de pluie.');
+});

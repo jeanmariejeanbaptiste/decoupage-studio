@@ -12,8 +12,7 @@
  * La version courante vit dans le projet lui-même ; les autres sont rangées à côté, figées.
  */
 import { newId } from './factory';
-import { adoptUnversionedComments } from './comments';
-import { scenesOf } from './fountain';
+import { adoptUnversionedComments, carryScript } from './comments';
 import { alignScenes } from './sceneAlign';
 import type { ActionBlock, ID, ProjectDoc, Sequence, Shot } from './types';
 
@@ -104,11 +103,43 @@ export function renameVersion(doc: ProjectDoc, id: ID, name: string): void {
   if (v.id === doc.activeVersionId) doc.project.version = v.name;
 }
 
-/** Supprime une version rangée (jamais la courante ni la dernière). */
+/** Version qui hérite des commentaires d'une version supprimée : celle qui en est partie, sinon celle d'où elle venait. */
+export function versionHeir(doc: ProjectDoc, id: ID): ID | undefined {
+  const list = doc.versions ?? [];
+  const gone = list.find((v) => v.id === id);
+  if (!gone) return undefined;
+  return list.find((v) => v.from === id)?.id ?? gone.from ?? doc.activeVersionId;
+}
+
+/**
+ * Supprime une version rangée (jamais la courante ni la dernière). Ses commentaires ne sont pas
+ * perdus : ils passent à la version qui en hérite (celle qui en était partie, sinon celle d'où elle
+ * venait), leurs passages retrouvés par leur citation dans le texte de celle-ci.
+ */
 export function deleteVersion(doc: ProjectDoc, id: ID): void {
   const list = ensureVersions(doc);
-  if (list.length < 2 || id === doc.activeVersionId) return;
-  doc.versions = list.filter((v) => v.id !== id).map((v) => (v.from === id ? { ...v, from: list.find((x) => x.id === id)?.from } : v));
+  const gone = list.find((v) => v.id === id);
+  if (list.length < 2 || !gone || id === doc.activeVersionId) return;
+  const heirId = versionHeir(doc, id)!;
+  const heir = list.find((v) => v.id === heirId);
+  const oldText = gone.slice?.scenario ?? '';
+  const newText = (heir?.slice ? heir.slice.scenario : doc.scenario) ?? '';
+  for (const c of doc.comments ?? []) {
+    for (const r of c.replies) if (r.versionId === id) r.versionId = heirId;
+    if (c.versionId !== id) continue;
+    c.versionId = heirId;
+    const a = c.anchor;
+    if (a.kind !== 'script') continue;
+    const quote = a.quote || oldText.slice(a.start, a.end);
+    const found = carryScript({ ...a, quote }, oldText.length, newText);
+    if (found) c.anchor = found;
+    else {
+      const at = Math.min(oldText.length ? Math.round((a.start / oldText.length) * newText.length) : 0, newText.length);
+      c.anchor = { kind: 'script', start: at, end: at, quote };
+    }
+  }
+  if (doc.clearedScenarios) doc.clearedScenarios = doc.clearedScenarios.filter((c) => c.versionId !== id);
+  doc.versions = list.filter((v) => v.id !== id).map((v) => (v.from === id ? { ...v, from: gone.from } : v));
 }
 
 export interface VersionDiff {
@@ -148,9 +179,9 @@ export function compareVersions(doc: ProjectDoc, otherId: ID): VersionDiff | nul
   };
 }
 
-/** Nombre de scènes du scénario d'une version (pour la liste des versions). */
-export function versionScenes(doc: ProjectDoc, v: ProjectVersion): number {
-  return scenesOf((v.slice ? v.slice.scenario : doc.scenario) ?? '').length;
+/** Nombre de séquences du découpage d'une version (pour la liste des versions, comme compareVersions). */
+export function versionSequences(doc: ProjectDoc, v: ProjectVersion): number {
+  return (v.slice ? v.slice.sequenceIds : doc.project.sequenceIds).length;
 }
 
 /** Tout ce que gardent les versions rangées (pour ne jamais perdre une image du storyboard). */
