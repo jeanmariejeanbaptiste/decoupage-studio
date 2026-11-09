@@ -49,4 +49,10 @@ test('institutionnel : fiche d’interview, placée dans le découpage (lignes 1
   await page.getByTestId('view-table').click();
   await expect(page.getByTestId('interview-preview')).toHaveCount(0);
   await expect(page.getByTestId('export-table')).toContainText('Claire Martin');
+
+  // Vue Découpage du scénario : les mêmes numéros que le tableau.
+  await page.goto('/#/scenario');
+  await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
+  await expect(page.getByTestId('scenario-cut')).toContainText('1A');
+  await expect(page.getByTestId('scenario-cut')).toContainText('1B');
 });

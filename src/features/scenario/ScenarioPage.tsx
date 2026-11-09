@@ -29,7 +29,7 @@ import { reviseScenario, revisionSummary, type RevisionReport } from '../../doma
 import { createVersion, ensureVersions, nextVersionName } from '../../domain/versions';
 import { VersionSwitcher } from '../versions/VersionSwitcher';
 import { useRevisionMarks } from '../versions/useRevisionMarks';
-import { sequenceHeading, shotCode } from '../../domain/numbering';
+import { sequenceHeading, shotCode, shotNumberLabel } from '../../domain/numbering';
 import {
   BLOCK_LABELS,
   blockLabel,
@@ -826,7 +826,8 @@ function CutView({ doc }: { doc: ProjectDoc }) {
               return (
                 <div key={bId} className={s.cutBlock}>
                   <span className={s.cutShots}>
-                    {shots.map((id) => (seq?.shotIds.indexOf(id) ?? 0) + 1).join(', ')}
+                    {/* Numéros du découpage (les caméras d'un même cadre d'interview : 1A, 1B). */}
+                    {shots.map((id) => shotNumberLabel(doc, id)).join(', ')}
                   </span>
                   {b.text && <p>{b.text}</p>}
                   {b.dialogue &&
