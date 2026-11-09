@@ -1,3 +1,4 @@
+.headTools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .search { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); color: var(--ink-soft); }
 .search input { border: 0; outline: none; background: transparent; min-width: 220px; color: var(--ink); }
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 14px; }

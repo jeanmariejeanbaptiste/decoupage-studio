@@ -12,7 +12,7 @@ import { renderTokens } from '../../domain/tokens';
 import type { Character, CharacterKind, Decor, Effect, FilmingLocation, ID, IntExt, ProjectDoc, Sequence, Shot, ShotStatus } from '../../domain/types';
 import { decorLocation, setDecorLocation } from '../../domain/locations';
 import { isZoom } from '../../domain/vocabulary';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { DataTable, type Column } from '../../ui/DataTable';
@@ -102,19 +102,23 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <TabExport id="registry" orientation="landscape"
-          doc={() => registryDocument(doc)}
-          fileBase={`${doc.project.title || 'projet'}-registre`}
-          file={{
-            label: 'CSV de l’onglet',
-            name: `${doc.project.title || 'projet'}-${tab}.csv`,
-            content: () => ({ sequences: sequencesCsv, characters: charactersCsv, decors: decorsCsv, shots: shotsCsv })[tab](doc),
-          }}
-        />
-        <label className={s.search}>
-          <Search size={15} strokeWidth={1.25} />
-          <input data-view type="search" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher dans le registre" />
-        </label>
+        <div className={s.headTools}>
+          <label className={s.search}>
+            <Search size={15} strokeWidth={1.25} />
+            <input data-view type="search" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher dans le registre" />
+          </label>
+          <TabExport
+            id="registry"
+            orientation="landscape"
+            doc={() => registryDocument(useProjectStore.getState().doc ?? doc)}
+            fileBase={`${doc.project.title || 'projet'}-registre`}
+            file={{
+              label: 'CSV de l’onglet',
+              name: `${doc.project.title || 'projet'}-${tab}.csv`,
+              content: () => ({ sequences: sequencesCsv, characters: charactersCsv, decors: decorsCsv, shots: shotsCsv })[tab](useProjectStore.getState().doc ?? doc),
+            }}
+          />
+        </div>
       </header>
       <div className={s.tabs} role="tablist">
         {TABS.map((t) => (

@@ -1,14 +1,14 @@
 import { fold } from '../../domain/text';
 import { useMemo, useState } from 'react';
-import { Download, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { TabExport } from '../export/TabExport';
 import { equipmentDocument } from '../../domain/documents';
+import { equipmentCsv } from '../../domain/exports';
 import { aggregateEquipment, equipmentCategories, removeBreakdownEquipment } from '../../domain/equipment';
 import { newId } from '../../domain/factory';
 import { shotCode } from '../../domain/numbering';
 import type { EquipmentCategory, ProjectDoc } from '../../domain/types';
-import { downloadBlob } from '../../store/persistence';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { goToShot } from '../registry/RegistryPage';
@@ -29,22 +29,16 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const [query, setQuery] = useState('');
   const [picked, setOnly] = useState<string | null>(null);
   const q = fold(query.trim());
+  const title = doc.project.title || 'projet';
   const cats = equipmentCategories(doc);
   // Poste retiré entre-temps (ici ou par un autre participant) : retour à tous les postes.
   const only = picked && cats.includes(picked) ? picked : null;
   const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => fold(shotCode(doc, id)).includes(q)));
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
 
-  const csv = () => {
-    const lines = ['Poste;Matériel;Plans;Ajout manuel'];
-    for (const c of equipmentCategories(doc))
-      for (const l of lists[c]) lines.push([c, l.label, l.shotIds.map((id) => shotCode(doc, id)).join(' '), l.manual ? 'oui' : ''].map((v) => `"${v.replace(/"/g, '""')}"`).join(';'));
-    downloadBlob(new Blob([`\uFEFF${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8' }), `${doc.project.title || 'projet'}-materiel.csv`);
-  };
-
   return (
     <div className="page page--wide">
-      <header className="page-head">
+      <header className={['page-head', s.head].join(' ')}>
         <nav className={[s.summary, 'no-print'].join(' ')} aria-label="Postes" data-view>
           <button type="button" className={only === null ? s.chipOn : s.chip} onClick={() => setOnly(null)}>
             Tous <em>{cats.reduce((n, c) => n + lists[c].length, 0)}</em>
@@ -57,7 +51,7 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
           ))}
         </nav>
         <div className={[s.actions, 'no-print'].join(' ')}>
-          <input data-view className={s.search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher du matériel ou un plan…" aria-label="Rechercher du matériel" />
+          <input data-view className={s.search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher…" aria-label="Rechercher du matériel" />
           <label className={s.toggle} data-view>
             <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />
             Afficher les plans concernés
@@ -73,10 +67,13 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
           >
             Poste
           </Button>
-          <TabExport id="equipment" orientation="portrait" doc={() => equipmentDocument(doc, showShots)} fileBase={`${doc.project.title || 'projet'}-materiel`} />
-          <Button variant="ghost" icon={<Download size={15} strokeWidth={1.25} />} onClick={csv}>
-            CSV
-          </Button>
+          <TabExport
+            id="equipment"
+            orientation="portrait"
+            doc={() => equipmentDocument(useProjectStore.getState().doc ?? doc, showShots)}
+            fileBase={`${title}-materiel`}
+            file={{ label: 'CSV', name: `${title}-materiel.csv`, content: () => equipmentCsv(useProjectStore.getState().doc ?? doc) }}
+          />
         </div>
       </header>
       <div className={s.grid}>
