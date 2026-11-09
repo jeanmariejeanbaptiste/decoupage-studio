@@ -3,6 +3,8 @@ import { Plus, Trash2 } from 'lucide-react';
 import type { SBlock } from '../../domain/screenplay';
 import { characterReports, locationReports, matchesName, renameCharacter, renameDecor, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
 import { addCharacter } from '../../domain/ops';
+// Arrondi à la seconde avant de découper (59,6 s font « 1:00 », jamais « 0:60 »).
+import { mmss } from '../../domain/chronometry';
 import { addDecor } from '../../domain/registry';
 import { newId } from '../../domain/factory';
 import { fold } from '../../domain/text';
@@ -12,7 +14,6 @@ import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { registerFlush } from '../../store/persistence';
 import s from './ResearchPanels.module.css';
 
-const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
 /** « LA MÈRE » → « La Mère » (nom d'une fiche créée depuis le texte). */
 const titleCase = (s: string) => s.toLocaleLowerCase('fr').replace(/(^|[\s'’-])(\p{L})/gu, (_, a: string, b: string) => a + b.toLocaleUpperCase('fr'));
 
