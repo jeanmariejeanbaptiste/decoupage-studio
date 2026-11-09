@@ -1,6 +1,7 @@
 import { sequenceCharacterIds } from './characters';
 import { newId } from './factory';
 import { decorLocation } from './locations';
+import { keptElsewhere } from './ops';
 import { shotDurationSec } from './rows';
 import { fold } from './text';
 import { formatTc } from './timecode';
@@ -139,10 +140,13 @@ export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay
 export function removeDay(doc: ProjectDoc, n: number): void {
   const sch = ensureSchedule(doc);
   sch.days = sch.days.filter((d) => d.n !== n);
-  for (const s of Object.values(doc.shots)) if (s.shootingDay === n) s.shootingDay = undefined;
-  const rank = new Map(scheduleDays(doc).map((d, i) => [d.n, i + 1]));
+  // Le jour vit sur le plan : les versions rangées (mêmes plans, figés) suivent la même renumérotation.
+  const shots = [doc.shots, ...(doc.versions ?? []).map((v) => v.slice?.shots ?? {})].flatMap((m) => Object.values(m));
+  for (const s of shots) if (s.shootingDay === n) s.shootingDay = undefined;
+  const all = new Set([...sch.days.map((d) => d.n), ...shots.map((s) => s.shootingDay).filter((x): x is number => x !== undefined)]);
+  const rank = new Map([...all].sort((a, b) => a - b).map((x, i) => [x, i + 1]));
   for (const d of sch.days) d.n = rank.get(d.n) ?? d.n;
-  for (const s of Object.values(doc.shots)) if (s.shootingDay !== undefined) s.shootingDay = rank.get(s.shootingDay) ?? s.shootingDay;
+  for (const s of shots) if (s.shootingDay !== undefined) s.shootingDay = rank.get(s.shootingDay) ?? s.shootingDay;
 }
 
 export function assignShots(doc: ProjectDoc, shotIds: readonly ID[], day: number | undefined): void {
@@ -235,10 +239,13 @@ export function suggestSchedule(doc: ProjectDoc, capacity = 20): number {
   sch.order = ordered;
   for (let n = 1; n <= day; n++) if (!sch.days.some((d) => d.n === n)) sch.days.push({ n });
   sch.days.sort((a, b) => a.n - b.n);
-  // Créneaux qui ne correspondent plus au jour du plan : retirés (l'emploi du temps est à refaire).
+  // Créneaux qui ne correspondent plus au jour du plan : retirés (l'emploi du temps est à refaire),
+  // sauf ceux qu'une version rangée tient encore ce jour-là (l'emploi du temps est commun aux versions).
+  const stored = (doc.versions ?? []).map((v) => v.slice?.shots ?? {});
+  const heldElsewhere = (id: ID, n: number) => stored.some((m) => m[id]?.shootingDay === n);
   for (const d of sch.days) {
-    for (const id of Object.keys(d.timeline ?? {})) if (doc.shots[id]?.shootingDay !== d.n) delete d.timeline![id];
-    for (const id of Object.keys(d.parts ?? {})) if (!doc.shots[id]) delete d.parts![id];
+    for (const id of Object.keys(d.timeline ?? {})) if (doc.shots[id]?.shootingDay !== d.n && !heldElsewhere(id, d.n)) delete d.timeline![id];
+    for (const id of Object.keys(d.parts ?? {})) if (!doc.shots[id] && !keptElsewhere(doc, 'shots', id)) delete d.parts![id];
   }
   return day;
 }
