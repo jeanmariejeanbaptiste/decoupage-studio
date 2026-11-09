@@ -451,8 +451,8 @@ export function mergeCharacters(doc: ProjectDoc, fromId: ID, intoId: ID): void {
 }
 
 /**
- * Fiche fusionnée ou supprimée : les convocations du plan de travail et les comédiens posés sur
- * les plans au sol suivent (vers la fiche gardée, ou plus de fiche).
+ * Fiche fusionnée ou supprimée : les convocations du plan de travail, les comédiens posés sur
+ * les plans au sol et les versions rangées suivent (vers la fiche gardée, ou plus de fiche).
  */
 export function remapCharacter(doc: ProjectDoc, fromId: ID, intoId?: ID): void {
   for (const d of doc.schedule?.days ?? []) {
@@ -462,6 +462,12 @@ export function remapCharacter(doc: ProjectDoc, fromId: ID, intoId?: ID): void {
   }
   for (const plan of Object.values(doc.floorPlans ?? {}))
     for (const it of plan.items) if (it.kind === 'actor' && it.characterId === fromId) it.characterId = intoId;
+  // Versions rangées : la fiche est commune, leurs séquences et leurs plans suivent aussi.
+  const swap = (ids: ID[]) => [...new Set(ids.flatMap((c) => (c === fromId ? (intoId ? [intoId] : []) : [c])))];
+  for (const v of doc.versions ?? []) {
+    for (const q of Object.values(v.slice?.sequences ?? {})) if (q.characterIds?.includes(fromId)) q.characterIds = swap(q.characterIds);
+    for (const sh of Object.values(v.slice?.shots ?? {})) if (sh.characterIds?.includes(fromId)) sh.characterIds = swap(sh.characterIds);
+  }
 }
 
 /** Vérifie les invariants du §3 ; renvoie la liste des violations (vide si tout va bien). */

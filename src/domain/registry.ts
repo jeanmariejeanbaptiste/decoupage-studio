@@ -125,9 +125,38 @@ export function addDecor(doc: ProjectDoc, init: Partial<Decor> & { name: string 
   return d.id;
 }
 
+/** Supprime un décor partout, versions rangées comprises : aucune séquence n'y renvoie plus. */
 export function deleteDecor(doc: ProjectDoc, id: ID): void {
   delete doc.decors[id];
-  for (const seq of Object.values(doc.sequences)) if (seq.decorId === id) seq.decorId = undefined;
+  const seqs = [...Object.values(doc.sequences), ...(doc.versions ?? []).flatMap((v) => Object.values(v.slice?.sequences ?? {}))];
+  for (const seq of seqs) if (seq.decorId === id) seq.decorId = undefined;
+}
+
+/**
+ * Versions rangées (hors la courante) qui se servent encore de chaque décor ou personnage, par
+ * leur nom. Ces fiches sont communes à toutes les versions : « inutilisé » ne vaut que si aucune
+ * ne s'en sert.
+ */
+export function usageInOtherVersions(doc: ProjectDoc, kind: 'decor' | 'character'): Map<ID, string[]> {
+  const out = new Map<ID, string[]>();
+  const add = (id: ID | undefined, name: string) => {
+    if (!id) return;
+    const l = out.get(id) ?? [];
+    if (!l.includes(name)) out.set(id, [...l, name]);
+  };
+  for (const v of doc.versions ?? []) {
+    if (v.id === doc.activeVersionId || !v.slice) continue;
+    for (const seqId of v.slice.sequenceIds) {
+      const q = v.slice.sequences[seqId];
+      if (!q) continue;
+      if (kind === 'decor') add(q.decorId, v.name);
+      else {
+        for (const c of q.characterIds ?? []) add(c, v.name);
+        for (const shotId of q.shotIds) for (const c of v.slice.shots[shotId]?.characterIds ?? []) add(c, v.name);
+      }
+    }
+  }
+  return out;
 }
 
 /** Décor d'une séquence : rattache à un décor existant de même nom, sinon le crée. */

@@ -2,7 +2,7 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
 import { createProjectDoc } from './factory';
-import { runChecks } from './lint';
+import { CHECK_LABELS, runChecks } from './lint';
 import { addSequence, addShot } from './ops';
 import { computeTiming } from './timing';
 import type { ProjectDoc } from './types';
@@ -47,6 +47,11 @@ describe('contrôles de la scripte (§9)', () => {
     const doc = docWith([{ init: { subject: 'a', value: 'Taille' }, action: { text: 'x', overrideSec: 60 } }]);
     doc.sequences[doc.project.sequenceIds[0]].estimatedSec = 30;
     expect(codes(doc)).toContain('estimate-gap');
+    // Le lien ne répète pas le titre de la carte ; « % » ne passe pas seul à la ligne.
+    const gap = check(doc).find((i) => i.code === 'estimate-gap')!;
+    expect(gap.where).toBe('Séquence');
+    expect(gap.message).toMatch(/\d\u202f% entre/);
+    expect(CHECK_LABELS['estimate-gap']).toContain('25\u202f%');
   });
   it('rappels drone et sécurité ; un sujet qui n’est pas un personnage (insert, objet) n’est pas une erreur', () => {
     const c = codes(docWith([{ init: { subject: 'Affiche', value: 'Général', movement: ['Drone'] } }, { init: { subject: 'a', value: 'Taille', movement: ['Épaule'] } }]));

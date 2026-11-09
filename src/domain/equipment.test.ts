@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { aggregateEquipment, deduceEquipment } from './equipment';
+import { produce } from 'immer';
+import { buildFiction } from '../../seed/fiction';
+import { addBreakdownItems, derivedBreakdown } from './breakdown';
+import { breakdownCsv, equipmentCsv } from './exports';
+import { aggregateEquipment, deduceEquipment, removeBreakdownEquipment } from './equipment';
 import { makeShot } from './factory';
 
 const shot = (movement: string[], extra: Parameters<typeof makeShot>[2] = {}) => makeShot('s', 'b', { movement, ...extra });
@@ -59,5 +63,40 @@ describe('matériel déduit (§10)', () => {
     expect(rails.shotIds).not.toContain(firstShot);
     expect(agg.Lumière.some((l) => l.label === 'Projecteurs effet nuit')).toBe(true);
     expect(agg.Son.find((l) => l.manual)?.label).toBe('Enceinte de retour');
+  });
+});
+
+describe('matériel : une seule liste avec le dépouillement', () => {
+  const base = buildFiction();
+  const [s1, s2] = base.project.sequenceIds;
+  const doc = produce(base, (d) => {
+    addBreakdownItems(d, s1, 'machinerie', ['Grue Louma']);
+    addBreakdownItems(d, s2, 'machinerie', ['grue louma']);
+    addBreakdownItems(d, s1, 'lumiere', ['Ballon HMI 4K']);
+    d.manualEquipment.push({ id: 'w', category: 'Machinerie', label: 'Travelling Western', shotIds: [d.sequences[s2].shotIds[0]] });
+  });
+
+  it('ce qui est dépouillé rejoint le poste, avec les plans de ses séquences, une seule fois', () => {
+    const eq = aggregateEquipment(doc);
+    const grue = eq.Machinerie.filter((l) => l.label.toLowerCase() === 'grue louma');
+    expect(grue).toHaveLength(1);
+    expect(grue[0].fromBreakdown).toBe(true);
+    expect(grue[0].shotIds).toEqual([...doc.sequences[s1].shotIds, ...doc.sequences[s2].shotIds]);
+    expect(eq.Lumière.some((l) => l.label === 'Ballon HMI 4K')).toBe(true);
+    expect(equipmentCsv(doc)).toContain('Ballon HMI 4K');
+  });
+
+  it('le matériel ajouté pour des plans revient au dépouillement de leur séquence, sans doublon', () => {
+    expect(derivedBreakdown(doc, s2).machinerie).toContain('Travelling Western');
+    expect(derivedBreakdown(doc, s1).machinerie).not.toContain('Travelling Western');
+    expect(derivedBreakdown(doc, s1).machinerie).not.toContain('Grue Louma');
+    expect(breakdownCsv(doc).match(/Grue Louma/g)).toHaveLength(1);
+  });
+
+  it('retiré du matériel, il sort aussi du dépouillement', () => {
+    const next = produce(doc, (d) => removeBreakdownEquipment(d, 'Machinerie', 'Grue Louma'));
+    expect(next.breakdown?.[s1]?.machinerie).toEqual([]);
+    expect(next.breakdown?.[s2]?.machinerie).toEqual([]);
+    expect(aggregateEquipment(next).Machinerie.some((l) => /louma/i.test(l.label))).toBe(false);
   });
 });

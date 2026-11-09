@@ -13,7 +13,7 @@ import { exportBase } from '../../domain/serialize';
 type Report = 'items' | 'sequences';
 type ItemSort = 'film' | 'often' | 'long' | 'alpha';
 
-/** Numéros et libellés du dépouillement (ceux du scénario), par séquence du découpage. */
+/** Numéros et libellés du dépouillement (ceux du découpage), par séquence. */
 interface Numbering {
   no: (seqId: ID) => number | undefined;
   label: (seqId: ID) => string;
@@ -26,7 +26,7 @@ interface Numbering {
 export function BreakdownReports({ doc, entries: scenes, onGo }: { doc: ProjectDoc; entries: readonly Entry[]; onGo: (seqId: ID) => void }) {
   const entries = useMemo(() => breakdownIndex(doc, computeTiming(doc)), [doc]);
   const numbering = useMemo<Numbering>(() => {
-    const { byKey, bySeq } = entryNumbers(scenes);
+    const { byKey, bySeq } = entryNumbers(doc, scenes);
     return {
       no: (id) => bySeq.get(id),
       label: (id) => {
@@ -71,11 +71,11 @@ export function BreakdownReports({ doc, entries: scenes, onGo }: { doc: ProjectD
         </div>
       </div>
       <div className={r.bar}>
-        <select value={report} onChange={(e) => setReport(e.target.value as Report)} aria-label="Rapport">
+        <select value={report} onChange={(e) => setReport(e.target.value as Report)} aria-label="Rapport" data-view>
           <option value="items">Éléments et leurs séquences</option>
           <option value="sequences">Séquences et leurs éléments</option>
         </select>
-        <button type="button" className={r.icon} onClick={() => void print()} aria-label="Exporter ce rapport en PDF" title="Exporter en PDF">
+        <button type="button" className={r.icon} onClick={() => void print()} aria-label="Exporter ce rapport en PDF" title="Exporter en PDF" data-view data-export>
           <Printer size={15} strokeWidth={1.3} />
         </button>
       </div>
@@ -122,7 +122,7 @@ function ItemsReport({
   const grouped = sort === 'film' && !cat;
   return (
     <>
-      <div className={r.opts}>
+      <div className={r.opts} data-view>
         <label className={r.sort}>
           <span>Catégorie</span>
           <select value={cat} onChange={(e) => setCat(e.target.value)} data-testid="breakdown-report-cat">
@@ -182,7 +182,7 @@ function ItemRow({ numbering, e, head, withCat, onGo }: { numbering: Numbering; 
         <td className={e.manualSeqIds.length ? '' : s.fromCut}>{e.item}</td>
         {withCat && <td className={r.muted}>{breakdownLabel(e.cat)}</td>}
         <td>
-          <span className={s.seqLinks}>
+          <span className={s.seqLinks} data-view>
             {[...e.seqIds]
               .sort((a, b) => (numbering.no(a) ?? 0) - (numbering.no(b) ?? 0))
               .map((id) => (
@@ -201,7 +201,7 @@ function ItemRow({ numbering, e, head, withCat, onGo }: { numbering: Numbering; 
 }
 
 function SequencesReport({ doc, scenes, entries, cats, onGo }: { doc: ProjectDoc; scenes: readonly Entry[]; entries: BreakdownEntry[]; cats: BreakdownCategory[]; onGo: (seqId: ID) => void }) {
-  const { byKey } = entryNumbers(scenes);
+  const { byKey } = entryNumbers(doc, scenes);
   const rows = scenes.map((sc) => {
     const counts = sc.seqId ? sequenceCounts(entries, sc.seqId) : new Map<BreakdownCategory, number>();
     return { sc, counts, total: [...counts.values()].reduce((a, b) => a + b, 0) };
@@ -224,7 +224,7 @@ function SequencesReport({ doc, scenes, entries, cats, onGo }: { doc: ProjectDoc
           <tr key={sc.key} data-testid="breakdown-report-seq">
             <td>
               {sc.seqId ? (
-                <button type="button" className={r.link} onClick={() => onGo(sc.seqId!)}>
+                <button type="button" className={r.link} onClick={() => onGo(sc.seqId!)} data-view>
                   {entryLabel(doc, sc, byKey.get(sc.key))}
                 </button>
               ) : (

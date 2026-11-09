@@ -1,7 +1,10 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
+import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
-import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, numberedCast, sequenceProgress, setSequenceDecorByName, usageDayLabel } from './registry';
+import { deleteSequence, mergeCharacters } from './ops';
+import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, numberedCast, sequenceProgress, setSequenceDecorByName, usageDayLabel, usageInOtherVersions } from './registry';
+import { createVersion, switchVersion } from './versions';
 import { assignShots, updateDay } from './schedule';
 import { computeTiming } from './timing';
 
@@ -84,5 +87,45 @@ describe('registre : colonnes calculées depuis le plan de travail', () => {
     const empty = produce(next, (x) => void addDecor(x, { name: 'Grenier' }));
     const grenier = Object.values(empty.decors).find((x) => x.name === 'Grenier')!.id;
     expect(decorUsage(empty).get(grenier)).toEqual({ days: [], sequenceIds: [] });
+  });
+});
+
+describe('registre : fiches communes aux versions', () => {
+  const base = buildFiction();
+  const parvis = base.project.sequenceIds[2];
+  const decorId = base.sequences[parvis].decorId!;
+  // V2 sans la séquence du parvis : V1 la garde, avec son décor et ses personnages.
+  const doc = produce(base, (d) => {
+    createVersion(d);
+    deleteSequence(d, parvis);
+  });
+  const v1 = doc.versions![0];
+  const all = (x: typeof doc) => {
+    const sl = x.versions![0].slice!;
+    return [...Object.values(sl.shots).flatMap((s) => s.characterIds), ...Object.values(sl.sequences).flatMap((q) => q.characterIds)];
+  };
+
+  it('un décor que seule une autre version emploie n’est pas « inutilisé »', () => {
+    expect(decorUsage(doc).get(decorId)?.sequenceIds).toEqual([]);
+    expect(usageInOtherVersions(doc, 'decor').get(decorId)).toEqual([v1.name]);
+    expect(usageInOtherVersions(base, 'decor').size).toBe(0);
+  });
+
+  it('supprimer un décor ne laisse aucun identifiant orphelin dans les versions rangées', () => {
+    const next = produce(doc, (d) => deleteDecor(d, decorId));
+    expect(next.versions![0].slice!.sequences[parvis].decorId).toBeUndefined();
+    const back = produce(next, (d) => switchVersion(d, v1.id));
+    expect(Object.values(back.sequences).some((q) => q.decorId === decorId)).toBe(false);
+  });
+
+  it('supprimer ou fusionner un personnage suit aussi dans les versions rangées', () => {
+    const charId = all(doc)[0];
+    expect(charId).toBeDefined();
+    expect(usageInOtherVersions(doc, 'character').get(charId)).toEqual([v1.name]);
+    const other = Object.keys(doc.characters).find((id) => id !== charId)!;
+    expect(all(produce(doc, (d) => deleteCharacter(d, charId)))).not.toContain(charId);
+    const merged = all(produce(doc, (d) => mergeCharacters(d, charId, other)));
+    expect(merged).not.toContain(charId);
+    expect(merged).toContain(other);
   });
 });

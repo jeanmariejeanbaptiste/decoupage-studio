@@ -1,8 +1,9 @@
 /* Postes sans couleur : un seul ton, l'encre. */
 :global(:root) { --tone: var(--ink); }
-.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.search { font: inherit; font-size: 13px; padding: 5px 10px; width: 240px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); color: var(--ink); }
-.summary { display: flex; flex-wrap: wrap; gap: 6px; }
+.head { align-items: flex-start; }
+.actions { display: flex; gap: 8px; align-items: center; flex: none; margin-left: auto; }
+.search { font: inherit; font-size: 13px; padding: 5px 10px; width: 160px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); color: var(--ink); }
+.summary { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 0; min-width: 0; }
 .chip, .chipOn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); font-size: 13px; cursor: pointer; color: var(--ink); }
 .chip i, .chipOn i { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
 .chip em, .chipOn em { font-style: normal; font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
@@ -26,4 +27,7 @@
 .add input { flex: 1; font: inherit; font-size: 13px; padding: 5px 10px; border: 1px dashed var(--rule); border-radius: var(--radius); background: transparent; }
 .add input:focus { border-style: solid; border-color: var(--tone); background: var(--paper); }
 .toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-soft); }
+.newPost { break-inside: avoid; margin-bottom: 16px; }
+.newPost input { width: 100%; font: inherit; font-size: 13px; padding: 6px 10px; border: 1px dashed var(--rule); border-radius: var(--radius); background: transparent; color: var(--ink); }
+.newPost input:focus { border-style: solid; border-color: var(--ink-soft); outline: none; background: var(--paper-card); }
 @media print { .grid { columns: 2; } }

@@ -1,5 +1,5 @@
 import { matchSequence, scenesOf, type Scene } from '../../domain/fountain';
-import { sequenceHeading } from '../../domain/numbering';
+import { sequenceHeading, sequenceNumber } from '../../domain/numbering';
 import type { ID, ProjectDoc } from '../../domain/types';
 
 /** Une scène à dépouiller : scène du scénario, séquence du découpage, ou les deux. */
@@ -31,17 +31,20 @@ export function entryName(doc: ProjectDoc, e: Entry): string {
 }
 
 /**
- * Numéros du dépouillement : ceux du scénario (la scène n porte le numéro n, comme dans l'éditeur),
- * puis, à la suite, les séquences du découpage sans passage écrit. Un même numéro partout : liste,
- * fiche, rapports.
+ * Numéros du dépouillement : ceux du découpage (sequenceNumber), comme la grille, le registre, les
+ * vérifications et l'export. Une scène du scénario pas encore au découpage n'a pas de numéro (« – »)
+ * et ne décale pas les autres. Un même numéro partout : liste, fiche, rapports, export.
  */
-export function entryNumbers(entries: readonly Entry[]): { byKey: Map<string, number>; bySeq: Map<ID, number> } {
+export function entryNumbers(doc: ProjectDoc, entries: readonly Entry[]): { byKey: Map<string, number>; bySeq: Map<ID, number> } {
   const byKey = new Map<string, number>();
   const bySeq = new Map<ID, number>();
-  entries.forEach((e, i) => {
-    byKey.set(e.key, i + 1);
-    if (e.seqId) bySeq.set(e.seqId, i + 1);
-  });
+  for (const e of entries) {
+    if (!e.seqId) continue;
+    const n = sequenceNumber(doc, e.seqId);
+    if (n <= 0) continue;
+    byKey.set(e.key, n);
+    bySeq.set(e.seqId, n);
+  }
   return { byKey, bySeq };
 }
 

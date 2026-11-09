@@ -66,6 +66,7 @@ export function DataTable<T>({ rows, columns, rowKey, search = '', empty, rowPro
                   <button
                     type="button"
                     className={s.sortBtn}
+                    data-view
                     onClick={() => setSort(active ? (sort?.dir === 1 ? { key: c.key, dir: -1 } : null) : { key: c.key, dir: 1 })}
                   >
                     {c.label}

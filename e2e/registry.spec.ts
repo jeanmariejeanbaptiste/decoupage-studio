@@ -49,4 +49,23 @@ test.describe('registre', () => {
     await page.goto('/#/registry?seed=rav3&tab=decors');
     await expect(page.getByRole('table', { name: 'Décors' }).locator('tbody tr').filter({ hasText: 'LOGE' })).toContainText('0:16');
   });
+
+  test('décors : celui d’une autre version n’est pas « inutilisé », sa suppression le dit', async ({ page }) => {
+    await page.goto('/#/grid?seed=fiction');
+    await page.getByTestId('version-switcher').click();
+    await page.getByTestId('version-new').click();
+    const seq3 = page.locator('tbody[data-seq]').nth(2);
+    await seq3.locator('[data-cell$=":sequence"]').hover();
+    // V1 la garde : elle part sans confirmation.
+    await seq3.getByTestId('delete-sequence').click();
+    await expect(page.locator('tbody[data-seq]')).toHaveCount(2);
+    await page.goto('/#/registry?tab=decors');
+    const row = page.getByRole('table', { name: 'Décors' }).locator('tbody tr').filter({ hasText: 'PARVIS DE LA GARE' });
+    await expect(row).toContainText('en V1');
+    await expect(row).not.toContainText('inutilisé');
+    await row.getByRole('button', { name: 'Supprimer PARVIS DE LA GARE' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText('V1 s’en sert encore');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Annuler' }).click();
+    await expect(row).toBeVisible();
+  });
 });

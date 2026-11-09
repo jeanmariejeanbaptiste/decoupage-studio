@@ -1,4 +1,4 @@
-import { shotCode, sequenceHeading } from './numbering';
+import { shotCode } from './numbering';
 import { fold, mergeKey } from './text';
 import type { Timing } from './timing';
 import { tokensKey } from './tokens';
@@ -36,7 +36,7 @@ export const CHECK_LABELS: Readonly<Record<CheckCode, string>> = {
   'empty-sequence': 'Séquence sans plan',
   'doc-open-wide': 'Documentaire : ouverture sans plan large',
   'doc-close-wide': 'Documentaire : fermeture sans plan large',
-  'estimate-gap': 'Écart estimé / calculé supérieur à 25 %',
+  'estimate-gap': 'Écart estimé / calculé supérieur à 25\u202f%',
   drone: 'Rappel réglementaire drone',
   'stabilizer-safety': 'Rappel sécurité machiniste',
 };
@@ -62,7 +62,9 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
   for (const seqId of doc.project.sequenceIds) {
     const seq = doc.sequences[seqId];
     if (!seq) continue;
-    const where = sequenceHeading(doc, seqId);
+    // La carte porte déjà le titre de la séquence : le lien dit seulement où il mène.
+    const where = 'Séquence';
+    const at = (shotId?: ID) => (shotId ? `Plan ${shotCode(doc, shotId)}` : where);
     if (seq.shotIds.length === 0) {
       push({ code: 'empty-sequence', level: 'warn', sequenceId: seqId, where, message: 'Cette séquence ne contient aucun plan.' });
     } else if (doc.project.format === 'institutionnel') {
@@ -71,14 +73,14 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
       const first = doc.shots[broll[0]];
       const last = doc.shots[broll[broll.length - 1]];
       if (first && !isWide(first.value))
-        push({ code: 'doc-open-wide', level: 'warn', sequenceId: seqId, shotId: first.id, where, message: 'La séquence ne s’ouvre pas sur un plan large (général, ensemble ou moyen).' });
+        push({ code: 'doc-open-wide', level: 'warn', sequenceId: seqId, shotId: first.id, where: at(first.id), message: 'La séquence ne s’ouvre pas sur un plan large (général, ensemble ou moyen).' });
       if (last && !isWide(last.value))
-        push({ code: 'doc-close-wide', level: 'warn', sequenceId: seqId, shotId: last.id === first?.id ? undefined : last.id, where, message: 'La séquence ne se ferme pas sur un plan large (général, ensemble ou moyen).' });
+        push({ code: 'doc-close-wide', level: 'warn', sequenceId: seqId, shotId: last.id === first?.id ? undefined : last.id, where: at(last.id === first?.id ? undefined : last.id), message: 'La séquence ne se ferme pas sur un plan large (général, ensemble ou moyen).' });
     }
 
     const gap = timing.sequences.get(seqId)?.gap;
     if (gap && Math.abs(gap.pct) > 25) {
-      push({ code: 'estimate-gap', level: 'warn', sequenceId: seqId, where, message: `Écart de ${Math.round(gap.pct)} % entre durée estimée et durée calculée.` });
+      push({ code: 'estimate-gap', level: 'warn', sequenceId: seqId, where, message: `Écart de ${Math.round(gap.pct)}\u202f% entre durée estimée et durée calculée.` });
     }
 
     seq.shotIds.forEach((shotId, i) => {

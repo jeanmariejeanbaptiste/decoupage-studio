@@ -1,15 +1,16 @@
 import { fold } from '../../domain/text';
 import { useMemo, useState } from 'react';
-import { Download, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { TabExport } from '../export/TabExport';
 import { equipmentDocument } from '../../domain/documents';
-import { aggregateEquipment, equipmentCategories } from '../../domain/equipment';
+import { equipmentCsv } from '../../domain/exports';
+import { aggregateEquipment, equipmentCategories, removeBreakdownEquipment } from '../../domain/equipment';
 import { newId } from '../../domain/factory';
 import { shotCode } from '../../domain/numbering';
 import type { EquipmentCategory, ProjectDoc } from '../../domain/types';
-import { downloadBlob } from '../../store/persistence';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
+import { ask } from '../../ui/dialogStore';
 import { Hand } from '../../ui/Hand';
 import { goToShot } from '../registry/RegistryPage';
 import s from './EquipmentPage.module.css';
@@ -33,20 +34,23 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
   const cats = equipmentCategories(doc);
   // Poste retiré entre-temps (ici ou par un autre participant) : retour à tous les postes.
   const only = picked && cats.includes(picked) ? picked : null;
-  const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => shotCode(doc, id).includes(q)));
+  const visible = (c: string) => lists[c].filter((l) => !q || fold(l.label).includes(q) || l.shotIds.some((id) => fold(shotCode(doc, id)).includes(q)));
   const [draft, setDraft] = useState<Record<EquipmentCategory, string>>({ Image: '', Machinerie: '', Lumière: '', Son: '' });
-
-  const csv = () => {
-    const lines = ['Poste;Matériel;Plans;Ajout manuel'];
-    for (const c of equipmentCategories(doc))
-      for (const l of lists[c]) lines.push([c, l.label, l.shotIds.map((id) => shotCode(doc, id)).join(' '), l.manual ? 'oui' : ''].map((v) => `"${v.replace(/"/g, '""')}"`).join(';'));
-    downloadBlob(new Blob([`\uFEFF${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8' }), `${exportBase(doc)}-materiel.csv`);
+  const [newPost, setNewPost] = useState('');
+  /** Nouveau poste ; un nom déjà pris (sans casse ni accents) mène au poste existant. */
+  const addPost = () => {
+    const name = newPost.trim();
+    if (!name) return;
+    const existing = cats.find((c) => fold(c) === fold(name));
+    if (existing) setOnly(existing);
+    else mutateDoc((d) => void (d.equipmentExtra = [...(d.equipmentExtra ?? []), name]));
+    setNewPost('');
   };
 
   return (
     <div className="page page--wide">
-      <header className="page-head">
-        <nav className={[s.summary, 'no-print'].join(' ')} aria-label="Postes">
+      <header className={['page-head', s.head].join(' ')}>
+        <nav className={[s.summary, 'no-print'].join(' ')} aria-label="Postes" data-view>
           <button type="button" className={only === null ? s.chipOn : s.chip} onClick={() => setOnly(null)}>
             Tous <em>{cats.reduce((n, c) => n + lists[c].length, 0)}</em>
           </button>
@@ -58,26 +62,18 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
           ))}
         </nav>
         <div className={[s.actions, 'no-print'].join(' ')}>
-          <input data-view className={s.search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher du matériel ou un plan…" aria-label="Rechercher du matériel" />
+          <input data-view className={s.search} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher…" aria-label="Rechercher du matériel" />
           <label className={s.toggle} data-view>
             <input type="checkbox" checked={showShots} onChange={(e) => setShowShots(e.target.checked)} data-testid="show-shots" />
             Afficher les plans concernés
           </label>
-          <Button
-            variant="ghost"
-            icon={<Plus size={15} strokeWidth={1.25} />}
-            data-testid="add-equipment-category"
-            onClick={() => {
-              const name = window.prompt('Nom du nouveau poste (ex. Décoration, Régie, Effets spéciaux)')?.trim();
-              if (name) mutateDoc((d) => void (d.equipmentExtra = [...new Set([...(d.equipmentExtra ?? []), name])]));
-            }}
-          >
-            Poste
-          </Button>
-          <TabExport id="equipment" orientation="portrait" doc={() => equipmentDocument(doc, showShots)} fileBase={`${exportBase(doc)}-materiel`} />
-          <Button variant="ghost" icon={<Download size={15} strokeWidth={1.25} />} onClick={csv}>
-            CSV
-          </Button>
+          <TabExport
+            id="equipment"
+            orientation="portrait"
+            doc={() => equipmentDocument(useProjectStore.getState().doc ?? doc, showShots)}
+            fileBase={`${exportBase(doc)}-materiel`}
+            file={{ label: 'CSV', name: `${exportBase(doc)}-materiel.csv`, content: () => equipmentCsv(useProjectStore.getState().doc ?? doc) }}
+          />
         </div>
       </header>
       <div className={s.grid}>
@@ -93,8 +89,8 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                   className="no-print"
                   aria-label={`Supprimer le poste ${c}`}
                   icon={<Trash2 size={12} />}
-                  onClick={() => {
-                    if (lists[c].length && !window.confirm(`Supprimer le poste « ${c} » et son matériel ? (annulable avec ⌘Z)`)) return;
+                  onClick={async () => {
+                    if (lists[c].length && !(await ask({ title: `Supprimer le poste « ${c} » ?`, body: 'Son matériel disparaît avec lui.', confirmLabel: 'Supprimer', danger: true })).ok) return;
                     mutateDoc((d) => {
                       d.equipmentExtra = (d.equipmentExtra ?? []).filter((x) => x !== c);
                       d.manualEquipment = d.manualEquipment.filter((m) => m.category !== c);
@@ -112,11 +108,11 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                   <li key={l.key}>
                     <span className={s.label}>
                       {l.label}
-                      {l.manual && <span className={s.manual}>ajout</span>}
+                      {(l.manual || l.fromBreakdown) && <span className={s.manual}>ajout</span>}
                     </span>
                     <span className={s.nb}>{l.shotIds.length ? `${l.shotIds.length} plan${l.shotIds.length > 1 ? 's' : ''}` : ''}</span>
                     {showShots && (
-                    <span className={s.shots}>
+                    <span className={s.shots} data-view>
                       {l.shotIds.map((id) => (
                         <button key={id} type="button" onClick={() => goToShot(doc, id)}>
                           {shotCode(doc, id)}
@@ -124,14 +120,20 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
                       ))}
                     </span>
                     )}
-                    {l.manual && (
+                    {(l.manual || l.fromBreakdown) && (
                       <Button
                         variant="icon"
                         size="sm"
                         className="no-print"
                         aria-label={`Retirer ${l.label}`}
                         icon={<Trash2 size={12} />}
-                        onClick={() => mutateDoc((d) => void (d.manualEquipment = d.manualEquipment.filter((m) => `manual-${m.id}` !== l.key)))}
+                        onClick={() =>
+                          mutateDoc((d) => {
+                            // Saisi au dépouillement : il en sort aussi (une seule liste).
+                            if (l.fromBreakdown) removeBreakdownEquipment(d, l.category, l.label);
+                            else d.manualEquipment = d.manualEquipment.filter((m) => `manual-${m.id}` !== l.key);
+                          })
+                        }
                       />
                     )}
                   </li>
@@ -153,6 +155,26 @@ export function EquipmentPage({ doc }: { doc: ProjectDoc }) {
             </form>
           </section>
         ))}
+        <form
+          className={[s.newPost, 'no-print'].join(' ')}
+          onSubmit={(e) => {
+            e.preventDefault();
+            addPost();
+          }}
+        >
+          <input
+            value={newPost}
+            onChange={(e) => setNewPost(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return;
+              setNewPost('');
+              e.currentTarget.blur();
+            }}
+            placeholder="Nouveau poste…"
+            aria-label="Nouveau poste"
+            data-testid="add-equipment-category"
+          />
+        </form>
       </div>
     </div>
   );

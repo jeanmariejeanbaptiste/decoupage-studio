@@ -5,14 +5,14 @@ import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters'
 import { formatFocal } from '../../domain/focal';
 import { shotCode, sequenceNumber } from '../../domain/numbering';
 import { addCharacter, mergeCharacters, refreshRecognition } from '../../domain/ops';
-import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, sequenceProgress, setSequenceDecorByName, usageDayLabel, type ScheduleUsage } from '../../domain/registry';
+import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, sequenceProgress, setSequenceDecorByName, usageDayLabel, usageInOtherVersions, type ScheduleUsage } from '../../domain/registry';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { computeTiming, formatGap } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
 import type { Character, CharacterKind, Decor, Effect, FilmingLocation, ID, IntExt, ProjectDoc, Sequence, Shot, ShotStatus } from '../../domain/types';
 import { decorLocation, setDecorLocation } from '../../domain/locations';
 import { isZoom } from '../../domain/vocabulary';
-import { mutateDoc } from '../../store/projectStore';
+import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { DataTable, type Column } from '../../ui/DataTable';
@@ -53,15 +53,28 @@ export function goToShot(doc: ProjectDoc, shotId: ID | undefined) {
   navigate('grid');
 }
 
-/** Colonnes calculées depuis le plan de travail : séquences (« inutilisé » si aucune), premier jour, jours. */
-function usageColumns<T extends { id: ID }>(doc: ProjectDoc, usage: Map<ID, ScheduleUsage>): Column<T>[] {
+/** « V1 et V2 s'en servent encore. » */
+const stillUsedIn = (names: readonly string[]) => `${names.join(' et ')} ${names.length > 1 ? 's’en servent' : 's’en sert'} encore.`;
+
+/**
+ * Colonnes calculées depuis le plan de travail : séquences, premier jour, jours. Sans séquence ici,
+ * « en V1 » si une autre version s'en sert encore, sinon « inutilisé ».
+ */
+function usageColumns<T extends { id: ID }>(doc: ProjectDoc, usage: Map<ID, ScheduleUsage>, elsewhere: Map<ID, string[]>): Column<T>[] {
   const u = (r: T) => usage.get(r.id);
   return [
     {
       key: 'nseq',
       label: 'Séquences',
       align: 'right',
-      render: (r) => (u(r)?.sequenceIds.length ? u(r)!.sequenceIds.length : <span className={s.unusedTag}>inutilisé</span>),
+      render: (r) =>
+        u(r)?.sequenceIds.length ? (
+          u(r)!.sequenceIds.length
+        ) : elsewhere.get(r.id)?.length ? (
+          <span className={s.unusedTag}>en {elsewhere.get(r.id)!.join(', ')}</span>
+        ) : (
+          <span className={s.unusedTag}>inutilisé</span>
+        ),
       sort: (r) => u(r)?.sequenceIds.length ?? 0,
     },
     {
@@ -90,19 +103,23 @@ export function RegistryPage({ doc }: { doc: ProjectDoc }) {
   return (
     <div className="page page--wide">
       <header className="page-head">
-        <TabExport id="registry" orientation="landscape"
-          doc={() => registryDocument(doc)}
-          fileBase={`${exportBase(doc)}-registre`}
-          file={{
-            label: 'CSV de l’onglet',
-            name: `${exportBase(doc)}-${tab}.csv`,
-            content: () => ({ sequences: sequencesCsv, characters: charactersCsv, decors: decorsCsv, shots: shotsCsv })[tab](doc),
-          }}
-        />
-        <label className={s.search}>
-          <Search size={15} strokeWidth={1.25} />
-          <input data-view type="search" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher dans le registre" />
-        </label>
+        <div className={s.headTools}>
+          <label className={s.search}>
+            <Search size={15} strokeWidth={1.25} />
+            <input data-view type="search" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Rechercher dans le registre" />
+          </label>
+          <TabExport
+            id="registry"
+            orientation="landscape"
+            doc={() => registryDocument(useProjectStore.getState().doc ?? doc)}
+            fileBase={`${exportBase(doc)}-registre`}
+            file={{
+              label: 'CSV de l’onglet',
+              name: `${exportBase(doc)}-${tab}.csv`,
+              content: () => ({ sequences: sequencesCsv, characters: charactersCsv, decors: decorsCsv, shots: shotsCsv })[tab](useProjectStore.getState().doc ?? doc),
+            }}
+          />
+        </div>
       </header>
       <div className={s.tabs} role="tablist">
         {TABS.map((t) => (
@@ -138,7 +155,7 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
       label: 'N°',
       width: '48px',
       render: (q) => (
-        <button type="button" className={s.jump} onClick={() => goToShot(doc, q.shotIds[0])} title="Ouvrir dans la grille">
+        <button type="button" className={s.jump} onClick={() => goToShot(doc, q.shotIds[0])} title="Ouvrir dans la grille" data-view>
           {sequenceNumber(doc, q.id)}
         </button>
       ),
@@ -282,6 +299,7 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
 function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
   const stats = useMemo(() => characterStats(doc), [doc]);
   const usage = useMemo(() => characterUsage(doc), [doc]);
+  const elsewhere = useMemo(() => usageInOtherVersions(doc, 'character'), [doc]);
   const nums = useMemo(() => characterNumbers(doc), [doc]);
   const rows = sortedCharacters(doc);
   const [dragId, setDragId] = useState<ID | null>(null);
@@ -340,16 +358,16 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
       text: (c) => c.actor ?? '',
       edit: { get: (c) => c.actor ?? '', set: (c, v) => mutateDoc((d) => void (d.characters[c.id].actor = v.trim() || undefined)) },
     },
-    ...usageColumns<Character>(doc, usage).slice(0, 1),
+    ...usageColumns<Character>(doc, usage, elsewhere).slice(0, 1),
     { key: 'nshots', label: 'Plans', align: 'right', render: (c) => stats.get(c.id)?.shotIds.length ?? 0, sort: (c) => stats.get(c.id)?.shotIds.length ?? 0 },
-    ...usageColumns<Character>(doc, usage).slice(1),
+    ...usageColumns<Character>(doc, usage, elsewhere).slice(1),
     {
       key: 'list',
       label: 'Liste des séquences',
       render: (c) => (
         <span className={s.chips}>
           {(stats.get(c.id)?.sequenceIds ?? []).map((id) => (
-            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])}>
+            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])} data-view>
               {sequenceNumber(doc, id)}
             </button>
           ))}
@@ -378,7 +396,9 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
             aria-label={`Supprimer ${c.name}`}
             icon={<Trash2 size={13} strokeWidth={1.25} />}
             onClick={async () => {
-              const r = await ask({ title: `Supprimer « ${c.name} » ?`, body: 'Les plans gardent leur sujet ; seule la fiche disparaît.', confirmLabel: 'Supprimer', danger: true });
+              const other = elsewhere.get(c.id) ?? [];
+              const body = ['Les plans gardent leur sujet ; seule la fiche disparaît.', other.length ? `${stillUsedIn(other)} Le personnage n’y figurera plus.` : ''].filter(Boolean).join(' ');
+              const r = await ask({ title: `Supprimer « ${c.name} » ?`, body, confirmLabel: 'Supprimer', danger: true });
               if (r.ok) mutateDoc((d) => deleteCharacter(d, c.id));
             }}
           />
@@ -405,7 +425,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
         empty="Aucun personnage."
         rowProps={(c) => ({
           draggable: true,
-          className: [overId === c.id && dragId !== c.id ? s.dropTarget : '', usage.get(c.id)?.sequenceIds.length ? '' : s.unused].filter(Boolean).join(' ') || undefined,
+          className: [overId === c.id && dragId !== c.id ? s.dropTarget : '', usage.get(c.id)?.sequenceIds.length || elsewhere.has(c.id) ? '' : s.unused].filter(Boolean).join(' ') || undefined,
           onDragStart: (e: React.DragEvent) => {
             setDragId(c.id);
             e.dataTransfer.effectAllowed = 'move';
@@ -437,6 +457,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
 function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnType<typeof computeTiming>; search: string }) {
   const stats = useMemo(() => decorStats(doc, timing), [doc, timing]);
   const usage = useMemo(() => decorUsage(doc), [doc]);
+  const elsewhere = useMemo(() => usageInOtherVersions(doc, 'decor'), [doc]);
   const rows = Object.values(doc.decors).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   const columns: Column<Decor>[] = [
     { key: 'name', label: 'Nom', render: (d) => d.name, text: (d) => d.name, edit: { get: (d) => d.name, set: (d, v) => v.trim() && mutateDoc((x) => void (x.decors[d.id].name = v.trim())) } },
@@ -457,14 +478,14 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
         edit: { get: (d) => decorLocation(d)[k] ?? '', set: (d, v) => mutateDoc((x) => setDecorLocation(x, d.id, { [k]: v })) },
       }),
     ),
-    ...usageColumns<Decor>(doc, usage),
+    ...usageColumns<Decor>(doc, usage, elsewhere),
     {
       key: 'seqs',
       label: 'Liste des séquences',
       render: (d) => (
         <span className={s.chips}>
           {(stats.get(d.id)?.sequenceIds ?? []).map((id) => (
-            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])}>
+            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])} data-view>
               {sequenceNumber(doc, id)}
             </button>
           ))}
@@ -484,7 +505,25 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
       label: '',
       width: '44px',
       render: (d) => (
-        <Button variant="icon" size="sm" aria-label={`Supprimer ${d.name}`} icon={<Trash2 size={13} strokeWidth={1.25} />} onClick={() => mutateDoc((x) => deleteDecor(x, d.id))} />
+        <Button
+          variant="icon"
+          size="sm"
+          aria-label={`Supprimer ${d.name}`}
+          icon={<Trash2 size={13} strokeWidth={1.25} />}
+          onClick={async () => {
+            const n = usage.get(d.id)?.sequenceIds.length ?? 0;
+            const other = elsewhere.get(d.id) ?? [];
+            const body = [
+              n ? `${n} séquence${n > 1 ? 's' : ''} de cette version ${n > 1 ? 'n’auront' : 'n’aura'} plus de décor.` : '',
+              other.length ? `${stillUsedIn(other)} Ses séquences y perdront ce décor.` : '',
+              'Le lieu de tournage, son adresse et son contact disparaissent avec la fiche.',
+            ]
+              .filter(Boolean)
+              .join(' ');
+            const r = await ask({ title: `Supprimer « ${d.name} » ?`, body, confirmLabel: 'Supprimer', danger: true });
+            if (r.ok) mutateDoc((x) => deleteDecor(x, d.id));
+          }}
+        />
       ),
     },
   ];
@@ -495,7 +534,7 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
           Ajouter un décor
         </Button>
       </div>
-      <DataTable label="Décors" rows={rows} columns={columns} rowKey={(d) => d.id} search={search} empty="Aucun décor." rowProps={(d) => ({ className: usage.get(d.id)?.sequenceIds.length ? undefined : s.unused })} />
+      <DataTable label="Décors" rows={rows} columns={columns} rowKey={(d) => d.id} search={search} empty="Aucun décor." rowProps={(d) => ({ className: usage.get(d.id)?.sequenceIds.length || elsewhere.has(d.id) ? undefined : s.unused })} />
     </>
   );
 }
@@ -542,7 +581,7 @@ function ShotsTab({ doc, search }: { doc: ProjectDoc; search: string }) {
       label: 'Plan',
       width: '60px',
       render: (r) => (
-        <button type="button" className={s.jump} onClick={() => goToShot(doc, r.shot.id)}>
+        <button type="button" className={s.jump} onClick={() => goToShot(doc, r.shot.id)} data-view>
           {r.code}
         </button>
       ),
@@ -589,7 +628,7 @@ function ShotsTab({ doc, search }: { doc: ProjectDoc; search: string }) {
   ];
   return (
     <>
-      <div className={s.filters}>
+      <div className={s.filters} data-view>
         {FILTERS.map(([k, label]) => (
           <label key={k}>
             <span>{label}</span>
