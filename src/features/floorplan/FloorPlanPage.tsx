@@ -66,6 +66,7 @@ import { putBlob } from '../../store/db';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { aiPlanInstructions, extractPlanText, parsePlanFile, placePlan, type ParsedPlan } from '../../domain/planImport';
 import { askWithImage, isConfigured, loadAiSettings, modelOf, type ImageInput } from '../assistant/providers';
+import { useAiStatus } from '../assistant/aiStatus';
 import { navigate } from '../../app/router';
 import { LIGHT_PRESETS, ROOM_PRESETS, WORLD, lightSpecs, roomSize, setRoom, type FloorPlan, type Room } from '../../domain/floorplan';
 import { Button } from '../../ui/Button';
@@ -222,6 +223,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [planMenu, setPlanMenu] = useState(false);
   const planMenuRef = useRef<HTMLDivElement>(null);
   const [tracing, setTracing] = useState(false);
+  // L'assistant n'est proposé que s'il est réglé et a répondu.
+  const aiReady = useAiStatus((a) => a.ready);
   const bgInput = useRef<HTMLInputElement>(null);
   const aiInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -871,7 +874,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   />
                 </label>
                 <p className={s.menuTitle}>Depuis un plan existant</p>
-                {bg && (
+                {bg && aiReady && (
                   <div className={s.menuRow}>
                     <Button
                       size="sm"

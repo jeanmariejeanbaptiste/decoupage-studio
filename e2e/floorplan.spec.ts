@@ -216,6 +216,21 @@ test('plan au sol : l’assistant trace les murs depuis l’image du plan des lo
   await expect(page.getByTestId('fp-wall')).toHaveCount(2);
 });
 
+test('plan au sol : sans assistant réglé, pas de bouton « Tracer les murs »', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=rav3');
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 40;
+    c.height = 30;
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByTestId('fp-bg-input').setInputFiles({ name: 'locaux.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.getByTestId('fp-background')).toHaveCount(1);
+  await page.getByTestId('fp-plan-menu').click();
+  await expect(page.getByTestId('fp-ai-copy')).toBeVisible();
+  await expect(page.getByTestId('fp-ai-trace')).toHaveCount(0);
+});
+
 test('plan au sol : pièce aux dimensions réelles et projecteur chiffré (W, K)', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
   await page.getByTestId('fp-panel').getByRole('button', { name: 'Pièce moyenne' }).click();
