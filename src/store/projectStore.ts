@@ -82,6 +82,26 @@ export function useHistory() {
 
 export const useDoc = () => useProjectStore((s) => s.doc);
 
+/**
+ * Données tirées d'un service (géocodage des adresses) gardées dans le projet : hors historique
+ * d'annulation, et reportées dans les états mémorisés, pour qu'annuler ne les efface jamais.
+ */
+export function mutateQuiet(recipe: (doc: ProjectDoc) => void): void {
+  const cur = useProjectStore.getState().doc;
+  if (!cur || !canMutate()) return;
+  const next = produce(cur, (d) => void recipe(d));
+  if (next === cur) return;
+  const t = useProjectStore.temporal.getState();
+  t.pause();
+  try {
+    useProjectStore.setState({ doc: next });
+    const patchSnap = <S extends { doc?: ProjectDoc | null }>(list: S[]): S[] => list.map((snap) => (snap.doc ? { ...snap, doc: produce(snap.doc, (d) => void recipe(d)) } : snap));
+    useProjectStore.temporal.setState((st) => ({ pastStates: patchSnap(st.pastStates), futureStates: patchSnap(st.futureStates) }));
+  } finally {
+    t.resume();
+  }
+}
+
 /** Modifications reçues d'un autre participant : appliquées hors historique d'annulation. */
 let remoteDepth = 0;
 export const isApplyingRemote = () => remoteDepth > 0;

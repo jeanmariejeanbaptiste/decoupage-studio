@@ -299,6 +299,8 @@ export interface ProjectDoc {
   clearedScenarios?: import('./versions').ClearedScenario[];
   /** Calendrier : rendez-vous du projet (les jours de tournage viennent du plan de travail). */
   calendar?: import('./calendar').CalendarEvent[];
+  /** Adresses géocodées pour la carte des lieux (`geo.ts`), par clé d'adresse. */
+  geocodes?: Record<string, import('./geo').GeocodeEntry>;
 }
 
 export const SCHEMA_VERSION = 1;
