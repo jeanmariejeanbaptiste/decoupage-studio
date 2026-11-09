@@ -1755,41 +1755,44 @@ function Properties({
           </p>
         </>
       )}
+      {item.kind === 'actor' &&
+        (() => {
+          // Personnages de la séquence en puces (un clic, un second clic retire) ; les autres dans « Autre… ».
+          const inSeq = sequenceCharacterIds(doc, seqId).filter((id) => doc.characters[id]);
+          const others = sortedCharacters(doc).filter((c) => !inSeq.includes(c.id));
+          const setCharacter = (id: ID | undefined) => update({ characterId: id } as Partial<FloorItem>);
+          return (
+            (inSeq.length > 0 || others.length > 0) && (
+              <div className={s.field} role="group" aria-label="Personnage">
+                <span>Personnage</span>
+                <div className={s.quick}>
+                  {inSeq.map((id) => (
+                    <button key={id} type="button" aria-pressed={item.characterId === id} className={item.characterId === id ? s.quickOn : ''} onClick={() => setCharacter(item.characterId === id ? undefined : id)}>
+                      {doc.characters[id]?.name}
+                    </button>
+                  ))}
+                  {others.length > 0 && (
+                    <select
+                      className={[s.quickOther, others.some((c) => c.id === item.characterId) ? s.quickOn : ''].join(' ')}
+                      value={others.some((c) => c.id === item.characterId) ? item.characterId : ''}
+                      onChange={(e) => setCharacter(e.target.value || undefined)}
+                      aria-label="Autre personnage"
+                    >
+                      <option value="">{inSeq.length ? 'Autre…' : '—'}</option>
+                      {others.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            )
+          );
+        })()}
       {item.kind === 'actor' && (
         <>
-          <label className={s.field}>
-            <span>Personnage</span>
-            <select
-              value={item.characterId ?? ''}
-              onChange={(e) => update({ characterId: e.target.value || undefined } as Partial<FloorItem>)}
-            >
-              <option value="">—</option>
-              {sortedCharacters(doc).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={s.quick} aria-label="Nommer rapidement">
-            {sequenceCharacterIds(doc, seqId)
-              .concat(
-                sortedCharacters(doc)
-                  .map((c) => c.id)
-                  .filter((id) => !sequenceCharacterIds(doc, seqId).includes(id)),
-              )
-              .slice(0, 12)
-              .map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={item.characterId === id ? s.quickOn : ''}
-                  onClick={() => update({ characterId: id } as Partial<FloorItem>)}
-                >
-                  {doc.characters[id]?.name}
-                </button>
-              ))}
-          </div>
           <Button
             variant="outline"
             size="sm"
