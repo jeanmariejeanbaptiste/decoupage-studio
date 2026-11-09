@@ -142,6 +142,25 @@ export function routeUrl(address: string, entry?: GeocodeEntry): string {
 
 const round = (n: number) => Math.round(n * 1e5) / 1e5;
 
+/**
+ * Clés de toutes les adresses saisies dans le projet, qu'elles servent ou non dans la version courante
+ * (une séquence absente de cette version garde son adresse du jour) : leur géocodage est conservé.
+ */
+export function addressKeys(doc: ProjectDoc): Set<string> {
+  const out = new Set<string>();
+  const add = (text: string | undefined) => {
+    const k = text?.trim() ? geoKey(text) : '';
+    if (k) out.add(k);
+  };
+  for (const d of doc.schedule?.days ?? []) {
+    for (const a of Object.values(d.seqAddresses ?? {})) add(a);
+    for (const a of Object.values(d.addresses ?? {})) add(a);
+    if (d.hospital?.trim()) add(cleanAddress(d.hospital));
+  }
+  for (const decor of Object.values(doc.decors)) add(decorLocation(decor).address);
+  return out;
+}
+
 /** Géocodage connu d'une adresse dans le projet. */
 export const storedGeocode = (doc: ProjectDoc, address: string): GeocodeEntry | undefined => doc.geocodes?.[geoKey(cleanAddress(address))] ?? doc.geocodes?.[geoKey(address)];
 
@@ -150,7 +169,7 @@ export const storedGeocode = (doc: ProjectDoc, address: string): GeocodeEntry | 
  * d'adresses disparues sont retirés au passage (ils seraient recherchés de nouveau au besoin).
  */
 export function setGeocode(doc: ProjectDoc, key: string, entry: GeocodeEntry): void {
-  const keys = new Set(mapPlaces(doc).map((p) => p.key));
+  const keys = addressKeys(doc);
   if (!keys.has(key)) return;
   const clean: GeocodeEntry = entry.missing ? { address: entry.address, missing: true } : { address: entry.address, lat: round(entry.lat!), lon: round(entry.lon!) };
   const cur = doc.geocodes ?? {};

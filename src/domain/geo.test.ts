@@ -101,4 +101,23 @@ describe('carte des lieux de tournage', () => {
     expect(Object.keys(b.geocodes ?? {})).toEqual([k2]);
     expect(b.geocodes?.[k2]).toEqual({ address: '1 place Louis-Armand, Paris', missing: true });
   });
+
+  it('garde le géocodage d’une adresse saisie pour une séquence absente de la version courante', () => {
+    const doc = project();
+    const [, , s3] = doc.project.sequenceIds;
+    const key = geoKey('7 rue Cachée, Paris');
+    // L'adresse du jour reste attachée à une séquence que cette version n'a plus.
+    const other = produce(doc, (d) => {
+      updateDay(d, 2, { seqAddresses: { [s3]: '7 rue Cachée, Paris' } });
+      d.project.sequenceIds = d.project.sequenceIds.filter((id) => id !== s3);
+      delete d.sequences[s3];
+    });
+    expect(mapPlaces(other).some((p) => p.key === key)).toBe(false);
+    const a = produce(other, (d) => setGeocode(d, key, { address: '7 rue Cachée, Paris', lat: 48.86, lon: 2.35 }));
+    expect(a.geocodes?.[key]).toBeDefined();
+    // Un autre résultat arrive : celui-ci n'est pas retiré.
+    const k1 = geoKey('20 bd Diderot, 75012 Paris');
+    const b = produce(a, (d) => setGeocode(d, k1, { address: '20 bd Diderot, 75012 Paris', lat: 48.84, lon: 2.37 }));
+    expect(Object.keys(b.geocodes ?? {}).sort()).toEqual([k1, key].sort());
+  });
 });
