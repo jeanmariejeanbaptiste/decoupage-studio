@@ -2,7 +2,7 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { addComment, commentsOf, cutComments, deleteComment, replyComment, setResolved, shownComments } from './comments';
-import { mediaKeys } from './serialize';
+import { mediaKeys, migrate } from './serialize';
 import { shiftAnchors } from './fountain';
 import { reviseScenario } from './revision';
 import { createVersion } from './versions';
@@ -66,5 +66,42 @@ describe('commentaires de relecture', () => {
     expect(reply.versionId).toBe(v2.activeVersionId);
     // Les fichiers joints ne partent jamais au ménage.
     expect(mediaKeys(v2)).toEqual(expect.arrayContaining(['p:schema', 'p:croquis']));
+  });
+
+  it('un commentaire posé avant la première version reste à la V1 quand on modifie la V2', () => {
+    const base = buildFiction();
+    const src = base.scenario!;
+    const q = 'valise cabossée';
+    const at = src.indexOf(q);
+    const doc = produce(base, (d) => {
+      const id = addComment(d, { kind: 'script', start: at, end: at + q.length, quote: q }, 'Nina', 'Quelle valise ?')!;
+      replyComment(d, id, 'Moi', 'Celle du père.');
+    });
+    expect(doc.comments![0].versionId).toBeUndefined();
+    const v2 = produce(doc, (d) => void createVersion(d));
+    const v1Id = v2.versions![0].id;
+    expect(v2.comments![0].versionId).toBe(v1Id);
+    expect(v2.comments![0].replies[0].versionId).toBe(v1Id);
+    // Ajout en tête dans la V2 : le passage de la V1 ne bouge pas.
+    const edited = produce(v2, (d) => {
+      const next = `Dans un vacarme continu, ${src}`;
+      shiftAnchors(d, src, next);
+      d.scenario = next;
+    });
+    expect(edited.comments![0].anchor).toEqual({ kind: 'script', start: at, end: at + q.length, quote: q });
+    expect(produce(edited, (d) => void reviseScenario(d, `INT. TRAIN - JOUR\n\nUn contrôleur passe.\n\n${d.scenario}`)).comments![0].anchor).toEqual(edited.comments![0].anchor);
+    // Projet déjà enregistré avec des versions et un commentaire sans version : rattaché à la première.
+    const old = produce(v2, (d) => {
+      delete d.comments![0].versionId;
+      delete d.comments![0].replies[0].versionId;
+    });
+    const m = migrate(old);
+    expect(m.comments![0].versionId).toBe(v1Id);
+    expect(m.comments![0].replies[0].versionId).toBe(v1Id);
+    // En défense, sans migration, il ne suit pas non plus le texte de la V2.
+    const raw = produce(old, (d) => {
+      shiftAnchors(d, src, `Dans un vacarme continu, ${src}`);
+    });
+    expect(raw.comments![0].anchor).toEqual(old.comments![0].anchor);
   });
 });

@@ -3,7 +3,7 @@ import { ensureInterview, syncInterviewShots, upgradeInterview } from './intervi
 import { defaultSettings, makeBlock } from './factory';
 import { normalizeScenario } from './fountain';
 import { storedShots } from './versions';
-import { commentAttachments } from './comments';
+import { adoptUnversionedComments, commentAttachments } from './comments';
 import { migrateDecorLocations } from './locations';
 import { migrateBreakdownCharacters } from './breakdown';
 import { normalizeProduction, syncProduction } from './production';
@@ -114,6 +114,8 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   doc.customVocabulary = { ...structuredClone(EMPTY_CUSTOM_VOCABULARY), ...(doc.customVocabulary ?? {}) };
   doc.manualEquipment ??= [];
   migrateDecorLocations(doc);
+  // Commentaires d'avant les versions : à la première, pour ne plus suivre le texte des suivantes.
+  if (doc.versions?.length) adoptUnversionedComments(doc, doc.versions[0].id);
   // Références cassées (fichier abîmé, ancienne version, synchronisation interrompue) : réparées
   // plutôt que de faire planter l'affichage.
   p.sequenceIds = p.sequenceIds.filter((id, i, all) => isObject(doc.sequences[id]) && all.indexOf(id) === i);

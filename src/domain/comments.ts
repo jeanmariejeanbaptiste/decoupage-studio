@@ -115,6 +115,19 @@ export function setResolved(doc: ProjectDoc, id: ID, resolved: boolean): void {
   if (c) c.resolved = resolved || undefined;
 }
 
+/**
+ * Commentaires et réponses d'avant les versions : rattachés à la première version dès qu'elle existe,
+ * pour ne plus suivre le texte des versions suivantes.
+ */
+export function adoptUnversionedComments(doc: ProjectDoc, versionId: ID): void {
+  // Lu aussi sur un fichier pas encore vérifié : les entrées abîmées sont laissées à leur tri.
+  for (const c of Array.isArray(doc.comments) ? doc.comments : []) {
+    if (!c || typeof c !== 'object') continue;
+    c.versionId ??= versionId;
+    for (const r of Array.isArray(c.replies) ? c.replies : []) if (r && typeof r === 'object') r.versionId ??= versionId;
+  }
+}
+
 /** Commentaires d'une version (la courante par défaut). Ceux d'avant les versions comptent pour la première. */
 export function commentsOf(doc: ProjectDoc, versionId: ID | undefined = doc.activeVersionId): ReviewComment[] {
   const first = doc.versions?.[0]?.id;
@@ -131,7 +144,7 @@ export interface ShownComment {
 }
 
 /** Passage d'une version précédente retrouvé dans le texte courant, par sa citation (au plus près de sa place). */
-function carryScript(a: Extract<CommentAnchor, { kind: 'script' }>, oldLength: number, text: string): CommentAnchor | null {
+export function carryScript(a: Extract<CommentAnchor, { kind: 'script' }>, oldLength: number, text: string): CommentAnchor | null {
   const quote = a.quote;
   if (!quote) return null;
   const expect = oldLength ? (a.start / oldLength) * text.length : 0;
@@ -181,7 +194,7 @@ export function commentAttachments(doc: ProjectDoc): string[] {
 /** Les passages commentés suivent le texte quand il change (même règle que les passages liés). */
 export function shiftCommentAnchors(doc: ProjectDoc, map: (p: number, side: 'start' | 'end') => number): void {
   for (const c of doc.comments ?? []) {
-    if (c.anchor.kind !== 'script' || (c.versionId && c.versionId !== doc.activeVersionId && doc.versions?.length)) continue;
+    if (c.anchor.kind !== 'script' || (doc.versions?.length && (c.versionId ?? doc.versions[0].id) !== doc.activeVersionId)) continue;
     const a = c.anchor;
     const empty = a.end <= a.start;
     a.start = map(a.start, 'start');
@@ -192,7 +205,7 @@ export function shiftCommentAnchors(doc: ProjectDoc, map: (p: number, side: 'sta
 /** Texte remplacé en entier (nouvelle version, import) : chaque passage commenté est retrouvé par sa citation. */
 export function relinkComments(doc: ProjectDoc, before: string, after: string): void {
   for (const c of doc.comments ?? []) {
-    if (c.anchor.kind !== 'script' || (c.versionId && c.versionId !== doc.activeVersionId && doc.versions?.length)) continue;
+    if (c.anchor.kind !== 'script' || (doc.versions?.length && (c.versionId ?? doc.versions[0].id) !== doc.activeVersionId)) continue;
     const a = c.anchor;
     const quote = a.quote || before.slice(a.start, a.end);
     const expect = before.length ? (a.start / before.length) * after.length : 0;

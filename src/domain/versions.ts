@@ -12,6 +12,7 @@
  * La version courante vit dans le projet lui-même ; les autres sont rangées à côté, figées.
  */
 import { newId } from './factory';
+import { adoptUnversionedComments } from './comments';
 import { scenesOf } from './fountain';
 import { alignScenes } from './sceneAlign';
 import type { ActionBlock, ID, ProjectDoc, Sequence, Shot } from './types';
@@ -57,6 +58,7 @@ export function ensureVersions(doc: ProjectDoc): ProjectVersion[] {
     const id = newId();
     doc.versions = [{ id, name: doc.project.version?.trim() || 'V1', createdAt: doc.project.createdAt ?? new Date().toISOString() }];
     doc.activeVersionId = id;
+    adoptUnversionedComments(doc, id);
   }
   if (!doc.versions.some((v) => v.id === doc.activeVersionId)) doc.activeVersionId = doc.versions.find((v) => !v.slice)?.id ?? doc.versions[doc.versions.length - 1].id;
   return doc.versions;
