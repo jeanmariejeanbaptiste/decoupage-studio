@@ -232,6 +232,25 @@ export function itemsOn(items: readonly CalendarItem[], date: string): CalendarI
   return items.filter((it) => it.date <= date && it.endDate >= date).sort((a, b) => Number(b.allDay) - Number(a.allDay) || (a.start ?? '').localeCompare(b.start ?? '') || order(a, b));
 }
 
+/**
+ * Rendez-vous du projet tombant un jour donné (sans les jours de tournage) : ce que le plan de travail
+ * rappelle sous l'en-tête d'un jour daté. Journées entières d'abord, puis par heure.
+ */
+export function eventsOn(doc: ProjectDoc, date: string | undefined): CalendarItem[] {
+  if (!isValidDate(date)) return [];
+  const own = (doc.calendar ?? []).map(eventItem).filter((x): x is CalendarItem => !!x);
+  // Commencé la veille : en tête des éléments minutés.
+  const from = (it: CalendarItem) => (it.date < date ? '' : (it.start ?? ''));
+  return itemsOn(own, date).sort((a, b) => Number(b.allDay) - Number(a.allDay) || from(a).localeCompare(from(b)));
+}
+
+/** Heure d'un élément un jour donné : début ce jour-là, « jusqu'à » s'il a commencé avant ; rien pour une journée entière. */
+export function timeOn(it: CalendarItem, date: string): string {
+  if (it.allDay) return '';
+  if (it.date === date) return it.start ?? '';
+  return it.endDate === date ? `→ ${it.end}` : '';
+}
+
 /** Jours occupés (vue Année). */
 export function busyDates(items: readonly CalendarItem[], from: string, to: string): Set<string> {
   const out = new Set<string>();

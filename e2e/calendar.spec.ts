@@ -72,3 +72,49 @@ test('calendrier : les jours datés du plan de travail y figurent et y mènent',
   await expect(page).toHaveURL(/#\/schedule\?day=1/);
   await expect(page.getByTestId('band-1')).toBeInViewport();
 });
+
+test('plan de travail : rendez-vous du calendrier sous chaque jour daté, dans les deux sens', async ({ page }) => {
+  const now = new Date();
+  const today = iso(now);
+  const later = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3));
+  await page.goto('/#/schedule?seed=rav3');
+  await page.getByTestId('suggest-schedule').click();
+  await page.getByLabel('Date du jour 1').fill(today);
+
+  // Deux rendez-vous ce jour-là (journée entière, puis minuté) et un autre jour.
+  await page.getByRole('button', { name: 'Calendrier' }).click();
+  const dlg = page.getByTestId('event-dialog');
+  const create = async (title: string, date: string, start?: string) => {
+    await page.getByTestId('event-add').click();
+    await dlg.getByTestId('event-title').fill(title);
+    await dlg.getByTestId('event-date').fill(date);
+    if (start) await dlg.getByTestId('event-start').fill(start);
+    else await dlg.getByTestId('event-allday').check();
+    await dlg.getByTestId('event-save').click();
+    await expect(dlg).toBeHidden();
+  };
+  await create('Repérages lycée', today, '14:00');
+  await create('Réunion technique', today);
+  await create('Lecture', later, '10:00');
+
+  await page.getByRole('button', { name: 'Plan de travail' }).click();
+  const line = page.getByTestId('band-1').getByTestId('day-events');
+  await expect(line.getByTestId('day-event')).toHaveText(['Réunion technique', '14:00Repérages lycée']);
+  // Les jours sans date n'en montrent aucun.
+  await expect(page.getByTestId('band-2').getByTestId('day-events')).toHaveCount(0);
+
+  // Un clic ouvre ce jour dans le calendrier, en vue Jour.
+  await line.getByTestId('day-event').last().click();
+  await expect(page).toHaveURL(new RegExp(`#/calendar\\?date=${today}`));
+  await expect(page.getByTestId('calendar-day')).toBeVisible();
+  // Le rendez-vous déplacé quitte le jour de tournage.
+  await page.getByTestId('calendar-day').getByTestId('calendar-item').filter({ hasText: 'Repérages lycée' }).click();
+  await dlg.getByTestId('event-date').fill(later);
+  await dlg.getByTestId('event-save').click();
+  await expect(dlg).toBeHidden();
+  await page.getByRole('button', { name: 'Plan de travail' }).click();
+  await expect(line.getByTestId('day-event')).toHaveText(['Réunion technique']);
+  // Le jour de tournage déplacé prend les rendez-vous de sa nouvelle date.
+  await page.getByLabel('Date du jour 1').fill(later);
+  await expect(line.getByTestId('day-event')).toHaveText(['10:00Lecture', '14:00Repérages lycée']);
+});

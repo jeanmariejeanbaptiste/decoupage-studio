@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { CalendarArrowDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { navigate } from '../../app/router';
+import { navigate, useLocation } from '../../app/router';
 import {
   addEvent,
   busyDates,
@@ -9,6 +9,7 @@ import {
   eventFields,
   eventFromFields,
   hourRange,
+  isValidDate,
   isWeekend,
   itemsOn,
   layoutDay,
@@ -82,8 +83,15 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const now = useNow();
   const today = todayIso(now);
-  const [view, setViewState] = useState<CalendarView>(storedView);
-  const [anchor, setAnchor] = useState(today);
+  // Venu du plan de travail (« ?date=AAAA-MM-JJ ») : ce jour-là, en vue Jour (sans changer la vue retenue).
+  const focus = useLocation().params.get('date') ?? undefined;
+  const [view, setViewState] = useState<CalendarView>(() => (isValidDate(focus) ? 'day' : storedView()));
+  const [anchor, setAnchor] = useState(() => (isValidDate(focus) ? focus : today));
+  useEffect(() => {
+    if (!isValidDate(focus)) return;
+    setAnchor(focus);
+    setViewState('day');
+  }, [focus]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const items = useMemo(() => calendarItems(doc), [doc]);
 

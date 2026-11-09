@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { ArrowDown, ArrowUp, CalendarRange, ChevronDown, ChevronRight, Clock, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRight, Clock, Plus, Trash2, X } from 'lucide-react';
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
@@ -10,7 +10,8 @@ import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
 import { mutateDoc, undo } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
-import { useLocation } from '../../app/router';
+import { navigate, useLocation } from '../../app/router';
+import { eventsOn, timeOn } from '../../domain/calendar';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { ask } from '../../ui/dialogStore';
@@ -151,6 +152,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     icon={<Trash2 size={13} strokeWidth={1.25} />}
                     onClick={() => mutateDoc((x) => removeDay(x, d.n))}
                   />
+                  <DayEvents doc={doc} date={d.date} />
                 </div>
               </Band>
             );
@@ -164,6 +166,27 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
         </div>
       </DndContext>
     </div>
+  );
+}
+
+/** Rendez-vous du calendrier ce jour-là : une ligne discrète, un clic ouvre le jour dans le calendrier. */
+function DayEvents({ doc, date }: { doc: ProjectDoc; date?: string }) {
+  const items = eventsOn(doc, date);
+  if (!date || !items.length) return null;
+  const open = () => navigate('calendar', { date });
+  return (
+    <p className={s.events} data-view data-testid="day-events">
+      <CalendarDays size={13} strokeWidth={1.25} aria-hidden />
+      {items.map((it) => {
+        const time = timeOn(it, date);
+        return (
+          <button key={it.key} type="button" className={s.event} onClick={open} title="Ouvrir ce jour dans le calendrier" data-testid="day-event">
+            {time && <span className={s.eventTime}>{time}</span>}
+            {it.title}
+          </button>
+        );
+      })}
+    </p>
   );
 }
 
