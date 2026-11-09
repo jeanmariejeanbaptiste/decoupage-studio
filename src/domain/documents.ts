@@ -11,7 +11,7 @@ import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
-import { bannerLabel, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
+import { bannerLabel, callSheetAgenda, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
 import { decorLocation } from './locations';
 import { cleanAddress, routeUrl, storedGeocode } from './geo';
 import { formatTc } from './timecode';
@@ -170,9 +170,9 @@ export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
   const nums = characterNumbers(doc);
   const date = d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Date à préciser';
   const cell = (label: string, value?: string) => (value ? `<tr><th>${esc(label)}</th><td class="time">${esc(value)}</td></tr>` : '');
-  const agenda = dayAgenda(doc, day, strips);
+  const agenda = callSheetAgenda(doc, day);
   // Repas, reprise et fin prévue : saisis sur la feuille, sinon déduits du déroulé (bandeau « Repas », dernière bande).
-  const keys = dayKeyTimes(doc, day, agenda);
+  const keys = dayKeyTimes(doc, day);
   const range = (a: string, b?: string) => (b ? `de ${a} à ${b}` : a);
   const events = [
     cell('Rendez-vous', d?.callTime),

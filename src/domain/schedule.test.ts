@@ -282,7 +282,7 @@ describe('plan de travail : bandeaux et horaires en cascade', () => {
     expect(ag2[3]).toMatchObject({ start: '13:30', end: '14:15', computed: true });
   });
 
-  it('les créneaux de l’emploi du temps priment ; un bandeau orphelin reste en fin de journée', async () => {
+  it('les créneaux de l’emploi du temps priment ; un bandeau orphelin suit la bande qui précédait sa séquence', async () => {
     const { addBanner, dayAgenda, dayItinerary, removeBanner } = await import('./schedule');
     const { doc, a, b } = setup();
     let pause = '';
@@ -297,8 +297,16 @@ describe('plan de travail : bandeaux et horaires en cascade', () => {
     expect(ag[1]).toMatchObject({ type: 'strip', start: '10:00', end: '11:00', computed: true });
     expect(ag[2]).toMatchObject({ type: 'banner', start: '11:00', end: '11:15' });
     expect(dayItinerary(next, 1).map((x) => x.seqIds[0])).toEqual([b]);
+    // Sa séquence (a) quitte la journée : aucune bande du jour ne la précède, le bandeau passe en tête.
     const orphan = produce(next, (d) => assignShots(d, d.sequences[a].shotIds, undefined));
-    expect(dayAgenda(orphan, 1).at(-1)).toMatchObject({ type: 'banner' });
+    expect(dayAgenda(orphan, 1)[0]).toMatchObject({ type: 'banner' });
+    // Rattaché à une séquence absente qui suit c dans l'ordre : il vient après c, pas en fin de journée.
+    const c = doc.project.sequenceIds[2];
+    const after = produce(next, (d) => {
+      placeShot(d, 1, d.sequences[c].shotIds[0], '08:00', 60);
+      d.schedule!.days[0].banners![0].after = doc.project.sequenceIds[3];
+    });
+    expect(dayAgenda(after, 1).map((i) => (i.type === 'strip' ? i.strip.seqId : 'pause'))).toEqual([c, 'pause', b, a]);
     expect(dayAgenda(produce(next, (d) => removeBanner(d, 1, pause)), 1).some((i) => i.type === 'banner')).toBe(false);
   });
 

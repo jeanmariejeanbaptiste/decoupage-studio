@@ -9,7 +9,7 @@ import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, characterUsage, decorStats, decorUsage, usageDayLabel } from './registry';
-import { bannerLabel, callSheetStrips, dayAgenda, dayKeyTimes, dayStats, scheduleDays, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
+import { bannerLabel, callSheetAgenda, callSheetStrips, dayAgenda, dayKeyTimes, dayStats, scheduleDays, stripCharacterIds, dayItinerary, dayEquipment, shotSlotsText } from './schedule';
 import { decorLocation } from './locations';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
@@ -125,7 +125,7 @@ export function callSheetCsv(doc: ProjectDoc, day: number): string {
     [],
     ...(() => {
       // Horaires clés : repas et reprise de … à …, fin prévue.
-      const k = dayKeyTimes(doc, day, dayAgenda(doc, day, strips));
+      const k = dayKeyTimes(doc, day);
       const lines = [
         d?.pat && ['Prêt à tourner', d.pat],
         k.meal && ['Repas', k.meal.start, k.meal.end],
@@ -137,7 +137,7 @@ export function callSheetCsv(doc: ProjectDoc, day: number): string {
     ['Lieux et horaires', 'Adresse', 'Début', 'Fin', 'Séquence'],
     ...(() => {
       const stops = dayItinerary(doc, day);
-      return dayAgenda(doc, day, strips).flatMap((it) => {
+      return callSheetAgenda(doc, day).flatMap((it) => {
         if (it.type === 'banner') return [[[bannerLabel(it.banner), it.banner.label].filter(Boolean).join(' · '), '', it.start, it.end, `${it.banner.minutes} min`]];
         const p = stops.find((x) => x.seqIds[0] === it.strip.seqId);
         return p ? [[p.decorId ? doc.decors[p.decorId]?.name : '', p.address, p.start, p.end, p.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')]] : [];

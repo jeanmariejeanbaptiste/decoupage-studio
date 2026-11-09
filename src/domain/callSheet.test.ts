@@ -5,7 +5,8 @@ import { buildFiction } from '../../seed/fiction';
 import { callSheetDocument } from './documents';
 import { callSheetCsv } from './exports';
 import { characterNumbers } from './registry';
-import { addBanner, dayAgenda, dayKeyTimes, moveBanner, setDayMeal, updateDay } from './schedule';
+import { buildRav3 } from '../../seed/rav3';
+import { addBanner, callSheetAgenda, dayAgenda, dayKeyTimes, moveBanner, placeShot, setDayMeal, suggestSchedule, updateDay } from './schedule';
 
 describe('feuille de service au format professionnel', () => {
   it('en-tête en trois blocs, séquences, comédiens numérotés, besoins des postes, prévisions', () => {
@@ -95,5 +96,37 @@ describe('repas et reprise : de … à …', () => {
     expect(dayKeyTimes(legacy, 1).meal).toMatchObject({ start: '13:00', end: '14:00' });
     const moved = produce(legacy, (d) => setDayMeal(d, 1, { end: '13:30' }));
     expect(moved.schedule!.days[0].banners![0]).toMatchObject({ start: '13:00', minutes: 30 });
+  });
+});
+
+describe('plan de travail et feuille de service : un seul déroulé', () => {
+  const meal = (ag: ReturnType<typeof dayAgenda>) => ag.find((x) => x.type === 'banner' && x.banner.kind === 'repas');
+  const times = (ag: ReturnType<typeof dayAgenda>) => ag.map((x) => [x.type === 'strip' ? x.strip.seqId : x.banner.id, x.start, x.end]);
+
+  it('mêmes horaires (repas, fin) depuis les deux pages, avant et après la saisie du repas', () => {
+    const a = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      updateDay(d, 1, { callTime: '08:00' });
+      addBanner(d, 1, 'repas');
+      const first = Object.values(d.shots).find((s) => s.shootingDay === 1)!;
+      placeShot(d, 1, first.id, '09:00');
+    });
+    const plan = dayAgenda(a, 1);
+    const sheet = callSheetAgenda(a, 1);
+    // La feuille ne garde que les bandes placées, mais chacune à l'horaire du plan de travail.
+    expect(sheet.length).toBeLessThan(plan.length);
+    for (const row of times(sheet)) expect(times(plan)).toContainEqual(row);
+    const k = dayKeyTimes(a, 1);
+    expect(k.meal).toMatchObject({ start: meal(plan)!.start, end: meal(plan)!.end });
+    expect(meal(sheet)).toMatchObject({ start: meal(plan)!.start, end: meal(plan)!.end });
+    // Bande en partie placée : elle ne se réduit pas à la plage de son seul plan placé.
+    const strip = plan.find((x) => x.type === 'strip' && x.start === '09:00')!;
+    expect(strip.end).not.toBe('09:30');
+    // Fin du repas saisie sur la feuille : les deux pages la lisent pareil.
+    const b = produce(a, (d) => setDayMeal(d, 1, { end: '13:00' }));
+    expect(dayKeyTimes(b, 1).meal?.end).toBe('13:00');
+    expect(meal(dayAgenda(b, 1))!.end).toBe('13:00');
+    expect(meal(callSheetAgenda(b, 1))!.end).toBe('13:00');
+    expect(dayKeyTimes(b, 1).meal!.end).toBe(meal(dayAgenda(b, 1))!.end);
   });
 });

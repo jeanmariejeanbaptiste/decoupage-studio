@@ -528,17 +528,38 @@ export type AgendaItem =
  * horaire saisi (créneaux de l'emploi du temps, créneau de la séquence, début d'un bandeau) fait foi ;
  * le reste s'enchaîne à partir du rendez-vous, selon les durées prévues (`computed`).
  */
-export function dayAgenda(doc: ProjectDoc, day: number, strips: Strip[] = stripsByTime(doc, day)): AgendaItem[] {
+export function dayAgenda(doc: ProjectDoc, day: number): AgendaItem[] {
+  const strips = stripsByTime(doc, day);
   const d = doc.schedule?.days.find((x) => x.n === day);
   const banners = d?.banners ?? [];
   const seqIds = new Set(strips.map((x) => x.seqId));
-  const items: AgendaItem[] = banners.filter((b) => !b.after).map((banner) => ({ type: 'banner', banner, computed: false }));
+  // Bandeau dont la séquence a quitté la journée : il suit la dernière bande du jour qui la précède
+  // dans l'ordre du plan de travail (en tête de journée s'il n'y en a pas, en fin si elle n'existe plus).
+  const order = doc.schedule?.order ?? [];
+  const rank = (id: ID) => {
+    const i = order.indexOf(id);
+    if (i >= 0) return i;
+    const j = doc.project.sequenceIds.indexOf(id);
+    return j >= 0 ? order.length + j : undefined;
+  };
+  /** Séquence d'accroche de chaque bandeau : `null` = en tête, `undefined` = en fin de journée. */
+  const anchor = new Map<ID, ID | null | undefined>();
+  for (const b of banners) {
+    if (!b.after) anchor.set(b.id, null);
+    else if (seqIds.has(b.after)) anchor.set(b.id, b.after);
+    else {
+      const r = rank(b.after);
+      const before = r === undefined ? [] : strips.filter((x) => (rank(x.seqId) ?? Infinity) < r).sort((a, c) => rank(a.seqId)! - rank(c.seqId)!);
+      anchor.set(b.id, r === undefined ? undefined : (before.at(-1)?.seqId ?? null));
+    }
+  }
+  const items: AgendaItem[] = banners.filter((b) => anchor.get(b.id) === null).map((banner) => ({ type: 'banner', banner, computed: false }));
   for (const strip of strips) {
     items.push({ type: 'strip', strip, computed: false });
-    for (const banner of banners) if (banner.after === strip.seqId) items.push({ type: 'banner', banner, computed: false });
+    for (const banner of banners) if (anchor.get(banner.id) === strip.seqId) items.push({ type: 'banner', banner, computed: false });
   }
-  // Bandeau dont la séquence a quitté la journée : il reste, en fin de journée.
-  for (const banner of banners) if (banner.after && !seqIds.has(banner.after)) items.push({ type: 'banner', banner, computed: false });
+  for (const banner of banners) if (anchor.get(banner.id) === undefined) items.push({ type: 'banner', banner, computed: false });
+  const slotted = slottedOn(doc, day);
 
   let cursor = d?.callTime ? toMin(d.callTime) : undefined;
   for (const it of items) {
@@ -547,9 +568,16 @@ export function dayAgenda(doc: ProjectDoc, day: number, strips: Strip[] = strips
     if (it.type === 'strip') {
       const seqSlot = parseSlot(doc.sequences[it.strip.seqId]?.slot);
       const whole = it.strip.shotIds.length >= liveShots(doc, it.strip.seqId).length;
-      const fixed = stripRange(doc, day, it.strip) ?? (seqSlot && whole ? seqSlot : undefined);
+      const range = stripRange(doc, day, it.strip);
+      const fixed = range ?? (seqSlot && whole ? seqSlot : undefined);
       if (fixed) [start, end] = [toMin(fixed.start), toMin(fixed.end)];
       else if (cursor !== undefined) [start, end] = [cursor, cursor + stripMinutes(doc, day, it.strip)];
+      // Bande en partie placée : la durée prévue saisie fait foi, sinon le reste s'enchaîne après le dernier créneau.
+      const rest = range ? it.strip.shotIds.filter((id) => !slotted(id)) : [];
+      if (rest.length && start !== undefined && end !== undefined) {
+        const planned = d?.durations?.[it.strip.seqId];
+        end = planned && planned > 0 ? Math.max(end, start + planned) : end + estimatedStripMinutes(doc, { seqId: it.strip.seqId, shotIds: rest });
+      }
       it.computed = !fixed && start !== undefined;
     } else {
       start = it.banner.start ? toMin(it.banner.start) : cursor;
@@ -573,8 +601,20 @@ export function agendaEnd(items: readonly AgendaItem[]): string | undefined {
 export const DEFAULT_MEAL_MIN = 60;
 /** Heure d'horloge (« 25:30 » → « 01:30 ») : ce qu'affiche un champ horaire. */
 const clock = (min: number) => fromMin(((Math.round(min) % 1440) + 1440) % 1440);
+/** Heure d'horloge d'un horaire du déroulé (« 27:00 » → « 03:00 ») : valeur d'un champ horaire. */
+export const clockTime = (hhmm: string | undefined) => (hhmm ? clock(toMin(hhmm)) : '');
 
-/** Horaires clés d'une journée : repas, reprise du tournage, fin prévue. */
+/**
+ * Heure saisie (horloge) ramenée dans la journée de tournage : avant le rendez-vous, elle se lit le
+ * lendemain (« 03:00 » un jour à RDV 20:00 → « 27:00 »). Les calculs gardent ces minutes non bouclées.
+ */
+export function afterCall(doc: ProjectDoc, day: number, hhmm: string): string {
+  const call = doc.schedule?.days.find((x) => x.n === day)?.callTime;
+  const m = toMin(hhmm) % 1440;
+  return fromMin(call && m < toMin(call) ? m + 1440 : m);
+}
+
+/** Horaires clés d'une journée : repas, reprise du tournage, fin prévue (minutes non bouclées). */
 export interface DayKeyTimes {
   /** Repas, de … à … ; `computed` : heure déduite (du bandeau « Repas » ou de la durée), non saisie. */
   meal?: { start: string; end: string; computed: { start: boolean; end: boolean } };
@@ -588,44 +628,53 @@ const mealItem = (agenda: readonly AgendaItem[]) =>
   agenda.find((x): x is Extract<AgendaItem, { type: 'banner' }> => x.type === 'banner' && x.banner.kind === 'repas');
 
 /**
- * Repas, reprise et fin prévue de la feuille de service. Une heure saisie sur la feuille fait foi ;
- * sinon le repas suit le bandeau « Repas » du déroulé (sa durée, ou une heure par défaut) et la fin
- * prévue, la fin du déroulé.
+ * Repas, reprise et fin prévue, d'après le déroulé commun au plan de travail et à la feuille de
+ * service. Une heure saisie sur la feuille fait foi ; sinon le repas suit le bandeau « Repas » du
+ * déroulé (sa durée, ou une heure par défaut) et la fin prévue, la fin du déroulé.
  */
-export function dayKeyTimes(doc: ProjectDoc, day: number, agenda: readonly AgendaItem[] = dayAgenda(doc, day, callSheetStrips(doc, day))): DayKeyTimes {
+export function dayKeyTimes(doc: ProjectDoc, day: number): DayKeyTimes {
+  const agenda = dayAgenda(doc, day);
   const d = doc.schedule?.days.find((x) => x.n === day);
   const item = mealItem(agenda);
   const minutes = item?.banner.minutes ?? DEFAULT_MEAL_MIN;
+  const late = (hhmm: string) => toMin(afterCall(doc, day, hhmm));
   let meal: DayKeyTimes['meal'];
   if (d?.meal || d?.mealEnd) {
-    const start = d.meal ?? clock(toMin(d.mealEnd!) - minutes);
-    meal = { start, end: d.mealEnd ?? clock(toMin(start) + minutes), computed: { start: !d.meal, end: !d.mealEnd } };
+    let start = d.meal ? late(d.meal) : late(d.mealEnd!) - minutes;
+    let end = d.mealEnd ? late(d.mealEnd) : start + minutes;
+    if (end <= start) end += 1440;
+    if (start < 0) [start, end] = [start + 1440, end + 1440];
+    meal = { start: fromMin(start), end: fromMin(end), computed: { start: !d.meal, end: !d.mealEnd } };
   } else if (item?.start && item.end) {
-    meal = { start: clock(toMin(item.start)), end: clock(toMin(item.end)), computed: { start: item.computed, end: item.computed } };
+    meal = { start: item.start, end: item.end, computed: { start: item.computed, end: item.computed } };
   }
-  const wrap = d?.wrap ?? agendaEnd(agenda) ?? d?.dayEnd;
+  let wrap = d?.wrap ?? agendaEnd(agenda) ?? d?.dayEnd;
+  if (d?.wrap) wrap = afterCall(doc, day, d.wrap);
   const out: DayKeyTimes = { meal, wrap, wrapComputed: !d?.wrap };
   if (!meal) return out;
   // Repas du déroulé : la reprise est la première bande qui le suit. Repas saisi sur le jour : sa fin.
   const fromAgenda = !(d?.meal || d?.mealEnd) && item;
   const next = fromAgenda ? agenda.slice(agenda.indexOf(item) + 1).find((x) => x.type === 'strip' && x.start)?.start : undefined;
-  const start = next !== undefined ? clock(toMin(next)) : meal.end;
-  // Fin prévue après la reprise (une fin saisie plus tôt se lit le lendemain : tournage de nuit).
-  const end = wrap && wrap !== start && (d?.wrap || toMin(wrap) > toMin(start)) ? wrap : undefined;
-  if (next !== undefined || end) out.restart = { start, end };
+  const start = toMin(next ?? meal.end);
+  // Fin prévue après la reprise (une fin saisie plus tôt se lit le lendemain : tournage de nuit) ;
+  // comparée en minutes non bouclées, jamais égale au début de la reprise.
+  let wrapMin = wrap ? toMin(wrap) : undefined;
+  if (wrapMin !== undefined && d?.wrap && wrapMin <= start) wrapMin += 1440;
+  const end = wrapMin !== undefined && wrapMin > start && (wrapMin - start) % 1440 !== 0 ? fromMin(wrapMin) : undefined;
+  if (d?.wrap && wrapMin !== undefined) out.wrap = fromMin(wrapMin);
+  if (next !== undefined || end) out.restart = { start: fromMin(start), end };
   return out;
 }
 
 /**
- * Repas saisi sur la feuille de service. Avec un bandeau « Repas » au déroulé, c'est lui qui change
- * (début imposé, durée) : le plan de travail et la feuille restent d'accord, la suite de la journée
- * s'enchaîne. Sinon l'horaire est gardé sur le jour. Changer le début garde la durée.
+ * Repas saisi sur la feuille de service (heures d'horloge). Avec un bandeau « Repas » au déroulé,
+ * c'est lui qui change (début imposé, durée) : le plan de travail et la feuille restent d'accord, la
+ * suite de la journée s'enchaîne. Sinon l'horaire est gardé sur le jour. Changer le début garde la durée.
  */
 export function setDayMeal(doc: ProjectDoc, day: number, patch: { start?: string; end?: string }): void {
   const d = dayOf(doc, day);
-  const agenda = dayAgenda(doc, day, callSheetStrips(doc, day));
-  const cur = dayKeyTimes(doc, day, agenda).meal;
-  const item = mealItem(agenda);
+  const cur = dayKeyTimes(doc, day).meal;
+  const item = mealItem(dayAgenda(doc, day));
   const b = item && d.banners?.find((x) => x.id === item.banner.id);
   if (b) {
     // Heures saisies auparavant sur le jour : reportées sur le bandeau, qui devient la seule référence.
@@ -634,7 +683,7 @@ export function setDayMeal(doc: ProjectDoc, day: number, patch: { start?: string
     delete d.meal;
     delete d.mealEnd;
     if ('start' in patch) {
-      if (patch.start) b.start = patch.start;
+      if (patch.start) b.start = afterCall(doc, day, patch.start);
       else delete b.start;
     }
     if (!('end' in patch)) return;
@@ -642,9 +691,11 @@ export function setDayMeal(doc: ProjectDoc, day: number, patch: { start?: string
       b.minutes = DEFAULT_MEAL_MIN;
       return;
     }
-    const start = mealItem(dayAgenda(doc, day, callSheetStrips(doc, day)))?.start;
-    if (start) b.minutes = (((toMin(patch.end) - toMin(start)) % 1440) + 1440) % 1440;
-    else b.start = clock(toMin(patch.end) - b.minutes);
+    const start = mealItem(dayAgenda(doc, day))?.start;
+    const end = toMin(afterCall(doc, day, patch.end));
+    // Fin avant un début déduit : le repas avance, à durée égale ; après un début imposé, la durée suit.
+    if (start && (b.start || end > toMin(start))) b.minutes = (((end - toMin(start)) % 1440) + 1440) % 1440;
+    else b.start = fromMin(Math.max(0, end - b.minutes));
     return;
   }
   if ('start' in patch) {
@@ -653,7 +704,7 @@ export function setDayMeal(doc: ProjectDoc, day: number, patch: { start?: string
       delete d.mealEnd;
       return;
     }
-    if (d.mealEnd && cur) d.mealEnd = clock(toMin(patch.start) + ((((toMin(cur.end) - toMin(cur.start)) % 1440) + 1440) % 1440));
+    if (d.mealEnd && cur) d.mealEnd = clock(toMin(patch.start) + toMin(cur.end) - toMin(cur.start));
     d.meal = patch.start;
   }
   if ('end' in patch) {
@@ -674,6 +725,8 @@ export function addBanner(doc: ProjectDoc, day: number, kind: BannerKind): ID {
 export function updateBanner(doc: ProjectDoc, day: number, id: ID, patch: Partial<Omit<DayBanner, 'id'>>): void {
   const b = doc.schedule?.days.find((x) => x.n === day)?.banners?.find((x) => x.id === id);
   if (!b) return;
+  // Début saisi à l'horloge : ramené après le rendez-vous (tournage de nuit).
+  if (patch.start) patch = { ...patch, start: afterCall(doc, day, patch.start) };
   Object.assign(b, patch);
   for (const k of ['label', 'start', 'after'] as const) if (!b[k]) delete b[k];
 }
@@ -730,7 +783,7 @@ export interface ItineraryStop {
  *  (adresse du jour pour la séquence, sinon du décor ce jour-là, sinon celle du Registre). */
 export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
   const d = doc.schedule?.days.find((x) => x.n === day);
-  return dayAgenda(doc, day, callSheetStrips(doc, day)).flatMap((it) => {
+  return callSheetAgenda(doc, day).flatMap((it) => {
     if (it.type !== 'strip') return [];
     const strip = it.strip;
     const decorId = doc.sequences[strip.seqId]?.decorId;
@@ -748,11 +801,29 @@ export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
  */
 export function callSheetStrips(doc: ProjectDoc, day: number): Strip[] {
   const strips = stripsByTime(doc, day);
-  const d = doc.schedule?.days.find((x) => x.n === day);
-  const slotted = (id: ID) => (!!d?.timeline?.[id] && doc.shots[id]?.shootingDay === day) || !!d?.parts?.[id]?.length;
+  const slotted = slottedOn(doc, day);
   const started = strips.some((st) => st.shotIds.some(slotted));
   if (!started) return strips;
   return strips.map((st) => ({ ...st, shotIds: st.shotIds.filter(slotted) })).filter((st) => st.shotIds.length);
+}
+
+/** Plan qui a un créneau (ou une reprise) dans l'emploi du temps de ce jour. */
+function slottedOn(doc: ProjectDoc, day: number): (id: ID) => boolean {
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  return (id) => (!!d?.timeline?.[id] && doc.shots[id]?.shootingDay === day) || !!d?.parts?.[id]?.length;
+}
+
+/**
+ * Déroulé de la feuille de service : celui du plan de travail (mêmes horaires, repas compris), dont
+ * les bandes ne gardent que les plans retenus pour la feuille (`callSheetStrips`).
+ */
+export function callSheetAgenda(doc: ProjectDoc, day: number): AgendaItem[] {
+  const keep = new Map(callSheetStrips(doc, day).map((st) => [st.seqId, st]));
+  return dayAgenda(doc, day).flatMap((it): AgendaItem[] => {
+    if (it.type === 'banner') return [it];
+    const st = keep.get(it.strip.seqId);
+    return st ? [{ ...it, strip: st }] : [];
+  });
 }
 
 // --- Plans fractionnés -------------------------------------------------------------------------
