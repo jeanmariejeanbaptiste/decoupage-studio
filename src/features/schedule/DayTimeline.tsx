@@ -197,7 +197,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
             const top = ((Math.max(e.start, start) - start) / SLOT_MIN) * ROW;
             const height = Math.max(ROW, ((Math.min(e.end, end) - Math.max(e.start, start)) / SLOT_MIN) * ROW - 2);
             const tall = height >= ROW * 3;
-            const tags = [valueLabel(sh.value, doc.project.settings.labelStyle), renderTokens(sh.angle), renderTokens(sh.movement, sh.movementSep), formatFocal(sh.focal, isZoom(sh.movement))].filter(Boolean);
+            const tags = [valueLabel(sh.value, doc.project.settings.labelStyle, doc.customVocabulary), renderTokens(sh.angle), renderTokens(sh.movement, sh.movementSep), formatFocal(sh.focal, isZoom(sh.movement))].filter(Boolean);
             const resize = (delta: number) => mutateDoc((d) => (e.part ? resizePart(d, day, e.shotId, e.part, delta) : resizeShot(d, day, e.shotId, delta)));
             return (
               <Block

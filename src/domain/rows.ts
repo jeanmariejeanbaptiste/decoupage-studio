@@ -15,7 +15,7 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
   const settings = doc.project.settings;
   const beats = shot.oneShot?.beats;
   if (beats) {
-    if (BEAT_COLUMNS.includes(col)) return beatColumnText(beats, col, (v) => valueLabel(v, settings.labelStyle));
+    if (BEAT_COLUMNS.includes(col)) return beatColumnText(beats, col, (v) => valueLabel(v, settings.labelStyle, doc.customVocabulary));
     if (col === 'action') {
       const cues = beats.map((b, i) => (b.cue ? `T${i + 1} : ${b.cue}` : '')).filter(Boolean);
       const dur = formatOneShotDuration(oneShotTiming(beats));
@@ -30,7 +30,7 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
     case 'subject':
       return shot.subject;
     case 'value':
-      return valueLabel(shot.value, settings.labelStyle);
+      return valueLabel(shot.value, settings.labelStyle, doc.customVocabulary);
     case 'angle':
       return renderTokens(shot.angle);
     case 'movement':
@@ -92,7 +92,7 @@ export function buildSequenceRows(doc: ProjectDoc, timing: Timing, seqId: ID, co
       blockId: shot.actionBlockId,
       mergeBreak: shot.mergeBreak,
       isolated: !!shot.oneShot,
-      lines: shot.oneShot ? beatSubLines(shot.oneShot.beats, (v) => valueLabel(v, doc.project.settings.labelStyle)) : undefined,
+      lines: shot.oneShot ? beatSubLines(shot.oneShot.beats, (v) => valueLabel(v, doc.project.settings.labelStyle, doc.customVocabulary)) : undefined,
       cells: Object.fromEntries(columns.map((c) => [c, text(doc, timing, shot, c, i)])),
     };
     // Plan d'interview : une ligne par caméra ; aucune fusion ne franchit son cadre.

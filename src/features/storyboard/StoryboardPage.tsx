@@ -538,7 +538,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
           <p className={s.line}>
             {[
               shot.subject && <b key="s">{shot.subject}</b>,
-              valueLabel(shot.value, doc.project.settings.labelStyle),
+              valueLabel(shot.value, doc.project.settings.labelStyle, doc.customVocabulary),
               renderTokens(shot.angle),
               renderTokens(shot.movement, shot.movementSep),
               formatFocal(shot.focal, isZoom(shot.movement)),
@@ -555,7 +555,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
         <p className={s.line}>
           {[
             <b key="s">{shot.subject || <em>sans sujet</em>}</b>,
-            valueLabel(shot.value, doc.project.settings.labelStyle) && <span key="v" className={s.tValue}>{valueLabel(shot.value, doc.project.settings.labelStyle)}</span>,
+            valueLabel(shot.value, doc.project.settings.labelStyle, doc.customVocabulary) && <span key="v" className={s.tValue}>{valueLabel(shot.value, doc.project.settings.labelStyle, doc.customVocabulary)}</span>,
             renderTokens(shot.angle) && <span key="a" className={s.tAngle}>{renderTokens(shot.angle)}</span>,
             renderTokens(shot.movement, shot.movementSep) && <span key="m" className={s.tMove}>{renderTokens(shot.movement, shot.movementSep)}</span>,
             formatFocal(shot.focal, isZoom(shot.movement)) && <span key="f" className={s.tFocal}>{formatFocal(shot.focal, isZoom(shot.movement))}</span>,
