@@ -264,6 +264,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const bgUrl = useBlobUrl(bg?.blobKey);
   const nat = useImageSize(bgUrl);
   const bgRatio = nat ? nat.h / nat.w : 0.7;
+  // Réglage du fond : seulement tant que la vue a un fond (retiré ou annulé, le mode s'arrête).
+  const editingBg = bgEdit && !!bg;
   // Aperçu de l'import : murs placés sur le fond (ou la vue), puis ajustés à la main avant validation.
   const placed = useMemo(() => {
     if (!mdImport) return null;
@@ -284,7 +286,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   ghostOnRef.current = !!placed;
   const scaleGhostRef = useRef((f: number) => setGhost((g) => ({ ...g, k: Math.max(0.05, Math.min(40, g.k * f)) })));
   const bgEditRef = useRef(bgEdit);
-  bgEditRef.current = bgEdit;
+  bgEditRef.current = editingBg;
   /** Met le fond à l'échelle autour d'un point (repère du plan). */
   const scaleBg = (f: number, at?: Point) =>
     mutateDoc((d) => {
@@ -430,7 +432,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       setDrag({ mode: 'ghost', from: p, to: p });
       return;
     }
-    if (bgEdit && bg) {
+    if (editingBg) {
       svgRef.current?.setPointerCapture(e.pointerId);
       const p = toSvg(e);
       setDrag({ mode: 'bg', from: p, to: p });
@@ -485,7 +487,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // Quel que soit l'outil actif, cliquer sur un élément existant le sélectionne et le déplace
   // (sans en créer un nouveau) ; l'outil reste actif pour le placement suivant.
   const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' | 'end1' | 'end2' = 'move') => {
-    if (bgEdit || e.button !== 0) return;
+    if (editingBg || e.button !== 0) return;
     e.stopPropagation();
     svgRef.current?.focus({ preventScroll: true });
     if (e.shiftKey && mode === 'move') {
@@ -694,6 +696,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     setPlanPick(key);
     setSelected(null);
     setMulti([]);
+    // Réglage du fond et aperçu d'import appartiennent à la vue quittée.
+    setBgEdit(false);
+    setMdImport(null);
   };
   const stroke = planOf(doc, planKey).stroke ?? 1;
   const inventory = planInventory(doc, items);
@@ -827,10 +832,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                     <>
                       <Button
                         size="sm"
-                        variant={bgEdit ? 'primary' : 'ghost'}
-                        aria-pressed={bgEdit}
+                        variant={editingBg ? 'primary' : 'ghost'}
+                        aria-pressed={editingBg}
                         onClick={() => {
-                          setBgEdit(!bgEdit);
+                          setBgEdit(!editingBg);
                           setPlanMenu(false);
                         }}
                         title="Glisser pour déplacer l’image, molette ou pincement pour l’agrandir"
@@ -838,7 +843,14 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                       >
                         Ajuster
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => mutateDoc((d) => void delete d.floorPlans![planKey].bg)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setBgEdit(false);
+                          mutateDoc((d) => void delete d.floorPlans![planKey].bg);
+                        }}
+                      >
                         Retirer
                       </Button>
                     </>
@@ -1087,7 +1099,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 </div>
               ))}
             </div>
-            {bgEdit && bg && (
+            {editingBg && (
               <div className={s.bgBar} data-edit>
                 <span>Fond : glisser pour le déplacer, molette pour l’agrandir</span>
                 <button type="button" onClick={() => scaleBg(1 / 1.15)} aria-label="Réduire le fond">
@@ -1141,7 +1153,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               return (
                 <>
                   <image href={bgUrl} x={bg.x + off.x} y={bg.y + off.y} width={bg.w} height={bg.w * bgRatio} preserveAspectRatio="none" opacity={bg.opacity} pointerEvents="none" data-testid="fp-background" />
-                  {bgEdit && <rect x={bg.x + off.x} y={bg.y + off.y} width={bg.w} height={bg.w * bgRatio} className={s.bgFrame} pointerEvents="none" />}
+                  {editingBg && <rect x={bg.x + off.x} y={bg.y + off.y} width={bg.w} height={bg.w * bgRatio} className={s.bgFrame} pointerEvents="none" />}
                 </>
               );
             })()}
