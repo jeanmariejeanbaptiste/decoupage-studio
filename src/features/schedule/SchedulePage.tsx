@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRi
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
+import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
@@ -167,7 +167,19 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     size="sm"
                     aria-label={`Supprimer le jour ${d.n}`}
                     icon={<Trash2 size={13} strokeWidth={1.25} />}
-                    onClick={() => mutateDoc((x) => removeDay(x, d.n))}
+                    onClick={async () => {
+                      if (dayHasData(doc, d.n)) {
+                        const later = days.some((x) => x.n > d.n);
+                        const r = await ask({
+                          title: `Supprimer le jour ${d.n} ?`,
+                          body: `Ses plans redeviennent non planifiés et sa feuille de service est effacée.${later ? ' Les jours suivants sont renumérotés.' : ''}`,
+                          confirmLabel: 'Supprimer',
+                          danger: true,
+                        });
+                        if (!r.ok) return;
+                      }
+                      mutateDoc((x) => removeDay(x, d.n));
+                    }}
                   />
                   <DayEvents doc={doc} date={d.date} />
                 </div>

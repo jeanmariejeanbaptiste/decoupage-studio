@@ -143,6 +143,17 @@ export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay
   else sch.days.push({ n, id: newId(), ...patch });
 }
 
+/**
+ * Le jour porte-t-il des données (date, RDV, feuille de service, bandeaux, emploi du temps, plans
+ * affectés, dans cette version ou une autre) ? Un jour vide se supprime sans confirmation.
+ */
+export function dayHasData(doc: ProjectDoc, n: number): boolean {
+  const d = doc.schedule?.days.find((x) => x.n === n);
+  const filled = (v: unknown) => v !== undefined && v !== '' && !(typeof v === 'object' && v !== null && Object.keys(v).length === 0);
+  if (d && Object.entries(d).some(([k, v]) => k !== 'n' && k !== 'id' && filled(v))) return true;
+  return [doc.shots, ...(doc.versions ?? []).map((v) => v.slice?.shots ?? {})].some((m) => Object.values(m).some((s) => s.shootingDay === n));
+}
+
 /** Supprime un jour : ses plans redeviennent non planifiés, les jours suivants sont renumérotés (« jour n sur N » sans trou). */
 export function removeDay(doc: ProjectDoc, n: number): void {
   const sch = ensureSchedule(doc);

@@ -60,3 +60,21 @@ test('feuille de service générée pour un jour', async ({ page }) => {
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
   expect(pdf.byteLength).toBeGreaterThan(5000);
 });
+
+test('supprimer un jour : sans dialogue s’il est vide, confirmé s’il porte des données', async ({ page }) => {
+  await page.goto('/#/schedule?seed=rav3');
+  await page.getByTestId('add-day').click();
+  await page.getByTestId('add-day').click();
+  await page.getByLabel('Supprimer le jour 2').click();
+  await expect(page.getByTestId('band-2')).toHaveCount(0);
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await page.getByLabel('Rendez-vous du jour 1').fill('07:00');
+  await page.getByLabel('Supprimer le jour 1').click();
+  const dlg = page.getByRole('alertdialog');
+  await expect(dlg).toContainText('Supprimer le jour 1 ?');
+  await dlg.getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.getByTestId('band-1')).toBeVisible();
+  await page.getByLabel('Supprimer le jour 1').click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Supprimer', exact: true }).click();
+  await expect(page.getByTestId('band-1')).toHaveCount(0);
+});

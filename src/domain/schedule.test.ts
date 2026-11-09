@@ -374,3 +374,17 @@ describe('plan de travail et versions du film', () => {
     for (const id of day1Shots) expect(back.shots[id].shootingDay).toBeUndefined();
   });
 });
+
+describe('supprimer un jour : confirmation', () => {
+  it('seul un jour vide se supprime sans confirmation', async () => {
+    const { dayHasData } = await import('./schedule');
+    const doc = buildRav3();
+    const id = doc.sequences[doc.project.sequenceIds[0]].shotIds[0];
+    const empty = produce(doc, (d) => void addDay(d));
+    expect(dayHasData(empty, 1)).toBe(false);
+    expect(dayHasData(produce(empty, (d) => updateDay(d, 1, { hospital: 'CHU Nord' })), 1)).toBe(true);
+    expect(dayHasData(produce(empty, (d) => updateDay(d, 1, { callTime: '07:00' })), 1)).toBe(true);
+    expect(dayHasData(produce(empty, (d) => updateDay(d, 1, { banners: [] })), 1)).toBe(false);
+    expect(dayHasData(produce(empty, (d) => assignShots(d, [id], 1)), 1)).toBe(true);
+  });
+});
