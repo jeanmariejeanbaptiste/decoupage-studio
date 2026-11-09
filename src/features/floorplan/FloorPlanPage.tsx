@@ -246,6 +246,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const psView = psPlans.find((p) => p.key === planKey);
   // Retrouve le cadrage de cette vue tel qu'on l'a laissé, et le mémorise à chaque changement.
   const viewFor = useRef<string | null>(null);
+  // Onglets sur une ligne qui défile : la vue active reste visible.
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [planKey]);
   useEffect(() => {
     memory.seq = seqId;
     memory.pick = planPick;
@@ -730,7 +735,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               </option>
             ))}
           </select>
-          <div className={s.plans} role="tablist" aria-label="Vues du plan au sol">
+          <div className={s.plans} role="tablist" aria-label="Vues du plan au sol" ref={tabsRef}>
             {plans.map((p) =>
               renaming === p.key ? (
                 <RenameField
@@ -773,49 +778,49 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 {p.name}
               </button>
             ))}
-            <span className={s.planActions} data-edit>
-              <Button
-                variant="icon"
-                size="sm"
-                icon={<Plus size={14} strokeWidth={1.4} />}
-                aria-label="Nouvelle vue"
-                title="Nouvelle vue"
-                onClick={() => {
-                  const key = mutateDoc((d) => addPlan(d, seqId));
-                  if (key) pickView(key);
-                }}
-                data-testid="add-plan"
-              />
-              <Button
-                variant="icon"
-                size="sm"
-                icon={<Copy size={13} strokeWidth={1.4} />}
-                aria-label="Dupliquer la vue"
-                title="Dupliquer la vue"
-                onClick={() => {
-                  const key = mutateDoc((d) => duplicatePlan(d, seqId, planKey));
-                  if (key) pickView(key);
-                }}
-              />
-              <Button
-                variant="icon"
-                size="sm"
-                icon={<Trash2 size={13} strokeWidth={1.4} />}
-                aria-label={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue'}
-                title={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue (une séquence garde toujours une vue)'}
-                data-testid="delete-plan"
-                onClick={async () => {
-                  const name = [...plans, ...psPlans].find((p) => p.key === planKey)?.name ?? 'cette vue';
-                  if (planOf(doc, planKey).items.length) {
-                    const r = await ask({ title: plans.length > 1 && !psView ? `Supprimer « ${name} » ?` : `Vider « ${name} » ?`, body: 'Son contenu disparaît (annulable avec ⌘Z).', confirmLabel: plans.length > 1 && !psView ? 'Supprimer' : 'Vider', danger: true });
-                    if (!r.ok) return;
-                  }
-                  mutateDoc((d) => deletePlan(d, planKey));
-                  pickView(undefined);
-                }}
-              />
-            </span>
           </div>
+          <span className={s.planActions} data-edit>
+            <Button
+              variant="icon"
+              size="sm"
+              icon={<Plus size={14} strokeWidth={1.4} />}
+              aria-label="Nouvelle vue"
+              title="Nouvelle vue"
+              onClick={() => {
+                const key = mutateDoc((d) => addPlan(d, seqId));
+                if (key) pickView(key);
+              }}
+              data-testid="add-plan"
+            />
+            <Button
+              variant="icon"
+              size="sm"
+              icon={<Copy size={13} strokeWidth={1.4} />}
+              aria-label="Dupliquer la vue"
+              title="Dupliquer la vue"
+              onClick={() => {
+                const key = mutateDoc((d) => duplicatePlan(d, seqId, planKey));
+                if (key) pickView(key);
+              }}
+            />
+            <Button
+              variant="icon"
+              size="sm"
+              icon={<Trash2 size={13} strokeWidth={1.4} />}
+              aria-label={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue'}
+              title={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue (une séquence garde toujours une vue)'}
+              data-testid="delete-plan"
+              onClick={async () => {
+                const name = [...plans, ...psPlans].find((p) => p.key === planKey)?.name ?? 'cette vue';
+                if (planOf(doc, planKey).items.length) {
+                  const r = await ask({ title: plans.length > 1 && !psView ? `Supprimer « ${name} » ?` : `Vider « ${name} » ?`, body: 'Son contenu disparaît (annulable avec ⌘Z).', confirmLabel: plans.length > 1 && !psView ? 'Supprimer' : 'Vider', danger: true });
+                  if (!r.ok) return;
+                }
+                mutateDoc((d) => deletePlan(d, planKey));
+                pickView(undefined);
+              }}
+            />
+          </span>
         </div>
         <div className={s.tbRight}>
           <div className={s.zoomGroup} data-view>

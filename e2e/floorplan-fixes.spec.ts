@@ -46,6 +46,22 @@ test('plan au sol : le réglage du fond s’arrête en changeant de vue ou en re
   await expect(done).toHaveCount(0);
 });
 
+test('plan au sol : à 1280 px, la barre reste sur une ligne quel que soit le nombre de vues', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/#/floorplan?seed=rav3');
+  const menu = page.getByTestId('fp-plan-menu');
+  const before = (await menu.boundingBox())!;
+  for (let k = 0; k < 3; k++) await page.getByRole('button', { name: 'Dupliquer la vue' }).click();
+  for (let k = 0; k < 2; k++) await page.getByTestId('add-plan').click();
+  await expect(page.getByRole('tab', { name: 'Vue 3' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Vue 3' })).toBeInViewport();
+  const after = (await menu.boundingBox())!;
+  expect(Math.round(after.y)).toBe(Math.round(before.y));
+  expect(Math.round(after.x)).toBe(Math.round(before.x));
+  await expect(page.getByTestId('add-plan')).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('plan au sol : la pièce et le projecteur suivent l’annulation ; un passage dans un champ ne change rien', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
   const panel = page.getByTestId('fp-panel');

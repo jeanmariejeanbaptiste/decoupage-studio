@@ -124,18 +124,23 @@
 .page { padding-top: 12px; }
 .toolbar {
   position: sticky; top: 0; z-index: 8;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: nowrap;
   margin: -12px -24px 12px; padding: 8px 24px;
   background: var(--paper); border-bottom: 1px solid var(--rule);
 }
-.tbLeft, .tbRight { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-.seqSelect { max-width: 260px; height: 32px; font-size: 13px; padding: 0 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); }
-.toolbar .plans { margin: 0; align-items: center; gap: 2px; }
-.toolbar .plans button[role='tab'] { border: 1px solid transparent; border-radius: var(--radius); padding: 5px 10px; background: none; color: var(--ink-soft); }
+/* Une seule ligne : les onglets défilent, zoom, « Plan des locaux » et « Exporter » restent à droite. */
+.tbLeft, .tbRight { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: nowrap; }
+.tbLeft { flex: 1 1 auto; }
+.tbRight { flex: none; }
+.seqSelect { flex: 0 1 auto; min-width: 110px; max-width: 260px; height: 32px; font-size: 13px; padding: 0 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); text-overflow: ellipsis; }
+.toolbar .plans { flex: 0 1 auto; min-width: 0; margin: 0; padding: 2px 0; align-items: center; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.toolbar .plans::-webkit-scrollbar { display: none; }
+.toolbar .plans > * { flex: none; }
+.toolbar .plans button[role='tab'] { border: 1px solid transparent; border-radius: var(--radius); padding: 5px 10px; background: none; color: var(--ink-soft); white-space: nowrap; }
 .toolbar .plans button[role='tab']:hover { color: var(--ink); background: var(--hover); }
 .toolbar .plans .planOn { background: var(--selected) !important; color: var(--ink) !important; font-weight: 600; border-color: transparent !important; }
 .toolbar .psTab { border-style: dashed !important; border-color: var(--rule) !important; }
-.planActions { display: inline-flex; align-items: center; margin-left: 4px; padding-left: 6px; border-left: 1px solid var(--rule); }
+.planActions { display: inline-flex; align-items: center; margin-left: 4px; padding-left: 6px; border-left: 1px solid var(--rule); flex: none; }
 .renameField { width: 120px; height: 28px; font-size: 13px; padding: 0 8px; border: 1px solid var(--ink-soft); border-radius: var(--radius); background: var(--paper); }
 .zoomGroup { display: inline-flex; align-items: center; padding: 0 4px; border-right: 1px solid var(--rule); }
 
@@ -178,7 +183,8 @@
 .h2 { font-size: 15px; font-weight: 600; }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
-  .toolbar { margin: -12px -16px 12px; padding: 8px 16px; }
+  .toolbar { margin: -12px -16px 12px; padding: 8px 16px; flex-wrap: wrap; }
+  .tbLeft { flex-basis: 100%; }
   .palette { top: 6px; left: 6px; }
   .paletteTool { width: 30px; height: 30px; }
 }
