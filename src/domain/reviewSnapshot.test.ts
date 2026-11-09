@@ -2,7 +2,7 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { addComment, shownComments } from './comments';
-import { parseReviewSnapshot, reviewMediaKeys, reviewSnapshot, withComments } from './reviewSnapshot';
+import { parseReviewSnapshot, publicScript, reviewMediaKeys, reviewSnapshot, withComments } from './reviewSnapshot';
 import type { ProjectDoc } from './types';
 import { createVersion, ensureVersions } from './versions';
 
@@ -31,6 +31,29 @@ function privateDoc(): ProjectDoc {
 }
 
 describe('instantané de relecture', () => {
+  it('rien de privé ne sort non plus des colonnes masquées, du plan de travail ni des aides à l’écriture', () => {
+    const doc = produce(privateDoc(), (d) => {
+      d.project.settings.gridColumns = ['sequence', 'number', 'value', 'notes'];
+      d.project.settings.exportColumns = ['sequence', 'number', 'value'];
+      const [a, b] = Object.values(d.shots);
+      a.notes = 'Note visible';
+      b.notes = 'Note visible aussi';
+      Object.assign(a, { sound: 'Perche', light: 'HMI 4K', aperture: 2.8, shootingDay: 7, status: 'tourné' });
+      d.sequences[d.project.sequenceIds[0]].slot = '10:30–11:00';
+      d.scenario = `${d.scenario}\n\n[[Note privée : appeler la prod]]\n\nLéa entre[[ cachet 800 EUR]] et [[=jaune]]sort[[=]].\n\n/* boneyard secret */\n\n# Partie secrète\n\n= Résumé secret\n\n===\n`;
+    });
+    const snap = reviewSnapshot(doc, {});
+    const text = JSON.stringify(snap);
+    for (const secret of ['Perche', 'HMI 4K', '"shootingDay"', '"aperture"', 'tourné', '10:30–11:00', 'appeler la prod', 'cachet 800', 'boneyard secret', 'Partie secrète', 'Résumé secret']) expect(text, secret).not.toContain(secret);
+    // Colonne affichée : sa valeur part ; texte, surlignage et saut de page restent, aux mêmes positions.
+    expect(text).toContain('Note visible aussi');
+    expect(snap.doc.scenario).toHaveLength(doc.scenario!.length);
+    expect(snap.doc.scenario).toContain('Léa entre[[');
+    expect(snap.doc.scenario).toContain('[[=jaune]]sort[[=]].');
+    expect(snap.doc.scenario).toContain('\n===\n');
+    expect(publicScript('A\n# Partie\nB')).toBe('A\n        \nB');
+  });
+
   it('rien de privé ne sort : lieux, contacts, préparation, note d’intention, piste, dessins modifiables', () => {
     const doc = privateDoc();
     const snap = reviewSnapshot(doc, { 'p:story': { type: 'image/jpeg', data: 'AAA' }, 'p:base': { type: 'image/jpeg', data: 'BBB' }, 'p:audio': { type: 'audio/mpeg', data: 'CCC' } }, '2026-11-09T10:00:00Z');
@@ -41,7 +64,7 @@ describe('instantané de relecture', () => {
     expect(snap.doc.schedule).toBeUndefined();
     expect(snap.doc.review).toBeUndefined();
     // Ce qui sert à relire est là.
-    expect(snap.doc.scenario).toBe(doc.scenario);
+    expect(snap.doc.scenario).toBe(publicScript(doc.scenario!));
     expect(Object.keys(snap.doc.shots)).toEqual(Object.keys(doc.shots));
     expect(Object.values(snap.doc.characters).map((c) => c.name)).toEqual(Object.values(doc.characters).map((c) => c.name));
     expect(Object.values(snap.doc.decors).map((c) => c.name)).toEqual(Object.values(doc.decors).map((c) => c.name));

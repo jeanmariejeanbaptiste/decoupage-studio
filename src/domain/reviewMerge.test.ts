@@ -172,4 +172,60 @@ describe('retours de la relecture en ligne', () => {
     const r = merge(snap.doc, [dc('d1', encodeComment('Sur V1', { v: v1, a: { kind: 'shot', shotId, col: 'value' } }))], { versionId: snap.versionId });
     expect(r.next.comments![0]).toMatchObject({ versionId: v1, anchor: { kind: 'shot', shotId, col: 'value' } });
   });
+
+  it('chez le relecteur : une correction pas encore partie n’est pas écrasée par le texte de Drive', () => {
+    const doc = base();
+    const seqId = doc.project.sequenceIds[0];
+    const first = merge(doc, [dc('d1', encodeComment('Texte initial', { i: 'loc111', a: { kind: 'sequence', seqId } }), { author: { displayName: 'Nina', me: true } })]).next;
+    const edited = produce(first, (d) => void (d.comments![0].text = 'Texte corrigé'));
+    const remote = [dc('d1', encodeComment('Texte initial', { i: 'loc111', a: { kind: 'sequence', seqId } }), { author: { displayName: 'Nina', me: true } })];
+    expect(merge(edited, remote, { pending: new Set(['loc111']) }).next.comments![0].text).toBe('Texte corrigé');
+    // Partie depuis : Drive fait foi de nouveau.
+    expect(merge(edited, remote).next.comments![0].text).toBe('Texte initial');
+  });
+
+  it('un envoi rejoué (deux commentaires Drive pour le même commentaire) n’est repris qu’une fois', () => {
+    const doc = base();
+    const seqId = doc.project.sequenceIds[0];
+    const content = encodeComment('Une fois', { i: 'loc222', a: { kind: 'sequence', seqId } });
+    const r = merge(doc, [dc('d1', content), dc('d22', content)]);
+    expect(r.next.comments!.map((c) => [c.id, c.remoteId])).toEqual([['loc222', 'd1']]);
+    // Un autre compte qui reprend cet identifiant n'est pas confondu.
+    const other = merge(r.next, [dc('d333', content, { author: { displayName: 'Paul' } })]);
+    expect(other.next.comments).toHaveLength(2);
+  });
+
+  it('retiré par l’auteur : écarté de la reprise, et des commentaires déjà relevés chez le relecteur', () => {
+    const doc = base();
+    const seqId = doc.project.sequenceIds[0];
+    const remote = [dc('d1', encodeComment('Indiscret', { a: { kind: 'sequence', seqId } }))];
+    const local = merge(doc, remote).next;
+    expect(local.comments).toHaveLength(1);
+    expect(merge(local, remote, { dismissed: ['d1'] }).next.comments).toHaveLength(0);
+    // Instantané republié avec `dismissed` : le commentaire relevé dans Drive ne reste pas.
+    expect(mergeSnapshotComments(local.comments, [], [], ['d1'])).toHaveLength(0);
+    expect(mergeSnapshotComments(local.comments, [], [])).toHaveLength(1);
+  });
+
+  it('bornes : commentaires repris par fichier et par compte, poids des tracés', () => {
+    const doc = base();
+    const seqId = doc.project.sequenceIds[0];
+    const many = Array.from({ length: LIMITS.perAuthor + 5 }, (_, i) => dc(`n${i}xyz`, encodeComment(`N ${i}`, { a: { kind: 'sequence', seqId } })));
+    const others = Array.from({ length: 3 }, (_, i) => dc(`p${i}xyz`, encodeComment(`P ${i}`, { a: { kind: 'sequence', seqId } }), { author: { displayName: 'Paul' } }));
+    const r = merge(doc, [...many, ...others]).next;
+    expect(r.comments!.filter((c) => c.author === 'Nina Relectrice')).toHaveLength(LIMITS.perAuthor);
+    expect(r.comments!.filter((c) => c.author === 'Paul')).toHaveLength(3);
+    const path = `M0 0 L${'1 1 '.repeat(4000)}`.trim();
+    const heavy = merge(doc, [dc('m1', encodeComment('Tracés', { a: { kind: 'sequence', seqId }, m: { surface: 'cut', paths: Array.from({ length: 50 }, () => path) } }))]).next;
+    const weight = heavy.comments![0].marks!.paths.join('').length;
+    expect(weight).toBeLessThanOrEqual(LIMITS.marks);
+    expect(weight).toBeGreaterThan(LIMITS.marks - path.length - 1);
+  });
+
+  it('instantané : seules les images matricielles passent (jamais un SVG ni un document)', () => {
+    const snap = parseReviewSnapshot(
+      JSON.stringify({ ...reviewSnapshot(base(), {}), media: { a: { type: 'image/svg+xml', data: 'PHN2Zz4=' }, b: { type: 'text/html', data: 'PGh0bWw+' }, c: { type: 'image/png', data: 'iVBO' } } }),
+    );
+    expect(Object.keys(snap.media)).toEqual(['c']);
+  });
 });

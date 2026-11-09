@@ -22,7 +22,19 @@ export interface DriveComment {
   deleted?: boolean;
 }
 
-export const LIMITS = { text: 5000, quote: 1000, paths: 50, path: 20_000, files: 10, author: 80 } as const;
+export const LIMITS = {
+  text: 5000,
+  quote: 1000,
+  paths: 50,
+  path: 20_000,
+  /** Poids total des tracés d'un commentaire (caractères). */
+  marks: 100_000,
+  files: 10,
+  author: 80,
+  /** Commentaires Drive repris au plus, pour tout le fichier puis par compte Google. */
+  imported: 500,
+  perAuthor: 100,
+} as const;
 export const WITHDRAWN = 'Commentaire retiré par son auteur.';
 
 export interface MergeOptions {
@@ -34,7 +46,10 @@ export interface MergeOptions {
   extra?: Readonly<Record<string, Partial<TrailerPayload>>>;
   /** Date à défaut de celle de Drive. */
   now?: string;
-  /** Chez un relecteur : ses envois sans réponse de Drive (identifiants locaux), à reconnaître. */
+  /**
+   * Chez un relecteur : ses envois en cours ou manqués (identifiants locaux). Sans réponse de Drive,
+   * ils sont reconnus par la traîne ; leur texte local (une correction pas encore partie) fait foi.
+   */
   pending?: ReadonlySet<ID>;
 }
 
@@ -103,7 +118,14 @@ export function checkMarks(m: unknown): CommentMarks | undefined {
   if (!m || typeof m !== 'object') return undefined;
   const x = m as Record<string, unknown>;
   if ((x.surface !== 'script' && x.surface !== 'cut') || !Array.isArray(x.paths)) return undefined;
-  const paths = x.paths.filter((p): p is string => typeof p === 'string' && p.length <= LIMITS.path && SAFE_PATH.test(p)).slice(0, LIMITS.paths);
+  const paths: string[] = [];
+  let weight = 0;
+  for (const p of x.paths) {
+    if (paths.length >= LIMITS.paths) break;
+    if (typeof p !== 'string' || p.length > LIMITS.path || !SAFE_PATH.test(p)) continue;
+    if ((weight += p.length) > LIMITS.marks) break;
+    paths.push(p);
+  }
   return paths.length ? { surface: x.surface, paths } : undefined;
 }
 
@@ -146,12 +168,32 @@ export function mergeDriveComments(doc: ProjectDoc, remote: readonly DriveCommen
     }
     return null;
   };
-  const used = (id: string) => (doc.comments ?? []).some((c) => c.id === id || c.replies.some((r) => r.id === id));
-  const freshId = (i: unknown) => (typeof i === 'string' && ID_RE.test(i) && !used(i) ? i : newId());
+  const items = () => (doc.comments ?? []).flatMap((c) => [c, ...c.replies]);
+  const used = (id: string) => items().some((x) => x.id === id);
+  // Identifiant de repli tiré du commentaire Drive : le même si la reprise est rejouée (historique).
+  const freshId = (i: unknown, rid: string) => {
+    if (typeof i === 'string' && ID_RE.test(i) && !used(i)) return i;
+    const own = `d-${rid}`.slice(0, 64);
+    return ID_RE.test(own) && !used(own) ? own : newId();
+  };
+  // Bornes : un lien ouvert en commentaire à tous ne doit pas gonfler le projet sans fin.
+  let total = 0;
+  const perAuthor = new Map<string, number>();
+  for (const x of items())
+    if (x.remoteId) {
+      total++;
+      perAuthor.set(x.author, (perAuthor.get(x.author) ?? 0) + 1);
+    }
+  const room = (author: string) => total < LIMITS.imported && (perAuthor.get(author) ?? 0) < LIMITS.perAuthor;
+  const count = (author: string) => {
+    total++;
+    perAuthor.set(author, (perAuthor.get(author) ?? 0) + 1);
+  };
 
   for (const rc of list) {
     let found = find(rc.id);
-    if (rc.deleted) {
+    // Retiré par l'auteur du projet : traité comme une suppression dans Drive.
+    if (rc.deleted || (found && dismissed.has(rc.id))) {
       if (!found) continue;
       if (found.r) found.c.replies = found.c.replies.filter((x) => x.remoteId !== rc.id);
       else if (!found.c.replies.length) doc.comments = comments().filter((x) => x.remoteId !== rc.id);
@@ -186,12 +228,14 @@ export function mergeDriveComments(doc: ProjectDoc, remote: readonly DriveCommen
     }
     if (found) {
       const t = found.r ?? found.c;
-      if (t.text !== text) {
-        t.text = text;
-        changed = true;
-      }
       if (t.author !== author) {
         t.author = author;
+        changed = true;
+      }
+      // Envoi en cours ou manqué : la version locale (correction comprise) attend de partir.
+      if (opts.pending?.has(t.id)) continue;
+      if (t.text !== text) {
+        t.text = text;
         changed = true;
       }
       if (!sameList(t.attachments, attachments)) {
@@ -208,11 +252,15 @@ export function mergeDriveComments(doc: ProjectDoc, remote: readonly DriveCommen
     }
     if (dismissed.has(rc.id)) continue;
     if (!text && !marks && !attachments.length) continue;
+    // Doublon d'un commentaire déjà repris (même identifiant local, même compte : un envoi rejoué).
+    if (typeof p.i === 'string' && items().some((x) => x.id === p.i && !!x.remoteId && x.author === author)) continue;
+    if (!room(author)) continue;
+    count(author);
     const at = isoOr(rc.createdTime, now);
     if (p.r || p.rr) {
       const parent = comments().find((c) => c.id === p.r) ?? (typeof p.rr === 'string' ? comments().find((c) => c.remoteId === p.rr) : undefined);
       if (parent) {
-        parent.replies.push({ id: freshId(p.i), author, text, at, ...(versionId ? { versionId } : {}), ...(attachments.length ? { attachments } : {}), remoteId: rc.id });
+        parent.replies.push({ id: freshId(p.i, rc.id), author, text, at, ...(versionId ? { versionId } : {}), ...(attachments.length ? { attachments } : {}), remoteId: rc.id });
         changed = true;
         continue;
       }
@@ -220,7 +268,7 @@ export function mergeDriveComments(doc: ProjectDoc, remote: readonly DriveCommen
     }
     const anchor = checkAnchor(doc, versionId, p.a) ?? fallbackAnchor(doc, versionId);
     comments().push({
-      id: freshId(p.i),
+      id: freshId(p.i, rc.id),
       ...(versionId ? { versionId } : {}),
       anchor,
       author,
@@ -242,22 +290,30 @@ const remotesOf = (list: readonly ReviewComment[] | undefined) => new Set((list 
 /**
  * Chez un relecteur, un instantané republié remplace le précédent : ses commentaires font foi ; s'y
  * ajoutent ceux écrits ici (ou repris de Drive) que l'auteur n'a pas encore republiés. Ceux que
- * l'auteur a retirés depuis l'instantané précédent ne reviennent pas.
+ * l'auteur a retirés depuis l'instantané précédent ne reviennent pas, ni les commentaires Drive qu'il
+ * a écartés (`dismissed`), même relevés ici avant qu'il ne les écarte.
  */
-export function mergeSnapshotComments(local: readonly ReviewComment[] | undefined, prev: readonly ReviewComment[] | undefined, next: readonly ReviewComment[] | undefined): ReviewComment[] {
+export function mergeSnapshotComments(
+  local: readonly ReviewComment[] | undefined,
+  prev: readonly ReviewComment[] | undefined,
+  next: readonly ReviewComment[] | undefined,
+  dismissed: readonly string[] = [],
+): ReviewComment[] {
   const out: ReviewComment[] = JSON.parse(JSON.stringify(next ?? [])) as ReviewComment[];
   const nextIds = idsOf(next);
   const nextRemote = remotesOf(next);
   const prevIds = idsOf(prev);
+  const gone = new Set(dismissed);
   const known = (x: { id: string; remoteId?: string }) => nextIds.has(x.id) || (!!x.remoteId && nextRemote.has(x.remoteId));
+  const fresh = (x: { id: string; remoteId?: string }) => !known(x) && !prevIds.has(x.id) && !(x.remoteId && gone.has(x.remoteId));
   for (const c of local ?? []) {
     if (!known(c)) {
-      if (!prevIds.has(c.id)) out.push(JSON.parse(JSON.stringify(c)) as ReviewComment);
+      if (fresh(c)) out.push(JSON.parse(JSON.stringify({ ...c, replies: c.replies.filter((r) => !(r.remoteId && gone.has(r.remoteId))) })) as ReviewComment);
       continue;
     }
     const target = out.find((x) => x.id === c.id || (!!c.remoteId && x.remoteId === c.remoteId));
     if (!target) continue;
-    for (const r of c.replies) if (!known(r) && !prevIds.has(r.id)) target.replies.push(JSON.parse(JSON.stringify(r)) as CommentReply);
+    for (const r of c.replies) if (fresh(r)) target.replies.push(JSON.parse(JSON.stringify(r)) as CommentReply);
   }
   return out;
 }

@@ -9,7 +9,7 @@ import { commentAttachments, type ReviewComment } from './comments';
 import { defaultSettings } from './factory';
 import type { Interview } from './interview';
 import { migrate, ProjectFileError, type MediaEntry } from './serialize';
-import { SCHEMA_VERSION, type Character, type Decor, type ID, type ProjectDoc, type ProjectSettings, type Shot } from './types';
+import { SCHEMA_VERSION, type Character, type ColumnKey, type Decor, type ID, type ProjectDoc, type ProjectSettings, type Sequence, type Shot } from './types';
 import type { ProjectVersion } from './versions';
 
 export const REVIEW_FORMAT = 'decoupage-studio-review';
@@ -80,9 +80,20 @@ function displaySettings(doc: ProjectDoc): ProjectSettings {
   return out as unknown as ProjectSettings;
 }
 
-/** Plan tel qu'il se relit : l'image affichée du storyboard, sans l'original ni le dessin modifiable. */
-function reviewShot(sh: Shot): Shot {
+/** Champs des colonnes facultatives : publiés seulement si la colonne s'affiche (tableau ou export). */
+const COLUMN_FIELDS = ['notes', 'sound', 'light', 'aperture', 'shootingDay', 'status'] as const satisfies ReadonlyArray<keyof Shot & ColumnKey>;
+
+/**
+ * Plan tel qu'il se relit : l'image affichée du storyboard, sans l'original ni le dessin modifiable,
+ * et sans ce que ses colonnes masquées gardent (notes, jour de tournage, statut…).
+ */
+function reviewShot(sh: Shot, shown: ReadonlySet<ColumnKey>): Shot {
   const out = copy(sh);
+  for (const k of COLUMN_FIELDS) {
+    if (shown.has(k)) continue;
+    if (k === 'status') out.status = 'à tourner';
+    else delete out[k];
+  }
   const frame = <F extends { blobKey?: string; baseKey?: string; sketch?: unknown; baseFit?: unknown; baseCrop?: unknown; sketchAspect?: unknown }>(f: F): F => {
     delete f.baseKey;
     delete f.sketch;
@@ -150,6 +161,25 @@ export function locateQuote(text: string, quote: string, near: number): { start:
 
 const norm = (x: string) => x.replace(/\s+/g, ' ').trim();
 
+const spaces = (x: string) => x.replace(/[^\n]/g, ' ');
+
+/**
+ * Scénario sans ses aides à l'écriture, qui ne s'impriment jamais : notes « [[…]] » (pas les marques
+ * de surlignage « [[=couleur]] »), passages écartés « /* … *\/ », parties « # » et résumés « = ».
+ * Leur texte devient des espaces : les positions (passages commentés, ancres des séquences) restent.
+ */
+export function publicScript(text: string): string {
+  let out = text.replace(/\/\*[\s\S]*?\*\//g, spaces);
+  out = out.replace(/\[\[(?!=)[\s\S]*?\]\]/g, (m, at: number) => {
+    const before = out.slice(out.lastIndexOf('\n', at - 1) + 1, at);
+    const nl = out.indexOf('\n', at + m.length);
+    const after = out.slice(at + m.length, nl < 0 ? undefined : nl);
+    // Note seule sur sa ligne : la ligne devient blanche ; dans une ligne, les crochets restent.
+    return !before.trim() && !after.trim() ? spaces(m) : `[[${spaces(m.slice(2, -2))}]]`;
+  });
+  return out.replace(/^[^\S\n]*(#|=(?!==))[^\n]*/gm, spaces);
+}
+
 /**
  * Commentaires tels qu'ils partent chez les relecteurs : ceux des versions publiées seulement (un
  * commentaire d'une version plus récente citerait un texte qui n'est pas publié). Les passages de la
@@ -169,7 +199,11 @@ export function publishedComments(doc: ProjectDoc, snapshot: Pick<ProjectDoc, 's
       if (a.kind === 'script' && versionOfComment(doc, c) === snapshot.activeVersionId && norm(text.slice(a.start, a.end)) !== norm(a.quote)) {
         const found = locateQuote(text, a.quote, a.start);
         if (found) Object.assign(a, found);
-        else a.end = a.start = Math.min(a.start, text.length);
+        else {
+          // Passage absent du texte publié (écrit depuis, ou dans une note) : rien de lui ne sort.
+          a.end = a.start = Math.min(a.start, text.length);
+          a.quote = '';
+        }
       }
       return out;
     });
@@ -181,14 +215,23 @@ export function reviewDoc(doc: ProjectDoc): ProjectDoc {
   const versions = publishedVersions(doc).map((v): ProjectVersion => {
     const base: ProjectVersion = { id: v.id, name: v.name, createdAt: v.createdAt, ...(v.from ? { from: v.from } : {}) };
     // Versions précédentes : leur texte seul, pour retrouver leurs commentaires par citation.
-    return v.id === doc.activeVersionId ? base : { ...base, slice: { scenario: v.slice?.scenario ?? '', sequenceIds: [], sequences: {}, shots: {}, blocks: {} } };
+    return v.id === doc.activeVersionId ? base : { ...base, slice: { scenario: publicScript(v.slice?.scenario ?? ''), sequenceIds: [], sequences: {}, shots: {}, blocks: {} } };
   });
+  const st = p.settings;
+  const shown = new Set<ColumnKey>([...(st.gridColumns ?? []), ...(st.exportColumns ?? [])]);
   const characters: Record<ID, Character> = {};
   for (const [id, c] of Object.entries(doc.characters)) characters[id] = { id, name: c.name, kind: c.kind, ...(c.color ? { color: c.color } : {}), ...(c.aliases?.length ? { aliases: [...c.aliases] } : {}) };
   const decors: Record<ID, Decor> = {};
   for (const [id, d] of Object.entries(doc.decors)) decors[id] = { id, name: d.name, ...(d.intExt ? { intExt: d.intExt } : {}) };
   const shots: Record<ID, Shot> = {};
-  for (const [id, sh] of Object.entries(doc.shots)) shots[id] = reviewShot(sh);
+  for (const [id, sh] of Object.entries(doc.shots)) shots[id] = reviewShot(sh, shown);
+  // Séquences : sans le créneau de tournage (plan de travail).
+  const sequences: Record<ID, Sequence> = {};
+  for (const [id, sq] of Object.entries(doc.sequences)) {
+    const out = copy(sq);
+    delete out.slot;
+    sequences[id] = out;
+  }
   const out: ProjectDoc = {
     project: {
       id: p.id,
@@ -202,7 +245,7 @@ export function reviewDoc(doc: ProjectDoc): ProjectDoc {
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     },
-    sequences: copy(doc.sequences),
+    sequences,
     shots,
     blocks: copy(doc.blocks),
     characters,
@@ -211,7 +254,7 @@ export function reviewDoc(doc: ProjectDoc): ProjectDoc {
     validatedSteps: [],
     customVocabulary: copy(doc.customVocabulary),
     manualEquipment: [],
-    ...(doc.scenario !== undefined ? { scenario: doc.scenario } : {}),
+    ...(doc.scenario !== undefined ? { scenario: publicScript(doc.scenario) } : {}),
     ...(doc.interview ? { interview: reviewInterview(doc.interview) } : {}),
     ...(versions.length ? { versions, activeVersionId: doc.activeVersionId } : {}),
   };
@@ -265,6 +308,9 @@ export function withComments(snap: ReviewSnapshot, doc: ProjectDoc, media: Recor
   return { ...snap, doc: d, media: out, ...(doc.review?.dismissed?.length ? { dismissed: [...doc.review.dismissed] } : {}) };
 }
 
+/** Images reçues d'ailleurs : matricielles seulement (jamais un SVG ni un document qui s'exécute). */
+export const RASTER_TYPES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
 
 /** Lit un instantané de relecture (vérifié, réparé comme un fichier de projet). */
@@ -281,7 +327,7 @@ export function parseReviewSnapshot(text: string): ReviewSnapshot {
   const media: Record<string, MediaEntry> = {};
   if (isObject(raw.media))
     for (const [k, m] of Object.entries(raw.media))
-      if (isObject(m) && typeof m.type === 'string' && m.type.startsWith('image/') && typeof m.data === 'string') media[k] = { type: m.type, data: m.data };
+      if (isObject(m) && typeof m.type === 'string' && RASTER_TYPES.has(m.type) && typeof m.data === 'string') media[k] = { type: m.type, data: m.data };
   delete doc.review;
   // Commentaires abîmés écartés plutôt que de faire planter l'affichage.
   doc.comments = (Array.isArray(doc.comments) ? doc.comments : [])

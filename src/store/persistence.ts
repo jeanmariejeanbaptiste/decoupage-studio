@@ -1,4 +1,4 @@
-import { mediaKeys, mediaOfFile, migrate, parseProjectFile, serializeDoc, fileNameFor, FILE_EXTENSION, type MediaEntry } from '../domain/serialize';
+import { mediaKeys, mediaOfFile, migrate, parseProjectFile, projectCopy, serializeDoc, fileNameFor, FILE_EXTENSION, type MediaEntry } from '../domain/serialize';
 import { newId } from '../domain/factory';
 import type { ProjectDoc } from '../domain/types';
 import { ask } from '../ui/dialogStore';
@@ -269,7 +269,7 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
         altLabel: 'Ouvrir comme copie',
         danger: true,
       });
-      if (r.alt) doc = { ...doc, project: { ...doc.project, id: newId(), title: `${doc.project.title} (copie)` } };
+      if (r.alt) doc = projectCopy(doc, newId());
       else if (!r.ok) return false;
     }
     await restoreMedia(text, doc.project.id);
