@@ -16,6 +16,7 @@ import {
   firstSlot,
   setDayMeal,
   shotSlotsText,
+  showTime,
   updateDay,
 } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
@@ -183,7 +184,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   if (it.type === 'banner') {
                     return (
                       <tr key={it.banner.id} className={s.bannerRow} data-testid="itinerary-banner">
-                        <td className={s.code}>{it.start ? `${it.start} – ${it.end}` : '—'}</td>
+                        <td className={s.code}>{it.start ? `${showTime(it.start)} – ${showTime(it.end)}` : '—'}</td>
                         <td colSpan={3}>
                           <strong>{bannerLabel(it.banner)}</strong>
                           {it.banner.label ? ` · ${it.banner.label}` : ''} <span className={s.muted}>{it.banner.minutes} min</span>
@@ -197,7 +198,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   const loc = decorLocation(decor);
                   return (
                     <tr key={it.strip.seqId}>
-                      <td className={[s.code, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? `${stop.start} – ${stop.end}` : '—'}</td>
+                      <td className={[s.code, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? `${showTime(stop.start)} – ${showTime(stop.end)}` : '—'}</td>
                       <td>
                         <strong>{decor?.name ?? 'Décor non renseigné'}</strong>{' '}
                         {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
@@ -262,7 +263,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                 <span>Reprise</span>
                 <div className={s.range}>
                   <output className={s.rangeFixed} aria-label="Début de la reprise">
-                    {keys.restart?.start ?? keys.meal.end}
+                    {showTime(keys.restart?.start ?? keys.meal.end)}
                   </output>
                   <span>à</span>
                   {wrapInput}

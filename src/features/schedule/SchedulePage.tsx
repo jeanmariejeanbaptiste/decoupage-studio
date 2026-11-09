@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRi
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { addBanner, BANNER_KINDS, bannerLabel, dayAgenda, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
+import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
@@ -243,11 +243,11 @@ function BannerRow({ day, item, first, last }: { day: number; item: Extract<Agen
       <input
         type="time"
         className={[s.bannerTime, item.computed ? s.computed : ''].join(' ')}
-        value={b.start ?? item.start ?? ''}
+        value={clockTime(b.start ?? item.start)}
         onChange={(e) => set({ start: e.target.value || undefined })}
         aria-label={`Début : ${name}`}
       />
-      <span className={s.bannerEnd}>{item.end ? `– ${item.end}` : ''}</span>
+      <span className={s.bannerEnd}>{item.end ? `– ${showTime(item.end)}` : ''}</span>
       <span className={s.bannerKind}>{name}</span>
       <input className={s.bannerLabel} value={b.label ?? ''} placeholder="Précision" onChange={(e) => set({ label: e.target.value })} aria-label={`Précision : ${name}`} />
       <label className={s.bannerMin}>
@@ -286,7 +286,7 @@ function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number
         <span className={s.label}>{seq?.label.toUpperCase()}</span>
         <span className={s.decor}>{decor && decor.name.toUpperCase() !== seq?.label.toUpperCase() ? decor.name : ''}</span>
         <span className={s.cast}>{cast}</span>
-        <span className={[s.when, item.computed ? s.computed : ''].join(' ')}>{item.start ? `${item.start}–${item.end}` : ''}</span>
+        <span className={[s.when, item.computed ? s.computed : ''].join(' ')}>{item.start ? `${showTime(item.start)}–${showTime(item.end)}` : ''}</span>
         <span className={s.count}>
           {strip.shotIds.length}
           {strip.shotIds.length !== totalInSeq ? ` / ${totalInSeq}` : ''} pl.

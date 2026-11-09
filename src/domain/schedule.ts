@@ -887,7 +887,7 @@ export function partDays(doc: ProjectDoc, shotId: ID): number[] {
 export function shotSlotsText(doc: ProjectDoc, day: number, shotId: ID): string {
   const main = shotSlot(doc, day, shotId);
   const parts = scheduleDays(doc).find((x) => x.n === day)?.parts?.[shotId] ?? [];
-  return [...(main ? [main] : []), ...parts].map((s) => `${s.start} – ${s.end}`).join(', ');
+  return [...(main ? [main] : []), ...parts].map((s) => `${showTime(s.start)} – ${showTime(s.end)}`).join(', ');
 }
 
 /** Premier créneau d'un plan ce jour-là (principal, sinon première reprise). */

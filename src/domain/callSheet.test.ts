@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { produce } from 'immer';
 import { buildFiction } from '../../seed/fiction';
-import { callSheetDocument } from './documents';
-import { callSheetCsv } from './exports';
+import { callSheetDocument, scheduleDocument } from './documents';
+import { callSheetCsv, scheduleCsv } from './exports';
 import { characterNumbers } from './registry';
 import { buildRav3 } from '../../seed/rav3';
-import { addBanner, callSheetAgenda, dayAgenda, dayKeyTimes, moveBanner, placeShot, setDayMeal, suggestSchedule, updateDay } from './schedule';
+import { addBanner, callSheetAgenda, dayAgenda, dayKeyTimes, moveBanner, placeShot, setDayMeal, suggestSchedule, updateBanner, updateDay } from './schedule';
 
 describe('feuille de service au format professionnel', () => {
   it('en-tête en trois blocs, séquences, comédiens numérotés, besoins des postes, prévisions', () => {
@@ -128,5 +128,31 @@ describe('plan de travail et feuille de service : un seul déroulé', () => {
     expect(meal(dayAgenda(b, 1))!.end).toBe('13:00');
     expect(meal(callSheetAgenda(b, 1))!.end).toBe('13:00');
     expect(dayKeyTimes(b, 1).meal!.end).toBe(meal(dayAgenda(b, 1))!.end);
+  });
+});
+
+describe('tournage de nuit', () => {
+  it('aucune heure au-delà de 24 h affichée ni exportée ; la saisie se lit après le rendez-vous', () => {
+    let meal = '';
+    const doc = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      updateDay(d, 1, { callTime: '20:00' });
+      meal = addBanner(d, 1, 'repas');
+    });
+    const ag = dayAgenda(doc, 1);
+    // Les calculs gardent des minutes non bouclées…
+    expect(ag.some((x) => x.end && x.end > '24:00')).toBe(true);
+    // … que rien n'affiche tel quel.
+    const late = /\b(2[4-9]|3\d|4[0-7]):[0-5]\d\b/;
+    for (const text of [callSheetDocument(doc, 1).html, scheduleDocument(doc).html, callSheetCsv(doc, 1), scheduleCsv(doc)]) {
+      expect(text).not.toMatch(late);
+      expect(text).toContain('(+1)');
+    }
+    const k = dayKeyTimes(doc, 1);
+    const m = ag.find((x) => x.type === 'banner')!;
+    expect(k.meal).toMatchObject({ start: m.start, end: m.end });
+    // Saisie d'un début à 02:00 un jour à RDV 20:00 : le lendemain, pas avant le rendez-vous.
+    const set = produce(doc, (d) => updateBanner(d, 1, meal, { start: '02:00' }));
+    expect(set.schedule!.days.find((x) => x.n === 1)!.banners![0].start).toBe('26:00');
   });
 });
