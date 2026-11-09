@@ -327,3 +327,21 @@ test('scénario : minutage par pages, caractères ou type (réglages) ; graphiqu
   await page.getByTestId('report-png').click();
   expect((await dl).suggestedFilename()).toBe('la-consigne-structure-de-l-histoire.png');
 });
+
+test('scénario : la page de garde restée dans le texte est reconnue et en sort à la validation', async ({ page }) => {
+  await page.goto('/#/');
+  await page.getByTestId('new-project').click();
+  await page.getByLabel('Titre du projet').fill('Vox');
+  await page.getByTestId('wizard-next').click();
+  await page.getByRole('button', { name: 'Écrire ou importer un scénario' }).click();
+  const ed = page.getByTestId('script-editor');
+  await ed.locator('[data-bid]').first().click();
+  // Tab : de l'en-tête vide à l'action.
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('VOX\nÉcrit par Jean-Marie Jean-Baptiste\nFADE IN:\nINT. ENTREPRISE - JOUR\nFlora entre.');
+  await page.getByTestId('edit-title-page').click();
+  await expect(page.getByLabel('Titre', { exact: true })).toHaveValue('VOX');
+  await page.getByRole('button', { name: 'Valider' }).click();
+  await expect(ed.locator('[data-type="action"]').filter({ hasText: 'Écrit par' })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toMatch(/^Title: VOX/);
+});

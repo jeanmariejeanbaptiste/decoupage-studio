@@ -22,6 +22,7 @@ import {
   serialize,
   setBlockText,
   setBlockType,
+  removeBlocks,
   setTitlePage,
   sourceToCaret,
   speakersOf,
@@ -34,6 +35,7 @@ import {
   type Span,
   TITLE_FIELDS,
 } from '../../domain/screenplay';
+import { titleFromBlocks } from '../../domain/scenarioImport';
 import { SCRIPT_COLUMNS, SCRIPT_PAGE, emphasisRuns, paginateItems, plainText, setHighlight, titlePageLines, type HighlightColor } from '../../domain/scriptLayout';
 import { blockTypeDigit } from '../../domain/shortcuts';
 import { fold } from '../../domain/text';
@@ -507,6 +509,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   const [pick, setPick] = useState(0);
   const [acClosed, setAcClosed] = useState<string | null>(null);
   const [titleOpen, setTitleOpen] = useState(false);
+  const titleFound = useMemo(() => (titleOpen ? titleFromBlocks(sdocRef.current.blocks) : null), [titleOpen]);
 
   // --- Enregistrement (débouncé) et rechargement quand le scénario change ailleurs ---
   const flush = useCallback(() => {
@@ -1070,11 +1073,13 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       {titleOpen &&
         createPortal(
         <TitleDialog
-          initial={parseTitlePage(sdoc.blocks.find((b) => b.type === 'title')?.text ?? '')}
+          initial={titleFound?.title ?? parseTitlePage(sdoc.blocks.find((b) => b.type === 'title')?.text ?? '')}
           onClose={() => setTitleOpen(false)}
           onSave={(f) => {
             setTitleOpen(false);
-            const next = setTitlePage(sdocRef.current, f);
+            // Lignes reconnues comme page de garde au début du texte : elles la deviennent.
+            const base = titleFound ? removeBlocks(sdocRef.current, titleFound.ids) : sdocRef.current;
+            const next = setTitlePage(base, f);
             if (next === sdocRef.current) return;
             const first = next.blocks.find((b) => b.type !== 'title') ?? next.blocks[0];
             apply({ doc: next, caret: { id: first.id, offset: 0 } });

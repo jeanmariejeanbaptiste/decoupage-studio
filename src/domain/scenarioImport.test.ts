@@ -52,6 +52,45 @@ describe('page de garde à l’import', () => {
     expect(parseTitlePage(tb!.text).Contact).toContain('jm@exemple.fr');
     expect(src).toContain('INT. OPEN SPACE - JOUR');
   });
+  it('page de garde de Fade In (FADE IN: juste après) ; l’ouverture reste au film', async () => {
+    const { linesToFountain, textToLines } = await import('./scenarioImport');
+    const src = linesToFountain(textToLines('VOX\n\nWritten by\n\nJean-Marie Jean-Baptiste\n\nFADE IN:\n\nINT. ENTREPRISE / SALLE D’ATTENTE - DAY\n\nFLORA s’arrête un instant.\n'));
+    expect(src).toMatch(/^Title: VOX/);
+    expect(src).toContain('Author: Jean-Marie Jean-Baptiste');
+    expect(src).toMatch(/FADE IN:/);
+  });
+  it('première page d’un PDF avec le seul titre, centré', async () => {
+    const { detectTitlePage } = await import('./scenarioImport');
+    const r = detectTitlePage([
+      { text: 'LA CONSIGNE', center: true, page: 1 },
+      { text: 'INT. GARE - JOUR', page: 2 },
+      { text: 'Léa arrive.', page: 2 },
+    ]);
+    expect(r?.title.Title).toBe('LA CONSIGNE');
+    expect(r?.used).toBe(1);
+  });
+  it('un début de film sans en-tête (oubli) n’est pas une page de garde', async () => {
+    const { detectTitlePage, textToLines } = await import('./scenarioImport');
+    expect(detectTitlePage(textToLines('La pluie tombe sur la gare.\n\nLÉA\nTu es en retard.\n\nMARC\nJe sais.\n\nINT. GARE - JOUR\n\nIls entrent.\n'))).toBeNull();
+    expect(detectTitlePage(textToLines('PARIS, 1942\n\nLa pluie tombe sur la gare.\n\nINT. GARE - JOUR\n\nIls entrent.\n'))).toBeNull();
+  });
+  it('page de garde dense mais typée : crédits, coordonnées, droits', async () => {
+    const { detectTitlePage, textToLines } = await import('./scenarioImport');
+    const r = detectTitlePage(textToLines('LES OMBRES DU QUAI\nUn film de Nina Roche\nD’après le roman de P. Lenoir\nScénario : Nina Roche et Paul Duval\nTroisième version — mars 2026\nProduction Les Films du Quai\n12 rue des Lilas, 75011 Paris\n© Tous droits réservés, dépôt SACD\n\nINT. QUAI - NUIT\n\nLe train arrive.\n'));
+    expect(r?.title.Title).toBe('LES OMBRES DU QUAI');
+    expect(r?.title.Source).toContain('roman');
+  });
+  it('page de garde restée dans le texte : reconnue dans les blocs avant la première séquence', async () => {
+    const { titleFromBlocks } = await import('./scenarioImport');
+    const blocks = [
+      { id: 'a', type: 'action', text: 'VOX' },
+      { id: 'b', type: 'action', text: 'Écrit par Jean-Marie Jean-Baptiste' },
+      { id: 'c', type: 'transition', text: 'FADE IN:' },
+      { id: 'd', type: 'heading', text: 'INT. ENTREPRISE - DAY' },
+    ];
+    expect(titleFromBlocks(blocks)).toEqual({ title: { Title: 'VOX', Credit: 'Écrit par', Author: 'Jean-Marie Jean-Baptiste' }, ids: ['a', 'b'] });
+    expect(titleFromBlocks([{ id: 'd', type: 'heading', text: 'INT. GARE - JOUR' }])).toBeNull();
+  });
   it('un scénario qui commence directement n’a pas de page de garde', async () => {
     const { linesToFountain, textToLines } = await import('./scenarioImport');
     expect(linesToFountain(textToLines('INT. GARE - JOUR\n\nLéa arrive.\n'))).not.toMatch(/^Title:/);

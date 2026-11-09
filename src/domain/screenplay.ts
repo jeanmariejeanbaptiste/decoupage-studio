@@ -631,6 +631,16 @@ export function parseTitlePage(text: string): Record<string, string> {
 }
 
 /** Écrit la page de titre (créée en tête au besoin, retirée si tout est vide). */
+/** Retire des blocs (lignes devenues la page de garde, par exemple). */
+export function removeBlocks(doc: ScriptDoc, ids: readonly string[]): ScriptDoc {
+  if (!ids.length) return doc;
+  const drop = new Set(ids);
+  const at = doc.blocks.findIndex((b) => drop.has(b.id));
+  const blocks = doc.blocks.filter((b) => !drop.has(b.id));
+  if (!blocks.length) blocks.push({ id: nid(), type: 'action', text: '' });
+  return { ...doc, blocks: touchAround(blocks, Math.max(0, at - 1)).map((b, k) => (k === Math.max(0, at) && b.raw !== undefined ? touch(b) : b)) };
+}
+
 export function setTitlePage(doc: ScriptDoc, fields: Record<string, string>): ScriptDoc {
   const lines: string[] = [];
   for (const [k, v] of Object.entries(fields)) {

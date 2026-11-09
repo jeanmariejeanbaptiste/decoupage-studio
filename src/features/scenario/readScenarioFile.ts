@@ -1,4 +1,5 @@
 import { fdxToFountain } from '../../domain/fdx';
+import { DEMO_WATERMARK } from '../../domain/fountain';
 import { linesToFountain, splitLongActions, stripMarkdown, textToLines, type SourceLine } from '../../domain/scenarioImport';
 
 /** Lignes d'un PDF avec leur position (retrait, centrage, espacement). */
@@ -40,6 +41,7 @@ async function pdfLines(buf: ArrayBuffer): Promise<SourceLine[]> {
         x0: r.x0 / width,
         center: Math.abs(mid - width / 2) < width * 0.05 && w < width * 0.5 && r.x0 > width * 0.25,
         gapBefore: i === 0 || ys[i - 1] - y > lineH * 1.5,
+        page: p,
       });
     });
   }
@@ -145,7 +147,7 @@ function looksLikeFountain(text: string): boolean {
   return headings > 0 && blanks >= Math.max(2, headings);
 }
 
-const normalize = (t: string) => splitLongActions(t.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'));
+const normalize = (t: string) => splitLongActions(t.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(DEMO_WATERMARK, (m) => (m.endsWith('\n') ? '\n' : '')));
 
 /** Lit un scénario (Final Draft, Fountain, PDF, Word, Markdown ou texte) et le convertit en Fountain. */
 export async function readScenarioFile(file: File): Promise<string> {

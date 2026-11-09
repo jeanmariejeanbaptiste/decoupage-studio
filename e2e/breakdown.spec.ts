@@ -96,8 +96,32 @@ test('dépouillement : le scénario entier d’un seul tenant, la fiche suit la 
   // La liste mène à la séquence dans le texte continu.
   await page.getByTestId('breakdown-scene').first().click();
   await expect(page.getByLabel('Fiche de dépouillement')).toContainText('HALL');
-  await expect(page.getByTestId('breakdown-accessoires')).not.toContainText('Cigarette');
+  // La liste du film garde la cigarette, qui n'est pas de cette séquence (elle s'y ajoute d'un clic).
+  await expect(page.getByRole('button', { name: 'Ajouter Cigarette à cette séquence' })).toBeVisible();
   // Le choix d'affichage est retenu.
   await page.reload();
+  await expect(page.getByTestId('breakdown-full')).toBeVisible();
+});
+
+test('dépouillement : liste du film entier, et rapports par élément et par séquence', async ({ page }) => {
+  await page.goto('/#/breakdown?seed=fiction');
+  await page.getByTestId('breakdown-view-full').click();
+  const full = page.getByTestId('breakdown-full');
+  await full.getByTestId('tag-suggestion').filter({ hasText: 'cigarette' }).click();
+  // La liste du film garde la cigarette (séquence 3) quand on lit la séquence 2, et l'y ajoute d'un clic.
+  await page.getByTestId('breakdown-scene').nth(1).click();
+  const whole = page.getByTestId('breakdown-whole');
+  await expect(whole.getByTestId('breakdown-accessoires')).toContainText('Cigarette');
+  await whole.getByRole('button', { name: 'Ajouter Cigarette à cette séquence' }).click();
+  await expect(whole.getByRole('button', { name: 'Retirer Cigarette de cette séquence' })).toBeVisible();
+  // Rapports : l'élément et ses deux séquences ; la séquence et ses éléments.
+  await page.getByTestId('breakdown-view-reports').click();
+  const item = page.getByTestId('breakdown-report-item').filter({ hasText: 'Cigarette' });
+  await expect(item).toContainText('2');
+  await page.getByLabel('Rapport', { exact: true }).selectOption('sequences');
+  await expect(page.getByTestId('breakdown-report-seq')).toHaveCount(3);
+  // Un numéro de séquence ramène au texte.
+  await page.getByLabel('Rapport', { exact: true }).selectOption('items');
+  await item.getByRole('button', { name: '3' }).click();
   await expect(page.getByTestId('breakdown-full')).toBeVisible();
 });

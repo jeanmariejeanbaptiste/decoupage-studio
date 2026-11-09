@@ -11,6 +11,8 @@ export interface SourceLine {
   center?: boolean;
   /** Espace vertical marqué avant la ligne (paragraphe). */
   gapBefore?: boolean;
+  /** Page du document d'origine (PDF), à partir de 1. */
+  page?: number;
 }
 
 const HEADING = /^(?:\d+[A-Z]?[.)]?\s+)?((?:INT|EXT|EST|I\/E|INT\.?\s*\/\s*EXT|EXT\.?\s*\/\s*INT)[.\s][^]*?)(?:\s+\d+[A-Z]?\.?)?$/i;
@@ -58,46 +60,120 @@ function baseIndent(lines: SourceLine[]): number {
 
 const isHeadingLine = (t: string) => HEADING.test(t) && /^(?:\d+[A-Z]?[.)]?\s+)?(int|ext|est|i\/e)/i.test(t);
 
+/** Ouverture du film : la page de garde s'arrête avant (« FADE IN: », « OUVERTURE AU NOIR »…). */
+const OPENING = /^(?:FADE IN|FONDU (?:D['’]OUVERTURE|AU NOIR|ENCHAÎNÉ)|OUVERTURE(?: AU NOIR| EN FONDU)?|NOIR)\s*[.:]?$/i;
+const CREDIT = /^(écrit|ecrit|scénario|scenario|written|screenplay|un film|réalisé|realise|réalisation|d['’]après|based|adapt|story by|histoire|auteur|par\b|by\b)/i;
+const DATE = /\b(19|20)\d{2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b|^(version|v\d|draft|brouillon|révision|revision|copie|tirage)/i;
+const CONTACT = /@|\+?\d[\d .-]{7,}|\b(rue|avenue|bd|boulevard|chemin|place|allée|street|road)\b|\b\d{5}\b|©|tous droits|all rights|sacd|wga|agent|production/i;
+
 /**
- * Page de garde reconnue avant la première séquence : titre, « écrit par » et auteur, d'après,
- * date, coordonnées. Rendue en clés Fountain ; rien si le début ressemble déjà à du texte de film.
+ * Page de garde reconnue au début d'un scénario importé. Chacun fait la sienne : plutôt qu'une forme
+ * attendue, des indices s'additionnent — la première page d'un PDF sans séquence, une ouverture
+ * (« FADE IN: ») qui la suit, un titre court, des crédits (« écrit par »…), une date ou une version,
+ * des coordonnées, des lignes centrées, une page peu dense — et d'autres l'écartent : de la prose,
+ * des répliques (un début de film dont on a oublié l'en-tête n'est pas une page de garde).
+ * Rendue en clés Fountain.
  */
 export function detectTitlePage(lines: readonly SourceLine[]): { title: Record<string, string>; used: number } | null {
-  const first = lines.findIndex((l) => isHeadingLine(l.text.trim()));
-  const head = (first < 0 ? lines.slice(0, 12) : lines.slice(0, first)).map((l) => l.text.trim()).filter(Boolean);
-  if (!head.length || head.length > 16 || head.some((t) => t.length > 90 || TRANSITION.test(t))) return null;
-  // Un début de scénario sans en-tête (action longue, répliques) n'est pas une page de garde.
-  if (first < 0 && head.some((t) => t.length > 60)) return null;
+  const text = (l: SourceLine | undefined) => (l?.text ?? '').trim();
+  const firstHeading = lines.findIndex((l) => isHeadingLine(text(l)));
+  // Zone examinée : la première page d'un PDF si aucune séquence n'y commence, sinon ce qui précède la première séquence.
+  let end = firstHeading >= 0 ? firstHeading : Math.min(lines.length, 14);
+  let pageBased = false;
+  if (lines[0]?.page !== undefined) {
+    const p2 = lines.findIndex((l) => (l.page ?? 1) > (lines[0].page ?? 1));
+    if (p2 > 0 && (firstHeading < 0 || firstHeading >= p2)) {
+      end = Math.min(end, p2);
+      pageBased = true;
+    }
+  }
+  // Le film commence à son ouverture (ou à une transition) : la page de garde s'arrête avant.
+  let opened = false;
+  for (let i = 0; i < end; i++)
+    if (OPENING.test(text(lines[i])) || TRANSITION.test(text(lines[i]))) {
+      end = i;
+      opened = true;
+      break;
+    }
+  const zone = lines.slice(0, end).filter((l) => text(l));
+  if (!zone.length) return null;
+  const head = zone.map(text);
+
+  let score = 0;
+  if (pageBased) score += 2;
+  if (opened) score += 2;
+  if (head.some((h) => CREDIT.test(h))) score += 2;
+  if (head.some((h) => DATE.test(h))) score += 1;
+  if (head.some((h) => CONTACT.test(h))) score += 1;
+  if (zone.filter((l) => l.center).length * 2 >= zone.length && zone.some((l) => l.center)) score += 1;
+  if (head.length <= 12) score += 1;
+  const lead = head[0];
+  if (lead.length <= 60 && !/[.!?…]$/.test(lead) && (lead === lead.toLocaleUpperCase('fr') || zone[0].center)) score += 1;
+  // Ce qui ressemble au film lui-même.
+  if (head.some((h) => h.length > 120)) score -= 3;
+  if (!pageBased && head.length > 25) score -= 2;
+  const cue = (i: number) => {
+    const h = head[i];
+    const next = head[i + 1];
+    return !!next && h.length <= 30 && /\p{Lu}/u.test(h) && h === h.toLocaleUpperCase('fr') && !CREDIT.test(h) && !DATE.test(h) && /\p{Ll}/u.test(next) && /[.!?…]$/.test(next) && !CREDIT.test(next);
+  };
+  const cues = head.filter((_, i) => cue(i)).length;
+  if (cues >= 2) score -= 3;
+  else if (cues === 1 && !pageBased) score -= 1;
+  if (score < (pageBased ? 3 : 4)) return null;
+
   const title: Record<string, string> = {};
   const contact: string[] = [];
   const source: string[] = [];
   for (let i = 0; i < head.length; i++) {
     const t = head[i];
-    if (!title.Title && !/^(écrit|ecrit|scénario|scenario|written|un film|d['’]après|based)/i.test(t)) {
+    if (!title.Title && !CREDIT.test(t) && !DATE.test(t) && !CONTACT.test(t)) {
       title.Title = t;
       continue;
     }
-    if (/^(écrit|ecrit|scénario|scenario|written|un film de|réalisé|realise)/i.test(t) && !title.Credit) {
+    if (/^(écrit|ecrit|scénario|scenario|written|screenplay|un film de|réalisé|realise|réalisation|story by|histoire|auteur|par\b|by\b)/i.test(t) && !title.Credit) {
       const m = /^(.*?\b(?:par|de|by))\s+(.+)$/i.exec(t);
       if (m) {
         title.Credit = m[1];
         title.Author = m[2];
       } else {
         title.Credit = t;
-        if (head[i + 1] && !title.Author) title.Author = head[++i];
+        if (head[i + 1] && !title.Author && !CONTACT.test(head[i + 1]) && !DATE.test(head[i + 1])) title.Author = head[++i];
       }
       continue;
     }
-    if (/^(d['’]après|based on|adapté)/i.test(t)) source.push(t);
-    else if (/\b(19|20)\d{2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b|^(version|v\d|draft|brouillon)/i.test(t) && !/@/.test(t) && !title['Draft date']) title['Draft date'] = t;
-    else if (/@|\+?\d[\d .-]{7,}|\b(rue|avenue|bd|boulevard|chemin|place)\b|\b\d{5}\b/i.test(t)) contact.push(t);
+    if (/^(d['’]après|based on|adapt)/i.test(t)) source.push(t);
+    else if (DATE.test(t) && !/@/.test(t) && !title['Draft date']) title['Draft date'] = t;
+    else if (CONTACT.test(t)) contact.push(t);
     else if (!title.Author && title.Credit) title.Author = t;
     else source.push(t);
   }
   if (!title.Title) return null;
   if (contact.length) title.Contact = contact.join('\n');
   if (source.length) title.Source = source.join('\n');
-  return { title, used: first < 0 ? head.length : first };
+  return { title, used: end };
+}
+
+/**
+ * Page de garde restée dans le texte (scénario importé avant cette détection) : les blocs qui précèdent
+ * la première séquence sont relus avec les mêmes indices. Renvoie les champs et les blocs à retirer.
+ */
+export function titleFromBlocks(blocks: ReadonlyArray<{ id: string; type: string; text: string }>): { title: Record<string, string>; ids: string[] } | null {
+  if (blocks.some((b) => b.type === 'title')) return null;
+  const lines: SourceLine[] = [];
+  const owner: string[] = [];
+  for (const b of blocks) {
+    if (b.type === 'heading') break;
+    for (const line of b.text.split('\n')) {
+      if (!line.trim()) continue;
+      lines.push({ text: line, center: b.type === 'centered' || b.type === 'character' });
+      owner.push(b.id);
+    }
+  }
+  const r = detectTitlePage(lines);
+  if (!r) return null;
+  const ids = [...new Set(owner.slice(0, r.used))].filter((id) => owner.lastIndexOf(id) < r.used);
+  return ids.length ? { title: r.title, ids } : null;
 }
 
 /** Bloc de page de garde Fountain (« Clé: valeur », lignes suivantes en retrait). */

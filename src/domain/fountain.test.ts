@@ -194,6 +194,19 @@ describe('Fountain — variantes françaises et robustesse', () => {
     expect(doc.scenario.slice(block.scenarioAnchor.start, block.scenarioAnchor.end)).toBe('Léa entre.');
   });
 
+  it('filigrane d’une version de démonstration retiré, ancres recalées', () => {
+    const doc = createProjectDoc({ title: 'x', format: 'fiction' });
+    doc.scenario = 'INT. A - JOUR\n\nLéa entre.\n\n(Printed with the demonstration version of Fade In) 7.\n\nSoudain, elle lève la tête.\n';
+    const seqId = addSequence(doc, undefined, {}, true);
+    const block = doc.blocks[doc.sequences[seqId].actionBlockIds[0]];
+    const a = doc.scenario.indexOf('Soudain');
+    block.scenarioAnchor = { start: a, end: a + 'Soudain'.length };
+    normalizeScenario(doc);
+    expect(doc.scenario).not.toMatch(/demonstration/i);
+    expect(doc.scenario).toContain('Léa entre.\n\n\nSoudain');
+    expect(doc.scenario.slice(block.scenarioAnchor.start, block.scenarioAnchor.end)).toBe('Soudain');
+  });
+
   it('une séquence renommée reste celle de sa scène (ancre d’abord)', () => {
     const doc = createProjectDoc({ title: 'x', format: 'fiction' });
     importScenes(doc, 'INT. GARE - JOUR\n\nTexte.');

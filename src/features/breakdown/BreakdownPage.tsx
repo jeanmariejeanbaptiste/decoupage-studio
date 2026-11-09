@@ -25,6 +25,8 @@ import { Button } from '../../ui/Button';
 import { breakdownCsv } from '../../domain/exports';
 import { breakdownDocument } from '../../domain/documents';
 import { paragraphsOf, SceneText, type Paragraph } from './SceneText';
+import { BreakdownReports } from './BreakdownReports';
+import { breakdownIndex, type BreakdownEntry } from '../../domain/breakdownReport';
 import s from './BreakdownPage.module.css';
 
 /** Une scène à dépouiller : scène du scénario, séquence du découpage, ou les deux. */
@@ -97,11 +99,12 @@ function entryName(doc: ProjectDoc, e: Entry): string {
   return name.trim().toLocaleUpperCase('fr');
 }
 
-type View = 'sequence' | 'full';
+type View = 'sequence' | 'full' | 'reports';
 const VIEW_KEY = 'ds-breakdown-view';
 const readView = (): View => {
   try {
-    return localStorage.getItem(VIEW_KEY) === 'full' ? 'full' : 'sequence';
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === 'full' || v === 'reports' ? v : 'sequence';
   } catch {
     return 'sequence';
   }
@@ -109,7 +112,8 @@ const readView = (): View => {
 
 /**
  * Dépouillement (§15.5) : le texte au centre, qu'on étiquette en le sélectionnant, la fiche à droite.
- * Par séquence, ou le scénario entier d'un seul tenant : la fiche suit alors la séquence lue.
+ * Par séquence : la fiche de la séquence. Scénario entier : la liste complète du film, où ressort ce
+ * que demande la séquence lue. Rapports : chaque élément et ses séquences, chaque séquence et ses éléments.
  */
 export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
@@ -118,10 +122,13 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const [picked, setPicked] = useState<{ seqId?: ID; sceneStart?: number }>(() => ({ seqId: selectedSequence(doc) }));
   const [hot, setHot] = useState<string | null>(null);
   const flow = useRef<HTMLDivElement>(null);
+  const goToLater = useRef<((e: Entry) => void) | null>(null);
   const entry = entries.find((e) => picked.seqId && e.seqId === picked.seqId) ?? entries.find((e) => picked.sceneStart !== undefined && e.scene?.start === picked.sceneStart) ?? entries[0];
   const pick = (e: Entry) => setPicked({ seqId: e.seqId, sceneStart: e.scene?.start });
 
+  const textView = useRef<View>(view === 'reports' ? 'full' : view);
   const setView = (v: View) => {
+    if (v !== 'reports') textView.current = v;
     setViewState(v);
     try {
       localStorage.setItem(VIEW_KEY, v);
@@ -166,6 +173,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
     );
   }
 
+  goToLater.current = (e: Entry) => goTo(e, false);
   function goTo(e: Entry, smooth = true) {
     pick(e);
     if (view !== 'full') return;
@@ -203,6 +211,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
               [
                 ['sequence', 'Par séquence'],
                 ['full', 'Scénario entier'],
+                ['reports', 'Rapports'],
               ] as const
             ).map(([v, label]) => (
               <button key={v} type="button" role="radio" aria-checked={view === v} className={view === v ? s.segOn : ''} onClick={() => setView(v)} data-testid={`breakdown-view-${v}`}>
@@ -215,7 +224,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           </p>
         </div>
         <div className={s.tools}>
-          {!readOnly && (entry.seqId || entry.scene) && (
+          {!readOnly && view !== 'reports' && (entry.seqId || entry.scene) && (
             <Button
               variant="outline"
               icon={<Sparkles size={15} strokeWidth={1.25} />}
@@ -229,6 +238,18 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           <TabExport id="breakdown" orientation="portrait" doc={() => breakdownDocument(useProjectStore.getState().doc ?? doc)} fileBase={`${title}-depouillement`} file={{ label: 'CSV', name: `${title}-depouillement.csv`, content: () => breakdownCsv(useProjectStore.getState().doc ?? doc) }} />
         </div>
       </header>
+      {view === 'reports' ? (
+        <BreakdownReports
+          doc={doc}
+          onGo={(seqId) => {
+            const e = entries.find((x) => x.seqId === seqId);
+            if (!e) return;
+            setView(textView.current);
+            pick(e);
+            requestAnimationFrame(() => goToLater.current?.(e));
+          }}
+        />
+      ) : (
       <div className={s.layout}>
         <nav className={s.scenes} aria-label="Séquences">
           <ol>
@@ -263,12 +284,30 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         </section>
 
         <aside className={s.sheetSide} aria-label="Fiche de dépouillement">
-          {view === 'full' && <p className={s.sideHead}>{entry.seqId ? sequenceHeading(doc, entry.seqId) : entry.scene?.heading.toLocaleUpperCase('fr')}</p>}
-          {view === 'full' && !readOnly && <AddAll suggestions={suggestionsFor(doc, entry, paragraphsFor(doc, entry))} onAdd={(items) => tagIn(entry, items)} />}
-          {/* Une fiche par scène : une saisie commencée ne passe pas à la scène suivante. */}
-          <BreakdownSheet key={entry.key} doc={doc} seqId={entry.seqId} readOnly={readOnly} onAdd={(cat, items) => tagIn(entry, items.map((item) => ({ cat, item })))} onRemove={(cat, item) => untagIn(entry, cat, item)} onHot={setHot} />
+          {view === 'full' ? (
+            <>
+              <p className={s.sideHead}>{entry.seqId ? sequenceHeading(doc, entry.seqId) : entry.scene?.heading.toLocaleUpperCase('fr')}</p>
+              {!readOnly && <AddAll suggestions={suggestionsFor(doc, entry, paragraphsFor(doc, entry))} onAdd={(items) => tagIn(entry, items)} />}
+              <WholeSheet
+                doc={doc}
+                current={entry.seqId}
+                readOnly={readOnly}
+                onAdd={(cat, item) => tagIn(entry, [{ cat, item }])}
+                onRemove={(cat, item) => untagIn(entry, cat, item)}
+                onHot={setHot}
+                onGo={(seqId) => {
+                  const e = entries.find((x) => x.seqId === seqId);
+                  if (e) goTo(e);
+                }}
+              />
+            </>
+          ) : (
+            /* Une fiche par scène : une saisie commencée ne passe pas à la scène suivante. */
+            <BreakdownSheet key={entry.key} doc={doc} seqId={entry.seqId} readOnly={readOnly} onAdd={(cat, items) => tagIn(entry, items.map((item) => ({ cat, item })))} onRemove={(cat, item) => untagIn(entry, cat, item)} onHot={setHot} />
+          )}
         </aside>
       </div>
+      )}
     </div>
   );
 }
@@ -322,6 +361,101 @@ function EntryText({
       {!readOnly && active && !full && <AddAll suggestions={suggestions} onAdd={onTag} />}
       {paragraphs.length > 0 && <SceneText doc={doc} seqId={entry.seqId ?? ''} paragraphs={paragraphs} hot={active ? hot : null} readOnly={readOnly} onTag={(cat, item) => onTag([{ cat, item }])} onUntag={onUntag} />}
     </article>
+  );
+}
+
+/**
+ * Scénario entier : la liste complète du film, catégorie par catégorie ; chaque élément porte ses
+ * numéros de séquence (un clic y mène). Ce que demande la séquence lue ressort ; le reste s'y ajoute d'un clic.
+ */
+function WholeSheet({
+  doc,
+  current,
+  readOnly,
+  onAdd,
+  onRemove,
+  onHot,
+  onGo,
+}: {
+  doc: ProjectDoc;
+  current?: ID;
+  readOnly: boolean;
+  onAdd: (cat: BreakdownCategory, item: string) => void;
+  onRemove: (cat: BreakdownCategory, item: string) => void;
+  onHot: (item: string | null) => void;
+  onGo: (seqId: ID) => void;
+}) {
+  const index = useMemo(() => breakdownIndex(doc), [doc]);
+  const byCat = new Map<BreakdownCategory, BreakdownEntry[]>();
+  for (const e of index) byCat.set(e.cat, [...(byCat.get(e.cat) ?? []), e]);
+  const num = (id: ID) => doc.project.sequenceIds.indexOf(id) + 1;
+  return (
+    <div className={s.cats} data-testid="breakdown-whole">
+      {breakdownCategories(doc).map((cat) => {
+        const list = byCat.get(cat) ?? [];
+        const here = list.filter((e) => current && e.seqIds.includes(current)).length;
+        return (
+          <section key={cat} className={[s.cat, list.length ? '' : s.catEmpty].join(' ')} data-testid={`breakdown-${cat}`}>
+            <h3>
+              {breakdownLabel(cat)}
+              {list.length > 0 && (
+                <em title={`${here} dans cette séquence, ${list.length} dans le film`}>
+                  {here} / {list.length}
+                </em>
+              )}
+            </h3>
+            {list.length > 0 && (
+              <ul className={s.whole}>
+                {list.map((e) => {
+                  const on = !!current && e.seqIds.includes(current);
+                  const mine = !!current && e.manualSeqIds.includes(current);
+                  return (
+                    <li key={e.item} className={[on ? s.here : '', e.manualSeqIds.length ? '' : s.fromCut].join(' ')} onMouseEnter={() => onHot(e.item)} onMouseLeave={() => onHot(null)} data-testid="whole-item">
+                      <span className={s.wName}>{e.item}</span>
+                      <span className={s.wSeqs}>
+                        {e.seqIds.map((id) => (
+                          <button key={id} type="button" className={id === current ? s.wNow : ''} onClick={() => onGo(id)} title={sequenceHeading(doc, id)}>
+                            {num(id)}
+                          </button>
+                        ))}
+                      </span>
+                      {!readOnly && current && (mine ? (
+                        <button type="button" className={s.wAct} aria-label={`Retirer ${e.item} de cette séquence`} onClick={() => onRemove(cat, e.item)}>
+                          <X size={11} />
+                        </button>
+                      ) : !on ? (
+                        <button type="button" className={s.wAct} aria-label={`Ajouter ${e.item} à cette séquence`} onClick={() => onAdd(cat, e.item)}>
+                          <Plus size={11} />
+                        </button>
+                      ) : (
+                        <span className={s.wAct} />
+                      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {!readOnly && <AddField label={breakdownLabel(cat)} onAdd={(v) => onAdd(cat, v)} />}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function AddField({ label, onAdd }: { label: string; onAdd: (v: string) => void }) {
+  const [draft, setDraft] = useState('');
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!draft.trim()) return;
+        onAdd(draft);
+        setDraft('');
+      }}
+    >
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ajouter…" aria-label={`Ajouter (${label})`} />
+    </form>
   );
 }
 

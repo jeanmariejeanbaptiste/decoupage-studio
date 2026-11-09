@@ -353,15 +353,23 @@ export function relinkAnchors(doc: ProjectDoc, before: string, after: string): n
   return dropped;
 }
 
-/** Fins de ligne Windows / anciens Mac et marque d'ordre d'octets retirées, ancres recalées au caractère près. */
+/** Filigrane des versions de démonstration (Fade In…), avec le numéro de page collé : jamais du texte du film. */
+export const DEMO_WATERMARK = /[ \t]*\(?\s*printed with the demonstration version of [^)\n]*\)?[ \t]*(?:\d+\.?)?[ \t]*\n?/gi;
+
+/**
+ * Fins de ligne Windows / anciens Mac, marque d'ordre d'octets et filigranes de démonstration
+ * retirés, ancres recalées au caractère près.
+ */
 export function normalizeScenario(doc: ProjectDoc): void {
   const src = doc.scenario;
-  if (!src || !/\r|\uFEFF/.test(src)) return;
+  if (!src || !(/\r|\uFEFF/.test(src) || new RegExp(DEMO_WATERMARK.source, 'i').test(src))) return;
+  const drop = new Set<number>();
+  for (const m of src.matchAll(new RegExp(DEMO_WATERMARK.source, 'gi'))) for (let k = m.index!; k < m.index! + m[0].length; k++) drop.add(k);
   const removed: number[] = [];
   let out = '';
   for (let i = 0; i < src.length; i++) {
     const c = src[i];
-    if (c === '\uFEFF' || (c === '\r' && src[i + 1] === '\n')) {
+    if (drop.has(i) || c === '\uFEFF' || (c === '\r' && src[i + 1] === '\n')) {
       removed.push(i);
       continue;
     }
