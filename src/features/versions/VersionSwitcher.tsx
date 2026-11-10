@@ -4,7 +4,7 @@ import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
 import { openCommentsPanel } from '../comments/commentsUi';
-import { activeVersion, clearScenario, clearedOf, compareVersions, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
+import { activeVersion, clearScenario, clearedOf, compareVersions, restoreScenario, createVersion, deleteVersion, ensureVersions, isPublishedVersion, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
 import { mutateDoc, undo } from '../../store/projectStore';
@@ -154,6 +154,7 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
                         <button
                           type="button"
                           aria-label={`Supprimer ${v.name}`}
+                          disabled={isPublishedVersion(doc, v.id)}
                           onClick={async () => {
                             const r = await ask({ title: `Supprimer la version ${v.name} ?`, body: 'Son scénario et son découpage disparaissent ; les autres versions et la préparation restent (annulable avec ⌘Z).', confirmLabel: 'Supprimer', danger: true });
                             if (r.ok) mutateDoc((d) => deleteVersion(d, v.id));

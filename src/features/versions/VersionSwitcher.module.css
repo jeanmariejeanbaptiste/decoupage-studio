@@ -18,7 +18,8 @@
 .acts { display: inline-flex; gap: 2px; padding-right: 4px; opacity: 0; }
 .menu li:hover .acts, .acts:focus-within { opacity: 1; }
 .acts button { display: inline-flex; padding: 3px; border: 0; border-radius: 4px; background: none; color: var(--ink-soft); cursor: pointer; }
-.acts button:hover { color: var(--ink); background: var(--paper); }
+.acts button:hover:not(:disabled) { color: var(--ink); background: var(--paper); }
+.acts button:disabled { opacity: 0.35; cursor: default; }
 .add { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 7px 8px; border: 0; border-top: 1px solid var(--rule); border-radius: 0 0 5px 5px; background: none; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
 .add:hover { background: var(--hover); }
 .notes { display: inline-flex; align-items: center; gap: 3px; padding: 2px 5px; border: 0; border-radius: 4px; background: none; color: var(--ink-soft); font: inherit; font-size: 11.5px; font-variant-numeric: tabular-nums; cursor: pointer; }

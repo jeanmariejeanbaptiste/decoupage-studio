@@ -103,9 +103,12 @@ export function renameVersion(doc: ProjectDoc, id: ID, name: string): void {
 }
 
 /** Supprime une version rangée (jamais la courante ni la dernière). */
+/** Version que lisent les relecteurs (relecture en ligne publiée) : elle ne se supprime pas. */
+export const isPublishedVersion = (doc: ProjectDoc, id: ID): boolean => !!doc.review && doc.review.publishedVersionId === id;
+
 export function deleteVersion(doc: ProjectDoc, id: ID): void {
   const list = ensureVersions(doc);
-  if (list.length < 2 || id === doc.activeVersionId) return;
+  if (list.length < 2 || id === doc.activeVersionId || isPublishedVersion(doc, id)) return;
   doc.versions = list.filter((v) => v.id !== id).map((v) => (v.from === id ? { ...v, from: list.find((x) => x.id === id)?.from } : v));
 }
 
