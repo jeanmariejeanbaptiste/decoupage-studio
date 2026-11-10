@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import { parseFountain } from '../../../domain/fountain';
-import { focalLabel, shotCodeAt } from '../../../domain/phoneCut';
+import { codesAfterMove, focalLabel, shotCodeAt } from '../../../domain/phoneCut';
 import { sequenceNumber, shotCode } from '../../../domain/numbering';
 import { sequenceExcerpt } from '../../../domain/scriptToShot';
 import { formatTc } from '../../../domain/timecode';
@@ -56,6 +56,9 @@ export function Overview({
   const root = useRef<HTMLDivElement>(null);
   const { drag, grip } = useRowDrag(root, onMove);
   const [slot, setSlot] = useState<string | null>(null);
+  // Pendant un déplacement, les numéros sont ceux d'après la pose.
+  const codes = useMemo(() => (drag ? codesAfterMove(doc, drag.id, drag.seqId, drag.at) : null), [doc, drag]);
+  const codeOf = (id: ID) => codes?.get(id) ?? shotCode(doc, id);
   const ids = doc.project.sequenceIds;
   const nShots = ids.reduce((n, id) => n + (doc.sequences[id]?.shotIds.length ?? 0), 0);
   // Aperçu du texte des séquences sans plan (scénario lu une fois).
@@ -115,7 +118,7 @@ export function Overview({
         data-row={lifted ? undefined : id}
       >
         <button type="button" className={s.main} onClick={() => onOpen(id)} data-testid="mobile-list-shot" disabled={!!drag}>
-          <span className={s.n}>{shotCode(doc, id)}</span>
+          <span className={s.n}>{codeOf(id)}</span>
           <span className={s.t}>
             {sh.subject || sh.value ? (
               <>

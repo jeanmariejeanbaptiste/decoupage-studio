@@ -4,6 +4,7 @@ import { setCellText } from './cells';
 import { addShot } from './ops';
 import {
   angleParts,
+  codesAfterMove,
   focalLabel,
   focalScale,
   focalText,
@@ -159,5 +160,20 @@ describe('numéro à venir', () => {
     doc.shots[a].interview = { setupId: 's1', cameraId: 'A' } as never;
     doc.shots[b].interview = { setupId: 's1', cameraId: 'B' } as never;
     expect(shotCodeAt(doc, seqId, 2)).toBe('1.2');
+  });
+});
+
+describe('numéros pendant un déplacement', () => {
+  it('la rangée soulevée prend son futur numéro, les autres se renumérotent', () => {
+    const doc = buildFiction();
+    const [s1, s2] = doc.project.sequenceIds;
+    const valise = doc.sequences[s1].shotIds[3];
+    const [a, b, c] = doc.sequences[s2].shotIds;
+    const codes = codesAfterMove(doc, valise, s2, 1);
+    expect(codes.get(valise)).toBe('2.2');
+    expect([codes.get(a), codes.get(b), codes.get(c)]).toEqual(['2.1', '2.3', '2.4']);
+    expect(codes.get(doc.sequences[s1].shotIds[2])).toBe('1.3');
+    // Dans sa propre séquence, à sa place : rien ne change.
+    expect(codesAfterMove(doc, valise, s1, 3).get(valise)).toBe('1.4');
   });
 });

@@ -161,13 +161,13 @@ export function PlanScreen({
         </button>
         {sub.length > 0 && (
           <p className={s.sub}>
-            {/* Le point reste avec ce qui le suit : jamais seul en bout de ligne. */}
+            {/* Le point reste avec ce qui le précède : jamais seul en tête de ligne. */}
             {sub.map((node, k) => (
               <Fragment key={k}>
                 {k > 0 && ' '}
                 <span className={s.nw}>
-                  {k > 0 && <span className={s.s}>·</span>}
                   {node}
+                  {k < sub.length - 1 && <span className={s.s}>·</span>}
                 </span>
               </Fragment>
             ))}
