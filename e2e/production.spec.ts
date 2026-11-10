@@ -253,10 +253,11 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
   await page.getByRole('button', { name: 'Aujourd’hui' }).click();
   const now = new Date();
   for (let i = (first.getFullYear() - now.getFullYear()) * 12 + first.getMonth() - now.getMonth(); i > 0; i--) await page.getByRole('button', { name: 'Suivant' }).click();
-  // Le jour de tournage y est une fois : l'étape liée ne le double pas.
+  // Le jour de tournage y est, en tête ; le plan de travail n'étant daté qu'en partie, l'étape liée
+  // reste aussi, sur sa durée prévue.
   const cell = page.getByTestId(`day-${iso(first)}`);
   await expect(cell.getByTestId('calendar-item').first()).toContainText('Jour 1');
-  await expect(cell.getByRole('button', { name: 'Tournage', exact: true })).toHaveCount(0);
+  await expect(cell.getByRole('button', { name: 'Tournage', exact: true })).toHaveCount(1);
   const chip = page.getByTestId(`day-${iso(plusDays(first, -1))}`).getByRole('button', { name: 'Costumes' });
   await expect(chip).toBeVisible();
   await chip.click();
