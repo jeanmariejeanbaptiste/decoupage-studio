@@ -1,27 +1,13 @@
 /* Rapports du scénario : tableaux sobres, graphiques en traits gris (aucune couleur). */
-/* Page entière : rapports à gauche, le rapport ouvert à droite, à largeur de lecture. */
-.page { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 28px; align-items: start; max-width: 1080px; margin: 4px auto 48px; }
-.nav { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
-.nav button { height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--ink-soft); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.nav button:hover { color: var(--ink); background: var(--kraft); }
-.nav .navOn, .nav .navOn:hover { color: var(--ink); background: var(--kraft); font-weight: 600; }
-.body { min-width: 0; padding: 18px 24px 24px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper-card); }
-.bar h2 { flex: 1; margin: 0; font-size: 15px; font-weight: 600; }
-@media (max-width: 760px) {
-  .page { grid-template-columns: 1fr; gap: 12px; }
-  .nav { position: static; flex-direction: row; flex-wrap: wrap; }
-  .body { padding: 14px; }
-}
-.empty { margin: 4px 0; font-size: 12.5px; color: var(--ink-soft); }
-.bar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
-.icon { display: inline-flex; padding: 5px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); cursor: pointer; }
+.page { max-width: 960px; margin: 0 auto 48px; }
+.empty { margin: 8px 0; font-size: 13.5px; color: var(--ink-soft); }
 .opts { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 6px; }
 .sort { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-soft); }
-.sort select, .bar select { padding: 3px 6px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 12px; }
+.sort select { padding: 3px 6px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 12px; }
 .check { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--ink); }
-.table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-.table th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; padding: 4px; border-bottom: 1px solid var(--ink); }
-.table td { padding: 4px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.table th { text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; padding: 6px; border-bottom: 1px solid var(--ink); }
+.table td { padding: 7px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; }
 .table th:not(:first-child), .table td:not(:first-child) { text-align: right; white-space: nowrap; }
 .barRow td { background: var(--kraft); font-weight: 600; }
 .cast { color: var(--ink); font-size: 11.5px; }
@@ -41,10 +27,10 @@
 .picks { display: flex; flex-wrap: wrap; gap: 4px; }
 .picks button { height: 24px; padding: 0 9px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); font: inherit; font-size: 11.5px; color: var(--ink-soft); cursor: pointer; }
 .picks .pickOn { background: var(--ink); border-color: var(--ink); color: var(--paper-card); }
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px 0 10px; border-bottom: 1px solid var(--rule); text-align: center; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 12px 0 16px; border-bottom: 1px solid var(--rule); text-align: center; }
 .kpis b { display: block; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .kpis span { font-size: 11px; color: var(--ink-soft); }
-.h { margin: 12px 0 4px; font-size: 12.5px; font-weight: 600; }
+.h { margin: 28px 0 8px; font-size: 13.5px; font-weight: 500; }
 .pct { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; width: 120px; }
 .pct i { display: inline-block; height: 8px; max-width: 80px; background: var(--ink-soft); border-radius: 1px; flex: none; }
 .kpis + .kpis { padding-top: 10px; }

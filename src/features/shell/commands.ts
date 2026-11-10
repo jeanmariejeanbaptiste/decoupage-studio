@@ -1,6 +1,6 @@
 import { switchTheme } from '../../ui/themeSwitch';
 import type { ShortcutId } from '../../domain/shortcuts';
-import { navigate, type Route } from '../../app/router';
+import { navigate, scenarioHref, type Route, type ScenarioView } from '../../app/router';
 import { REVIEWED } from './steps';
 import { saveToFile, openFromFile } from '../../store/persistence';
 import { redo, undo, useProjectStore } from '../../store/projectStore';
@@ -71,7 +71,20 @@ export const COMMANDS: readonly Command[] = [
   { id: 'redo', group: 'Édition', label: 'Rétablir', shortcut: 'redo', run: () => (atHome() ? void redoHome() : redo()), needsProject: true, edits: true },
   { id: 'go-home', group: 'Aller à', label: 'Accueil — projets', run: () => navigate('home') },
   { id: 'go-intention', group: 'Aller à', label: 'Note d’intention', run: () => navigate('intention'), needsProject: true },
-  { id: 'go-scenario', group: 'Aller à', label: 'Scénario', run: () => navigate('scenario'), needsProject: true },
+  ...(
+    [
+      ['outline', 'Séquencier'],
+      ['script', 'Texte'],
+      ['cut', 'Découpage'],
+      ['stats', 'Statistiques'],
+    ] as const satisfies ReadonlyArray<readonly [ScenarioView, string]>
+  ).map(([v, label]): Command => ({
+    id: `go-scenario:${v}`,
+    group: 'Aller à',
+    label: `Scénario : ${label}`,
+    run: () => void (window.location.hash = scenarioHref(v)),
+    needsProject: true,
+  })),
   { id: 'go-breakdown', group: 'Aller à', label: 'Dépouillement', run: () => navigate('breakdown'), needsProject: true },
   { id: 'go-grid', group: 'Aller à', label: 'Découpage technique', run: () => navigate('grid'), needsProject: true },
   { id: 'go-storyboard', group: 'Aller à', label: 'Storyboard', run: () => navigate('storyboard'), needsProject: true },
@@ -118,6 +131,8 @@ export function availableCommands(): Command[] {
   const readOnly = sh.role === 'guest' && sh.mode !== 'edit';
   // Relecture en ligne : seuls le scénario et le découpage sont publiés.
   const drive = sh.role === 'guest' && sh.via === 'drive';
-  const reachable = (c: Command) => !drive || !c.id.startsWith('go-') || c.id === 'go-home' || REVIEWED.has(c.id.slice(3) as Route);
+  // Sous-pages du Scénario (« go-scenario:<vue> ») : le séquencier n'est pas publié.
+  const reachable = (c: Command) =>
+    !drive || !c.id.startsWith('go-') || c.id === 'go-home' || (REVIEWED.has(c.id.slice(3).split(':')[0] as Route) && c.id !== 'go-scenario:outline');
   return COMMANDS.filter((c) => (has || !c.needsProject) && (canCopy || !c.copies) && (!readOnly || !c.edits) && reachable(c) && (!c.when || c.when()));
 }

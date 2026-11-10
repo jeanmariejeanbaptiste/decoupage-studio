@@ -6,7 +6,8 @@ async function withV2(page: Page, from = '/#/scenario?seed=fiction') {
   await page.goto(from);
   await expect(page.getByTestId('script-editor')).toBeVisible();
   page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-v2.fountain'));
-  await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Créer la V2' }).click();
   await expect(page.getByTestId('version-switcher')).toHaveText('V2');
 }
@@ -64,7 +65,7 @@ test('comparer les versions : texte entier marqué, résumé, seulement les chan
   // Un clic sur une séquence de la version courante l'ouvre dans l'éditeur.
   await sheet.getByRole('button', { name: /CONSIGNE AUTOMATIQUE/ }).click();
   await expect(page.getByTestId('script-editor')).toBeVisible();
-  await expect(page).toHaveURL(/#\/scenario$/);
+  await expect(page).toHaveURL(/#\/scenario\?view=script$/);
   await expect(page.getByTestId('scenario-outline').locator('[aria-current]')).toContainText('CONSIGNE AUTOMATIQUE');
 });
 
@@ -146,12 +147,14 @@ test('comparer : un scénario de plus de 120 pages s’affiche vite et se parcou
   await expect(page.getByTestId('script-editor')).toBeVisible();
   let file = { name: 'long.fountain', mimeType: 'text/plain', buffer: Buffer.from(longScript(280)) };
   page.on('filechooser', (fc) => fc.setFiles(file));
-  await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await page.getByRole('alertdialog').getByRole('button', { name: /Remplacer/ }).click();
   await expect(page.getByTestId('scenario-outline').locator('li')).toHaveCount(280, { timeout: 30_000 });
   const v2 = longScript(280, (k, s) => (k % 9 === 0 ? s.replace('regarde les trains', 'observe les trains') : s));
   file = { name: 'long-v2.fountain', mimeType: 'text/plain', buffer: Buffer.from(v2) };
-  await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Créer la V2' }).click();
   await expect(page.getByTestId('version-switcher')).toHaveText('V2', { timeout: 30_000 });
   await page.getByTestId('version-switcher').click();

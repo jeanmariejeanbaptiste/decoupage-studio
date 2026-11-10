@@ -23,11 +23,11 @@ INT. COULOIR - JOUR
 async function importEmpty(page: Page, script: string | Buffer = SCRIPT, expected = 3) {
   await page.goto('/#/scenario?seed=fiction');
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /^Importer/ }).click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.isBuffer(script) ? script : Buffer.from(script) });
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
-  await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
-  await page.getByTestId('scenario-tab-shots').click();
+  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
   await page.getByTestId('import-scenes').click();
   await page.goto('/#/grid');
   await expect(page.getByTestId('empty-sequence')).toHaveCount(expected);

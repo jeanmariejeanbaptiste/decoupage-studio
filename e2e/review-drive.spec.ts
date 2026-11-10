@@ -614,8 +614,13 @@ test('relecteur : rien de la synchronisation privée, onglets publiés seulement
   await nina.getByTestId('comments-panel').getByRole('button', { name: 'Fermer' }).click();
   // Scénario : seulement ce qui est publié.
   await nina.getByRole('navigation').getByRole('button', { name: /Scénario/ }).click();
-  await expect(nina.getByTestId('scenario-tab-scenes')).toBeVisible();
-  for (const t of ['characters', 'decors', 'research']) await expect(nina.getByTestId(`scenario-tab-${t}`)).toHaveCount(0);
+  // Pas de séquencier (les phrases ne sont pas publiées) ; le panneau : les séquences seules, sans onglets.
+  const views = nina.getByRole('tablist', { name: 'Scénario' }).getByRole('tab');
+  await expect(views).toHaveText(['Texte', 'Découpage', 'Statistiques']);
+  await expect(nina.getByTestId('scenario-outline')).toBeVisible();
+  for (const t of ['scenes', 'characters', 'decors', 'research']) await expect(nina.getByTestId(`scenario-tab-${t}`)).toHaveCount(0);
+  await nina.evaluate(() => void (location.hash = '#/scenario?view=outline'));
+  await expect(views.filter({ hasText: 'Texte' })).toHaveAttribute('aria-selected', 'true');
 
   // Lien arrêté : un autre relecteur qui commente n'ouvre pas le sélecteur de Google.
   const { page: paul } = await person(browser, fake, 'tok-paul');

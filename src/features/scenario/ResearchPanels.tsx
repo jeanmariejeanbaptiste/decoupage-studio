@@ -18,21 +18,21 @@ import s from './ResearchPanels.module.css';
 const titleCase = (s: string) => s.toLocaleLowerCase('fr').replace(/(^|[\s'’-])(\p{L})/gu, (_, a: string, b: string) => a + b.toLocaleUpperCase('fr'));
 
 /**
- * Champ saisi d'un trait, enregistré en quittant le champ (une seule étape d'annulation) — ou avant un
- * enregistrement, un changement de version, et quand il disparaît sans perdre le focus (panneau masqué
- * au clavier, page quittée par Précédent) : rien de ce qui est tapé ne se perd.
+ * Brouillon d'un champ saisi d'un trait, enregistré en quittant le champ (une seule étape d'annulation) —
+ * ou avant un enregistrement, un changement de version, et quand il disparaît sans perdre le focus
+ * (panneau masqué au clavier, page quittée par Précédent) : rien de ce qui est tapé ne se perd.
  */
-function Field({ label, value, onCommit, multiline, readOnly, placeholder }: { label: string; value: string; onCommit: (v: string) => void; multiline?: boolean; readOnly?: boolean; placeholder?: string }) {
+export function useCommitDraft(value: string, onCommit: (v: string) => void, readOnly?: boolean) {
   const [draft, setDraftState] = useState(value);
   const draftRef = useRef(value);
   const valueRef = useRef(value);
   valueRef.current = value;
   const commitRef = useRef(onCommit);
   commitRef.current = onCommit;
-  const setDraft = (v: string) => {
+  const setDraft = useCallback((v: string) => {
     draftRef.current = v;
     setDraftState(v);
-  };
+  }, []);
   useEffect(() => {
     draftRef.current = value;
     setDraftState(value);
@@ -51,6 +51,12 @@ function Field({ label, value, onCommit, multiline, readOnly, placeholder }: { l
       if (useProjectStore.getState().doc?.project.id === project) commit();
     };
   }, [commit]);
+  return [draft, setDraft, commit] as const;
+}
+
+/** Champ libellé d'une fiche, au brouillon de `useCommitDraft`. */
+function Field({ label, value, onCommit, multiline, readOnly, placeholder }: { label: string; value: string; onCommit: (v: string) => void; multiline?: boolean; readOnly?: boolean; placeholder?: string }) {
+  const [draft, setDraft, commit] = useCommitDraft(value, onCommit, readOnly);
   const common = {
     value: draft,
     readOnly,
@@ -242,7 +248,7 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
   );
 }
 
-/** Recherche : genre, logline, synopsis et documents libres du projet. */
+/** Recherche : genre, année et documents libres du projet (logline et synopsis sont en tête du Séquencier). */
 export function ResearchPanel({ doc, readOnly }: { doc: ProjectDoc; readOnly: boolean }) {
   const r = doc.research ?? {};
   const set = (patch: Partial<NonNullable<ProjectDoc['research']>>) => mutateDoc((d) => void Object.assign((d.research ??= {}), patch));
@@ -252,8 +258,6 @@ export function ResearchPanel({ doc, readOnly }: { doc: ProjectDoc; readOnly: bo
         <Field label="Genre" value={r.genre ?? ''} readOnly={readOnly} placeholder="Thriller psychologique" onCommit={(v) => set({ genre: v.trim() || undefined })} />
         <Field label="Année" value={r.year ?? ''} readOnly={readOnly} onCommit={(v) => set({ year: v.trim() || undefined })} />
       </div>
-      <Field label="Logline" multiline value={r.logline ?? ''} readOnly={readOnly} placeholder="Le film en une phrase." onCommit={(v) => set({ logline: v.trim() || undefined })} />
-      <Field label="Synopsis" multiline value={r.synopsis ?? ''} readOnly={readOnly} onCommit={(v) => set({ synopsis: v.trim() || undefined })} />
       <p className={s.label}>Documents</p>
       {(r.docs ?? []).map((d) => (
         <div key={d.id} className={s.doc}>

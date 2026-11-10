@@ -40,7 +40,7 @@ export function CommentsPanel() {
     if (versionId && versionId !== doc.activeVersionId) mutateDoc((d) => switchVersion(d, versionId));
     const shown = carried.find((x) => x.c.id === c.id);
     if (shown) c = { ...c, anchor: shown.anchor };
-    if (c.anchor.kind === 'script') navigate('scenario');
+    if (c.anchor.kind === 'script') navigate('scenario', { view: 'script' });
     else {
       useUi.getState().set({ printView: true, editing: null });
       navigate('grid');
