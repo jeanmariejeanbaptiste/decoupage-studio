@@ -35,6 +35,9 @@
 .b[hidden] { display: none; }
 /* Glyphes d'une police de secours : la ligne garde sa hauteur de 16 px. */
 .b, .b * { line-height: 16px; }
+/* Gras, italique, souligné : la police mise en forme ne grandit jamais la ligne (sinon un titre en gras
+   compte pour deux lignes et repousse la suite). */
+.b span { vertical-align: top; }
 .t_heading { text-transform: uppercase; }
 /* Numéro de séquence dans la marge, aligné à droite à 10 pt du texte, comme à l'impression. */
 .t_heading[data-n]::before {

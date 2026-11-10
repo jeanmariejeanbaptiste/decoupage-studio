@@ -645,3 +645,22 @@ test('commenter en traçant sur la page réduite : barre visible, Échap rend la
   await page.getByTestId('version-comments').click();
   await expect(page.getByTestId('comments-panel').getByTestId('comment')).toContainText('Plus de pluie.');
 });
+
+test('continuité dialoguée : triple-clic = la ligne seule ; le gras ne touche ni la ligne suivante ni l’espacement', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction&view=script');
+  const editor = page.getByTestId('script-editor');
+  const heading = editor.locator('[data-type="heading"]').first();
+  const next = editor.locator('[data-bid]').nth(2);
+  const nextText = (await next.innerText()).trim();
+  const gap = async () => (await next.boundingBox())!.y - (await heading.boundingBox())!.y;
+  const before = await gap();
+  const blocks = await editor.locator('[data-bid]').count();
+  await heading.click({ clickCount: 3 });
+  expect(await page.evaluate(() => getSelection()!.toString().trim())).toBe((await heading.innerText()).trim());
+  await page.getByTestId('emphasis-b').click();
+  const src = () => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario?: string } } }).__ds.doc().scenario ?? '');
+  await expect.poll(src).toContain('**INT. GARE — HALL - JOUR**');
+  expect(await src()).not.toContain(`**${nextText.split(' ')[0]}`);
+  await expect(editor.locator('[data-bid]')).toHaveCount(blocks);
+  expect(Math.abs((await gap()) - before)).toBeLessThan(2);
+});

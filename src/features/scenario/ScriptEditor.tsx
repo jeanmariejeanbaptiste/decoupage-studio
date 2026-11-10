@@ -680,14 +680,24 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const ia = blocks.findIndex((b) => b.id === sel.start.id);
     const ib = blocks.findIndex((b) => b.id === sel.end.id);
     if (ia < 0 || ib < 0) return;
-    const [from, to] = ia <= ib ? [sel.start, sel.end] : [sel.end, sel.start];
+    const from = ia <= ib ? sel.start : sel.end;
+    let to = ia <= ib ? sel.end : sel.start;
+    const first = Math.min(ia, ib);
+    let last = Math.max(ia, ib);
+    // Sélection qui s'arrête au tout début de la ligne suivante (triple-clic, glisser jusqu'au bord) :
+    // cette ligne n'en fait pas partie.
+    if (last > first && to.offset === 0) {
+      last -= 1;
+      to = { id: blocks[last].id, offset: blocks[last].text.length };
+    }
     let next = sdocRef.current;
     let caret: Caret = to;
-    for (let i = Math.min(ia, ib); i <= Math.max(ia, ib); i++) {
+    for (let i = first; i <= last; i++) {
       const b = blocks[i];
       if (b.type === 'title' || b.type === 'pagebreak') continue;
       let a = b.id === from.id ? from.offset : 0;
       let z = b.id === to.id ? to.offset : b.text.length;
+      if (a === z && first !== last) continue;
       if (a === z) {
         // Rien de sélectionné : le mot sous le curseur.
         while (a > 0 && /[\p{L}\p{N}'’-]/u.test(b.text[a - 1])) a--;
@@ -713,13 +723,22 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const ia = blocks.findIndex((b) => b.id === sel.start.id);
     const ib = blocks.findIndex((b) => b.id === sel.end.id);
     if (ia < 0 || ib < 0) return [];
-    const [from, to] = ia <= ib ? [sel.start, sel.end] : [sel.end, sel.start];
+    const from = ia <= ib ? sel.start : sel.end;
+    let to = ia <= ib ? sel.end : sel.start;
+    const first = Math.min(ia, ib);
+    let last = Math.max(ia, ib);
+    // Fin au tout début de la ligne suivante : cette ligne n'est pas dans la sélection.
+    if (last > first && to.offset === 0) {
+      last -= 1;
+      to = { id: blocks[last].id, offset: blocks[last].text.length };
+    }
     const out: Array<{ b: SBlock; a: number; z: number; last: boolean }> = [];
-    for (let i = Math.min(ia, ib); i <= Math.max(ia, ib); i++) {
+    for (let i = first; i <= last; i++) {
       const b = blocks[i];
       if (b.type === 'title' || b.type === 'pagebreak') continue;
       let a = b.id === from.id ? from.offset : 0;
       let z = b.id === to.id ? to.offset : b.text.length;
+      if (a === z && first !== last) continue;
       if (a === z) {
         while (a > 0 && /[\p{L}\p{N}'’-]/u.test(b.text[a - 1])) a--;
         while (z < b.text.length && /[\p{L}\p{N}'’-]/u.test(b.text[z])) z++;
@@ -1242,6 +1261,20 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         onFocus={restoreParked}
         onDrop={(e) => e.preventDefault()}
         onMouseUp={onCommentClick}
+        onMouseDown={(e) => {
+          // Triple-clic : la ligne seule (le navigateur déborde sur le début de la suivante).
+          if (e.detail < 3 || !root.current) return;
+          const id = (e.target as Element).closest<HTMLElement>('[data-bid]')?.dataset.bid;
+          const b = id ? blockOf(id) : undefined;
+          if (!b || b.type === 'title') return;
+          e.preventDefault();
+          const r = domRange(root.current, { id: b.id, offset: 0 }, { id: b.id, offset: b.text.length });
+          const sel = window.getSelection();
+          if (r && sel) {
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        }}
       >
         {sdoc.blocks.map((b) =>
           b.type === 'title' ? (
