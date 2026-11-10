@@ -272,14 +272,17 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   const snapshot = (force = false) => {
     const el = root.current;
     if (!el) return;
+    // Appelé juste avant une modification : ce qui était annulé ne se rétablit plus.
+    redo.current = [];
     const now = Date.now();
     if (!force && now - lastSnap.current < 1200) return;
     lastSnap.current = now;
+    // Même état que le dernier gardé : rien de plus à retenir.
+    if (undo.current[undo.current.length - 1]?.html === el.innerHTML) return;
     const sel = window.getSelection();
     const range = sel?.rangeCount && el.contains(sel.anchorNode) ? sel.getRangeAt(0) : null;
     undo.current.push({ html: el.innerHTML, sel: range ? [textOffset(el, range.startContainer, range.startOffset), textOffset(el, range.endContainer, range.endOffset)] : null });
     if (undo.current.length > 200) undo.current.shift();
-    redo.current = [];
   };
   const restore = (from: Snapshot[], to: Snapshot[]) => {
     const el = root.current;
@@ -472,11 +475,23 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
       exec('insertHTML', '<hr class="page-break"><p><br></p>');
       return;
     }
-    if (mod && ['b', 'i', 'u'].includes(e.key.toLowerCase())) {
+    if (mod && ['b', 'i', 'u', 'x'].includes(e.key.toLowerCase())) {
       snapshot(true);
       return;
     }
-    if (!mod) snapshot();
+    // Tab dans une liste : un niveau de plus (Maj : de moins), sans quitter l'éditeur. Ailleurs, Tab garde son rôle.
+    if (e.key === 'Tab' && !mod && !e.altKey) {
+      const el = root.current;
+      const blocks = el ? selectedBlocks(el) : [];
+      if (blocks.length && blocks.every((b) => b.tagName === 'LI')) {
+        e.preventDefault();
+        keepRange();
+        indent(e.shiftKey ? -1 : 1);
+      }
+      return;
+    }
+    // Seules les touches qui changent le texte comptent pour l'annulation (pas les flèches ni Maj).
+    if (!mod && (e.key.length === 1 || ['Backspace', 'Delete', 'Enter'].includes(e.key))) snapshot();
   };
 
   const btn = (key: string, label: string, icon: React.ReactNode, on: () => void, active?: boolean) => (
