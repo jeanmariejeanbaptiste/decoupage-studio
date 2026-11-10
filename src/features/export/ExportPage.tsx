@@ -70,7 +70,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
         <div>
           <h2>Dossier de production</h2>
         </div>
-        <Button variant="primary" icon={<Download size={15} strokeWidth={1.4} />} disabled={busy === 'zip'} aria-busy={busy === 'zip'} onClick={() => void run('zip')} data-testid="export-zip">
+        <Button variant="primary" icon={<Download size={15} strokeWidth={1.4} />} disabled={busy !== null} aria-busy={busy === 'zip'} onClick={() => void run('zip')} data-testid="export-zip">
           {busy === 'zip' ? 'Préparation…' : 'Télécharger (.zip)'}
         </Button>
       </section>
@@ -85,7 +85,7 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
             <Button variant="outline" icon={<Table2 size={15} strokeWidth={1.3} />} onClick={() => void run('csv')} data-testid="export-csv">
               CSV
             </Button>
-            <Button variant="outline" icon={<FileSpreadsheet size={15} strokeWidth={1.3} />} disabled={busy === 'xlsx'} onClick={() => void run('xlsx')} data-testid="export-xlsx">
+            <Button variant="outline" icon={<FileSpreadsheet size={15} strokeWidth={1.3} />} disabled={busy !== null} onClick={() => void run('xlsx')} data-testid="export-xlsx">
               Excel
             </Button>
             <Button variant="primary" icon={<Printer size={15} strokeWidth={1.3} />} onClick={() => navigate('print', { auto: '1' })} data-testid="export-pdf">

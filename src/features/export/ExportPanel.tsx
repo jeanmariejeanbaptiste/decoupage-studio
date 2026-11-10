@@ -104,7 +104,7 @@ export function ExportPanel({
     window.addEventListener('mousedown', close);
     window.addEventListener('keydown', key);
     // Au clavier, le focus entre dans le panneau, sur le choix coché.
-    panel.current?.querySelector<HTMLInputElement>('input:checked, input, button')?.focus({ preventScroll: true });
+    (panel.current?.querySelector<HTMLElement>('input:checked') ?? panel.current?.querySelector<HTMLElement>('input, button'))?.focus({ preventScroll: true });
     return () => {
       window.removeEventListener('mousedown', close);
       window.removeEventListener('keydown', key);
