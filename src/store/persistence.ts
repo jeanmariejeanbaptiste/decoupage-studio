@@ -217,6 +217,7 @@ export function warnUnsaved(e: BeforeUnloadEvent): void {
 }
 
 export function startAutosave(): () => void {
+  holdTabLock();
   const unsub = useProjectStore.subscribe((state, prev) => {
     if (!state.doc || state.doc === prev.doc || (persistGuard && !persistGuard())) return;
     pending = state.doc;
@@ -378,12 +379,44 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
   }
 }
 
+// --- Onglets ouverts : chacun tient un verrou partagé tant qu'il vit -------------------------------
+
+const TABS_LOCK = 'ds-tabs';
+interface LockManagerLike {
+  request: (name: string, opts: { mode: 'shared' }, cb: () => Promise<void>) => Promise<unknown>;
+  query: () => Promise<{ held?: Array<{ name?: string }> }>;
+}
+const locks = (): LockManagerLike | undefined => (typeof navigator !== 'undefined' ? (navigator as unknown as { locks?: LockManagerLike }).locks : undefined);
+let tabLock = false;
+
+/** Cet onglet se déclare ouvert (verrou partagé, libéré par le navigateur à la fermeture). */
+export function holdTabLock(): void {
+  const l = locks();
+  if (!l || tabLock) return;
+  tabLock = true;
+  void l.request(TABS_LOCK, { mode: 'shared' }, () => new Promise<void>(() => undefined)).catch(() => undefined);
+}
+
+/** Un autre onglet de l'application est-il ouvert ? (Sans l'API des verrous : on ne sait pas, donc non.) */
+export async function otherTabsOpen(): Promise<boolean> {
+  const l = locks();
+  if (!l) return false;
+  try {
+    const { held = [] } = await l.query();
+    return held.filter((x) => x.name === TABS_LOCK).length > (tabLock ? 1 : 0);
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Images et sons que plus aucun projet n'utilise (remplacés, effacés) : retirés du navigateur.
  * Lancé au démarrage, quand l'historique d'annulation ne peut plus les réclamer ; les états encore
- * annulables du projet ouvert sont tout de même consultés.
+ * annulables du projet ouvert sont tout de même consultés. Jamais quand un autre onglet est ouvert :
+ * son historique peut encore rétablir une image remplacée.
  */
 export async function pruneOrphanBlobs(): Promise<number> {
+  if (await otherTabsOpen()) return 0;
   const keep = new Set<string>();
   for (const p of await db.projects.toArray()) for (const k of mediaKeys(p.doc)) keep.add(k);
   const st = useProjectStore.getState();
