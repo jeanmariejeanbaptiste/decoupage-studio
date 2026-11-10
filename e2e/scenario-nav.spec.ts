@@ -220,6 +220,7 @@ test('Scénario au clavier : Exporter (Échap, Tab), ⌘\\ hors panneau, poigné
   // ⌘\ ne touche au panneau que là où il existe.
   const tabs = page.getByRole('tablist', { name: 'Scénario' });
   await tabs.getByRole('tab', { name: 'Séquencier' }).click();
+  await expect(tabs.getByRole('tab', { name: 'Séquencier' })).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('Control+Backslash');
   await tabs.getByRole('tab', { name: 'Texte' }).click();
   await expect(page.getByLabel('Navigation du scénario')).toBeVisible();
