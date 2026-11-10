@@ -125,7 +125,7 @@ export function MobileCut({ doc, tools }: { doc: ProjectDoc; tools?: ReactNode }
   const cols = activeColumns(tcLast(doc.project.settings.gridColumns));
   const close = () => setSheet(null);
   return (
-    <div ref={setRoot} className={[s.vars, s.root].join(' ')} data-testid="mobile-cut" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div ref={setRoot} className={[s.vars, s.root].join(' ')} data-testid="mobile-cut" data-view={readOnly || undefined} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <PlanScreen
         key={shotId}
         doc={doc}

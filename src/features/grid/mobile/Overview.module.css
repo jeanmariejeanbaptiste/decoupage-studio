@@ -23,7 +23,7 @@
 .t span { color: var(--m-faint); margin-left: 8px; }
 .on .n, .on .t { color: var(--m-ink); font-weight: 500; }
 .on .t i, .on .t span { font-weight: 400; }
-.g { display: grid; place-items: center; height: 100%; color: var(--m-ghost); touch-action: manipulation; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.g { display: grid; place-items: center; height: 100%; color: var(--m-ghost); touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; cursor: grab; }
 .g svg { fill: currentColor; }
 .dragging .g { cursor: grabbing; }
 
@@ -33,6 +33,9 @@
 .lifted .n { color: var(--m-ink); font-weight: 500; }
 .lifted .t { font-size: 16px; }
 .lifted .g { color: var(--m-ink); }
+.hidden { position: absolute; left: 0; right: 0; opacity: 0; }
+.asHole { height: 40px; margin: 0 24px; padding: 0; border-radius: 6px; border: 1px dashed var(--m-ghost); background: none; }
+.asHole > * { visibility: hidden; }
 .hole { height: 40px; margin: 0 24px; border-radius: 6px; border: 1px dashed var(--m-ghost); }
 .dragging .lrow:not(.lifted) .t, .dragging .lrow:not(.lifted) .n { opacity: 0.55; }
 .dragging { user-select: none; -webkit-user-select: none; }

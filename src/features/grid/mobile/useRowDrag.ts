@@ -12,6 +12,8 @@ export interface RowDrag {
   at: number;
   /** Haut de la rangée soulevée, à l'écran. */
   top: number;
+  /** Place d'origine. */
+  from: { seqId: ID; at: number };
 }
 
 interface Pending {
@@ -89,13 +91,15 @@ export function useRowDrag(root: RefObject<HTMLElement>, onDrop: (id: ID, seqId:
     frame.current = requestAnimationFrame(autoScroll);
   }, [move, root]);
 
+  // L'appui a assez duré : la rangée se soulève (le téléphone vibre). Elle reste dans la page, au
+  // même nœud : le doigt qui la tient garde sa cible, sinon le navigateur perdrait le geste.
   const start = useCallback(() => {
     const p = pending.current;
     if (!p) return;
     pending.current = null;
     live.current = { origin: { seqId: p.seqId, at: p.index }, grab: p.grab, y: p.y };
     navigator.vibrate?.(8);
-    setDrag({ id: p.id, seqId: p.seqId, at: p.index, top: p.y - p.grab });
+    setDrag({ id: p.id, seqId: p.seqId, at: p.index, top: p.y - p.grab, from: { seqId: p.seqId, at: p.index } });
     frame.current = requestAnimationFrame(autoScroll);
   }, [autoScroll]);
 
@@ -113,11 +117,22 @@ export function useRowDrag(root: RefObject<HTMLElement>, onDrop: (id: ID, seqId:
     [onDrop],
   );
 
+  // Glissement commencé sur la poignée avant la fin de l'appui : la liste défile sous le doigt.
+  const panning = useRef<{ y: number } | null>(null);
+  const scroller = useCallback(() => (root.current?.closest('main') as HTMLElement | null) ?? (document.scrollingElement as HTMLElement | null), [root]);
+
   useEffect(() => {
     const pointMove = (x: number, y: number, e: Event) => {
       const p = pending.current;
       if (p) {
-        if (Math.hypot(x - p.x, y - p.y) > SLOP) end(false);
+        if (Math.hypot(x - p.x, y - p.y) <= SLOP) return;
+        end(false);
+        if (e.type === 'touchmove') panning.current = { y: p.y };
+      }
+      if (panning.current) {
+        const sc = scroller();
+        if (sc) sc.scrollTop -= y - panning.current.y;
+        panning.current.y = y;
         return;
       }
       if (!live.current) return;
@@ -126,8 +141,29 @@ export function useRowDrag(root: RefObject<HTMLElement>, onDrop: (id: ID, seqId:
     };
     const touchMove = (e: TouchEvent) => pointMove(e.touches[0].clientX, e.touches[0].clientY, e);
     const mouseMove = (e: PointerEvent) => e.pointerType === 'mouse' && pointMove(e.clientX, e.clientY, e);
-    const up = () => (pending.current || live.current) && end(!!live.current);
-    const cancel = () => end(false);
+    const up = () => {
+      panning.current = null;
+      if (pending.current || live.current) end(!!live.current);
+    };
+    const cancel = () => {
+      panning.current = null;
+      end(false);
+    };
+    // Sur la poignée, le doigt appartient à la rangée : ni défilement ni appui long du navigateur
+    // (il annulerait le geste) ; si le doigt part avant la fin de l'appui, on fait défiler soi-même.
+    const touchStart = (e: TouchEvent) => {
+      const g = (e.target as HTMLElement).closest<HTMLElement>('[data-grip]');
+      if (!g || e.touches.length > 1) return;
+      if (e.cancelable) e.preventDefault();
+      begin(g, e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const mouseDown = (e: PointerEvent) => {
+      const g = (e.target as HTMLElement).closest<HTMLElement>('[data-grip]');
+      if (e.pointerType === 'mouse' && g) begin(g, e.clientX, e.clientY);
+    };
+    const host = root.current;
+    host?.addEventListener('touchstart', touchStart, { passive: false });
+    host?.addEventListener('pointerdown', mouseDown);
     window.addEventListener('touchmove', touchMove, { passive: false });
     window.addEventListener('touchend', up);
     window.addEventListener('touchcancel', cancel);
@@ -137,6 +173,8 @@ export function useRowDrag(root: RefObject<HTMLElement>, onDrop: (id: ID, seqId:
     const key = (e: KeyboardEvent) => e.key === 'Escape' && live.current && end(false);
     window.addEventListener('keydown', key);
     return () => {
+      host?.removeEventListener('touchstart', touchStart);
+      host?.removeEventListener('pointerdown', mouseDown);
       window.removeEventListener('touchmove', touchMove);
       window.removeEventListener('touchend', up);
       window.removeEventListener('touchcancel', cancel);
@@ -145,22 +183,28 @@ export function useRowDrag(root: RefObject<HTMLElement>, onDrop: (id: ID, seqId:
       window.removeEventListener('keydown', key);
       cancelAnimationFrame(frame.current);
     };
-  }, [end, move]);
+    // `begin` ne lit que des refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [end, move, root, scroller, start]);
+
+  /** Début d'un appui sur une poignée (`data-grip`, `data-grip-seq`, `data-grip-index`). */
+  function begin(g: HTMLElement, x: number, y: number) {
+    if (pending.current || live.current) return;
+    const id = g.dataset.grip!;
+    const seqId = g.dataset.gripSeq!;
+    const index = Number(g.dataset.gripIndex);
+    const row = g.closest<HTMLElement>('[data-drop-shot]');
+    const grab = row ? y - row.getBoundingClientRect().top : 18;
+    pending.current = { id, seqId, index, x, y, grab, timer: window.setTimeout(start, HOLD_MS) };
+  }
 
   /** Poignée d'une rangée : appui long au doigt ou à la souris. */
-  const grip = (id: ID, seqId: ID, index: number) => {
-    const begin = (x: number, y: number, el: HTMLElement) => {
-      if (pending.current || live.current) return;
-      const row = el.closest<HTMLElement>('[data-drop-shot]');
-      const grab = row ? y - row.getBoundingClientRect().top : 18;
-      pending.current = { id, seqId, index, x, y, grab, timer: window.setTimeout(start, HOLD_MS) };
-    };
-    return {
-      onTouchStart: (e: React.TouchEvent<HTMLElement>) => begin(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget),
-      onPointerDown: (e: React.PointerEvent<HTMLElement>) => e.pointerType === 'mouse' && begin(e.clientX, e.clientY, e.currentTarget),
-      onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-    };
-  };
+  const grip = (id: ID, seqId: ID, index: number) => ({
+    'data-grip': id,
+    'data-grip-seq': seqId,
+    'data-grip-index': index,
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+  });
 
   return { drag, grip };
 }
