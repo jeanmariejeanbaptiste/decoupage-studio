@@ -151,6 +151,21 @@ describe('opérations et invariants §3', () => {
     expect(produce(next, (d) => deleteSequence(d, 'absent'))).toBe(next);
   });
 
+  it('supprimer une séquence nettoie, comme pour un plan seul, caméras, créneaux et ordre du plan de travail', () => {
+    const doc = fresh();
+    const seq = seqA(doc);
+    const shot = seq.shotIds[0];
+    const other = doc.project.sequenceIds[1];
+    doc.floorPlans = { decor: { items: [{ id: 'cam', kind: 'camera', x: 0, y: 0, rot: 0, label: 'CAM A', shotIds: [shot, doc.sequences[other].shotIds[0]] }] } } as unknown as ProjectDoc['floorPlans'];
+    doc.schedule = { days: [{ n: 1, id: 'j1', timeline: { [shot]: { start: '09:00', end: '10:00' } }, parts: { [shot]: [] } }], order: [seq.id, other] };
+    const next = produce(doc, (d) => deleteSequence(d, seq.id));
+    const cam = next.floorPlans!.decor.items[0] as { shotIds: string[] };
+    expect(cam.shotIds).toEqual([doc.sequences[other].shotIds[0]]);
+    expect(next.schedule!.days[0].timeline).toEqual({});
+    expect(next.schedule!.days[0].parts).toEqual({});
+    expect(next.schedule!.order).toEqual([other]);
+  });
+
   it('normalizeBlocks rapatrie un bloc étranger et supprime les orphelins', () => {
     const doc = fresh();
     const next = produce(doc, (d) => {
