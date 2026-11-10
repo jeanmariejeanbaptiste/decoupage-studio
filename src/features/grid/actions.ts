@@ -22,7 +22,7 @@ import {
 } from '../../domain/ops';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
 import { detectInText } from '../../domain/breakdown';
-import { shotsFromSequenceText } from '../../domain/scriptToShot';
+import { anchorShotToPassages, shotsFromSequenceText } from '../../domain/scriptToShot';
 import { fold } from '../../domain/text';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
 import { useUi, type CellPos } from '../../store/uiStore';
@@ -85,11 +85,20 @@ export function selectedShotIds(): ID[] {
   return out;
 }
 
-export function commitCell(shotId: ID, col: ColumnKey, text: string): boolean {
+/**
+ * Valide une cellule. `picked` : passages du scénario versés dans une cellule Action pendant la
+ * saisie ; l'action du plan leur est liée dans le même pas d'annulation.
+ */
+export function commitCell(shotId: ID, col: ColumnKey, text: string, picked?: ReadonlyArray<{ start: number; end: number }>): boolean {
   const d = doc();
   if (!d) return false;
   if (editableText(d, shotId, col) === text) return true;
-  const ok = mutateDoc((x) => setCellText(x, shotId, col, text)) ?? false;
+  const ok =
+    mutateDoc((x) => {
+      const done = setCellText(x, shotId, col, text);
+      if (done && col === 'action' && picked?.length) anchorShotToPassages(x, shotId, picked);
+      return done;
+    }) ?? false;
   if (!ok) {
     ui().toast({ message: 'Saisie non reconnue : la cellule n’a pas été modifiée.', tone: 'warn' });
     return false;

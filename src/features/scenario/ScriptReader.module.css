@@ -36,3 +36,11 @@
 .selPlus { animation: selIn 0.12s ease-out; }
 @keyframes selIn { from { transform: scale(0.4); opacity: 0; } }
 .linkMode { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui, inherit); font-size: 12px; color: var(--ink-soft); cursor: pointer; }
+
+/* Saisie d'une cellule Action en cours : ce qu'on choisit ici part dans la cellule. La sélection se
+   teinte comme un texte déjà versé, la marque de fin de phrase devient une flèche tournée vers la grille. */
+.reader[data-capturing] { cursor: text; }
+.reader[data-capturing] ::selection { background: color-mix(in srgb, var(--ink) 16%, transparent); color: var(--ink); }
+.reader[data-capturing] .plus::before { content: '\2190'; }
+.reader[data-capturing] .plus { font-size: 10px; }
+.reader[data-selecting] .plus { visibility: hidden; pointer-events: none; }

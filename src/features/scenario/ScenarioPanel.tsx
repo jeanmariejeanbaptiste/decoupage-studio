@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useDraft } from '../../ui/useDraft';
-import { BookOpen, PenLine, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, PenLine, X } from 'lucide-react';
 import type { ProjectDoc } from '../../domain/types';
+import { shotCode } from '../../domain/numbering';
 import { useUi } from '../../store/uiStore';
+import { useScriptCapture } from '../grid/scriptCapture';
 import { LinkModeToggle, ScriptReader, commitScenario } from './ScriptReader';
 import s from './ScenarioPanel.module.css';
 
@@ -26,6 +28,9 @@ export function ScenarioPanel({ doc }: { doc: ProjectDoc }) {
   // Texte modifié ailleurs (onglet Scénario, autre participant) : repris tant qu'on n'écrit pas ici ;
   // la saisie est appliquée après une pause, en quittant le champ, la page, ou avant d'enregistrer.
   const [draft, setDraft, flushDraft] = useDraft(doc.scenario ?? '', commitScenario, 700);
+  // Cellule Action ouverte en saisie : en lecture, ce qu'on choisit dans le scénario y entre.
+  const target = useScriptCapture((c) => c.target);
+  const capturing = mode === 'read' && !!target && !!doc.shots[target.shotId];
 
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -49,7 +54,7 @@ export function ScenarioPanel({ doc }: { doc: ProjectDoc }) {
   };
 
   return (
-    <aside className={['card', s.panel].join(' ')} style={{ width }} aria-label="Scénario" data-testid="scenario-panel">
+    <aside className={['card', s.panel].join(' ')} style={{ width }} aria-label="Scénario" data-capturing={capturing || undefined} data-testid="scenario-panel">
       <div className={s.resize} onPointerDown={startResize} title="Tirer pour élargir" role="separator" aria-orientation="vertical" />
       <header className={s.head}>
         <div className={s.seg} role="radiogroup" aria-label="Mode du scénario">
@@ -65,11 +70,19 @@ export function ScenarioPanel({ doc }: { doc: ProjectDoc }) {
         </button>
       </header>
       <div className={s.opts}>
-        <LinkModeToggle doc={doc} />
+        {capturing ? (
+          // Même ligne, même hauteur : la destination remplace le réglage, qui ne sert pas ici.
+          <span className={s.target} data-testid="capture-target">
+            <ArrowLeft size={13} strokeWidth={1.5} aria-hidden="true" />
+            Action du plan {shotCode(doc, target.shotId)}
+          </span>
+        ) : (
+          <LinkModeToggle doc={doc} />
+        )}
       </div>
       <div className={s.body}>
         {mode === 'read' ? (
-          <ScriptReader doc={doc} source={doc.scenario ?? ''} />
+          <ScriptReader doc={doc} source={doc.scenario ?? ''} capture />
         ) : (
           <textarea
             className={s.editor}

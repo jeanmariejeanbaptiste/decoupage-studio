@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading } from '../../domain/numbering';
-import { createShotsFromSelection, sentencesOf, splitByScene } from '../../domain/scriptToShot';
+import { createShotsFromSelection, passageInsertText, sentencesOf, splitByScene } from '../../domain/scriptToShot';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
+import { useScriptCapture } from '../grid/scriptCapture';
 import s from './ScriptReader.module.css';
 
 /**
@@ -53,8 +54,10 @@ function offsetOf(node: Node, offset: number): number | null {
 /**
  * Scénario mis en page et actif : au survol d'une phrase, un « + » discret à sa fin l'ajoute au
  * découpage ; une sélection libre fait apparaître un « + » au-dessus de sa fin.
+ * Avec `capture` (panneau du découpage) et une cellule Action ouverte en saisie, le texte choisi
+ * (sélection, ou flèche d'une phrase) va dans cette cellule au lieu de créer un plan.
  */
-export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; source: string; className?: string }) {
+export function ScriptReader({ doc, source, className, capture }: { doc: ProjectDoc; source: string; className?: string; capture?: boolean }) {
   const elements = useMemo(() => parseFountain(source), [source]);
   const sentences = useMemo(() => sentencesOf(source, elements), [source, elements]);
   const anchors = useMemo(
@@ -68,14 +71,33 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
   const root = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<{ start: number; end: number; x: number; y: number } | null>(null);
 
+  // Lecteur du panneau : la cellule Action ouverte en saisie le sait (filet tourné vers lui).
+  useEffect(() => {
+    if (!capture) return;
+    useScriptCapture.setState({ reader: true });
+    return () => useScriptCapture.setState({ reader: false, holding: false });
+  }, [capture]);
+  const capturing = useScriptCapture((c) => !!capture && !!c.target);
+  const pour = (start: number, end: number) => {
+    const t = useScriptCapture.getState().target;
+    if (!t) return false;
+    const text = passageInsertText(doc, source, start, end);
+    if (text) t.insert(text, { start, end });
+    else t.refocus();
+    return true;
+  };
+
   const plus = (start: number, end: number, label: string) => (
     <button
       type="button"
       className={s.plus}
-      aria-label={label}
-      title="Ajouter au découpage"
+      aria-label={capturing ? label.replace(/au découpage$/, 'à l’action') : label}
+      title={capturing ? undefined : 'Ajouter au découpage'}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={(e) => addPassageAsShot(start, end, { x: e.clientX, y: e.clientY })}
+      onClick={(e) => {
+        if (capture && pour(start, end)) return;
+        addPassageAsShot(start, end, { x: e.clientX, y: e.clientY });
+      }}
       data-testid="script-plus"
     />
   );
@@ -150,12 +172,24 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
   }, [hasSel]);
 
   const onMouseUp = (e: { clientX: number; clientY: number }) => {
+    if (root.current) delete root.current.dataset.selecting;
     const sl = window.getSelection();
-    if (!sl || sl.isCollapsed || !sl.rangeCount || !root.current) return setSel(null);
-    const r = sl.getRangeAt(0);
-    if (!root.current.contains(r.commonAncestorContainer)) return setSel(null);
-    const a = offsetOf(r.startContainer, r.startOffset);
-    const b = offsetOf(r.endContainer, r.endOffset);
+    // Sélection commencée dans le lecteur pendant une saisie d'action : elle part dans la cellule ;
+    // un simple clic rend la main à la saisie.
+    const held = capture && useScriptCapture.getState().holding ? useScriptCapture.getState().target : null;
+    const range = sl && !sl.isCollapsed && sl.rangeCount && root.current ? sl.getRangeAt(0) : null;
+    const inside = !!range && !!root.current?.contains(range.commonAncestorContainer);
+    const a = inside ? offsetOf(range.startContainer, range.startOffset) : null;
+    const b = inside ? offsetOf(range.endContainer, range.endOffset) : null;
+    if (held) {
+      setSel(null);
+      if (a !== null && b !== null && b > a) {
+        pour(a, b);
+        window.getSelection()?.removeAllRanges();
+      } else held.refocus();
+      return;
+    }
+    if (!range || !inside || !root.current) return setSel(null);
     if (a === null || b === null || b <= a) return setSel(null);
     // Le « + » apparaît au ras du curseur, là où la sélection a été relâchée.
     const box = root.current.getBoundingClientRect();
@@ -172,7 +206,20 @@ export function ScriptReader({ doc, source, className }: { doc: ProjectDoc; sour
   }, []);
 
   return (
-    <div ref={root} className={[s.reader, className].join(' ')} data-testid="script-reader">
+    <div
+      ref={root}
+      className={[s.reader, className].join(' ')}
+      data-capturing={capturing || undefined}
+      // Le bouton enfoncé ici n'abandonne pas la saisie de la cellule : elle attend la sélection.
+      onMouseDownCapture={(e) => {
+        if (e.button !== 0 || (e.target as Element).closest('button')) return;
+        // Sélection en cours : les marques de fin de phrase s'effacent, leur zone de clic ne retient
+        // pas la fin de la sélection.
+        if (root.current) root.current.dataset.selecting = '';
+        if (capture && useScriptCapture.getState().target) useScriptCapture.setState({ holding: true });
+      }}
+      data-testid="script-reader"
+    >
       {blocks.length === 0 && <p className={s.muted}>Le scénario est vide.</p>}
       {blocks}
       {sel && (

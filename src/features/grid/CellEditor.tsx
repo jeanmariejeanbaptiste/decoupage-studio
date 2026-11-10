@@ -5,6 +5,7 @@ import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { hasAngleConflict, isZoom } from '../../domain/vocabulary';
 import { SuggestList, type Suggestion } from '../../ui/SuggestList';
 import { useSuggest } from '../../ui/useSuggest';
+import { useScriptCapture, type CaptureTarget, type PickedRange } from './scriptCapture';
 import { suggestionSource } from './suggestions';
 import s from './CellEditor.module.css';
 
@@ -17,7 +18,8 @@ interface EditorProps {
   initial: string;
   /** Saisie démarrée par une frappe : le contenu est remplacé. */
   replace?: string;
-  onCommit: (text: string, move: CommitMove) => void;
+  /** `picked` : passages du scénario versés dans la cellule pendant la saisie (cellule Action). */
+  onCommit: (text: string, move: CommitMove, picked?: PickedRange[]) => void;
   onCancel: () => void;
 }
 
@@ -26,10 +28,10 @@ export function CellEditor(raw: EditorProps) {
   const done = useRef(false);
   const props: EditorProps = {
     ...raw,
-    onCommit: (text, move) => {
+    onCommit: (text, move, picked) => {
       if (done.current) return;
       done.current = true;
-      raw.onCommit(text, move);
+      raw.onCommit(text, move, picked);
     },
     onCancel: () => {
       if (done.current) return;
@@ -48,7 +50,7 @@ function commitKey(e: KeyboardEvent, multiline: boolean): CommitMove | null {
   return null;
 }
 
-function TextEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorProps) {
+function TextEditor({ doc, shotId, col, initial, replace, onCommit: commit, onCancel }: EditorProps) {
   const multiline = col === 'action' || col === 'dialogue' || col === 'notes' || col === 'sound' || col === 'light' || col === 'grip';
   const [value, setValue] = useState(replace ?? initial);
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
@@ -56,6 +58,78 @@ function TextEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorPr
   // Les suggestions n'apparaissent qu'une fois la saisie commencée.
   const touched = replace !== undefined || value !== initial;
   const sug = useSuggest(touched ? value : '', suggestionSource(doc, col));
+
+  // Cellule Action en saisie : le texte choisi dans le lecteur du scénario (panneau latéral) vient
+  // s'insérer au curseur ; la saisie reste ouverte pendant la sélection.
+  const capturing = col === 'action';
+  const caret = useRef<[number, number] | null>(null);
+  const pendingCaret = useRef<number | null>(null);
+  const picked = useRef<PickedRange[]>([]);
+  const onCommit = (text: string, move: CommitMove) => commit(text, move, capturing && picked.current.length ? picked.current : undefined);
+  const readerOn = useScriptCapture((c) => c.reader);
+  useEffect(() => {
+    if (!capturing) return;
+    const back = () => {
+      useScriptCapture.setState({ holding: false });
+      const el = ref.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      const [a, b] = caret.current ?? [el.value.length, el.value.length];
+      el.setSelectionRange(a, b);
+    };
+    const target: CaptureTarget = {
+      shotId,
+      insert: (text, range) => {
+        const el = ref.current;
+        const t = text.trim();
+        if (!el || !t) return back();
+        const v = el.value;
+        const [a, b] = caret.current ?? [v.length, v.length];
+        const before = v.slice(0, a);
+        const after = v.slice(b);
+        const pre = before && !/\s$/.test(before) ? ' ' : '';
+        const post = after && !/^\s/.test(after) ? ' ' : '';
+        const pos = (before + pre + t).length;
+        picked.current.push(range);
+        caret.current = [pos, pos];
+        pendingCaret.current = pos;
+        setValue(before + pre + t + post + after);
+        useScriptCapture.setState({ holding: false });
+        el.focus({ preventScroll: true });
+      },
+      refocus: back,
+    };
+    useScriptCapture.setState({ target });
+    return () => {
+      if (useScriptCapture.getState().target === target) useScriptCapture.setState({ target: null, holding: false });
+    };
+  }, [capturing, shotId]);
+  // Curseur posé juste après le passage versé.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && pendingCaret.current !== null) {
+      el.setSelectionRange(pendingCaret.current, pendingCaret.current);
+      pendingCaret.current = null;
+    }
+  }, [value]);
+
+  const onBlur = () => {
+    const el = ref.current;
+    if (el) caret.current = [el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length];
+    if (capturing && useScriptCapture.getState().holding) {
+      // Sélection en cours dans le lecteur : il rend la main au relâchement. Relâché ailleurs (le
+      // lecteur a disparu entre-temps) : la saisie est validée comme d'habitude.
+      const up = () =>
+        window.setTimeout(() => {
+          if (!useScriptCapture.getState().holding || document.activeElement === ref.current) return;
+          useScriptCapture.setState({ holding: false });
+          onCommit(ref.current?.value ?? value, 'none');
+        }, 0);
+      window.addEventListener('mouseup', up, { once: true });
+      return;
+    }
+    onCommit(value, 'none');
+  };
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -93,10 +167,10 @@ function TextEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorPr
   const common = {
     ref,
     value,
-    className: [s.input, col === 'sequence' ? s.upper : '', col === 'tc' ? s.mono : ''].join(' '),
+    className: [s.input, col === 'sequence' ? s.upper : '', col === 'tc' ? s.mono : '', capturing && readerOn ? s.capturing : ''].join(' '),
     onChange: (e: { target: { value: string } }) => setValue(e.target.value),
     onKeyDown,
-    onBlur: () => onCommit(value, 'none'),
+    onBlur,
     'aria-label': `Modifier ${col}`,
     'aria-autocomplete': 'list' as const,
     'aria-controls': sug.items.length ? listId : undefined,

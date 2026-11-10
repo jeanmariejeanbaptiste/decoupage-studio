@@ -353,3 +353,32 @@ export function shotsFromSequenceText(doc: ProjectDoc, seqId: ID, opts: { dialog
     .map((p) => createShotFromPassage(doc, source, p.start, p.end, { seqId, dialogueShown: opts.dialogueShown }))
     .filter((id): id is ID => !!id);
 }
+
+/** Texte versé dans une cellule Action depuis un passage du scénario : l'action, sinon la réplique. */
+export function passageInsertText(doc: ProjectDoc, source: string, start: number, end: number): string {
+  const p = passageOf(doc, source, start, end, { dialogueShown: true });
+  return (p.action || p.dialogue).trim();
+}
+
+/**
+ * Lie l'action d'un plan aux passages du scénario versés dans sa cellule : sans ancre, elle couvre
+ * ces passages ; avec une ancre dans la même scène, elle s'étend pour les couvrir ; une ancre posée
+ * dans une autre scène reste telle quelle (un bloc d'action suit un seul passage).
+ */
+export function anchorShotToPassages(doc: ProjectDoc, shotId: ID, ranges: ReadonlyArray<{ start: number; end: number }>, source = doc.scenario ?? ''): void {
+  const shot = doc.shots[shotId];
+  const block = shot ? doc.blocks[shot.actionBlockId] : undefined;
+  const valid = ranges.filter((r) => r.start >= 0 && r.end > r.start && r.end <= source.length);
+  if (!block || !valid.length) return;
+  const start = Math.min(...valid.map((r) => r.start));
+  const end = Math.max(...valid.map((r) => r.end));
+  const prev = block.scenarioAnchor;
+  if (!prev || prev.end <= prev.start) {
+    block.scenarioAnchor = { start, end };
+    return;
+  }
+  const scenes = scenesOf(source);
+  const scene = (o: number) => sceneAt(scenes, o)?.index;
+  const same = [start, end - 1, prev.start, prev.end - 1].map(scene);
+  if (same.every((x) => x === same[0])) block.scenarioAnchor = { start: Math.min(prev.start, start), end: Math.max(prev.end, end) };
+}

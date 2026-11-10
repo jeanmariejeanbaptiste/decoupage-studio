@@ -53,3 +53,6 @@
 .word { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .mm { color: var(--ink-soft); font-size: 12px; user-select: none; }
 @keyframes grow { from { opacity: 0.4; transform: scaleX(0.92); transform-origin: left; } }
+/* Cellule Action en saisie, scénario ouvert à côté : un filet à droite, tourné vers le lecteur, dit
+   que le texte choisi là-bas arrivera ici. */
+.capturing { box-shadow: 2px 0 0 0 var(--ink); }

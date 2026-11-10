@@ -26,6 +26,7 @@ import { hasAngleConflict } from '../../domain/vocabulary';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import type { CellPos, UiState } from '../../store/uiStore';
 import { CellEditor, type CommitMove } from './CellEditor';
+import type { PickedRange } from './scriptCapture';
 import { cellSpan, spanKind, type GridModel, type SeqModel } from './gridModel';
 import type { Issue } from '../../domain/lint';
 import s from './Grid.module.css';
@@ -39,7 +40,7 @@ interface Props {
   editing: UiState['editing'];
   onCellMouseDown: (e: MouseEvent, pos: CellPos) => void;
   onCellDoubleClick: (pos: CellPos) => void;
-  onCommit: (text: string, move: CommitMove) => void;
+  onCommit: (text: string, move: CommitMove, picked?: PickedRange[]) => void;
   onCancel: () => void;
 }
 
