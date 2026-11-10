@@ -532,8 +532,10 @@ export function applyScenarioEdit(doc: ProjectDoc, edit: SourceEdit, opts: { reo
   const move = (owner: { scenarioAnchor?: { start: number; end: number } }) => {
     const a = owner.scenarioAnchor;
     if (!a) return;
-    const [start, end] = mapRange(edit, a.start, a.end);
-    owner.scenarioAnchor = { start, end };
+    const r = mapRange(edit, a.start, a.end);
+    // Passage disparu (séquence supprimée) : le lien tombe plutôt que de pointer sur la voisine.
+    if (r) owner.scenarioAnchor = { start: r[0], end: r[1] };
+    else delete owner.scenarioAnchor;
   };
   Object.values(doc.blocks).forEach(move);
   Object.values(doc.sequences).forEach(move);
