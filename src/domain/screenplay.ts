@@ -132,7 +132,8 @@ export function blocksFromSource(source: string): ScriptDoc {
     blocks.push({
       id: nid(),
       type: g.type,
-      text: g.texts.join('\n'),
+      // Résumé : le texte écrit (surlignage compris), sans « = » ni la note du séquencier.
+      text: g.type === 'synopsis' ? lastLine.text.replace(/\r$/, '').replace(OUTLINE_TAG_RE, '').replace(/^\s*=\s*/, '').trim() : g.texts.join('\n'),
       raw: source.slice(rawStart, rawEnd),
       lineOffsets: g.starts.map((s) => s - rawStart),
       sep: source.slice(prevEnd, rawStart),
@@ -331,6 +332,11 @@ export function convertText(text: string, from: BlockType, to: BlockType): strin
   return t;
 }
 
+/**
+ * Change le type d'un bloc. La note du séquencier d'un résumé (`meta`) reste attachée au bloc : elle
+ * n'est écrite que tant qu'il est un résumé, et revient telle quelle s'il le redevient. Changer
+ * explicitement le type de la phrase (geste de l'utilisateur) la retire donc du texte enregistré.
+ */
 export function setBlockType(doc: ScriptDoc, id: string, type: BlockType): { doc: ScriptDoc; text: string } {
   const i = indexOf(doc, id);
   if (i < 0) return { doc, text: '' };
@@ -524,7 +530,9 @@ export function rangeText(doc: ScriptDoc, a: Caret, b: Caret): string {
     let t = x.text;
     if (k === all.length - 1) t = t.slice(0, b.offset);
     if (k === 0) t = t.slice(a.offset);
-    return { id: x.id, type: x.type, text: t };
+    // Le résumé copié en entier garde sa note du séquencier.
+    const whole = k < all.length - 1 || b.offset >= x.text.length;
+    return { id: x.id, type: x.type, text: t, ...(x.type === 'synopsis' && x.meta && whole ? { meta: x.meta } : {}) };
   });
   return serialize({ blocks: parts, trail: '' }).source;
 }

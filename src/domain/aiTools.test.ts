@@ -123,3 +123,25 @@ describe('outils de l’assistant', () => {
     expect(doc.scenario).toContain('dont une roue grince.\n\nINT. GARE — CONSIGNE');
   });
 });
+
+describe('outils du séquencier (relecture)', () => {
+  it('3. set_outline_entry refuse sans rien écrire quand une entrée est invalide', () => {
+    const doc = buildFiction();
+    for (const bad of [{ step: 99 }, { plot: 'AB' }, { n: 9 }]) {
+      const { doc: next, out } = run(doc, 'set_outline_entry', { n: 1, location: 'HALL', phrase: 'Nouvelle phrase', ...bad });
+      expect(out.isError).toBe(true);
+      expect(next.scenario).toBe(doc.scenario);
+    }
+  });
+
+  it('5. write_scenario numérote comme le séquencier et garde l’en-tête forcé', () => {
+    const doc = buildFiction();
+    doc.scenario = 'INT. A - JOUR\n\nAa.\n\n.\n\nvide\n\nINT. B - NUIT\n\nBb.\n\n.CUISINE\n\nCc.\n';
+    expect(JSON.parse(runAiTool(doc, 'get_outline', {}).result).sequences.map((x: { heading: string }) => x.heading)).toEqual(['INT. A - JOUR', 'INT. B - NUIT', 'CUISINE']);
+    expect(runAiTool(doc, 'get_scenario', { scene: 3 }).result.startsWith('.CUISINE')).toBe(true);
+    const two = run(doc, 'write_scenario', { text: 'INT. B - NUIT\n\nBb réécrit.', replace_scene: 2 }).doc;
+    expect(two.scenario).toBe('INT. A - JOUR\n\nAa.\n\n.\n\nvide\n\nINT. B - NUIT\n\nBb réécrit.\n\n.CUISINE\n\nCc.\n');
+    const three = run(doc, 'write_scenario', { text: '.CUISINE\n\nCc réécrit.', replace_scene: 3 }).doc;
+    expect(three.scenario).toBe('INT. A - JOUR\n\nAa.\n\n.\n\nvide\n\nINT. B - NUIT\n\nBb.\n\n.CUISINE\n\nCc réécrit.\n');
+  });
+});
