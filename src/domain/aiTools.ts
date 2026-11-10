@@ -6,6 +6,7 @@
 import { shotNumberLabel } from './numbering';
 import { addBreakdownItems, breakdownCategories, breakdownLabel, breakdownOf } from './breakdown';
 import { applyFormat } from './factory';
+import { richToText } from './richText';
 import { scenesOf, shiftAnchors } from './fountain';
 import { formatFocal } from './focal';
 import { addCharacter, addSequence, addShot, deleteShot, linkAction } from './ops';
@@ -59,8 +60,14 @@ export const AI_TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'get_scenario',
-    description: 'Texte du scénario (syntaxe Fountain), en entier ou pour une séquence.',
+    description: 'Texte du scénario (syntaxe Fountain), en entier ou pour une séquence. Un long scénario renvoie la liste de ses séquences : lire alors par numéro.',
     schema: obj({ scene: int('Numéro de la séquence du scénario (facultatif : tout le scénario sinon)') }, []),
+    writes: false,
+  },
+  {
+    name: 'get_intention',
+    description: 'Texte de la note d’intention du réalisateur (lecture seule).',
+    schema: obj({}, []),
     writes: false,
   },
   {
@@ -157,7 +164,7 @@ export const AI_TOOLS: readonly ToolDef[] = [
 ];
 
 export const AI_SYSTEM = `Tu es l’assistant de Découpage Studio, l’outil de préparation de tournage d’un réalisateur. Tu réponds en français, avec concision.
-Tu peux lire le projet et le modifier avec les outils fournis : découpage technique (séquences et plans), scénario (Fountain), dépouillement, personnages.
+Tu peux lire le projet et le modifier avec les outils fournis : découpage technique (séquences et plans), scénario (Fountain), dépouillement, personnages. La note d’intention se lit seulement.
 Règles :
 - Avant de modifier, lis ce qu’il faut (get_project, puis get_sequence ou get_scenario). Les numéros de séquence et de plan sont toujours ceux du moment : relis après une insertion.
 - Vocabulaire du cadre : valeurs, axes et hauteurs, mouvements tels que listés dans les outils ; focales en millimètres.
@@ -177,6 +184,13 @@ export interface ToolOutcome {
 const asInt = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : undefined);
 const asStr = (v: unknown) => (typeof v === 'string' ? v.trim() : undefined);
 const asList = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : undefined);
+const asIntExt = (v: string | undefined): IntExt | undefined => (v === 'INT' || v === 'EXT' || v === 'INT/EXT' ? v : undefined);
+const asEffect = (v: string | undefined): Effect | undefined => (v === 'JOUR' || v === 'NUIT' || v === 'AUBE' || v === 'CRÉPUSCULE' ? v : undefined);
+const CHARACTER_KINDS: readonly CharacterKind[] = ['principal', 'secondaire', 'figurant', 'silhouette', 'voix off'];
+/** Au-delà, `get_scenario` sans numéro renvoie la liste des séquences (le texte entier saturerait le contexte). */
+export const SCENARIO_FULL_MAX = 40_000;
+const INTENTION_MAX = 12_000;
+const INTERVIEW_SHOT = 'Ce plan vient de la fiche d’interview : il se modifie dans la fiche (vue Interview), pas ici.';
 
 function seqIdAt(doc: ProjectDoc, n: unknown): ID {
   const i = asInt(n);
@@ -285,10 +299,21 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
       case 'get_scenario': {
         const src = doc.scenario ?? '';
         const n = asInt(input.scene);
-        if (n === undefined) return { result: src || '(scénario vide)' };
+        if (n === undefined) {
+          if (src.length <= SCENARIO_FULL_MAX) return { result: src || '(scénario vide)' };
+          const scenes = scenesOf(src).map((sc, i) => ({ scene: i + 1, heading: sc.heading, characters: sc.end - sc.start }));
+          return { result: JSON.stringify({ too_long: `Scénario de ${src.length} caractères : lire une séquence à la fois (scene).`, scenes }) };
+        }
         const sc = scenesOf(src)[n - 1];
         if (!sc) return { result: `Séquence ${n} introuvable.`, isError: true };
         return { result: src.slice(sc.start, sc.end) };
+      }
+      case 'get_intention': {
+        const text = (doc.intention ?? richToText(doc.intentionHtml ?? '')).trim();
+        if (!text) return { result: '(note d’intention vide)' };
+        const words = text.split(/\s+/).length;
+        const cut = text.length > INTENTION_MAX;
+        return { result: JSON.stringify({ words, text: cut ? `${text.slice(0, INTENTION_MAX)}…` : text, truncated: cut || undefined }) };
       }
       case 'get_breakdown': {
         const seqId = seqIdAt(doc, input.sequence);
@@ -300,10 +325,18 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         if (!label) throw new Error('Libellé manquant.');
         const after = asInt(input.after);
         const index = after === undefined ? undefined : Math.max(0, Math.min(after, doc.project.sequenceIds.length));
-        const id = addSequence(doc, index, { label: label.toLocaleUpperCase('fr'), intExt: asStr(input.int_ext) as IntExt | undefined, effect: asStr(input.effect) as Effect | undefined, summary: asStr(input.summary) || undefined }, false);
+        const ie = asStr(input.int_ext);
+        const ef = asStr(input.effect);
+        const intExt = asIntExt(ie);
+        const effect = asEffect(ef);
+        const id = addSequence(doc, index, { label: label.toLocaleUpperCase('fr'), intExt, effect, summary: asStr(input.summary) || undefined }, false);
         setSequenceDecorByName(doc, id, label);
         const n = doc.project.sequenceIds.indexOf(id) + 1;
-        return { result: JSON.stringify({ sequence: n }), change: `Séquence ${n} ajoutée (${label.toLocaleUpperCase('fr')})` };
+        const ignored = [ie && !intExt ? `int_ext « ${ie} »` : '', ef && !effect ? `effect « ${ef} »` : ''].filter(Boolean);
+        return {
+          result: JSON.stringify(ignored.length ? { sequence: n, ignored: `${ignored.join(', ')} : valeur inconnue, non enregistrée` } : { sequence: n }),
+          change: `Séquence ${n} ajoutée (${label.toLocaleUpperCase('fr')})`,
+        };
       }
       case 'update_sequence': {
         const seqId = seqIdAt(doc, input.sequence);
@@ -313,10 +346,10 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
           seq.label = label.toLocaleUpperCase('fr');
           setSequenceDecorByName(doc, seqId, label);
         }
-        const ie = asStr(input.int_ext);
-        if (ie === 'INT' || ie === 'EXT' || ie === 'INT/EXT') seq.intExt = ie;
-        const ef = asStr(input.effect);
-        if (ef === 'JOUR' || ef === 'NUIT' || ef === 'AUBE' || ef === 'CRÉPUSCULE') seq.effect = ef;
+        const ie = asIntExt(asStr(input.int_ext));
+        if (ie) seq.intExt = ie;
+        const ef = asEffect(asStr(input.effect));
+        if (ef) seq.effect = ef;
         const sum = asStr(input.summary);
         if (sum !== undefined) seq.summary = sum || undefined;
         const est = asInt(input.estimated_seconds);
@@ -355,7 +388,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const seqId = seqIdAt(doc, input.sequence);
         const shotId = shotIdAt(doc, seqId, input.shot);
         const shot = doc.shots[shotId];
-        if (shot.interview) throw new Error('Ce plan vient de la fiche d’interview : il se modifie dans la fiche (vue Interview), pas ici.');
+        if (shot.interview) throw new Error(INTERVIEW_SHOT);
         Object.assign(shot, shotPatch(input));
         const action = asStr(input.action);
         if (action !== undefined && doc.blocks[shot.actionBlockId]) doc.blocks[shot.actionBlockId].text = action;
@@ -363,16 +396,22 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
       }
       case 'delete_shots': {
         const seqId = seqIdAt(doc, input.sequence);
-        const ids = (Array.isArray(input.shots) ? input.shots : []).map((n) => shotIdAt(doc, seqId, n));
+        const ids = [...new Set((Array.isArray(input.shots) ? input.shots : []).map((n) => shotIdAt(doc, seqId, n)))];
+        if (!ids.length) throw new Error('Aucun plan fourni.');
+        if (ids.some((id) => doc.shots[id].interview)) throw new Error(INTERVIEW_SHOT);
+        const before = doc.sequences[seqId].shotIds.length;
         for (const id of ids) deleteShot(doc, id);
-        return { result: 'ok', change: `${ids.length} plan${ids.length > 1 ? 's' : ''} supprimé${ids.length > 1 ? 's' : ''} (séquence ${input.sequence})` };
+        const removed = before - doc.sequences[seqId].shotIds.length;
+        return { result: 'ok', change: `${removed} plan${removed > 1 ? 's' : ''} supprimé${removed > 1 ? 's' : ''} (séquence ${input.sequence})` };
       }
       case 'add_breakdown_items': {
         const seqId = seqIdAt(doc, input.sequence);
         const wanted = fold(asStr(input.category) ?? '');
+        if (!wanted) throw new Error(`Catégorie manquante. Catégories : ${breakdownCategories(doc).map(breakdownLabel).join(', ')}.`);
         const cat = breakdownCategories(doc).find((c) => fold(c) === wanted || fold(breakdownLabel(c)) === wanted || fold(breakdownLabel(c)).startsWith(wanted));
         if (!cat) throw new Error(`Catégorie inconnue. Catégories : ${breakdownCategories(doc).map(breakdownLabel).join(', ')}.`);
         const items = asList(input.items) ?? [];
+        if (!items.length) throw new Error('Aucun élément fourni.');
         addBreakdownItems(doc, seqId, cat, items);
         return { result: 'ok', change: `Dépouillement : ${items.length} élément${items.length > 1 ? 's' : ''} (${breakdownLabel(cat).toLowerCase()}, séquence ${input.sequence})` };
       }
@@ -380,9 +419,10 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const name = asStr(input.name);
         if (!name) throw new Error('Nom manquant.');
         if (Object.values(doc.characters).some((c) => fold(c.name) === fold(name))) return { result: 'Ce personnage existe déjà.' };
-        const kind = asStr(input.kind) as CharacterKind | undefined;
+        const raw = asStr(input.kind);
+        const kind = CHARACTER_KINDS.find((k) => k === raw);
         addCharacter(doc, { name, kind: kind ?? 'secondaire', actor: asStr(input.actor) || undefined });
-        return { result: 'ok', change: `Personnage ${name} créé` };
+        return { result: raw && !kind ? `ok (kind « ${raw} » inconnu : secondaire)` : 'ok', change: `Personnage ${name} créé` };
       }
       case 'write_scenario': {
         const text = (asStr(input.text) ?? '').replace(/\r\n?/g, '\n');
