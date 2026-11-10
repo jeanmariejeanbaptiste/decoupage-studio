@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useShortcutLabel } from '../../store/shortcuts';
 import { ShareButton } from '../share/Share';
-import { Home, Moon, PanelLeft, Redo2, Save, Sparkles, Sun, Undo2 } from 'lucide-react';
+import { Home, Moon, PanelLeft, Redo2, Save, Sparkles, Sun, TriangleAlert, Undo2 } from 'lucide-react';
 import type { ProjectDoc } from '../../domain/types';
 import { navigate } from '../../app/router';
 import { Button } from '../../ui/Button';
@@ -15,6 +15,8 @@ const IC = { size: 17, strokeWidth: 1.25 } as const;
 interface Props {
   doc: ProjectDoc | null;
   saveStatus: string;
+  /** Dernier enregistrement en échec : alerte visible à toute largeur. */
+  saveError?: boolean;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -54,8 +56,14 @@ export function Topbar(p: Props) {
         <Button variant="icon" className={s.home} aria-label="Tous les projets" title="Tous les projets" onClick={() => navigate('home')} icon={<Home {...IC} />} />
         {p.doc && <ProjectMenu doc={p.doc} readOnly={p.readOnly} />}
         {p.saveStatus && (
-          <span className={s.status} data-testid="save-status">
-            {p.saveStatus}
+          <span
+            className={[s.status, p.saveError ? s.failed : ''].join(' ')}
+            data-testid="save-status"
+            role={p.saveError ? 'alert' : undefined}
+            title={p.saveError ? p.saveStatus : undefined}
+          >
+            {p.saveError && <TriangleAlert size={15} strokeWidth={1.25} aria-hidden />}
+            <span className={s.statusText}>{p.saveStatus}</span>
           </span>
         )}
       </div>

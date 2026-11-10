@@ -227,6 +227,7 @@ export function App() {
           onToggleSidebar={showSidebar ? () => toggleSidebar() : undefined}
           doc={doc}
           saveStatus={doc && savesHere ? SAVE_LABEL[saveStatus] : ''}
+          saveError={!!doc && savesHere && saveStatus === 'error'}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={undo}
