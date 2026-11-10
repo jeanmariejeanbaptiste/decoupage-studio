@@ -305,7 +305,7 @@ export function sequencePassages(doc: ProjectDoc, seqId: ID, elements?: readonly
 }
 
 /** Texte imprimé d'un passage : sans marques d'emphase, notes ni surlignages, sur une seule ligne. */
-const printed = (text: string) =>
+export const printedPassage = (text: string) =>
   parseEmphasis(text)
     .map((r) => r.text)
     .join('')
@@ -319,20 +319,20 @@ const printed = (text: string) =>
 export function sequenceExcerpt(doc: ProjectDoc, seqId: ID, elements?: readonly ScriptElement[], max = 280): string {
   const seq = doc.sequences[seqId];
   if (!seq) return '';
-  let text = printed(sequenceSummary(doc, seqId) ?? '');
+  let text = printedPassage(sequenceSummary(doc, seqId) ?? '');
   if (!text) {
     const source = doc.scenario ?? '';
     const els = elements ?? parseFountain(source);
     const passages = sequencePassages(doc, seqId, els);
     text = passages
       .filter((p) => p.kind === 'action')
-      .map((p) => printed(source.slice(p.start, p.end)))
+      .map((p) => printedPassage(source.slice(p.start, p.end)))
       .join(' ');
     const first = passages.find((p) => p.kind === 'dialogue');
     if (!text && first) {
       const lines = els.filter((el) => el.start >= first.start && el.start < first.end);
       const name = lines.find((el) => el.type === 'character');
-      const said = printed(lines.filter((el) => el.type === 'dialogue').map((el) => el.text).join(' '));
+      const said = printedPassage(lines.filter((el) => el.type === 'dialogue').map((el) => el.text).join(' '));
       if (name && said) text = `${characterName(name.text).toLocaleUpperCase('fr')} : ${said}`;
     }
   }
