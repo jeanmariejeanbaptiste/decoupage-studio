@@ -2,7 +2,7 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
-import { editableText, isEditable, parseTsv, setCellText, toTsv } from './cells';
+import { editableText, isEditable, lockedCell, parseTsv, setCellText, toTsv, writableForRow } from './cells';
 import type { ColumnKey, ProjectDoc } from './types';
 
 const first = (d: ProjectDoc, seq = 0, shot = 0) => d.sequences[d.project.sequenceIds[seq]].shotIds[shot];
@@ -108,5 +108,39 @@ describe('édition de cellules', () => {
     expect(parseTsv('a\tb\nc\t"d\te"\r\n"x""y"\t')).toEqual([['a', 'b'], ['c', 'd\te'], ['x"y', '']]);
     expect(parseTsv('')).toEqual([]);
     expect(toTsv([['a', 'b\tc'], ['"q"', '']])).toBe('a\t"b\tc"\n"""q"""\t');
+  });
+});
+
+describe('cellules verrouillées et écritures en série', () => {
+  const rav = buildRav3();
+
+  it('le libellé de séquence ne s’écrit que depuis le premier plan', () => {
+    const seq = rav.sequences[rav.project.sequenceIds[0]];
+    expect(seq.shotIds.length).toBeGreaterThan(1);
+    expect(writableForRow(rav, seq.shotIds[0], 'sequence')).toBe(true);
+    expect(writableForRow(rav, seq.shotIds[1], 'sequence')).toBe(false);
+    expect(writableForRow(rav, seq.shotIds[1], 'subject')).toBe(true);
+    expect(writableForRow(rav, seq.shotIds[1], 'number')).toBe(false);
+  });
+
+  it('plan-séquence et plan d’interview : cellules tenues ailleurs', () => {
+    const id = first(rav);
+    const one = produce(rav, (d) => {
+      d.shots[id].oneShot = { beats: [] };
+    });
+    expect(lockedCell(one, id, 'subject')).toBe(true);
+    expect(lockedCell(one, id, 'notes')).toBe(false);
+    const itw = produce(rav, (d) => {
+      d.shots[id].interview = { subjectId: 'a', setupId: 'b', cameraId: 'c' };
+    });
+    expect(lockedCell(itw, id, 'notes')).toBe(true);
+    expect(lockedCell(itw, id, 'sequence')).toBe(false);
+    expect(writableForRow(itw, id, 'notes')).toBe(false);
+    let ok = true;
+    produce(itw, (d) => {
+      ok = setCellText(d, id, 'subject', 'Autre');
+    });
+    expect(ok).toBe(false);
+    expect(lockedCell(rav, id, 'subject')).toBe(false);
   });
 });

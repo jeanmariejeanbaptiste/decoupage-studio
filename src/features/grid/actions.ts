@@ -1,7 +1,7 @@
 /**
  * Commandes de la grille, partagées par le clavier, la barre d'outils et la palette.
  */
-import { isEditable, editableText, setCellText } from '../../domain/cells';
+import { isEditable, editableText, setCellText, writableForRow } from '../../domain/cells';
 import { recognizeCharacters } from '../../domain/characters';
 import { shotCode, sequenceHeading } from '../../domain/numbering';
 import {
@@ -376,7 +376,8 @@ export function fillDown(): void {
   const sel = ui().selection;
   if (!d || !sel) return;
   const col = sel.anchor.col;
-  if (!isEditable(col)) return;
+  // Le libellé de séquence n'est pas une valeur de plan : le recopier renommerait les séquences suivantes.
+  if (!isEditable(col) || col === 'sequence') return;
   const ids = selectedShotIds();
   if (ids.length < 2) return;
   const text = editableText(d, ids[0], col);
@@ -407,7 +408,7 @@ export function pasteMatrix(matrix: string[][], start: CellPos, columns: readonl
       const shotId = order[idx];
       line.forEach((cell, j) => {
         const col = columns[c0 + j];
-        if (col && isEditable(col)) setCellText(x, shotId, col, cell);
+        if (col && writableForRow(x, shotId, col)) setCellText(x, shotId, col, cell);
       });
       idx++;
     }

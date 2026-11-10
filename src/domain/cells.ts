@@ -15,6 +15,28 @@ export function isEditable(col: ColumnKey): boolean {
   return !READONLY_COLUMNS.includes(col);
 }
 
+/**
+ * Cellule tenue ailleurs : les colonnes de cadrage d'un plan-séquence (temps par temps, dans son
+ * éditeur) et toutes les colonnes d'un plan d'interview (sa fiche), hormis le libellé de séquence.
+ */
+export function lockedCell(doc: ProjectDoc, shotId: ID, col: ColumnKey): boolean {
+  const shot = doc.shots[shotId];
+  if (!shot) return false;
+  if (shot.oneShot && BEAT_COLUMNS.includes(col)) return true;
+  return !!shot.interview && col !== 'sequence';
+}
+
+/**
+ * Cellule qu'une écriture en série (collage, recopie) peut modifier sur ce plan : le libellé de
+ * séquence appartient à la séquence entière, il ne s'écrit que depuis son premier plan.
+ */
+export function writableForRow(doc: ProjectDoc, shotId: ID, col: ColumnKey): boolean {
+  const shot = doc.shots[shotId];
+  if (!shot || !isEditable(col) || lockedCell(doc, shotId, col)) return false;
+  if (col !== 'sequence') return true;
+  return doc.sequences[shot.sequenceId]?.shotIds[0] === shotId;
+}
+
 /** Texte brut proposé à l'édition (sans la mise en forme d'export). */
 export function editableText(doc: ProjectDoc, shotId: ID, col: ColumnKey): string {
   const shot = doc.shots[shotId];
@@ -77,11 +99,7 @@ function parseStatus(text: string): ShotStatus | undefined {
  */
 export function setCellText(doc: ProjectDoc, shotId: ID, col: ColumnKey, text: string): boolean {
   const shot = doc.shots[shotId];
-  if (!shot || !isEditable(col)) return false;
-  // Plan-séquence : les colonnes de cadrage se modifient temps par temps, dans l'inspecteur.
-  if (shot.oneShot && BEAT_COLUMNS.includes(col)) return false;
-  // Plan d'interview : il se règle dans la fiche d'interview (seul le libellé de séquence reste ici).
-  if (shot.interview && col !== 'sequence') return false;
+  if (!shot || !isEditable(col) || lockedCell(doc, shotId, col)) return false;
   const block = doc.blocks[shot.actionBlockId];
   const seq = doc.sequences[shot.sequenceId];
   const s = doc.project.settings;
