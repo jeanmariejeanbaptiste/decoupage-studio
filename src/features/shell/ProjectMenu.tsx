@@ -67,17 +67,15 @@ export function ProjectMenu({ doc, readOnly }: { doc: ProjectDoc; readOnly?: boo
       {open && (
         <div className={s.panel} role="dialog" aria-label="Projet" data-testid="project-panel">
           <Field label="Titre" value={p.title} onCommit={(v) => v.trim() && mutateDoc((d) => void (d.project.title = v.trim()))} />
-          <div className={s.pair}>
-            <div className={s.field}>
-              <span>Format</span>
-              <div className={s.seg} role="radiogroup" aria-label="Format">
-                {FORMATS.map(([v, l]) => (
-                  <label key={v} className={p.format === v ? s.on : ''}>
-                    <input type="radio" name="project-format" checked={p.format === v} onChange={() => mutateDoc((d) => applyFormat(d, v))} />
-                    {l}
-                  </label>
-                ))}
-              </div>
+          <div className={s.field}>
+            <span>Format</span>
+            <div className={s.seg} role="radiogroup" aria-label="Format">
+              {FORMATS.map(([v, l]) => (
+                <label key={v} className={p.format === v ? s.on : ''}>
+                  <input type="radio" name="project-format" checked={p.format === v} onChange={() => mutateDoc((d) => applyFormat(d, v))} />
+                  {l}
+                </label>
+              ))}
             </div>
           </div>
           <Field label="Réalisation" value={p.director ?? ''} onCommit={(v) => mutateDoc((d) => void (d.project.director = v.trim() || undefined))} />

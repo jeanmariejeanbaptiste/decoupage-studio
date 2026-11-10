@@ -67,6 +67,17 @@ export function mediaKeys(doc: ProjectDoc): string[] {
   return [...keys];
 }
 
+/**
+ * Médias d'un projet qu'on supprime et qu'un autre projet utilise encore (copie ouverte d'un fichier,
+ * partage) : clé → projet qui en devient propriétaire. Les clés absentes du résultat peuvent être effacées.
+ */
+export function sharedMediaOwners(keys: string[], others: ProjectDoc[]): Map<string, string> {
+  const owners = new Map<string, string>();
+  const wanted = new Set(keys);
+  for (const d of others) for (const k of mediaKeys(d)) if (wanted.has(k) && !owners.has(k)) owners.set(k, d.project.id);
+  return owners;
+}
+
 export class ProjectFileError extends Error {}
 
 function isObject(x: unknown): x is Record<string, unknown> {

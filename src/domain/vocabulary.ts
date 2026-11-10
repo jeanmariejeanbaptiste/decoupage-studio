@@ -127,10 +127,11 @@ export function valueRank(value: string): number {
   return m ? SHOT_VALUES.indexOf(m) : -1;
 }
 
-export function valueLabel(value: string, style: 'court' | 'long'): string {
+export function valueLabel(value: string, style: 'court' | 'long', custom: CustomVocabulary = EMPTY_CUSTOM_VOCABULARY): string {
   if (style === 'court') return value;
-  const m = matchVocab(value, SHOT_VALUES);
-  return m ? m.long : value;
+  // Les valeurs ajoutées dans les Paramètres ont aussi leur libellé long.
+  const m = matchVocab(value, vocabularyFor('value', custom));
+  return m?.long || value;
 }
 
 export function angleKind(token: string): 'axis' | 'height' | 'pov' | undefined {

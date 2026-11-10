@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
-import { db, saveProject } from './db';
+import { projectCopy } from '../domain/serialize';
+import { db, deleteProject, saveProject } from './db';
 import { pruneOrphanBlobs } from './persistence';
 
 describe('ménage des images', () => {
@@ -20,5 +21,28 @@ describe('ménage des images', () => {
     expect(await pruneOrphanBlobs()).toBe(2);
     const left = (await db.blobs.toCollection().primaryKeys()).sort();
     expect(left).toEqual([`${doc.project.id}:fond`, `${doc.project.id}:gardee`]);
+  });
+});
+
+describe('suppression d’un projet copié', () => {
+  it('garde les images encore utilisées par la copie, efface les autres', async () => {
+    await db.blobs.clear();
+    await db.projects.clear();
+    const orig = buildFiction();
+    const shotId = Object.keys(orig.shots)[0];
+    orig.shots[shotId].storyboard = { blobKey: `${orig.project.id}:commune` };
+    const copy = projectCopy(orig, 'copie-1');
+    await saveProject(orig);
+    await saveProject(copy);
+    const blob = new Blob(['x'], { type: 'image/png' });
+    await db.blobs.bulkPut([
+      { key: `${orig.project.id}:commune`, projectId: orig.project.id, name: 'a.png', blob },
+      { key: `${orig.project.id}:propre`, projectId: orig.project.id, name: 'b.png', blob },
+    ]);
+    await deleteProject(orig.project.id);
+    const left = await db.blobs.toArray();
+    expect(left.map((b) => [b.key, b.projectId])).toEqual([[`${orig.project.id}:commune`, 'copie-1']]);
+    await deleteProject('copie-1');
+    expect(await db.blobs.count()).toBe(0);
   });
 });

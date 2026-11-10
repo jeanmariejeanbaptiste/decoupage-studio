@@ -8,7 +8,7 @@ import { finish, type PageExportOptions } from '../export/imageExport';
 import { NOTE_PAGE } from './RichEditor';
 
 /** Couleurs du papier, imposées le temps de la capture (le thème encre ne s'imprime pas). */
-const LIGHT = '--paper:#ffffff;--paper-card:#ffffff;--sheet:#ffffff;--ink:#111318;--ink-soft:#6b7079;--rule:#e6e8ec;--kraft:#f5f6f8;--hover:transparent;';
+const LIGHT = '--paper:#ffffff;--paper-card:#ffffff;--sheet:#ffffff;--ink:#111318;--ink-soft:#6b7079;--rule:#e6e8ec;--kraft:#f5f6f8;--hover:transparent;--note-hl:rgba(17, 19, 24, 0.12);';
 
 /** Une image A4 par page, prise sur les pages de l'éditeur. */
 export async function exportNotePages(stack: HTMLElement, pages: number, base: string, opts: PageExportOptions): Promise<void> {

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, ExternalLink, Plus, RotateCcw, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
-import { isMusicalFormat, newId } from '../../domain/factory';
+import { isMusicalFormat, newId, normalizeTiming } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
 import { chronoOf, type ScriptChrono, type TypeRate } from '../../domain/chronometry';
@@ -68,6 +68,8 @@ function apply(p: Pending) {
     mutateDoc((d) => {
       for (const [k, v] of Object.entries(p.settings)) (d.project.settings as unknown as Record<string, unknown>)[k] = structuredClone(v);
       for (const [k, v] of Object.entries(p.vocab)) d.customVocabulary[k as VocabKind] = structuredClone(v);
+      // Le format a pu changer entre-temps (menu du projet) : le minutage reste celui du format.
+      normalizeTiming(d);
     });
   }
   if (p.ai) {
@@ -96,10 +98,7 @@ const CurrentSection = createContext<SectionId>('minutage');
 function Section({ id, title, children }: { id: SectionId; title: string; children: ReactNode }) {
   if (useContext(CurrentSection) !== id) return null;
   return (
-    <section id={`reglages-${id}`} data-section={id} className={s.section} aria-labelledby={`reglages-${id}-h`}>
-      <h2 id={`reglages-${id}-h`} className={s.h2}>
-        {title}
-      </h2>
+    <section id={`reglages-${id}`} data-section={id} className={s.section} aria-label={title}>
       {children}
     </section>
   );
@@ -204,6 +203,16 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
     };
   }, [commit]);
 
+  // Format changé depuis le menu du projet : le mode de minutage du brouillon ne vaut plus.
+  const format = doc.project.format;
+  useEffect(() => {
+    setPending((x) => {
+      const { tcMode, tcModeChosen, tcGranularity, audioTrack, ...settings } = x.settings;
+      if (tcMode === undefined && tcModeChosen === undefined && tcGranularity === undefined && audioTrack === undefined) return x;
+      return { ...x, settings };
+    });
+  }, [format]);
+
   const api: DraftApi = {
     st: { ...doc.project.settings, ...pending.settings },
     patch: (p) => setPending((x) => ({ ...x, settings: { ...x.settings, ...p } })),
@@ -239,7 +248,6 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
       }}
     >
       <nav className={s.nav} aria-label="Rubriques des paramètres">
-        <p className={s.navTitle}>Paramètres</p>
         <ul>
           {SECTIONS.map(([id, label]) => (
             <li key={id}>
@@ -294,7 +302,13 @@ function TimingSection({ doc }: { doc: ProjectDoc }) {
   const [sample, setSample] = useState('Elle prend l’affiche de la vedette et la regarde longuement, émue.');
   const action = previewDuration(sample, st);
   const dialogue = previewDuration(sample, st, true);
-  const [trackText, setTrackText] = useState(st.audioTrack ? formatTc(st.audioTrack.durationSec) : '');
+  const trackSec = st.audioTrack?.durationSec;
+  const [trackText, setTrackText] = useState(trackSec !== undefined ? formatTc(trackSec) : '');
+  // La saisie suit la durée effective (Annuler, Enregistrer, format changé), sauf pendant la frappe.
+  const trackFocused = useRef(false);
+  useEffect(() => {
+    if (!trackFocused.current) setTrackText(trackSec !== undefined ? formatTc(trackSec) : '');
+  }, [trackSec]);
   return (
     <Section id="minutage" title="Minutage">
       {/* Le mode dépend du format : piste musicale pour un clip ou une publicité, sinon durée ou cumul. */}
@@ -329,7 +343,11 @@ function TimingSection({ doc }: { doc: ProjectDoc }) {
                 const t = parseTc(e.target.value);
                 if (t?.kind === 'sec') patch({ audioTrack: { name: st.audioTrack?.name ?? 'Piste', ...st.audioTrack, durationSec: t.sec } });
               }}
-              onBlur={() => setTrackText(st.audioTrack ? formatTc(st.audioTrack.durationSec) : '')}
+              onFocus={() => (trackFocused.current = true)}
+              onBlur={() => {
+                trackFocused.current = false;
+                setTrackText(trackSec !== undefined ? formatTc(trackSec) : '');
+              }}
             />
           </Row>
         </>
@@ -368,7 +386,7 @@ function ScriptTimingSection() {
   );
   return (
     <Section id="scenario" title="Scénario">
-      <Row label="Minutage">
+      <Row label="Méthode">
         <Radio
           name="Minutage du scénario"
           value={c.method}

@@ -27,12 +27,13 @@ test('capture de l’export RAV3 (style unique blanc, A4 paysage)', async ({ pag
   expect(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length).toBe(pages);
 });
 
-test('exports Excel, CSV et JSON téléchargeables', async ({ page }) => {
+test('exports Excel et CSV téléchargeables', async ({ page }) => {
   await page.goto('/#/export?seed=rav3');
+  // Le fichier du projet s'enregistre depuis la barre du haut (⌘S), pas une seconde fois ici.
+  await expect(page.getByTestId('export-project')).toHaveCount(0);
   for (const [id, ext] of [
     ['export-xlsx', '.xlsx'],
     ['export-csv', '.csv'],
-    ['export-json', '.json'],
   ]) {
     const dl = page.waitForEvent('download');
     await page.getByTestId(id).click();

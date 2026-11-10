@@ -97,6 +97,10 @@ describe('colonnes et cellules', () => {
     expect(shotDurationSec(doc, t, shot)).toBeCloseTo(35 / 3, 5);
     doc.project.settings.labelStyle = 'long';
     expect(cellText(doc, t, shot, 'value', 0)).toBe('Plan taille');
+    // Valeur ajoutée dans les Paramètres : son libellé long aussi.
+    doc.customVocabulary.value = [{ key: 'ultra', short: 'Ultra', long: 'Plan ultra serré', aliases: [] }];
+    shot.value = 'Ultra';
+    expect(cellText(doc, t, shot, 'value', 0)).toBe('Plan ultra serré');
   });
 
   it('écrit « Fixe » à l’export quand le mouvement est vide, pas dans la grille', () => {

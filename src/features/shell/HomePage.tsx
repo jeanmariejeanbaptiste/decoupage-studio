@@ -151,7 +151,7 @@ export function HomePage() {
       </section>
 
       {wizard && (
-        <div className={s.overlay} onMouseDown={(e) => e.target === e.currentTarget && setWizard(false)}>
+        <div className={s.overlay} onMouseDown={(e) => e.target === e.currentTarget && setWizard(false)} onKeyDown={(e) => e.key === 'Escape' && setWizard(false)}>
           <NewProjectWizard onCancel={() => setWizard(false)} />
         </div>
       )}

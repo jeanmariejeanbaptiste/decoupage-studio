@@ -52,6 +52,13 @@ describe('vocabulaire', () => {
     expect(valueLabel('Taille', 'court')).toBe('Taille');
     expect(valueLabel('inconnu', 'long')).toBe('inconnu');
   });
+  it('libellé long des valeurs personnalisées', () => {
+    const custom = { value: [{ key: 'ultra', short: 'Ultra', long: 'Plan ultra serré', aliases: [] }], angle: [], movement: [] };
+    expect(valueLabel('Ultra', 'long', custom)).toBe('Plan ultra serré');
+    expect(valueLabel('Ultra', 'court', custom)).toBe('Ultra');
+    expect(valueLabel('Ultra', 'long')).toBe('Ultra');
+    expect(valueLabel('Taille', 'long', custom)).toBe('Plan taille');
+  });
   it('détecte le zoom et fusionne le vocabulaire personnalisé', () => {
     expect(isZoom(['Trav avant', 'zoom avant'])).toBe(true);
     expect(isZoom(['Fixe'])).toBe(false);

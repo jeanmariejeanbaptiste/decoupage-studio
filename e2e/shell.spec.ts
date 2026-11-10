@@ -62,6 +62,12 @@ test('menu du projet : titre et format modifiables en haut de l’écran (la ver
   const panel = page.getByTestId('project-panel');
   await panel.getByLabel('Titre').fill('La Consigne (montage)');
   await expect(panel.getByLabel('Version')).toHaveCount(0);
+  // Les trois formats sont visibles en entier, sans défilement caché.
+  const seg = panel.getByRole('radiogroup', { name: 'Format' });
+  expect(await seg.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+  const segBox = (await seg.boundingBox())!;
+  const instBox = (await seg.getByText('Institutionnel', { exact: true }).boundingBox())!;
+  expect(instBox.x + instBox.width).toBeLessThanOrEqual(segBox.x + segBox.width + 1);
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
   await expect(page.getByTestId('project-menu')).toContainText('La Consigne (montage)');
@@ -88,6 +94,51 @@ test('paramètres : rien n’est appliqué avant « Enregistrer », « Annuler �
   await page.getByRole('button', { name: /Découpage technique/ }).click();
   await expect(page.locator('[data-cell="0:number"]')).toBeVisible();
   expect(await doc()).toBe('{seq}{letter}');
+});
+
+test('paramètres : un brouillon de minutage cède au format changé dans le menu du projet ; Annuler remet la durée de la piste', async ({ page }) => {
+  await page.goto('/#/settings?seed=fiction&section=minutage');
+  const settings = () => page.evaluate(() => {
+    const d = (window as unknown as { __ds: { doc: () => { project: { format: string; settings: { tcMode: string } } } } }).__ds.doc();
+    return [d.project.format, d.project.settings.tcMode];
+  });
+  const mode = page.getByRole('radiogroup', { name: 'Mode de TC' });
+  await mode.getByText('Cumulatif').click();
+  await mode.getByText('Durée de chaque plan').click();
+  await page.getByTestId('project-menu').click();
+  await page.getByTestId('project-panel').getByText('Clip', { exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings-save')).toBeDisabled();
+  await page.getByRole('button', { name: /Découpage technique/ }).click();
+  await expect(page.getByTestId('track-bar')).toBeVisible();
+  expect(await settings()).toEqual(['clip', 'piste']);
+
+  await page.goto('/#/settings?seed=rav3&section=minutage');
+  const track = page.getByLabel('Durée de la piste');
+  const before = await track.inputValue();
+  await track.fill('9:59');
+  await page.getByTestId('settings-cancel').click();
+  await expect(track).toHaveValue(before);
+});
+
+test('paramètres : Annuler et Enregistrer à la même place dans chaque rubrique, sans titre répété', async ({ page }) => {
+  const ys: number[] = [];
+  for (const sec of ['minutage', 'scenario', 'raccourcis']) {
+    await page.goto(`/#/settings?seed=fiction&section=${sec}`);
+    await expect(page.locator(`[data-section="${sec}"]`)).toBeVisible();
+    await expect(page.locator(`[data-section="${sec}"] h2`)).toHaveCount(0);
+    ys.push(Math.round((await page.getByTestId('settings-save').boundingBox())!.y));
+  }
+  expect(new Set(ys).size).toBe(1);
+});
+
+test('accueil : Échap ferme la fenêtre « Nouveau projet »', async ({ page }) => {
+  await page.goto('/#/');
+  await page.getByTestId('new-project').click();
+  const title = page.getByLabel('Titre du projet');
+  await expect(title).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(title).toHaveCount(0);
 });
 
 test('états vides et lien d’évitement', async ({ page }) => {
