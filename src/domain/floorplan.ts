@@ -436,7 +436,7 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
   const label = (make: (n: number) => string) => nextLabel(plan.items, make);
   switch (kind) {
     case 'camera':
-      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: label((n) => `CAM ${String.fromCharCode(64 + n)}`) });
+      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: label(cameraLabel) });
       break;
     case 'actor':
       // Orientation : 90° = regarde vers le bas du plan.
@@ -456,9 +456,11 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
       break;
     }
     case 'door':
-    case 'window':
-      plan.items.push({ id, kind, ...p, rot: 0, width: kind === 'door' ? 80 : 120 });
+    case 'window': {
+      const width = openingDefault(kind);
+      plan.items.push({ id, kind, ...p, rot: 0, width, ...fitOpeningToWall(plan.items, p, width) });
       break;
+    }
     case 'light':
       plan.items.push({
         id,
@@ -477,12 +479,67 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
 export function updateFloorItem(doc: ProjectDoc, seqId: ID, id: ID, patch: Partial<FloorItem>): void {
   const plan = ensure(doc, seqId);
   const i = plan.items.findIndex((x) => x.id === id);
-  if (i >= 0) plan.items[i] = { ...plan.items[i], ...patch } as FloorItem;
+  if (i < 0) return;
+  const next = { ...plan.items[i], ...patch } as FloorItem;
+  if (next.kind === 'door' || next.kind === 'window') next.width = clampOpening(next.width, next.kind);
+  plan.items[i] = next;
 }
 
-/** Déplace un élément ; un mur de la pièce déplace toute la pièce. */
+/** Largeur admissible d'une porte ou d'une fenêtre (cm). */
+export const OPENING_LIMITS = [20, 1000] as const;
+/** Largeur par défaut : porte 80 cm, fenêtre 120 cm (aussi pour une donnée ancienne sans largeur). */
+export const openingDefault = (kind: 'door' | 'window') => (kind === 'door' ? 80 : 120);
+const clampOpening = (w: number, kind: 'door' | 'window') =>
+  Number.isFinite(w) ? Math.max(OPENING_LIMITS[0], Math.min(OPENING_LIMITS[1], Math.round(w))) : openingDefault(kind);
+
+/** Repère de la n-ième caméra : « CAM A » à « CAM Z », puis « CAM Z2 », « CAM Z3 »… */
+export const cameraLabel = (n: number) => (n <= 26 ? `CAM ${String.fromCharCode(64 + n)}` : `CAM Z${n - 25}`);
+
+/** Écart (cm) en deçà duquel une porte ou une fenêtre se pose sur un mur. */
+const OPENING_FIT = 20;
+
+/**
+ * Porte ou fenêtre posée près d'un mur : elle se couche sur le mur le plus proche (même angle,
+ * point projeté), et sa largeur tient sur le mur. Les murs de la pièce étant tracés dans le sens
+ * horaire, le battant s'ouvre dans la pièce ; une ouverture déjà tournée vers l'extérieur
+ * (`rot` = angle du mur + 180°) le reste. Loin de tout mur : rien (undefined).
+ */
+export function fitOpeningToWall(items: readonly FloorItem[], p: Point, width: number, rot?: number): { x: number; y: number; rot: number } | undefined {
+  let wall: Wall | undefined;
+  let best = OPENING_FIT;
+  for (const i of items) {
+    if (i.kind !== 'wall') continue;
+    const d = distToSegment(p, i);
+    if (d < best) {
+      best = d;
+      wall = i;
+    }
+  }
+  if (!wall) return undefined;
+  const len = Math.hypot(wall.x2 - wall.x, wall.y2 - wall.y);
+  // Mur plus court que l'ouverture : elle n'y tient pas, rien ne change.
+  if (len < 1 || len < width) return undefined;
+  const [ux, uy] = [(wall.x2 - wall.x) / len, (wall.y2 - wall.y) / len];
+  const angle = Math.round((Math.atan2(uy, ux) * 180) / Math.PI);
+  const flipped = rot !== undefined && Math.abs(((((rot - angle) % 360) + 540) % 360) - 180) > 179;
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const t0 = clamp((p.x - wall.x) * ux + (p.y - wall.y) * uy, 0, len);
+  const w = Math.min(width, len);
+  const t = flipped ? clamp(t0, w, len) : clamp(t0, 0, len - w);
+  return { x: Math.round(wall.x + ux * t), y: Math.round(wall.y + uy * t), rot: flipped ? rot! : angle };
+}
+
+/**
+ * Déplace un élément ; un mur de la pièce déplace toute la pièce. Une porte ou une fenêtre
+ * déplacée seule près d'un mur s'y couche (`fitOpeningToWall`).
+ */
 export function moveFloorItem(doc: ProjectDoc, seqId: ID, id: ID, dx: number, dy: number): void {
   moveFloorItems(doc, seqId, [id], dx, dy);
+  const plan = ensure(doc, seqId);
+  const it = plan.items.find((i) => i.id === id);
+  if (it?.kind !== 'door' && it?.kind !== 'window') return;
+  const fit = fitOpeningToWall(plan.items, it, Number.isFinite(it.width) ? it.width : openingDefault(it.kind), it.rot);
+  if (fit) Object.assign(it, fit);
 }
 
 /** Déplace plusieurs éléments du même écart (toute la pièce dès qu'un de ses murs en fait partie). */
@@ -607,7 +664,7 @@ export function shotCameras(doc: ProjectDoc, shotId: ID): Array<{ planKey: strin
   return [...plansOf(doc, seqId), ...oneShotPlansOf(doc, seqId)].flatMap((ref) =>
     planOf(doc, ref.key)
       .items.filter((i): i is Extract<FloorItem, { kind: 'camera' }> => i.kind === 'camera' && i.shotIds.includes(shotId))
-      .map((c) => ({ planKey: ref.key, id: c.id, label: c.label ?? 'CAM' })),
+      .map((c) => ({ planKey: ref.key, id: c.id, label: c.label?.trim() || 'CAM' })),
   );
 }
 
@@ -662,14 +719,14 @@ export function planInventory(doc: ProjectDoc, items: readonly FloorItem[]): Inv
         switch (i.kind) {
           case 'camera': {
             const f = cameraFocal(doc, i);
-            return { id: i.id, kind: i.kind, name: i.label ?? 'CAM', detail: join(i.shotIds.filter((id) => doc.shots[id]).map((id) => shotCode(doc, id)).join(', '), f ? `${f}mm` : '', beat(i.beat)) };
+            return { id: i.id, kind: i.kind, name: i.label?.trim() || 'CAM', detail: join(i.shotIds.filter((id) => doc.shots[id]).map((id) => shotCode(doc, id)).join(', '), f ? `${f}mm` : '', beat(i.beat)) };
           }
           case 'actor': {
-            const name = (i.characterId && doc.characters[i.characterId]?.name) || i.label;
+            const name = (i.characterId && doc.characters[i.characterId]?.name) || (i.label ?? '').trim() || FLOOR_KIND_LABEL.actor;
             return { id: i.id, kind: i.kind, name, detail: join(i.to ? 'déplacement' : '', beat(i.beat)) };
           }
           case 'light':
-            return { id: i.id, kind: i.kind, practical: i.practical, kelvin: i.kelvin, name: i.label ?? 'L', detail: join(i.practical ? 'Lampe de jeu' : i.model, lightSpecs(i)) || FLOOR_KIND_LABEL.light };
+            return { id: i.id, kind: i.kind, practical: i.practical, kelvin: i.kelvin, name: i.label?.trim() || 'L', detail: join(i.practical ? 'Lampe de jeu' : i.model, lightSpecs(i)) || FLOOR_KIND_LABEL.light };
           case 'reflector':
           case 'diffuser':
           case 'flag':
@@ -686,6 +743,78 @@ export function decorSummary(items: readonly FloorItem[]): string {
   const n = (k: FloorKind) => items.filter((i) => i.kind === k).length;
   const word = (c: number, one: string, many: string) => (c ? `${c} ${c > 1 ? many : one}` : '');
   return [word(n('wall'), 'mur', 'murs'), word(n('door'), 'porte', 'portes'), word(n('window'), 'fenêtre', 'fenêtres')].filter(Boolean).join(' · ');
+}
+
+/** Couche de dessin : murs et rails, puis portes et fenêtres (qui ouvrent le mur), puis le reste. */
+const drawLayer = (i: FloorItem) => (i.kind === 'wall' || i.kind === 'rail' ? 0 : i.kind === 'door' || i.kind === 'window' ? 1 : 2);
+
+/** Ordre de dessin, quel que soit l'ordre de création ; à couche égale, l'ordre d'origine. */
+export function drawOrder<T extends FloorItem>(items: readonly T[]): T[] {
+  return [...items].sort((a, b) => drawLayer(a) - drawLayer(b));
+}
+
+/**
+ * Nom d'un comédien sur le plan : le personnage seul quand il en a un (le repère numérique posé
+ * automatiquement ferait doublon) ; un repère choisi à la main reste devant : « Doublure · Léa ».
+ */
+export function actorCaption(doc: ProjectDoc, actor: Pick<Extract<FloorItem, { kind: 'actor' }>, 'label' | 'characterId'>): string {
+  const name = actor.characterId ? doc.characters[actor.characterId]?.name : undefined;
+  const label = (actor.label ?? '').trim();
+  if (!name) return label;
+  return !label || /^\d+$/.test(label) || label === name ? name : `${label} · ${name}`;
+}
+
+/**
+ * Comédiens dans le champ d'une caméra (écart à l'axe ≤ demi-angle), du plus proche au plus loin,
+ * avec la distance en mètres arrondie à 5 cm. Une caméra posée à un temps du plan-séquence ne voit
+ * que les comédiens de ce temps ou fixes.
+ */
+export function subjectDistances(
+  doc: ProjectDoc,
+  cam: Extract<FloorItem, { kind: 'camera' }>,
+  items: readonly FloorItem[],
+): Array<{ id: ID; name: string; meters: number }> {
+  const half = Math.min(170, cameraCone(doc, cam).fov) / 2;
+  return items
+    .filter((a): a is Extract<FloorItem, { kind: 'actor' }> => a.kind === 'actor' && (!cam.beat || !a.beat || a.beat === cam.beat))
+    .map((a) => {
+      const d = Math.hypot(a.x - cam.x, a.y - cam.y);
+      const dir = (Math.atan2(a.y - cam.y, a.x - cam.x) * 180) / Math.PI;
+      const off = Math.abs(((((dir - cam.rot) % 360) + 540) % 360) - 180);
+      return { a, d, off };
+    })
+    .filter((x) => x.d >= 1 && x.off <= half + 1e-9)
+    .sort((x, y) => x.d - y.d)
+    .map(({ a, d }) => ({ id: a.id, name: actorCaption(doc, a) || FLOOR_KIND_LABEL.actor, meters: Math.round(d / 5) / 20 }));
+}
+
+/** Repère d'une copie : la lettre ou le numéro libre suivant (« CAM B », « L2 »), sinon le même. */
+function copyLabel(items: readonly FloorItem[], label: string): string {
+  if (/^CAM [A-Z](\d+)?$/.test(label)) return nextLabel(items, cameraLabel);
+  const m = /^(.*?)(\d+)$/.exec(label);
+  return m ? nextLabel(items, (n) => `${m[1]}${n}`) : label;
+}
+
+/**
+ * Copie des éléments, décalée de `offset` (cm) : nouveaux identifiants et repères libres suivants ;
+ * une caméra copiée ne couvre aucun plan (un plan reste couvert une fois) ; les murs de la pièce ne
+ * se copient pas. Renvoie les identifiants des copies.
+ */
+export function duplicateFloorItems(doc: ProjectDoc, planKey: string, ids: readonly ID[], offset = 40): ID[] {
+  const plan = ensure(doc, planKey);
+  const set = new Set(ids);
+  const src = plan.items.filter((i) => set.has(i.id) && !isRoomWall(i));
+  const out: ID[] = [];
+  for (const i of src) {
+    const copy = { ...(JSON.parse(JSON.stringify(i)) as FloorItem), id: newId() };
+    if (copy.kind === 'camera') copy.shotIds = [];
+    if ('label' in copy && copy.label) copy.label = copyLabel(plan.items, copy.label);
+    plan.items.push(copy);
+    out.push(copy.id);
+  }
+  // Décalage d'un bloc, arrêté au bord de l'espace de travail.
+  moveFloorItems(doc, planKey, out, offset, offset);
+  return out;
 }
 
 // --- Lumière : faisceau et réflecteurs ------------------------------------------------------
@@ -815,7 +944,7 @@ export function choreography(items: readonly FloorItem[]): ChoreoPath[] {
   const groups = new Map<string, ChoreoPath>();
   for (const it of items) {
     if ((it.kind !== 'camera' && it.kind !== 'actor') || !it.beat) continue;
-    const key = it.kind === 'camera' ? `cam:${it.shotIds[0] ?? it.label ?? ''}` : `act:${it.characterId ?? it.label}`;
+    const key = it.kind === 'camera' ? `cam:${it.shotIds[0] || it.label?.trim() || ''}` : `act:${it.characterId || (it.label ?? '').trim()}`;
     const g = groups.get(key) ?? { kind: it.kind, key, points: [] };
     g.points.push({ x: it.x, y: it.y, beat: it.beat });
     groups.set(key, g);
