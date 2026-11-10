@@ -293,3 +293,5 @@
   .layout { grid-template-columns: minmax(0, 1fr); }
   .panel { position: static; height: auto; min-height: 0; max-height: none; overflow: visible; }
 }
+.actions { display: flex; align-items: center; gap: 6px; }
+.canvas.panning, .canvas.panning * { cursor: grab; }
