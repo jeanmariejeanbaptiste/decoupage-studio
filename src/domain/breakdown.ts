@@ -3,7 +3,8 @@ import { aggregateEquipment } from './equipment';
 import { displayName } from './fountain';
 import { addCharacter } from './ops';
 import { escapeRegExp, fold } from './text';
-import type { Character, ID, ProjectDoc, Sequence, Shot } from './types';
+import type { Character, EquipmentCategory, ID, ProjectDoc, Sequence, Shot } from './types';
+import type { EquipmentLine } from './equipment';
 
 export const BREAKDOWN_CATEGORIES = [
   'personnages',
@@ -147,15 +148,19 @@ export function breakdownOf(doc: ProjectDoc, seqId: ID): SequenceBreakdown {
   return doc.breakdown?.[seqId] ?? {};
 }
 
-/** Éléments déduits du découpage (non modifiables ici) : personnages, figurants, matériel. */
-export function derivedBreakdown(doc: ProjectDoc, seqId: ID): Partial<Record<BreakdownCategory, string[]>> {
+/**
+ * Éléments déduits du découpage (non modifiables ici) : personnages, figurants, matériel. `eq` : le
+ * matériel du film, à calculer une fois quand on parcourt toutes les séquences.
+ */
+export function derivedBreakdown(doc: ProjectDoc, seqId: ID, eq: Record<EquipmentCategory, EquipmentLine[]> = aggregateEquipment(doc)): Partial<Record<BreakdownCategory, string[]>> {
   const chars = sequenceCharacterIds(doc, seqId).map((id) => doc.characters[id]).filter(Boolean);
   const shotIds = new Set(doc.sequences[seqId]?.shotIds ?? []);
-  const eq = aggregateEquipment(doc);
   // Déduit des plans, ou ajouté aux listes de matériel pour des plans de la séquence ; pas ce qui vient
   // déjà du dépouillement (compté une fois).
-  const own = (cat: BreakdownCategory) => new Set((doc.breakdown?.[seqId]?.[cat] ?? []).map(fold));
-  const pick = (c: 'Machinerie' | 'Lumière' | 'Son', cat: BreakdownCategory) => eq[c].filter((l) => !l.fromBreakdown && !own(cat).has(fold(l.label)) && l.shotIds.some((id) => shotIds.has(id))).map((l) => l.label);
+  const pick = (c: 'Machinerie' | 'Lumière' | 'Son', cat: BreakdownCategory) => {
+    const own = new Set((doc.breakdown?.[seqId]?.[cat] ?? []).map(fold));
+    return (eq[c] ?? []).filter((l) => !l.fromBreakdown && !own.has(fold(l.label)) && l.shotIds.some((id) => shotIds.has(id))).map((l) => l.label);
+  };
   return {
     personnages: chars.filter((c) => c.kind !== 'figurant' && c.kind !== 'silhouette').map((c) => c.name),
     figurants: chars.filter((c) => c.kind === 'figurant' || c.kind === 'silhouette').map((c) => c.name),
@@ -229,10 +234,14 @@ export function addBreakdownItems(doc: ProjectDoc, seqId: ID, cat: BreakdownCate
     return;
   }
   doc.breakdown ??= {};
+  // Une seule orthographe dans le film : un élément déjà saisi ailleurs garde sa graphie.
+  const spelled = new Map<string, string>();
+  for (const other of Object.values(doc.breakdown)) for (const x of other?.[cat] ?? []) if (!spelled.has(fold(x))) spelled.set(fold(x), x.trim());
   const b = (doc.breakdown[seqId] ??= {});
   const list = (b[cat] ??= []);
   for (const raw of items) {
-    const item = raw.trim();
+    const typed = raw.trim();
+    const item = (typed && spelled.get(fold(typed))) || typed;
     if (item && !list.some((x) => fold(x) === fold(item))) list.push(item);
   }
 }
@@ -242,7 +251,86 @@ export function removeBreakdownItem(doc: ProjectDoc, seqId: ID, cat: BreakdownCa
   // Un personnage se retire de la séquence (pas de ses plans, qui le nomment dans leur sujet).
   if (isCharacterCategory(cat) && seq) seq.characterIds = seq.characterIds.filter((id) => !doc.characters[id] || !named(doc.characters[id], fold(item)));
   const list = doc.breakdown?.[seqId]?.[cat];
-  if (list) doc.breakdown![seqId][cat] = list.filter((x) => x !== item);
+  if (list) doc.breakdown![seqId][cat] = list.filter((x) => fold(x) !== fold(item));
+}
+
+/** Range un élément saisi dans une autre catégorie (pas les personnages ni les figurants, qui renvoient au registre). */
+export function moveBreakdownItem(doc: ProjectDoc, seqId: ID, from: BreakdownCategory, to: BreakdownCategory, item: string): void {
+  if (from === to || isCharacterCategory(from) || isCharacterCategory(to)) return;
+  const list = doc.breakdown?.[seqId]?.[from];
+  const found = list?.find((x) => fold(x) === fold(item));
+  if (!found) return;
+  removeBreakdownItem(doc, seqId, from, found);
+  addBreakdownItems(doc, seqId, to, [found]);
+}
+
+/**
+ * Renomme un élément saisi dans toutes les séquences (variantes de casse et d'accents comprises) ;
+ * s'il rejoint un élément existant, une seule entrée reste par séquence. Pas les personnages ni les
+ * figurants (le registre les renomme). Rend le nombre de séquences touchées.
+ */
+export function renameBreakdownItem(doc: ProjectDoc, cat: BreakdownCategory, from: string, to: string): number {
+  const name = to.trim();
+  if (!name || isCharacterCategory(cat)) return 0;
+  // L'ancien nom et le nouveau (toutes graphies) prennent la graphie saisie.
+  const keys = new Set([fold(from), fold(name)]);
+  let n = 0;
+  for (const b of Object.values(doc.breakdown ?? {})) {
+    const list = b?.[cat];
+    if (!list?.some((x) => keys.has(fold(x)))) continue;
+    const next: string[] = [];
+    let placed = false;
+    for (const x of list) {
+      if (!keys.has(fold(x))) next.push(x);
+      else if (!placed) {
+        next.push(name);
+        placed = true;
+      }
+    }
+    b[cat] = next;
+    n++;
+  }
+  return n;
+}
+
+/** Catégorie dont le libellé est déjà celui-ci (sans casse ni accents), de base ou ajoutée. */
+export function categoryNamed(doc: ProjectDoc, name: string): BreakdownCategory | undefined {
+  const key = fold(name.trim());
+  return breakdownCategories(doc).find((c) => fold(breakdownLabel(c)) === key || c === key);
+}
+
+/** Ajoute une catégorie, sauf si elle double une catégorie existante : rend alors celle-ci. */
+export function addCustomCategory(doc: ProjectDoc, raw: string): BreakdownCategory | undefined {
+  const name = raw.trim();
+  if (!name) return undefined;
+  const same = categoryNamed(doc, name);
+  if (same) return same;
+  doc.breakdownExtra = [...(doc.breakdownExtra ?? []), name];
+  return CUSTOM + name;
+}
+
+/**
+ * Renomme une catégorie ajoutée en gardant ses éléments dans toutes les séquences. Vers une autre
+ * catégorie ajoutée : les deux se fondent. Refusé vers une catégorie de base. Rend la catégorie obtenue.
+ */
+export function renameCustomCategory(doc: ProjectDoc, from: string, raw: string): BreakdownCategory | undefined {
+  const to = raw.trim();
+  const fromCat = CUSTOM + from;
+  if (!to || !(doc.breakdownExtra ?? []).includes(from)) return undefined;
+  if (to === from) return fromCat;
+  const same = categoryNamed(doc, to);
+  if (same && !isCustomCategory(same)) return undefined;
+  const merge = !!same && same !== fromCat;
+  const toCat = merge ? same : CUSTOM + to;
+  doc.breakdownExtra = (doc.breakdownExtra ?? []).flatMap((l) => (l !== from ? [l] : merge ? [] : [to]));
+  for (const b of Object.values(doc.breakdown ?? {})) {
+    const list = b?.[fromCat];
+    if (!b || !list) continue;
+    delete b[fromCat];
+    const dest = (b[toCat] ??= []);
+    for (const x of list) if (!dest.some((y) => fold(y) === fold(x))) dest.push(x);
+  }
+  return toCat;
 }
 
 /**
