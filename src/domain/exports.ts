@@ -6,6 +6,7 @@ import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } fr
 import { sequenceCharacterIds } from './characters';
 import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, DIMENSION_FONT, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
+import { lightTint } from './colorTemperature';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, characterUsage, decorStats, decorUsage, usageDayLabel } from './registry';
@@ -174,7 +175,8 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
   const out: string[] = [];
   const { beams, shadows } = computeLighting(items);
   for (const sh of shadows) out.push(`<polygon points="${pts(sh)}" fill="#111318" fill-opacity="0.14"/>`);
-  for (const b of beams) out.push(`<polygon points="${pts(b.points)}" fill="#6b7079" fill-opacity="${Math.min(0.4, 0.22 * b.intensity).toFixed(2)}"/>`);
+  // Faisceaux gris, ou à la teinte de leur température de couleur (la seule couleur du plan).
+  for (const b of beams) out.push(`<polygon points="${pts(b.points)}" fill="${lightTint(b.kelvin)?.papier ?? '#6b7079'}" fill-opacity="${Math.min(0.4, 0.22 * b.intensity).toFixed(2)}"/>`);
   for (const p of choreography(items))
     if (p.points.length > 1) out.push(`<polyline points="${pts(p.points)}" fill="none" stroke="${p.kind === 'camera' ? '#111318' : '#6b7079'}" stroke-width="${p.kind === 'camera' ? 2.5 : 2}" stroke-dasharray="${p.kind === 'camera' ? '10 6' : '3 5'}"/>`);
   for (const i of items as FloorItem[]) {
@@ -224,7 +226,7 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         // Projecteur orienté comme à l'écran ; lampe de jeu : ampoule et rayons.
         out.push(
           i.practical
-            ? `<circle cx="${i.x}" cy="${i.y}" r="9" fill="#fff" stroke="#111318" stroke-width="1.5"/><path d="${[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r = (a * Math.PI) / 180; return `M ${(i.x + Math.cos(r) * 12).toFixed(1)} ${(i.y + Math.sin(r) * 12).toFixed(1)} L ${(i.x + Math.cos(r) * 17).toFixed(1)} ${(i.y + Math.sin(r) * 17).toFixed(1)}`; }).join(' ')}" stroke="#6b7079" stroke-width="1.6" stroke-linecap="round"/>`
+            ? `<circle cx="${i.x}" cy="${i.y}" r="9" fill="${lightTint(i.kelvin)?.papier ?? '#fff'}" stroke="#111318" stroke-width="1.5"/><path d="${[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r = (a * Math.PI) / 180; return `M ${(i.x + Math.cos(r) * 12).toFixed(1)} ${(i.y + Math.sin(r) * 12).toFixed(1)} L ${(i.x + Math.cos(r) * 17).toFixed(1)} ${(i.y + Math.sin(r) * 17).toFixed(1)}`; }).join(' ')}" stroke="#6b7079" stroke-width="1.6" stroke-linecap="round"/>`
             : symbolSvg(FRESNEL, i.x, i.y, i.rot),
         );
         {

@@ -639,6 +639,8 @@ export interface InventoryRow {
   id: ID;
   kind: FloorKind;
   practical?: boolean;
+  /** Température de couleur d'un projecteur (K). */
+  kelvin?: number;
   name: string;
   detail: string;
 }
@@ -667,7 +669,7 @@ export function planInventory(doc: ProjectDoc, items: readonly FloorItem[]): Inv
             return { id: i.id, kind: i.kind, name, detail: join(i.to ? 'déplacement' : '', beat(i.beat)) };
           }
           case 'light':
-            return { id: i.id, kind: i.kind, practical: i.practical, name: i.label ?? 'L', detail: i.practical ? 'Lampe de jeu' : join(i.model, lightSpecs(i)) || FLOOR_KIND_LABEL.light };
+            return { id: i.id, kind: i.kind, practical: i.practical, kelvin: i.kelvin, name: i.label ?? 'L', detail: join(i.practical ? 'Lampe de jeu' : i.model, lightSpecs(i)) || FLOOR_KIND_LABEL.light };
           case 'reflector':
           case 'diffuser':
           case 'flag':
@@ -706,6 +708,8 @@ export interface Beam {
   intensity: number;
   /** Lumière douce (après un diffuseur ou un réflecteur). */
   soft?: boolean;
+  /** Température de couleur de la source d'origine (K) : renvoyée ou diffusée, la lumière la garde. */
+  kelvin?: number;
   points: Point[];
 }
 
@@ -720,6 +724,7 @@ export function lightBeam(l: Light): Beam {
     spread,
     range,
     intensity: 1,
+    kelvin: l.kelvin,
     points: conePoints(l.x, l.y, l.rot, spread, range),
   };
 }
@@ -775,6 +780,7 @@ export function reflections(items: readonly FloorItem[]): Beam[] {
         spread,
         range,
         intensity,
+        kelvin: l.kelvin,
         points: conePoints(mx, my, rot, spread, range),
       });
     }
@@ -920,7 +926,7 @@ export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; s
         next = { rot: mirror(ang, g.seg), spread: 150, range, intensity: b.intensity * 0.3 * Math.max(0.4, share) };
       }
       if (next.intensity < 0.06) continue;
-      emit({ ...next, sourceId: id, x: mx, y: my, soft: true, points: [] }, depth + 1, id);
+      emit({ ...next, sourceId: id, x: mx, y: my, soft: true, kelvin: b.kelvin, points: [] }, depth + 1, id);
     }
   };
 
