@@ -101,4 +101,35 @@ describe('synchronisation Google Drive', () => {
     expect(useProjectStore.getState().doc?.project.title).toBe('Modifié sur un autre appareil');
     expect((await loadProject(mine.project.id))?.project.title).toBe('Modifié sur un autre appareil');
   });
+
+  it('modifié des deux côtés depuis la dernière synchronisation : la version écartée est gardée en copie', async () => {
+    await db.projects.clear();
+    files.clear();
+    useProjectStore.getState().loadDoc(null);
+    const base = buildFiction();
+    base.project.id = 'conflit';
+    base.project.updatedAt = '2026-11-10T09:00:00.000Z';
+    await saveProject(base);
+    await cloud.syncAll();
+    expect([...files.values()].some((f) => f.appProperties.projectId === 'conflit')).toBe(true);
+    // Hors connexion, chacun de son côté.
+    const here = structuredClone(base);
+    here.project.director = 'Modifié ici';
+    here.project.updatedAt = '2026-11-10T10:00:00.000Z';
+    await saveProject(here);
+    const there = structuredClone(base);
+    there.project.director = 'Modifié là-bas';
+    there.project.updatedAt = '2026-11-10T11:00:00.000Z';
+    const [fileId] = [...files].find(([, f]) => f.appProperties.kind === 'project')!;
+    files.set(fileId, { ...files.get(fileId)!, appProperties: { kind: 'project', projectId: 'conflit', updatedAt: there.project.updatedAt, title: 'x' }, body: serializeDoc(there) });
+    await cloud.syncAll();
+    const all = await db.projects.toArray();
+    expect((await loadProject('conflit'))?.project.director).toBe('Modifié là-bas');
+    const copy = all.find((p) => p.id !== 'conflit');
+    expect(copy?.title).toMatch(/\(conflit du /);
+    expect(copy?.doc.project.director).toBe('Modifié ici');
+    // Sans modification des deux côtés, aucune copie de plus.
+    await cloud.syncAll();
+    expect(await db.projects.count()).toBe(2);
+  });
 });

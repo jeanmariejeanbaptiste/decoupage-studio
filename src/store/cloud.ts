@@ -7,7 +7,8 @@
  */
 import { create } from 'zustand';
 import { GOOGLE_CLIENT_ID } from '../app/config';
-import { mediaKeys, parseProjectFile, serializeDoc } from '../domain/serialize';
+import { mediaKeys, parseProjectFile, projectCopy, serializeDoc } from '../domain/serialize';
+import { newId } from '../domain/factory';
 import type { ProjectDoc } from '../domain/types';
 import { db, deleteProject, listProjects, loadProject, saveProject } from './db';
 import { DRIVE_API as API, DRIVE_UPLOAD as UPLOAD, GIS_SCRIPT, SCOPE_APPDATA, SCOPE_FILE, SCOPE_IDENTITY, USERINFO } from './googleUrls';
@@ -500,6 +501,39 @@ async function pullBlobs(doc: ProjectDoc, files: DriveFile[]): Promise<void> {
   }
 }
 
+/**
+ * Date de la version sur laquelle ce navigateur et le Drive se sont accordés, par projet : au-delà,
+ * une modification des deux côtés est un conflit (l'une effacerait l'autre sans trace).
+ */
+const AGREED_KEY = 'ds-cloud-agreed';
+function agreements(): Record<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(AGREED_KEY) ?? '{}') as unknown;
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+function setAgreements(a: Record<string, string>): void {
+  try {
+    localStorage.setItem(AGREED_KEY, JSON.stringify(a));
+  } catch {
+    /* stockage indisponible : les conflits ne seront pas repérés */
+  }
+}
+function agree(id: string, at: string): void {
+  setAgreements({ ...agreements(), [id]: at });
+}
+
+/** Garde une version qui allait être écrasée, en copie datée ; renvoie son titre. */
+async function keepConflictCopy(doc: ProjectDoc): Promise<string> {
+  const when = new Date(doc.project.updatedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(' ', ' à ');
+  const copy = projectCopy(doc, newId());
+  copy.project.title = `${doc.project.title} (conflit du ${when})`;
+  await saveProject(copy);
+  return copy.project.title;
+}
+
 /** Rapproche le navigateur et le Drive : le plus récent l'emporte, projet par projet. */
 export async function syncAll(): Promise<void> {
   if (useCloud.getState().status === 'syncing') return;
@@ -539,11 +573,15 @@ export async function syncAll(): Promise<void> {
     const ids = new Set([...locals.map((l) => l.id), ...remote.map((r) => r.appProperties!.projectId)]);
     let reopen = false;
     const failed: string[] = [];
+    const agreed = agreements();
+    const conflicts: string[] = [];
     for (const id of ids) {
       const l = locals.find((x) => x.id === id);
       const r = remote.find((x) => x.appProperties!.projectId === id);
       const rAt = r?.appProperties?.updatedAt ?? '';
       if (!l && graves.has(id)) continue;
+      // Les deux côtés modifiés depuis la dernière synchronisation : la version écartée est gardée en copie.
+      const both = !!l && !!r && !!agreed[id] && l.updatedAt > agreed[id] && rAt > agreed[id];
       // Un projet en échec (fichier distant abîmé, envoi coupé) n'empêche pas les autres de suivre.
       try {
         if (r && (!l || rAt > l.updatedAt)) {
@@ -551,21 +589,34 @@ export async function syncAll(): Promise<void> {
           // Projet ouvert modifié pendant le téléchargement : la saisie d'ici, plus récente, est gardée.
           const open = useProjectStore.getState().doc;
           if (id === openId && (hasPendingSave(id) || (open && open.project.id === id && open.project.updatedAt > doc.project.updatedAt))) continue;
+          const mine = both ? await loadProject(id) : undefined;
+          if (mine) conflicts.push(await keepConflictCopy(mine));
           await saveProject(doc);
           await pullBlobs(doc, files);
+          agreed[id] = doc.project.updatedAt;
           if (id === openId) reopen = true;
         } else if (l && (!r || l.updatedAt > rAt)) {
           const doc = await loadProject(id);
-          if (doc) await pushProject(doc, files);
+          if (!doc) continue;
+          if (both) conflicts.push(await keepConflictCopy(parseProjectFile(await (await download(r!.id)).text())));
+          await pushProject(doc, files);
+          agreed[id] = doc.project.updatedAt;
         } else if (r) {
           const doc = await loadProject(id);
           if (doc) await pullBlobs(doc, files);
+          agreed[id] = rAt;
         }
       } catch (e) {
         console.error(e);
         failed.push(l?.title ?? r?.appProperties?.title ?? id);
       }
     }
+    setAgreements(agreed);
+    if (conflicts.length)
+      useUi.getState().toast({
+        message: `Modifié sur deux appareils : la version écartée est gardée dans ${conflicts.map((t) => `« ${t} »`).join(', ')}.`,
+        duration: 12000,
+      });
     // Relu sans y réécrire d'abord la version de cet onglet, qui effacerait celle tirée du Drive.
     if (reopen && openId && !hasPendingSave(openId)) await reloadStoredProject(openId);
     if (failed.length) fail(`Synchronisation impossible pour ${failed.map((t) => `« ${t} »`).join(', ')}.`);
@@ -613,6 +664,7 @@ export function startCloudPush(): () => void {
       try {
         useCloud.setState({ status: 'syncing' });
         await pushProject(doc, await listFiles());
+        agree(doc.project.id, doc.project.updatedAt);
         useCloud.setState({ status: 'idle', lastSync: new Date().toISOString() });
       } catch (e) {
         fail((e as Error).message);
