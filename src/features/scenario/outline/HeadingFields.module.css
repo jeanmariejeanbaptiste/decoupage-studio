@@ -1,0 +1,19 @@
+/* Champs de l'en-tête (ajout rapide, édition sur place) : sans cadre, le filet de la ligne suffit. */
+.field {
+  display: block; width: 100%; min-width: 0; height: 32px; margin: 0; padding: 0 8px;
+  border: 0; border-radius: 6px; background: none; color: var(--ink);
+  font: inherit; font-size: 13.5px; outline: none;
+}
+.field::placeholder { color: var(--ink-soft); opacity: 0.75; }
+.field:hover { background: var(--hover); }
+.field:focus { background: var(--selected); }
+.select { position: relative; display: inline-flex; align-items: center; width: 100%; }
+.select select {
+  appearance: none; -webkit-appearance: none; width: 100%; height: 32px; padding: 0 22px 0 8px; margin: 0;
+  border: 0; border-radius: 6px; background: none; color: var(--ink);
+  font: inherit; font-size: 13.5px; cursor: pointer; outline: none;
+}
+.select select:hover { background: var(--hover); }
+.select select:focus { background: var(--selected); }
+.select option { background: var(--paper-card); color: var(--ink); }
+.select svg { position: absolute; right: 6px; color: var(--ink-soft); pointer-events: none; }

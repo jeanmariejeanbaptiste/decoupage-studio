@@ -18,11 +18,15 @@ export type ShortcutId =
   | 'moveShotUp'
   | 'moveShotDown'
   | 'moveSequenceUp'
-  | 'moveSequenceDown';
+  | 'moveSequenceDown'
+  | 'outlineMoveUp'
+  | 'outlineMoveDown'
+  | 'outlineWrite'
+  | 'outlineInsert';
 
 export interface ShortcutDef {
   id: ShortcutId;
-  group: 'Général' | 'Découpage';
+  group: 'Général' | 'Découpage' | 'Séquencier';
   label: string;
   combo: string;
 }
@@ -42,6 +46,10 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   { id: 'moveShotDown', group: 'Découpage', label: 'Descendre le plan', combo: 'Alt+ArrowDown' },
   { id: 'moveSequenceUp', group: 'Découpage', label: 'Monter la séquence', combo: 'Alt+Shift+ArrowUp' },
   { id: 'moveSequenceDown', group: 'Découpage', label: 'Descendre la séquence', combo: 'Alt+Shift+ArrowDown' },
+  { id: 'outlineMoveUp', group: 'Séquencier', label: 'Monter dans le séquencier', combo: 'Alt+ArrowUp' },
+  { id: 'outlineMoveDown', group: 'Séquencier', label: 'Descendre dans le séquencier', combo: 'Alt+ArrowDown' },
+  { id: 'outlineWrite', group: 'Séquencier', label: 'Écrire la séquence', combo: 'Mod+Enter' },
+  { id: 'outlineInsert', group: 'Séquencier', label: 'Insérer une séquence après', combo: 'Shift+Enter' },
 ];
 
 export type ShortcutMap = Record<ShortcutId, string>;
@@ -118,9 +126,13 @@ export function formatCombo(combo: string): string {
     .join('');
 }
 
-/** Action déjà associée à cette combinaison, hors celle qu'on modifie. */
+/**
+ * Action déjà associée à cette combinaison, hors celle qu'on modifie. Le Découpage et le Séquencier
+ * ne sont jamais à l'écran ensemble : une même touche peut y servir deux fois ; Général vaut partout.
+ */
 export function conflictOf(map: ShortcutMap, id: ShortcutId, combo: string): ShortcutDef | undefined {
-  return SHORTCUTS.find((d) => d.id !== id && map[d.id] === combo);
+  const group = SHORTCUTS.find((d) => d.id === id)?.group;
+  return SHORTCUTS.find((d) => d.id !== id && map[d.id] === combo && (d.group === group || d.group === 'Général' || group === 'Général'));
 }
 
 /** Combinaisons qu'on ne peut pas réattribuer : elles servent à la saisie dans la grille. */
