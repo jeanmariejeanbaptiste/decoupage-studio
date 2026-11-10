@@ -25,6 +25,7 @@ import { deleteShotById, dropShot } from '../grid/actions';
 import { goToShot } from '../grid/goTo';
 import s from './StoryboardPage.module.css';
 import { exportBase } from '../../domain/serialize';
+import { sheetChoices, sheetLayout, sheetPerPage } from '../../domain/storyboardSheet';
 import { useUi } from '../../store/uiStore';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 
@@ -178,12 +179,6 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
 }
 
 /** Grille d'une planche : colonnes × lignes selon le nombre de plans et l'orientation. */
-function sheetDims(n: number, o: 'landscape' | 'portrait'): [number, number] {
-  const land: Record<number, [number, number]> = { 1: [1, 1], 2: [2, 1], 3: [3, 1], 4: [2, 2], 6: [3, 2], 9: [3, 3] };
-  const port: Record<number, [number, number]> = { 1: [1, 1], 2: [1, 2], 3: [1, 3], 4: [2, 2], 6: [2, 3], 9: [3, 3] };
-  return (o === 'portrait' ? port : land)[n] ?? [2, 2];
-}
-
 /**
  * Répartit les plans en planches : chaque keyframe occupe une case entière (même taille qu'un plan
  * simple), un plan à plusieurs keyframes s'étale donc sur plusieurs cases d'une même ligne.
@@ -211,8 +206,27 @@ function paginateShots(doc: ProjectDoc, shots: ID[], cols: number, rows: number)
 
 function Sheets({ doc, shots, perPage, timing, className, orientation, visible = false }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait'; visible?: boolean }) {
   const ink = !!doc.project.settings.exportInkSaver;
-  const [cols, rows] = sheetDims(perPage, orientation ?? 'landscape');
+  // Grille calculée pour le format des images : seuls les nombres de cases qui remplissent bien la
+  // feuille sont retenus ; le reste de hauteur va en marges, un peu plus en bas qu'en haut.
+  const o = orientation ?? 'landscape';
+  const ratio = aspectRatio(doc.project.settings.storyboardAspect);
+  const layout = sheetLayout(sheetPerPage(perPage, sheetChoices(ratio, o)), ratio, o);
+  const { cols, rows } = layout;
   const pages = paginateShots(doc, shots, cols, rows);
+  // Feuille A4 réelle (export, aperçu) : cases à leur taille exacte ; impression du navigateur
+  // (hauteur prudente) : la grille s'étire.
+  const fixed = !!orientation;
+  const gridStyle: React.CSSProperties = fixed
+    ? {
+        gridTemplateColumns: `repeat(${cols}, ${layout.cellW.toFixed(2)}mm)`,
+        gridTemplateRows: `repeat(${rows}, ${layout.cellH.toFixed(2)}mm)`,
+        justifyContent: 'center',
+        alignContent: 'start',
+        rowGap: `${layout.rowGap.toFixed(2)}mm`,
+        flex: 'none',
+        marginTop: `${layout.top.toFixed(2)}mm`,
+      }
+    : { gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` };
   const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
   return (
     <div className={className} aria-hidden={visible ? undefined : true} style={size as React.CSSProperties | undefined}>
@@ -225,7 +239,7 @@ function Sheets({ doc, shots, perPage, timing, className, orientation, visible =
               planche {i + 1} / {pages.length}
             </span>
           </header>
-          <div className={s.sheetGrid} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
+          <div className={s.sheetGrid} style={gridStyle} data-grid={`${cols}x${rows}`}>
             {ids.map(({ id, span }) => (
               <div key={id} className={s.cell} style={{ gridColumn: `span ${span}` }}>
                 <Card doc={doc} shot={doc.shots[id]} timing={timing} printing />
@@ -308,38 +322,83 @@ function FrameThumb({ frame, label, active, ratio, onPick }: { frame: Frame; lab
   );
 }
 
-/** Choix du format d'image du storyboard : formats usuels ou valeur saisie. */
+/** Silhouette d'un format : un rectangle à sa proportion, au trait. */
+function RatioIcon({ ratio, dashed }: { ratio: number; dashed?: boolean }) {
+  const [bw, bh] = [18, 12];
+  const [w, h] = ratio >= bw / bh ? [bw, bw / ratio] : [bh * ratio, bh];
+  return (
+    <svg className={s.ratioIcon} width={bw + 2} height={bh + 2} viewBox={`-1 -1 ${bw + 2} ${bh + 2}`} aria-hidden="true">
+      <rect x={(bw - w) / 2} y={(bh - h) / 2} width={w} height={h} rx={1} fill="none" stroke="currentColor" strokeWidth={1.1} strokeDasharray={dashed ? '2 1.6' : undefined} />
+    </svg>
+  );
+}
+
+/** Choix du format d'image du storyboard : formats usuels (silhouette et rapport) ou valeur saisie. */
 function AspectPicker({ doc }: { doc: ProjectDoc }) {
   const a = doc.project.settings.storyboardAspect ?? DEFAULT_ASPECT;
   const preset = ASPECT_PRESETS.findIndex((p) => Math.abs(p.w / p.h - a.w / a.h) < 0.001);
   const [custom, setCustom] = useState(preset < 0);
-  // Format changé ailleurs (annulation, autre participant) : le menu suit.
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  // Format changé ailleurs (annulation, autre participant) : le choix suit.
   useEffect(() => setCustom(preset < 0), [a.w, a.h]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (v: { w: number; h: number }) => mutateDoc((d) => void (d.project.settings.storyboardAspect = v));
+  useEffect(() => {
+    if (!open) return;
+    list.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
+    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+  const choose = (i: number | 'custom') => {
+    setOpen(false);
+    if (i === 'custom') return setCustom(true);
+    setCustom(false);
+    set({ w: ASPECT_PRESETS[i].w, h: ASPECT_PRESETS[i].h });
+  };
+  const onListKey = (e: React.KeyboardEvent) => {
+    const items = [...(list.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+      box.current?.querySelector<HTMLElement>('button')?.focus();
+    }
+  };
   return (
-    <label className={s.opt}>
-      <span className={s.optName}>Format</span>
-      {/* Fermé, le format seul (« 16:9 ») ; ouvert, la liste décrite. */}
-      <span className={s.optValue}>{custom ? 'Personnalisé' : formatAspect(a)}</span>
-      <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
-      <select
-        value={custom ? 'custom' : String(preset)}
-        onChange={(e) => {
-          if (e.target.value === 'custom') return setCustom(true);
-          setCustom(false);
-          const p = ASPECT_PRESETS[Number(e.target.value)];
-          set({ w: p.w, h: p.h });
-        }}
-        aria-label="Format des images du storyboard"
+    <div ref={box} className={[s.opt, s.aspectOpt].join(' ')}>
+      <button
+        type="button"
+        className={s.aspectBtn}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Format des images du storyboard : ${custom ? 'personnalisé' : formatAspect(a)}`}
+        onClick={() => setOpen((v) => !v)}
         data-testid="storyboard-aspect"
       >
-        {ASPECT_PRESETS.map((p, i) => (
-          <option key={p.label} value={i}>
-            {p.label}
-          </option>
-        ))}
-        <option value="custom">Personnalisé…</option>
-      </select>
+        <span className={s.optName}>Format</span>
+        <RatioIcon ratio={aspectRatio(a)} dashed={custom} />
+        <span className={s.optValue}>{custom ? 'Personnalisé' : formatAspect(a)}</span>
+        <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
+      </button>
+      {open && (
+        <div ref={list} className={s.aspectList} role="listbox" aria-label="Format des images" onKeyDown={onListKey}>
+          {ASPECT_PRESETS.map((p, i) => (
+            <button key={p.label} type="button" role="option" aria-selected={!custom && i === preset} className={s.aspectItem} onClick={() => choose(i)} data-testid="storyboard-aspect-option">
+              <RatioIcon ratio={p.w / p.h} />
+              <span>{p.label}</span>
+            </button>
+          ))}
+          <button type="button" role="option" aria-selected={custom} className={s.aspectItem} onClick={() => choose('custom')} data-testid="storyboard-aspect-option">
+            <RatioIcon ratio={aspectRatio(a)} dashed />
+            <span>Personnalisé…</span>
+          </button>
+        </div>
+      )}
       {custom && (
         <input
           key={formatAspect(a)}
@@ -355,7 +414,7 @@ function AspectPicker({ doc }: { doc: ProjectDoc }) {
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
       )}
-    </label>
+    </div>
   );
 }
 

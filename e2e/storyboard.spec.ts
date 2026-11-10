@@ -25,7 +25,8 @@ test('storyboard : cartes, réordonnancement et planche imprimable', async ({ pa
   await expect(page.getByText('planche 3 / 3')).toBeVisible();
   await page.emulateMedia({ media: 'screen' });
   await page.getByTestId('storyboard-export').click();
-  await page.getByTestId('storyboard-export-panel').getByLabel('6', { exact: true }).check({ force: true });
+  // 16:9 en paysage : 1, 4 ou 9 par feuille (6 laisserait trop de vide).
+  await page.getByTestId('storyboard-export-panel').getByLabel('9', { exact: true }).check({ force: true });
   await page.keyboard.press('Escape');
   await page.emulateMedia({ media: 'print' });
   await expect(page.getByText('planche 2 / 2')).toBeVisible();

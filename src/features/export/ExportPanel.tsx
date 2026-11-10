@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Download } from 'lucide-react';
+import { sheetPerPage } from '../../domain/storyboardSheet';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { flushEditors } from '../../store/persistence';
@@ -29,7 +30,8 @@ interface Props {
   extra?: Array<{ key: string; label: string; hint: string }>;
   themed?: boolean;
   /** Choix du nombre d'éléments par feuille (storyboard). */
-  perPage?: number[];
+  /** Choix « Par feuille » ; selon l'orientation quand ils en dépendent (storyboard). */
+  perPage?: number[] | ((o: Orientation) => number[]);
   /** Pas de numérotation proposée (la page porte déjà son numéro). */
   noNumbers?: boolean;
   /** Format de page imposé (le scénario est toujours en A4 portrait). */
@@ -73,7 +75,9 @@ export function ExportPanel({
   const prefs = { ...st.exportPrefs?.[id], ...local[id] };
   const orientation = prefs.orientation ?? defaultOrientation;
   const numbers = !noNumbers && (prefs.numbers ?? true);
-  const per = prefs.perPage ?? perPage?.[1] ?? perPage?.[0];
+  const perList = typeof perPage === 'function' ? perPage(orientation) : perPage;
+  // Choix enregistré, ou le plus proche parmi ceux qui ont un sens ici.
+  const per = perList ? sheetPerPage(prefs.perPage ?? perList[1] ?? perList[0], perList) : undefined;
   // Réglages d'export mémorisés avec le projet, mais hors de l'historique (⌘Z annule le travail, pas un réglage d'export).
   const setPrefs = (patch: typeof prefs) => {
     setLocal((l) => ({ ...l, [id]: { ...l[id], ...patch } }));
@@ -200,11 +204,11 @@ export function ExportPanel({
                 orientation,
                 (o) => setPrefs({ orientation: o }),
               )}
-              {perPage &&
+              {perList &&
                 seg(
                   'per',
                   'Par feuille',
-                  perPage.map((n) => [n, String(n)] as const),
+                  perList.map((n) => [n, String(n)] as const),
                   per,
                   (n) => setPrefs({ perPage: n }),
                 )}

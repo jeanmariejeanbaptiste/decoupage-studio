@@ -1,15 +1,16 @@
-/** Formats d'image usuels (largeur : hauteur), du plus courant au plus spécifique. */
+/** Formats d'image usuels (largeur : hauteur), du plus courant au plus spécifique. Chaque format se
+ *  montre par son rapport et sa silhouette, sans description. */
 export const ASPECT_PRESETS: ReadonlyArray<{ label: string; w: number; h: number }> = [
-  { label: '16:9 (HD, télévision)', w: 16, h: 9 },
-  { label: '1.85:1 (cinéma « flat »)', w: 1.85, h: 1 },
-  { label: '2.39:1 (cinémascope)', w: 2.39, h: 1 },
-  { label: '2:1 (Univisium)', w: 2, h: 1 },
-  { label: '1.66:1 (format européen)', w: 1.66, h: 1 },
-  { label: '4:3 (1.33, télévision ancienne)', w: 4, h: 3 },
-  { label: '1:1 (carré)', w: 1, h: 1 },
-  { label: '4:5 (réseaux, portrait)', w: 4, h: 5 },
-  { label: '3:4 (portrait)', w: 3, h: 4 },
-  { label: '9:16 (vertical, mobile)', w: 9, h: 16 },
+  { label: '16:9', w: 16, h: 9 },
+  { label: '1.85:1', w: 1.85, h: 1 },
+  { label: '2.39:1', w: 2.39, h: 1 },
+  { label: '2:1', w: 2, h: 1 },
+  { label: '1.66:1', w: 1.66, h: 1 },
+  { label: '4:3', w: 4, h: 3 },
+  { label: '1:1', w: 1, h: 1 },
+  { label: '4:5', w: 4, h: 5 },
+  { label: '3:4', w: 3, h: 4 },
+  { label: '9:16', w: 9, h: 16 },
 ];
 
 export interface Aspect {

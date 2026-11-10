@@ -134,7 +134,7 @@ test('exports A4 : images page par page et PDF assemblé par l’outil', async (
   for (const [route, id, format, ori, name, pages] of [
     ['/#/grid?seed=rav3', 'grid', 'Images A4', 'Paysage', /-decoupage-A4-paysage\.zip$/, 3],
     ['/#/grid?seed=rav3', 'grid', 'PDF', 'Portrait', /-decoupage-A4-portrait\.pdf$/, 0],
-    ['/#/storyboard?seed=rav3', 'storyboard', 'Images A4', 'Portrait', /-storyboard-A4-portrait\.zip$/, 14],
+    ['/#/storyboard?seed=rav3', 'storyboard', 'Images A4', 'Portrait', /-storyboard-A4-portrait\.zip$/, 9], // 16:9 portrait : 6 par feuille (2 × 3)
     ['/#/storyboard?seed=rav3', 'storyboard', 'PDF', 'Paysage', /-storyboard-A4-paysage\.pdf$/, 0],
     ['/#/floorplan?seed=rav3', 'floorplan', 'PDF', 'Paysage', /-plans-au-sol-A4-paysage\.pdf$/, 0],
   ] as const) {

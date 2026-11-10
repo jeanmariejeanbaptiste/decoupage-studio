@@ -155,3 +155,12 @@
 .print.previewSheets { display: flex; flex-direction: column; align-items: center; gap: 18px; }
 .previewSheets .sheet { box-shadow: 0 1px 2px rgba(17, 19, 24, 0.06), 0 8px 24px rgba(17, 19, 24, 0.08); border: 1px solid var(--rule); color: #111318; }
 .previewEmpty { color: var(--ink-soft); font-size: 13px; padding: 24px; }
+/* Format : silhouette au trait et rapport, dans le bouton comme dans la liste. */
+.aspectOpt { padding: 0; }
+.aspectBtn { display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 10px; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; border-radius: inherit; }
+.ratioIcon { flex: none; color: var(--ink-soft); }
+.aspectList { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 150px; padding: 4px; display: flex; flex-direction: column; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-card); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); }
+.aspectItem { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border: 0; border-radius: 5px; background: none; font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; font-variant-numeric: tabular-nums; }
+.aspectItem:hover, .aspectItem:focus-visible { background: var(--paper); outline: none; }
+.aspectItem[aria-selected='true'] { font-weight: 500; }
+.aspectItem[aria-selected='true'] .ratioIcon { color: var(--ink); }

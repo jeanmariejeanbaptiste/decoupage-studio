@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { aspectRatio } from '../../domain/aspect';
+import { sheetChoices } from '../../domain/storyboardSheet';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
@@ -59,7 +61,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
           doc={doc}
           id="storyboard"
           contents={contents}
-          perPage={[1, 2, 3, 4, 6, 9]}
+          perPage={(o) => sheetChoices(aspectRatio(doc.project.settings.storyboardAspect), o)}
           noNumbers
           disabled={nShots === 0 || busy}
           unavailable={nShots === 0 ? ['pdf', 'images'] : undefined}
