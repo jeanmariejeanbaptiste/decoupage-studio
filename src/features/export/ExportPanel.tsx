@@ -89,11 +89,26 @@ export function ExportPanel({
     }
   };
   const [busy, setBusy] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    // Échap ferme, d'où que vienne le focus ; il revient alors au bouton qui a ouvert le panneau.
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setOpen(false);
+      trigger.current?.focus();
+    };
     window.addEventListener('mousedown', close);
-    return () => window.removeEventListener('mousedown', close);
+    window.addEventListener('keydown', key);
+    // Au clavier, le focus entre dans le panneau, sur le choix coché.
+    (panel.current?.querySelector<HTMLElement>('input:checked') ?? panel.current?.querySelector<HTMLElement>('input, button'))?.focus({ preventScroll: true });
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', key);
+    };
   }, [open]);
   // Contenu changé : un format qu'il ne propose pas revient au premier proposé.
   const formatKeys = ['pdf', 'images', ...extra.map((f) => f.key)].filter((k) => !unavailable.includes(k)).join('|');
@@ -141,6 +156,8 @@ export function ExportPanel({
         icon={<Download size={15} strokeWidth={1.25} />}
         disabled={disabled || busy}
         aria-expanded={open}
+        aria-haspopup="dialog"
+        ref={trigger}
         onClick={() => {
           // Le panneau s'ouvre du côté où il a la place.
           setAlignLeft(
@@ -159,7 +176,7 @@ export function ExportPanel({
           className={[s.panel, alignLeft ? s.left : ''].join(' ')}
           role="dialog"
           aria-label={title ?? 'Exporter'}
-          onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+          ref={panel}
           data-testid={`${testId}-export-panel`}
         >
           {title && <p className={s.title}>{title}</p>}
@@ -175,7 +192,7 @@ export function ExportPanel({
             <>
               {!noOrientation && seg(
                 'ori',
-                'Format A4',
+                'Orientation',
                 [
                   ['landscape', 'Paysage'],
                   ['portrait', 'Portrait'],

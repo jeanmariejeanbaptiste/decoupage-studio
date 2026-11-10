@@ -73,8 +73,8 @@ async function boot(): Promise<void> {
   // Lien de relecture : la page d'arrivée l'ouvre elle-même.
   if (route === 'review') return;
   const seed = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('seed');
-  if (seed === 'rav3') return openDoc(buildRav3());
-  if (seed === 'fiction') return openDoc(buildFiction());
+  if (seed === 'rav3') return void (await openDoc(buildRav3()));
+  if (seed === 'fiction') return void (await openDoc(buildFiction()));
   // Rechargement pendant une relecture en ligne : elle se rouvre (l'accueil la referme).
   if (route === 'home') forgetReviewSession();
   else if (await resumeReview()) return;
@@ -227,6 +227,7 @@ export function App() {
           onToggleSidebar={showSidebar ? () => toggleSidebar() : undefined}
           doc={doc}
           saveStatus={doc && savesHere ? SAVE_LABEL[saveStatus] : ''}
+          saveError={!!doc && savesHere && saveStatus === 'error'}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={undo}

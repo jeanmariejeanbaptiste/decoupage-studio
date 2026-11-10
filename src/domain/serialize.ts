@@ -1,6 +1,7 @@
 import { richImageKeys } from './richText';
 import { ensureInterview, syncInterviewShots, upgradeInterview } from './interview';
 import { defaultSettings, makeBlock } from './factory';
+import { normalizeBlocks } from './ops';
 import { normalizeScenario } from './fountain';
 import { storedShots } from './versions';
 import { adoptUnversionedComments, commentAttachments } from './comments';
@@ -8,7 +9,7 @@ import { migrateDecorLocations } from './locations';
 import { migrateBreakdownCharacters } from './breakdown';
 import { normalizeProduction, syncProduction } from './production';
 import { ensureDayIds } from './schedule';
-import { activeColumns } from './columns';
+import { activeColumns, COLUMN_DEFS } from './columns';
 import { normalizeTiming } from './factory';
 import { EMPTY_CUSTOM_VOCABULARY } from './vocabulary';
 import { SCHEMA_VERSION, type ProjectDoc } from './types';
@@ -40,7 +41,9 @@ export function serializeDoc(doc: ProjectDoc, savedAt = new Date().toISOString()
 export function mediaOfFile(text: string): Record<string, MediaEntry> {
   try {
     const raw = JSON.parse(text) as { media?: Record<string, MediaEntry> };
-    return raw && typeof raw.media === 'object' && raw.media ? raw.media : {};
+    const media = raw && typeof raw.media === 'object' && raw.media ? raw.media : {};
+    // Entrées abîmées (sans données ni type) : ignorées.
+    return Object.fromEntries(Object.entries(media).filter(([, m]) => m && typeof m.data === 'string' && typeof m.type === 'string'));
   } catch {
     return {};
   }
@@ -99,72 +102,202 @@ export function parseProjectFile(text: string): ProjectDoc {
   if (!isObject(candidate) || !isObject(candidate.project)) throw new ProjectFileError('Ce fichier ne contient pas de projet Découpage Studio.');
   const version = isObject(raw) && typeof raw.schemaVersion === 'number' ? raw.schemaVersion : SCHEMA_VERSION;
   if (version > SCHEMA_VERSION) throw new ProjectFileError('Ce fichier provient d’une version plus récente de l’application.');
-  return migrate(candidate as unknown as ProjectDoc);
+  try {
+    return migrate(candidate as unknown as ProjectDoc);
+  } catch (e) {
+    // Jamais de message technique (en anglais) à l'écran : l'erreur reste dans la console.
+    if (e instanceof ProjectFileError) throw e;
+    console.error(e);
+    throw new ProjectFileError('Ce fichier est endommagé et n’a pas pu être ouvert.');
+  }
+}
+
+/** Tableau relu d'un fichier : autre chose qu'un tableau compte pour vide. */
+const list = <T>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
+const isText = (v: unknown): v is string => typeof v === 'string';
+/** Liste d'identifiants relue : entrées vides ou d'un autre type écartées, doublons retirés. */
+const ids = (x: unknown): string[] => [...new Set(list<unknown>(x).filter((v): v is string => isText(v) && v !== ''))];
+/** Entrées abîmées (null, texte, nombre) d'une table retirées. */
+function dropBroken(table: Record<string, unknown>): void {
+  for (const [id, v] of Object.entries(table)) if (!isObject(v)) delete table[id];
+}
+/** Champ facultatif d'un autre type que prévu (fichier abîmé) : retiré. */
+function dropIfNot(o: object, key: string, ok: (v: unknown) => boolean): void {
+  const r = o as Record<string, unknown>;
+  if (r[key] !== undefined && !ok(r[key])) delete r[key];
+}
+
+/**
+ * Réglages relus : un réglage nul ou d'un autre type que sa valeur par défaut la reprend (sinon
+ * `{ ...défauts, ...réglages }` laisserait passer un `null` qui fait planter l'affichage).
+ */
+function repairSettings(p: ProjectDoc['project']): void {
+  const def = defaultSettings(p.format ?? 'fiction') as unknown as Record<string, unknown>;
+  const st: Record<string, unknown> = { ...def, ...(isObject(p.settings) ? p.settings : {}) };
+  for (const [k, v] of Object.entries(def)) {
+    const cur = st[k];
+    if (cur === null || cur === undefined || Array.isArray(cur) !== Array.isArray(v) || typeof cur !== typeof v) st[k] = structuredClone(v);
+  }
+  for (const k of ['gridColumns', 'exportColumns', 'neverMerge']) st[k] = ids(st[k]).filter((c) => c in COLUMN_DEFS);
+  p.settings = st as unknown as ProjectDoc['project']['settings'];
+}
+
+/** Sections facultatives d'un autre type que prévu : retirées ; listes débarrassées des entrées nulles. */
+function repairSections(doc: ProjectDoc): void {
+  for (const k of ['scenario', 'intention', 'intentionHtml', 'activeVersionId']) dropIfNot(doc, k, isText);
+  for (const k of ['floorPlans', 'breakdown', 'geocodes', 'schedule', 'research', 'interview', 'review', 'production']) dropIfNot(doc, k, isObject);
+  const d = doc as unknown as Record<string, unknown>;
+  for (const k of ['versions', 'comments', 'clearedScenarios', 'calendar', 'breakdownExtra', 'equipmentExtra']) {
+    dropIfNot(doc, k, Array.isArray);
+    if (Array.isArray(d[k])) d[k] = (d[k] as unknown[]).filter(k.endsWith('Extra') ? isText : isObject);
+  }
+  for (const k of ['floorPlans', 'breakdown', 'geocodes'] as const) if (doc[k]) dropBroken(doc[k] as Record<string, unknown>);
+  // Adresse géocodée sans coordonnées valables (ni marquée introuvable) : la carte planterait ; on la recherchera.
+  for (const [key, g] of Object.entries(doc.geocodes ?? {})) if (g.missing !== true && !(Number.isFinite(g.lat) && Number.isFinite(g.lon))) delete doc.geocodes![key];
+  // Commentaires : sans identifiant ni ancre, ils ne s'afficheraient nulle part ; le reste est complété.
+  if (doc.comments) doc.comments = doc.comments.filter((c) => isText(c.id) && isObject(c.anchor));
+  for (const c of doc.comments ?? []) {
+    c.replies = list<unknown>(c.replies).filter(isObject) as unknown as typeof c.replies;
+    for (const x of [c, ...c.replies]) {
+      if (!isText(x.text)) x.text = '';
+      if (!isText(x.author)) x.author = '';
+      dropIfNot(x, 'attachments', Array.isArray);
+      if (x.attachments) x.attachments = x.attachments.filter(isText);
+    }
+  }
+  if (doc.schedule) {
+    doc.schedule.days = list<unknown>(doc.schedule.days).filter(isObject) as unknown as typeof doc.schedule.days;
+    dropIfNot(doc.schedule, 'order', Array.isArray);
+    if (doc.schedule.order) doc.schedule.order = ids(doc.schedule.order);
+  }
+  doc.ignoredChecks = list<unknown>(doc.ignoredChecks).filter(isText);
+  doc.validatedSteps = list<unknown>(doc.validatedSteps).filter((n): n is number => typeof n === 'number');
+  doc.manualEquipment = list<unknown>(doc.manualEquipment).filter(isObject) as unknown as typeof doc.manualEquipment;
+  const vocab = { ...structuredClone(EMPTY_CUSTOM_VOCABULARY), ...(isObject(doc.customVocabulary) ? doc.customVocabulary : {}) };
+  for (const k of Object.keys(EMPTY_CUSTOM_VOCABULARY) as Array<keyof typeof vocab>) {
+    vocab[k] = list<unknown>(vocab[k]).filter(isObject) as unknown as (typeof vocab)[typeof k];
+    for (const e of vocab[k]) if (!Array.isArray(e.aliases)) e.aliases = [];
+  }
+  doc.customVocabulary = vocab;
+}
+
+/**
+ * Structure du découpage remise d'aplomb (fichier abîmé, synchronisation interrompue, ancienne
+ * version) : entrées nulles retirées, chaque plan dans une seule séquence, chaque action contiguë
+ * dans la séquence de ses plans, références pendantes oubliées. Ne change rien à un projet sain.
+ */
+/**
+ * Versions rangées : chacune doit pouvoir redevenir la courante, donc tenir les mêmes règles. Une
+ * version sans contenu lisible n'est pas gardée (elle ferait planter le changement de version).
+ */
+function repairVersionSlices(doc: ProjectDoc): void {
+  if (!doc.versions) return;
+  doc.versions = doc.versions.filter((v) => isText(v.id) && (v.slice === undefined || (isObject(v.slice) && isObject(v.slice.sequences) && isObject(v.slice.shots) && isObject(v.slice.blocks))));
+  for (const v of doc.versions) {
+    if (!isText(v.name)) v.name = '';
+    const s = v.slice;
+    if (!s) continue;
+    if (s.scenario !== undefined && !isText(s.scenario)) delete s.scenario;
+    const view = { ...doc, project: { ...doc.project, sequenceIds: list<string>(s.sequenceIds) }, sequences: s.sequences, shots: s.shots, blocks: s.blocks };
+    repairStructure(view);
+    s.sequenceIds = view.project.sequenceIds;
+  }
+}
+
+function repairStructure(doc: ProjectDoc): void {
+  const p = doc.project;
+  for (const key of ['sequences', 'shots', 'blocks', 'characters', 'decors'] as const) dropBroken(doc[key] as Record<string, unknown>);
+  for (const table of [doc.characters, doc.decors]) {
+    for (const [id, x] of Object.entries(table)) {
+      x.id = id;
+      if (!isText(x.name)) x.name = '';
+      dropIfNot(x, 'aliases', Array.isArray);
+      if (x.aliases) x.aliases = list<unknown>(x.aliases).filter(isText);
+    }
+  }
+  const knownCharacters = (x: unknown) => ids(x).filter((id) => doc.characters[id]);
+  // Séquences présentes mais absentes de l'ordre : remises à la fin plutôt que perdues.
+  const order = ids(p.sequenceIds).filter((id) => doc.sequences[id]);
+  for (const id of Object.keys(doc.sequences)) if (!order.includes(id)) order.push(id);
+  p.sequenceIds = order;
+  // Un plan n'appartient qu'à une séquence : la première qui le liste.
+  const owner = new Map<string, string>();
+  for (const seqId of order) {
+    const seq = doc.sequences[seqId];
+    seq.id = seqId;
+    if (!isText(seq.label)) seq.label = '';
+    seq.characterIds = knownCharacters(seq.characterIds);
+    if (seq.decorId !== undefined && !doc.decors[seq.decorId]) delete seq.decorId;
+    seq.shotIds = ids(seq.shotIds).filter((id) => doc.shots[id] && !owner.has(id));
+    for (const id of seq.shotIds) owner.set(id, seqId);
+    seq.actionBlockIds = ids(seq.actionBlockIds);
+  }
+  for (const [id, b] of Object.entries(doc.blocks)) {
+    if (!isText(b.sequenceId) || !doc.sequences[b.sequenceId]) delete doc.blocks[id];
+    else {
+      b.id = id;
+      if (!isText(b.text)) b.text = '';
+    }
+  }
+  for (const [id, shot] of Object.entries(doc.shots)) {
+    const seqId = owner.get(id);
+    // Plan qu'aucune séquence ne liste : il ne s'affichait nulle part.
+    if (!seqId) {
+      delete doc.shots[id];
+      continue;
+    }
+    shot.id = id;
+    shot.sequenceId = seqId;
+    if (!isText(shot.subject)) shot.subject = '';
+    if (!isText(shot.value)) shot.value = '';
+    shot.characterIds = knownCharacters(shot.characterIds);
+    shot.angle = list<unknown>(shot.angle).filter(isText);
+    shot.movement = list<unknown>(shot.movement).filter(isText);
+    if (!isObject(shot.focal)) shot.focal = {};
+    shot.status ??= 'à tourner';
+    dropIfNot(shot, 'storyboard', isObject);
+    dropIfNot(shot, 'keyframes', Array.isArray);
+    if (shot.keyframes) shot.keyframes = shot.keyframes.filter(isObject);
+    dropIfNot(shot, 'mergeBreak', Array.isArray);
+    if (!doc.blocks[shot.actionBlockId]) {
+      const block = makeBlock(seqId, { text: '' });
+      doc.blocks[block.id] = block;
+      shot.actionBlockId = block.id;
+    }
+  }
+  // Actions contiguës et dans la séquence de leurs plans ; celles qu'aucun plan n'utilise partent.
+  for (const seqId of order) normalizeBlocks(doc, seqId);
+  for (const [id, b] of Object.entries(doc.blocks)) if (!doc.sequences[b.sequenceId].actionBlockIds.includes(id)) delete doc.blocks[id];
 }
 
 export function migrate(input: ProjectDoc): ProjectDoc {
   const doc = structuredClone(input);
   const p = doc.project;
+  if (!isObject(p)) throw new ProjectFileError('Ce fichier ne contient pas de projet Découpage Studio.');
   for (const key of ['sequences', 'shots', 'blocks', 'characters', 'decors'] as const) {
     if (!isObject(doc[key])) throw new ProjectFileError(`Section « ${key} » manquante ou invalide.`);
   }
   if (!Array.isArray(p.sequenceIds)) throw new ProjectFileError('Ordre des séquences manquant.');
   if (typeof p.id !== 'string' || !p.id) throw new ProjectFileError('Identifiant de projet manquant.');
-  p.settings = { ...defaultSettings(p.format ?? 'fiction'), ...(p.settings ?? {}) };
+  repairSettings(p);
   p.settings.gridColumns = activeColumns(p.settings.gridColumns);
   p.settings.exportColumns = activeColumns(p.settings.exportColumns);
   // Projets d'avant le mode « durée de chaque plan » : ils y passent, sauf choix explicite.
   if (p.settings.tcMode === 'cumulatif' && !p.settings.tcModeChosen) p.settings.tcMode = 'duree';
+  // Données abîmées (fichier modifié à la main, synchronisation interrompue, ancienne version) :
+  // réparées plutôt que de faire planter l'affichage.
+  repairSections(doc);
+  repairStructure(doc);
+  repairVersionSlices(doc);
   normalizeTiming(doc);
   upgradeInterview(doc);
   if (p.format === 'institutionnel') ensureInterview(doc);
   p.schemaVersion = SCHEMA_VERSION;
-  p.title = p.title ?? 'Projet sans titre';
-  p.version = p.version ?? 'V1';
-  doc.ignoredChecks ??= [];
-  doc.validatedSteps ??= [];
-  doc.customVocabulary = { ...structuredClone(EMPTY_CUSTOM_VOCABULARY), ...(doc.customVocabulary ?? {}) };
-  doc.manualEquipment ??= [];
+  if (!isText(p.title)) p.title = 'Projet sans titre';
+  if (!isText(p.version)) p.version = 'V1';
   migrateDecorLocations(doc);
   // Commentaires d'avant les versions : à la première, pour ne plus suivre le texte des suivantes.
   if (doc.versions?.length) adoptUnversionedComments(doc, doc.versions[0].id);
-  // Références cassées (fichier abîmé, ancienne version, synchronisation interrompue) : réparées
-  // plutôt que de faire planter l'affichage.
-  p.sequenceIds = p.sequenceIds.filter((id, i, all) => isObject(doc.sequences[id]) && all.indexOf(id) === i);
-  for (const seq of Object.values(doc.sequences)) {
-    seq.label ??= '';
-    seq.characterIds ??= [];
-    seq.shotIds = (seq.shotIds ?? []).filter((id) => isObject(doc.shots[id]));
-    seq.actionBlockIds ??= [];
-  }
-  for (const [id, shot] of Object.entries(doc.shots)) {
-    const seq = doc.sequences[shot.sequenceId];
-    if (!seq || !seq.shotIds.includes(id)) {
-      delete doc.shots[id];
-      continue;
-    }
-    shot.id = id;
-    shot.subject ??= '';
-    shot.value ??= '';
-    shot.characterIds ??= [];
-    shot.angle ??= [];
-    shot.movement ??= [];
-    shot.focal ??= {};
-    shot.status ??= 'à tourner';
-    if (!doc.blocks[shot.actionBlockId]) {
-      const block = makeBlock(seq.id, { text: '' });
-      doc.blocks[block.id] = block;
-      shot.actionBlockId = block.id;
-    }
-  }
-  for (const [id, b] of Object.entries(doc.blocks)) {
-    if (!doc.sequences[b.sequenceId]) delete doc.blocks[id];
-    else b.text ??= '';
-  }
-  for (const seq of Object.values(doc.sequences)) {
-    const used = new Set(seq.shotIds.map((id) => doc.shots[id].actionBlockId));
-    seq.actionBlockIds = [...new Set([...seq.actionBlockIds.filter((id) => used.has(id)), ...used])];
-  }
   // Mode « durée de chaque plan » : l'ancienne durée d'action (× nombre de plans) devient la durée de chaque plan.
   if (p.settings.tcMode === 'duree') {
     for (const seq of Object.values(doc.sequences)) {
@@ -210,13 +343,19 @@ export function withoutReview(doc: ProjectDoc): ProjectDoc {
   return out;
 }
 
+/** Longueur maximale du nom (avant l'extension) : loin des 255 octets des systèmes de fichiers. */
+const MAX_BASE = 80;
+
 export function fileNameFor(doc: ProjectDoc): string {
+  // Accents des lettres latines retirés ; les autres écritures (cyrillique, grec, japonais…) gardées.
   const base = `${doc.project.title || 'projet'} ${doc.project.version ?? ''}`
     .trim()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^\w-]+/g, '-')
+    .replace(/([A-Za-z])[̀-ͯ]+/g, '$1')
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{M}\p{N}_-]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
-  return `${base || 'projet'}${FILE_EXTENSION}`;
+  const short = Array.from(base).slice(0, MAX_BASE).join('').replace(/-+$/, '');
+  return `${short || 'projet'}${FILE_EXTENSION}`;
 }

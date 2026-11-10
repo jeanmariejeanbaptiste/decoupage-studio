@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { projectCopy } from '../domain/serialize';
 import { db, deleteProject, saveProject } from './db';
-import { pruneOrphanBlobs } from './persistence';
+import { holdTabLock, otherTabsOpen, pruneOrphanBlobs } from './persistence';
 
 describe('ménage des images', () => {
   it('retire les images qu’aucun projet n’utilise, garde les autres', async () => {
@@ -21,6 +21,27 @@ describe('ménage des images', () => {
     expect(await pruneOrphanBlobs()).toBe(2);
     const left = (await db.blobs.toCollection().primaryKeys()).sort();
     expect(left).toEqual([`${doc.project.id}:fond`, `${doc.project.id}:gardee`]);
+  });
+
+  it('ne touche à rien quand un autre onglet est ouvert (son historique peut rétablir une image)', async () => {
+    const blob = new Blob(['x'], { type: 'image/png' });
+    await db.blobs.put({ key: 'ailleurs:remplacee', projectId: 'ailleurs', name: 'r.png', blob });
+    const nav = navigator as unknown as { locks?: unknown };
+    const holders = [{ name: 'ds-tabs' }];
+    nav.locks = { request: () => new Promise(() => undefined), query: async () => ({ held: holders }) };
+    try {
+      holdTabLock();
+      // Un second onglet tient aussi le verrou : pas de ménage.
+      holders.push({ name: 'ds-tabs' });
+      expect(await otherTabsOpen()).toBe(true);
+      expect(await pruneOrphanBlobs()).toBe(0);
+      expect(await db.blobs.get('ailleurs:remplacee')).toBeDefined();
+      holders.pop();
+      expect(await otherTabsOpen()).toBe(false);
+      expect(await pruneOrphanBlobs()).toBe(1);
+    } finally {
+      delete nav.locks;
+    }
   });
 });
 

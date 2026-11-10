@@ -1,13 +1,42 @@
 import { setCellText } from './cells';
-import { COLUMN_DEFS } from './columns';
+import { activeColumns, COLUMN_DEFS } from './columns';
 import { addSequence, addShot, linkAction } from './ops';
 import { exportCellText } from './rows';
 import { fold } from './text';
 import { shotCode } from './numbering';
+import { parseRange, parseTc } from './timecode';
 import { computeTiming } from './timing';
 import { DEFAULT_COLUMNS, OPTIONAL_COLUMNS, type ColumnKey, type ProjectDoc } from './types';
 
-export const CSV_COLUMNS: readonly ColumnKey[] = [...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS];
+/** Colonnes proposées à l'import : les colonnes abandonnées (personnages, lumière…) n'importeraient rien. */
+export const CSV_COLUMNS: readonly ColumnKey[] = activeColumns([...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS]);
+
+/**
+ * Texte d'un fichier importé : UTF-8 (avec ou sans BOM), sinon Windows-1252, l'encodage des CSV
+ * qu'Excel enregistre sous Windows (« Séquence » y deviendrait « S�quence »).
+ */
+export function decodeText(buf: ArrayBuffer | Uint8Array): string {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  // « Texte Unicode » d'Excel : UTF-16 avec sa marque d'ordre des octets.
+  if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder('utf-16le').decode(b.subarray(2));
+  if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder('utf-16be').decode(b.subarray(2));
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^\uFEFF/, '');
+  } catch {
+    return new TextDecoder('windows-1252').decode(buf);
+  }
+}
+
+/**
+ * Mode de minutage d'une colonne TC importée : « piste » si la plupart des valeurs non vides sont
+ * des plages (« 0:00 - 0:35 »), comme dans l'export d'un découpage calé sur une piste.
+ */
+export function tcModeOfColumn(values: readonly string[]): 'piste' | undefined {
+  const filled = values.map((v) => v.trim()).filter(Boolean);
+  if (!filled.length) return undefined;
+  const ranges = filled.filter((v) => parseTc(v)?.kind !== 'sec' && parseRange(v) !== null && /\d/.test(v)).length;
+  return ranges * 2 > filled.length ? 'piste' : undefined;
+}
 
 /** Cellule protégée : une valeur qui commence par = + - @ ne devient pas une formule dans un tableur. */
 export const safeCell = (v: string) => (/^[=+\-@\t\r]/.test(v) && !/^-?\d+([.,]\d+)?$/.test(v) ? `'${v}` : v);
@@ -87,7 +116,8 @@ const HEADER_ALIASES: Partial<Record<ColumnKey, string[]>> = {
   aperture: ['ouverture', 'diaphragme', 'diaph', 'iris', 'f stop'],
   sound: ['son', 'sound'],
   light: ['lumiere', 'eclairage'],
-  notes: ['notes', 'remarques', 'commentaires', 'raccord'],
+  // « Image » : en-tête de la colonne des notes dans l'export (« Image storyboard » reste à part).
+  notes: ['notes', 'remarques', 'commentaires', 'raccord', 'image'],
   status: ['statut', 'etat'],
   shootingDay: ['jour', 'jour de tournage'],
 };
@@ -97,8 +127,9 @@ export function guessMapping(headers: readonly string[]): Array<ColumnKey | null
   const used = new Set<ColumnKey>();
   return headers.map((h) => {
     const f = fold(h).replace(/[^\p{L}\p{N}° ]/gu, '').trim();
+    // Seules les colonnes proposées à l'import : une colonne abandonnée (lumière…) n'écrirait qu'un champ invisible.
     const found = (Object.keys(HEADER_ALIASES) as ColumnKey[]).find(
-      (k) => !used.has(k) && (HEADER_ALIASES[k] ?? []).some((a) => fold(a) === f),
+      (k) => CSV_COLUMNS.includes(k) && !used.has(k) && (HEADER_ALIASES[k] ?? []).some((a) => fold(a) === f),
     );
     if (found) used.add(found);
     return found ?? null;
@@ -108,6 +139,8 @@ export function guessMapping(headers: readonly string[]): Array<ColumnKey | null
 /**
  * Importe des lignes dans le projet : une nouvelle séquence à chaque changement de libellé,
  * et les actions identiques consécutives sont liées. Renvoie le nombre de plans créés.
+ * Une ligne liée à la précédente ne réécrit pas le bloc commun (action, réplique, plage de TC) :
+ * la réplique répétée sur chaque ligne d'un export ne se retrouve pas bout à bout.
  */
 export function importRows(doc: ProjectDoc, rows: readonly (readonly string[])[], mapping: readonly (ColumnKey | null)[]): number {
   const seqCol = mapping.indexOf('sequence');
@@ -128,11 +161,12 @@ export function importRows(doc: ProjectDoc, rows: readonly (readonly string[])[]
     }
     const shotId = addShot(doc, seqId);
     created++;
-    mapping.forEach((col, j) => {
-      if (col && col !== 'sequence' && col !== 'number') setCellText(doc, shotId, col, row[j] ?? '');
-    });
     const action = actionCol >= 0 ? (row[actionCol] ?? '').trim() : '';
-    if (prevShot && action && action === prevAction) linkAction(doc, [prevShot, shotId]);
+    const linked = !!prevShot && !!action && action === prevAction && !!linkAction(doc, [prevShot, shotId]);
+    const blockCol = (col: ColumnKey) => col === 'action' || col === 'dialogue' || (col === 'tc' && doc.project.settings.tcMode !== 'duree');
+    mapping.forEach((col, j) => {
+      if (col && col !== 'sequence' && col !== 'number' && !(linked && blockCol(col))) setCellText(doc, shotId, col, row[j] ?? '');
+    });
     prevShot = shotId;
     prevAction = action;
   }

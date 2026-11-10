@@ -140,8 +140,19 @@ export function deleteSequence(doc: ProjectDoc, seqId: ID): void {
   if (!keptElsewhere(doc, 'sequences', seqId)) {
     for (const key of planKeysOfSequence(doc, seqId)) delete doc.floorPlans![key];
     if (doc.breakdown) delete doc.breakdown[seqId];
+    if (doc.schedule?.order) doc.schedule.order = doc.schedule.order.filter((id) => id !== seqId);
   }
-  for (const id of seq.shotIds) delete doc.shots[id];
+  for (const id of seq.shotIds) {
+    // Comme pour un plan supprimé seul : caméras des autres plans au sol, créneaux et reprises.
+    if (!keptElsewhere(doc, 'shots', id)) {
+      unlinkShotFromPlans(doc, id, true);
+      for (const d of doc.schedule?.days ?? []) {
+        if (d.timeline?.[id]) delete d.timeline[id];
+        if (d.parts?.[id]) delete d.parts[id];
+      }
+    }
+    delete doc.shots[id];
+  }
   for (const b of Object.values(doc.blocks)) if (b.sequenceId === seqId) delete doc.blocks[b.id];
   delete doc.sequences[seqId];
   doc.project.sequenceIds = doc.project.sequenceIds.filter((id) => id !== seqId);

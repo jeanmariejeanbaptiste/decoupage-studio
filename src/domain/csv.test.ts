@@ -1,7 +1,8 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { detectDelimiter, guessMapping, importRows, parseDelimited, toCsv } from './csv';
+import { ALL_COLUMNS, RETIRED_COLUMNS } from './columns';
+import { CSV_COLUMNS, decodeText, detectDelimiter, guessMapping, importRows, parseDelimited, tcModeOfColumn, toCsv } from './csv';
 import { createProjectDoc } from './factory';
 import { checkInvariants } from './ops';
 
@@ -54,5 +55,74 @@ describe('CSV', () => {
     });
     expect(doc.project.sequenceIds).toHaveLength(1);
     expect(checkInvariants(doc)).toEqual([]);
+  });
+
+  it('une réplique répétée sur des lignes liées reste une seule réplique', () => {
+    const rows = [1, 2, 3].map(() => ['1, CUISINE', 'Elle entre', '0:30', 'Salut']);
+    const doc = produce(createProjectDoc({ title: 'x', format: 'fiction' }), (d) => {
+      importRows(d, rows, ['sequence', 'action', 'tc', 'dialogue']);
+    });
+    const seq = doc.sequences[doc.project.sequenceIds[0]];
+    expect(seq.shotIds).toHaveLength(3);
+    expect(seq.actionBlockIds).toHaveLength(1);
+    expect(doc.blocks[seq.actionBlockIds[0]].dialogue).toBe('Salut');
+    expect(doc.blocks[seq.actionBlockIds[0]].text).toBe('Elle entre');
+    expect(checkInvariants(doc)).toEqual([]);
+  });
+
+  it('aller-retour : la colonne Dialogue et les notes (« Image ») reviennent à l’identique', () => {
+    const src = produce(buildRav3(), (d) => {
+      const s1 = d.sequences[d.project.sequenceIds[0]];
+      d.blocks[d.shots[s1.shotIds[0]].actionBlockId].dialogue = 'Bonjour';
+      d.shots[s1.shotIds[1]].notes = 'Contre-jour, raccord regard';
+    });
+    const cols = [...src.project.settings.exportColumns, 'dialogue', 'notes'] as const;
+    const csv = toCsv(src, cols);
+    const rows = parseDelimited(csv);
+    const mapping = guessMapping(rows[0]);
+    expect(mapping).toContain('notes');
+    const doc = produce(createProjectDoc({ title: 'Import', format: 'clip' }), (d) => {
+      importRows(d, rows.slice(1), mapping);
+    });
+    expect(toCsv(doc, cols)).toBe(csv);
+  });
+
+  it('reconnaît « Image » comme la colonne des notes, pas « Image storyboard »', () => {
+    expect(guessMapping(['Image'])).toEqual(['notes']);
+    expect(guessMapping(['Image storyboard'])).toEqual([null]);
+  });
+
+  it('ne propose pas les colonnes abandonnées', () => {
+    expect(CSV_COLUMNS.filter((c) => RETIRED_COLUMNS.includes(c))).toEqual([]);
+    expect(ALL_COLUMNS.every((c) => CSV_COLUMNS.includes(c))).toBe(true);
+    expect(guessMapping(['Lumière', 'Éclairage', 'Sujet'])).toEqual([null, null, 'subject']);
+  });
+
+  it('décode un CSV Windows-1252 comme un CSV UTF-8', () => {
+    expect(decodeText(Uint8Array.from([0x53, 0xe9, 0x71]))).toBe('Séq');
+    const utf8 = new TextEncoder().encode('\uFEFFSéquence;Léa');
+    expect(decodeText(utf8)).toBe('Séquence;Léa');
+    expect(decodeText(Uint8Array.from([0xff, 0xfe, 0x53, 0, 0xe9, 0, 0x71, 0]))).toBe('Séq');
+    expect(decodeText(Uint8Array.from([0xfe, 0xff, 0, 0x53, 0, 0xe9, 0, 0x71]))).toBe('Séq');
+  });
+
+  it('reconnaît une colonne TC en plages de piste', () => {
+    expect(tcModeOfColumn(['0:00 - 0:12', '0:12 - 0:30', ''])).toBe('piste');
+    expect(tcModeOfColumn(['0:05'])).toBeUndefined();
+    expect(tcModeOfColumn([])).toBeUndefined();
+    expect(tcModeOfColumn(['TOUT', 'texte'])).toBeUndefined();
+  });
+
+  it('aller-retour du TC en piste dans un nouveau projet', () => {
+    const src = buildRav3();
+    const rows = parseDelimited(toCsv(src));
+    const mapping = guessMapping(rows[0]);
+    const tc = mapping.indexOf('tc');
+    expect(tcModeOfColumn(rows.slice(1).map((r) => r[tc]))).toBe('piste');
+    const doc = produce(createProjectDoc({ title: 'Import', format: 'fiction' }), (d) => {
+      d.project.settings.tcMode = 'piste';
+      importRows(d, rows.slice(1), mapping);
+    });
+    expect(parseDelimited(toCsv(doc, src.project.settings.exportColumns)).map((r) => r[tc])).toEqual(rows.map((r) => r[tc]));
   });
 });
