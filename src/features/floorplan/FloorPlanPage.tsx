@@ -62,6 +62,7 @@ import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { isZoom } from '../../domain/vocabulary';
 import { canMutate, mutateDoc, useProjectStore } from '../../store/projectStore';
+import { isShortcut, shortcutLabel } from '../../store/shortcuts';
 import { ask } from '../../ui/dialogStore';
 import { useDraft } from '../../ui/useDraft';
 import { useUi } from '../../store/uiStore';
@@ -80,6 +81,7 @@ import {
   DIMENSION_REACH,
   LIGHT_PRESETS,
   OPENING_LIMITS,
+  openingDefault,
   ROOM_LIMITS,
   ROOM_PRESETS,
   WORLD,
@@ -325,6 +327,14 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // Onglets sur une ligne qui défile : la vue active reste visible.
   const tabsRef = useRef<HTMLDivElement>(null);
   const pressTimer = useRef<number>();
+  // Départ de la page : l'historique reprend, la minuterie d'appui long s'arrête.
+  useEffect(
+    () => () => {
+      endGesture();
+      window.clearTimeout(pressTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
     tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [planKey]);
@@ -774,17 +784,24 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       ArrowDown: [0, step],
     };
     const isRotate = (e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey;
-    // Une touche maintenue (flèche, R) = une seule étape d'annulation ; toute autre touche la clôt.
-    if (!moves[e.key] && !isRotate) endGesture();
+    // Une touche maintenue (flèche, R) = une seule étape d'annulation, close à son relâchement ;
+    // une autre modification (hors touches de modification seules) la clôt avant de s'enregistrer.
+    if (!moves[e.key] && !isRotate && !['Shift', 'Alt', 'Control', 'Meta'].includes(e.key)) endGesture();
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      e.preventDefault();
+      setMulti(items.map((i) => i.id));
+      setSelected(null);
+      return;
+    }
     if (!canMutate()) {
-      // Lecture seule : seule la sélection se défait.
+      // Lecture seule : seule la sélection se fait et se défait.
       if (e.key === 'Escape') {
         setSelected(null);
         setMulti([]);
       }
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'd') {
+    if (isShortcut(e, 'duplicate')) {
       e.preventDefault();
       const ids = multi.length > 1 ? multi : sel ? [sel.id] : [];
       if (ids.length) duplicateSelection(ids);
@@ -814,12 +831,6 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     if (!e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && HOTKEYS[e.key.toLowerCase()]) {
       e.preventDefault();
       setTool(HOTKEYS[e.key.toLowerCase()]);
-      return;
-    }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-      e.preventDefault();
-      setMulti(items.map((i) => i.id));
-      setSelected(null);
       return;
     }
     if (e.key === 'Escape' && !sel) {
@@ -1401,7 +1412,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             onKeyDown={onKey}
             onKeyUp={(e) => {
               if (e.key === ' ') setSpaceDown(false);
-              endGesture();
+              // L'étape d'annulation d'une touche maintenue se clôt à son relâchement.
+              if (e.key.startsWith('Arrow') || e.key === 'r' || e.key === 'R') endGesture();
             }}
             onBlur={() => {
               setSpaceDown(false);
@@ -1557,7 +1569,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 >
                   Retirer
                 </Button>
-                <Button variant="icon" size="sm" icon={<Copy size={13} strokeWidth={1.4} />} aria-label="Dupliquer" title="Dupliquer (Ctrl+D)" onClick={() => duplicateSelection(multi)} data-testid="fp-duplicate" />
+                <Button variant="icon" size="sm" icon={<Copy size={13} strokeWidth={1.4} />} aria-label="Dupliquer" title={`Dupliquer (${shortcutLabel('duplicate')})`} onClick={() => duplicateSelection(multi)} data-testid="fp-duplicate" />
               </div>
             </section>
           ) : sel ? (
@@ -1833,19 +1845,21 @@ function ItemShape({
     case 'door':
     case 'window': {
       const h = handle(item.rot + 90, 40);
+      // Donnée ancienne sans largeur : la largeur par défaut.
+      const ow = Number.isFinite(item.width) ? item.width : openingDefault(item.kind);
       return (
         <g className={cls}>
           <g transform={`rotate(${item.rot} ${item.x} ${item.y})`} onPointerDown={(e) => onDown(e, item.id)}>
             {item.kind === 'door' ? (
               <>
-                <line x1={item.x} y1={item.y} x2={item.x + item.width} y2={item.y} className={s.doorGap} />
+                <line x1={item.x} y1={item.y} x2={item.x + ow} y2={item.y} className={s.doorGap} />
                 <path
-                  d={`M ${item.x} ${item.y} L ${item.x} ${item.y + item.width} A ${item.width} ${item.width} 0 0 0 ${item.x + item.width} ${item.y}`}
+                  d={`M ${item.x} ${item.y} L ${item.x} ${item.y + ow} A ${ow} ${ow} 0 0 0 ${item.x + ow} ${item.y}`}
                   className={s.door}
                 />
               </>
             ) : (
-              <rect x={item.x} y={item.y - 4} width={item.width} height={8} className={s.window} />
+              <rect x={item.x} y={item.y - 4} width={ow} height={8} className={s.window} />
             )}
           </g>
           {selected && (
@@ -1956,28 +1970,35 @@ const KIND_ICON: Record<FloorKind | 'practical', JSX.Element> = Object.fromEntri
 
 /**
  * Repère d'un élément : appliqué après une pause ou en quittant le champ (une étape d'annulation).
- * Un repère vide n'est jamais enregistré : en quittant le champ, il reprend sa valeur.
+ * `required` (comédien) : un repère vide n'est pas enregistré ; Entrée laisse le champ tel quel,
+ * en le quittant il reprend sa valeur.
  */
-function LabelField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+function LabelField({ value, onCommit, required = false }: { value: string; onCommit: (v: string) => void; required?: boolean }) {
   const [round, setRound] = useState(0);
-  return <LabelInput key={round} value={value} onCommit={onCommit} onBlank={() => setRound((r) => r + 1)} />;
+  return <LabelInput key={round} value={value} onCommit={onCommit} required={required} onBlank={() => setRound((r) => r + 1)} />;
 }
 
-function LabelInput({ value, onCommit, onBlank }: { value: string; onCommit: (v: string) => void; onBlank: () => void }) {
+function LabelInput({ value, onCommit, required, onBlank }: { value: string; onCommit: (v: string) => void; required: boolean; onBlank: () => void }) {
   const [draft, setDraft, flush] = useDraft(value, (v) => {
-    if (v.trim()) onCommit(v);
+    if (!required || v.trim()) onCommit(v);
   });
-  const done = () => {
-    flush();
-    if (!draft.trim()) onBlank();
-  };
+  const blank = required && !draft.trim();
   return (
     <label className={s.field}>
       <span>Repère</span>
-      <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={done} onKeyDown={(e) => e.key === 'Enter' && done()} />
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          flush();
+          if (blank) onBlank();
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && !blank && flush()}
+      />
     </label>
   );
 }
+
 
 /** Largeur d'une porte ou d'une fenêtre : saisie libre, bornée à la validation. */
 function WidthField({ value, onCommit }: { value: number; onCommit: (w: number) => void }) {
@@ -2071,7 +2092,7 @@ function Properties({
         item.kind === 'reflector' ||
         item.kind === 'diffuser' ||
         item.kind === 'flag') && (
-        <LabelField key={item.id} value={item.label ?? ''} onCommit={(v) => update({ label: v } as Partial<FloorItem>)} />
+        <LabelField key={item.id} value={item.label ?? ''} required={item.kind === 'actor'} onCommit={(v) => update({ label: v } as Partial<FloorItem>)} />
       )}
       {beats > 0 && (item.kind === 'camera' || item.kind === 'actor') && (
         <label className={s.field}>
@@ -2196,7 +2217,7 @@ function Properties({
         </>
       )}
       {(item.kind === 'door' || item.kind === 'window') && (
-        <WidthField key={item.id} value={item.width} onCommit={(w) => update({ width: w } as Partial<FloorItem>)} />
+        <WidthField key={item.id} value={Number.isFinite(item.width) ? item.width : openingDefault(item.kind)} onCommit={(w) => update({ width: w } as Partial<FloorItem>)} />
       )}
       <div className={s.actions}>
         <Button
@@ -2211,7 +2232,7 @@ function Properties({
           {isRoomWall(item) ? 'Retirer ce côté' : 'Retirer'}
         </Button>
         {!isRoomWall(item) && (
-          <Button variant="icon" size="sm" icon={<Copy size={13} strokeWidth={1.4} />} aria-label="Dupliquer" title="Dupliquer (Ctrl+D)" onClick={() => onDuplicate([item.id])} data-testid="fp-duplicate" />
+          <Button variant="icon" size="sm" icon={<Copy size={13} strokeWidth={1.4} />} aria-label="Dupliquer" title={`Dupliquer (${shortcutLabel('duplicate')})`} onClick={() => onDuplicate([item.id])} data-testid="fp-duplicate" />
         )}
       </div>
     </div>
