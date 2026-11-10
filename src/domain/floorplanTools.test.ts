@@ -163,3 +163,39 @@ describe('dupliquer des éléments', () => {
     expect(shotCameras(doc, shot)).toHaveLength(1);
   });
 });
+
+describe('cas limites relevés en relecture', () => {
+  it('mur plus court que l’ouverture : elle ne s’y couche pas', () => {
+    const { doc, seq } = setup();
+    addFloorItem(doc, seq, 'wall', { x: 0, y: 0 }, { x: 60, y: 0 });
+    const door = addFloorItem(doc, seq, 'door', { x: 20, y: 0 });
+    expect(find(doc, seq, door)).toMatchObject({ x: 20, y: 0, rot: 0, width: 80 });
+    expect(fitOpeningToWall(planOf(doc, seq).items, { x: 20, y: 0 }, 80)).toBeUndefined();
+  });
+
+  it('données anciennes : porte sans largeur, comédien sans repère', () => {
+    const { doc, seq } = setup();
+    setRoom(doc, seq, { w: 5, l: 6 });
+    doc.floorPlans![seq].items.push(
+      { id: 'old-door', kind: 'door', x: 200, y: 300, rot: 0 } as unknown as FloorItem,
+      { id: 'old-actor', kind: 'actor', x: 100, y: 100, beat: 1 } as unknown as FloorItem,
+    );
+    moveFloorItem(doc, seq, 'old-door', 0, -300);
+    expect(find(doc, seq, 'old-door')).toMatchObject({ x: 200, y: 0, rot: 0 });
+    updateFloorItem(doc, seq, 'old-door', { rot: 0 } as Partial<FloorItem>);
+    expect(find(doc, seq, 'old-door')).toMatchObject({ width: 80 });
+    const actor = find(doc, seq, 'old-actor') as Extract<FloorItem, { kind: 'actor' }>;
+    expect(actorCaption(doc, actor)).toBe('');
+    expect(planInventory(doc, planOf(doc, seq).items).find((r) => r.id === 'old-actor')?.name).toBe('Comédien');
+    expect(choreography(planOf(doc, seq).items)).toHaveLength(1);
+  });
+
+  it('caméras au-delà de CAM Z : CAM Z2, CAM Z3…', () => {
+    const { doc, seq } = setup();
+    let last = '';
+    for (let k = 0; k < 27; k++) last = addFloorItem(doc, seq, 'camera', { x: k * 20, y: 0 });
+    expect((find(doc, seq, last) as { label?: string }).label).toBe('CAM Z2');
+    const [copy] = duplicateFloorItems(doc, seq, [last]);
+    expect((find(doc, seq, copy) as { label?: string }).label).toBe('CAM Z3');
+  });
+});
