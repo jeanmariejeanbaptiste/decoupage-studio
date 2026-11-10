@@ -1,0 +1,12 @@
+.toggle { display: inline-flex; align-items: center; gap: 24px; height: 32px; }
+.toggle button {
+  position: relative; height: 32px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 13.5px; color: var(--ink-soft); white-space: nowrap;
+}
+/* Place de la graisse active réservée : rien ne bouge d'un choix à l'autre. */
+.toggle button { display: inline-flex; flex-direction: column; justify-content: center; }
+.toggle button::before { content: attr(data-label); height: 0; overflow: hidden; visibility: hidden; font-weight: 500; }
+.toggle button:hover { color: var(--ink); }
+.toggle .on { color: var(--ink); font-weight: 500; }
+/* Soulignement de 1,5 px, 8 px sous la ligne de base. */
+.toggle .on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 3px; height: 1.5px; background: var(--ink); }

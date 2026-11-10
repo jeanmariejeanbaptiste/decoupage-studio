@@ -56,3 +56,28 @@ export function useLocation(): Location {
   // Même adresse, même objet : les effets qui dépendent des paramètres ne se relancent pas à chaque rendu.
   return useMemo(() => parseHash(hash), [hash]);
 }
+
+/** Sous-pages du Scénario, dans l'ordre du travail. */
+export type ScenarioView = 'outline' | 'script' | 'cut' | 'stats';
+export const SCENARIO_VIEWS: readonly ScenarioView[] = ['outline', 'script', 'cut', 'stats'];
+export const isScenarioView = (v: string | null | undefined): v is ScenarioView => (SCENARIO_VIEWS as readonly string[]).includes(v ?? '');
+
+/**
+ * Lecture de `#/scenario?view=<v>[&seq=N][&report=<r>]`. `?seq=N` sans `view` mène au texte
+ * (liens d'avant les sous-pages, comparaison des versions).
+ */
+export function scenarioLocation(params: URLSearchParams): { view?: ScenarioView; seq?: number; report?: string } {
+  const v = params.get('view');
+  const n = Math.floor(Number(params.get('seq')));
+  const seq = n > 0 ? n : undefined;
+  const view = isScenarioView(v) ? v : seq ? 'script' : undefined;
+  return { view, seq, report: params.get('report') ?? undefined };
+}
+
+/** Adresse d'une sous-page du Scénario. */
+export function scenarioHref(view: ScenarioView, extra: { seq?: number; report?: string } = {}): string {
+  const q = new URLSearchParams({ view });
+  if (extra.seq) q.set('seq', String(extra.seq));
+  if (extra.report) q.set('report', extra.report);
+  return `#/scenario?${q.toString()}`;
+}

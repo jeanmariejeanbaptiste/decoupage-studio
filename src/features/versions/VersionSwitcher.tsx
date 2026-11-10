@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Eraser, GitCompare, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
+import { Check, ChevronDown, Eraser, FileUp, GitCompare, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
 import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
@@ -19,7 +19,7 @@ const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short
  * Versions du film, communes au scénario et au découpage : on passe de l'une à l'autre, on en crée une
  * (copie de la courante : tout ce qui y reste garde sa préparation). Les autres pages suivent la courante.
  */
-export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
+export function VersionSwitcher({ doc, onImport }: { doc: ProjectDoc; /** Page Scénario : « Importer un texte… » en fin de menu (un import est une opération de version). */ onImport?: () => void }) {
   const readOnly = useReadOnly();
   const drive = useDriveReview();
   const [open, setOpen] = useState(false);
@@ -90,7 +90,7 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
 
   return (
     <div className={s.wrap} ref={ref}>
-      <button type="button" className={s.trigger} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title="Version du scénario et du découpage" data-testid="version-switcher">
+      <button type="button" className={s.trigger} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title="Versions" data-testid="version-switcher">
         {current.name}
         <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
       </button>
@@ -211,6 +211,20 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
             </button>
           )}
           {!readOnly && <ClearScenario doc={doc} name={current.name} onDone={() => setOpen(false)} />}
+          {!readOnly && onImport && (
+            <button
+              type="button"
+              className={s.add}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onImport();
+              }}
+              data-testid="version-import"
+            >
+              <FileUp size={13} strokeWidth={1.5} /> Importer un texte…
+            </button>
+          )}
         </div>
       )}
     </div>

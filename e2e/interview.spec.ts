@@ -52,7 +52,7 @@ test('institutionnel : fiche d’interview, placée dans le découpage (lignes 1
 
   // Vue Découpage du scénario : les mêmes numéros que le tableau.
   await page.goto('/#/scenario');
-  await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
+  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
   await expect(page.getByTestId('scenario-cut')).toContainText('1A');
   await expect(page.getByTestId('scenario-cut')).toContainText('1B');
 });

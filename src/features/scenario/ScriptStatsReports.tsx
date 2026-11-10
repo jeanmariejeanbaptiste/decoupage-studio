@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
-import { ImageDown, Printer } from 'lucide-react';
+import { useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import type { SBlock } from '../../domain/screenplay';
 import { characterReports, locationReports, sceneReports, sidesOf, type SceneInfo } from '../../domain/scriptReports';
 import { blockLabel, isEmptyBlock } from '../../domain/screenplay';
@@ -9,8 +8,9 @@ import s from './ScriptStatsReports.module.css';
 
 import { chronoOf, chronoTimeline, mmss, printedText } from '../../domain/chronometry';
 
-type Report = 'summary' | 'scenes' | 'decors' | 'characters' | 'dialogues' | 'structure' | 'activity';
-const REPORTS: ReadonlyArray<[Report, string, string]> = [
+export type Report = 'summary' | 'scenes' | 'decors' | 'characters' | 'dialogues' | 'structure' | 'activity';
+/** Rapports : clé, nom de la bascule, titre de l'export. */
+export const REPORTS: ReadonlyArray<readonly [Report, string, string]> = [
   ['summary', 'Sommaire', 'Sommaire des statistiques'],
   ['scenes', 'Séquences', 'Rapport des séquences'],
   ['decors', 'Décors', 'Rapport des décors'],
@@ -19,6 +19,9 @@ const REPORTS: ReadonlyArray<[Report, string, string]> = [
   ['structure', 'Structure', 'Structure de l’histoire'],
   ['activity', 'Activité', 'Activité des personnages'],
 ];
+/** Rapports qui sont des graphiques (exportables en PNG). */
+export const CHART_REPORTS: ReadonlySet<Report> = new Set<Report>(['structure', 'activity']);
+export const isReport = (r: string | null | undefined): r is Report => REPORTS.some(([k]) => k === r);
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
@@ -43,29 +46,49 @@ export function printable(box: HTMLElement): string {
   return (notes.length ? `<p class="muted">${esc(notes.join(' · '))}</p>` : '') + clone.innerHTML;
 }
 
-const savedReport = (): Report => {
+/** Dernier rapport ouvert, retenu d'une visite à l'autre. */
+export const savedReport = (): Report => {
   try {
     const r = localStorage.getItem('ds-script-report');
-    return REPORTS.some(([k]) => k === r) ? (r as Report) : 'summary';
+    return isReport(r) ? r : 'summary';
   } catch {
     return 'summary';
   }
 };
+export const storeReport = (r: Report) => {
+  try {
+    localStorage.setItem('ds-script-report', r);
+  } catch {
+    /* choix valable pour la session */
+  }
+};
+
+/** Exports du rapport affiché (menu Exporter de la page). */
+export interface ReportsApi {
+  /** Le rapport affiché, en PDF (le titre n'apparaît qu'à l'export). */
+  print: () => Promise<void>;
+  /** Le graphique affiché, en PNG (Structure, Activité). */
+  png: () => Promise<void>;
+}
 
 /**
  * Statistiques du scénario, page entière : sommaire chiffré, rapports (séquences, décors, personnages,
  * dialogues) et graphiques (structure, activité). Pages et numéros de page sont ceux de l'impression.
+ * Le choix du rapport et les exports sont portés par la page (bascule de la ligne 2, menu Exporter).
  */
-export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blocks: readonly SBlock[]; onGo: (id: string) => void }) {
-  const [report, setReportState] = useState<Report>(savedReport);
-  const setReport = (r: Report) => {
-    setReportState(r);
-    try {
-      localStorage.setItem('ds-script-report', r);
-    } catch {
-      /* choix valable pour la session */
-    }
-  };
+export function ScriptStatsReports({
+  doc,
+  blocks,
+  report,
+  onGo,
+  apiRef,
+}: {
+  doc: ProjectDoc;
+  blocks: readonly SBlock[];
+  report: Report;
+  onGo: (id: string) => void;
+  apiRef?: Ref<ReportsApi>;
+}) {
   const names = useMemo(() => Object.values(doc.characters).flatMap((c) => [c.name, ...(c.aliases ?? [])]), [doc.characters]);
   const scenes = useMemo(() => sceneReports(blocks, names, doc.project.settings.scriptChrono), [blocks, names, doc.project.settings.scriptChrono]);
   const laid = useMemo(() => layoutScript(blocks), [blocks]);
@@ -74,55 +97,41 @@ export function ScriptStatsReports({ doc, blocks, onGo }: { doc: ProjectDoc; blo
   const duration = useMemo(() => chronoTimeline(blocks, chronoOf(doc.project.settings.scriptChrono)).total, [blocks, doc.project.settings.scriptChrono]);
   const pageOf = useMemo(() => new Map([...laid.placement].map(([id, p]) => [id, p.page + 1])), [laid]);
   const box = useRef<HTMLDivElement>(null);
-  const title = REPORTS.find(([k]) => k === report)![2];
-  const print = async () => {
-    const { exportDocumentPages } = await import('../export/imageExport');
-    const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} .muted{color:#6b7079} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} .bar td{background:#eef0f3;font-weight:600} svg{width:100%;height:auto} .pad{height:13mm}`;
-    const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${esc(doc.project.title)} — ${title}</h1>${box.current ? printable(box.current) : ''}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
-    await exportDocumentPages(html, `${doc.project.title || 'scenario'}-${title}`, { format: 'pdf', orientation: 'portrait', numbers: true });
-  };
-  const png = async () => {
-    const svg = box.current?.querySelector<SVGSVGElement>('svg[role="img"]');
-    if (!svg) return;
-    const { svgToPng } = await import('./svgPng');
-    await svgToPng(svg, `${doc.project.title || 'scenario'}-${title}`);
-  };
+  const [, label, title] = REPORTS.find(([k]) => k === report)!;
+  useImperativeHandle(
+    apiRef,
+    () => ({
+      print: async () => {
+        const { exportDocumentPages } = await import('../export/imageExport');
+        const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} .muted{color:#6b7079} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} .bar td{background:#eef0f3;font-weight:600} svg{width:100%;height:auto} .pad{height:13mm}`;
+        const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${esc(doc.project.title)} — ${title}</h1>${box.current ? printable(box.current) : ''}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
+        await exportDocumentPages(html, `${doc.project.title || 'scenario'}-${title}`, { format: 'pdf', orientation: 'portrait', numbers: true });
+      },
+      png: async () => {
+        const svg = box.current?.querySelector<SVGSVGElement>('svg[role="img"]');
+        if (!svg) return;
+        const { svgToPng } = await import('./svgPng');
+        await svgToPng(svg, `${doc.project.title || 'scenario'}-${title}`);
+      },
+    }),
+    [doc.project.title, title],
+  );
   return (
-    <div className={s.page} data-testid="script-reports">
-      <nav className={s.nav} role="tablist" aria-label="Rapports">
-        {REPORTS.map(([k, short, long]) => (
-          <button key={k} type="button" role="tab" aria-selected={report === k} className={report === k ? s.navOn : ''} title={long} onClick={() => setReport(k)} data-testid={`report-${k}`}>
-            {short}
-          </button>
-        ))}
-      </nav>
-      <section className={s.body}>
-        <div className={s.bar}>
-          <h2>{title}</h2>
-          <button type="button" className={s.icon} onClick={() => void print()} aria-label="Exporter ce rapport en PDF" title="Exporter en PDF" data-view>
-            <Printer size={15} strokeWidth={1.3} />
-          </button>
-          {(report === 'structure' || report === 'activity') && (
-            <button type="button" className={s.icon} onClick={() => void png()} aria-label="Exporter ce graphique en PNG" title="Exporter en PNG" data-testid="report-png" data-view>
-              <ImageDown size={15} strokeWidth={1.3} />
-            </button>
-          )}
+    <section className={s.page} data-testid="script-reports" aria-label={label}>
+      {!scenes.length ? (
+        <p className={s.empty}>Aucune séquence</p>
+      ) : (
+        <div ref={box}>
+          {report === 'summary' && <SummaryReport scenes={scenes} blocks={blocks} pages={pages} duration={duration} />}
+          {report === 'scenes' && <ScenesReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
+          {report === 'decors' && <DecorsReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
+          {report === 'characters' && <CharactersReport scenes={scenes} />}
+          {report === 'dialogues' && <DialoguesReport scenes={scenes} blocks={blocks} pageOf={pageOf} />}
+          {report === 'structure' && <StructureChart scenes={scenes} />}
+          {report === 'activity' && <ActivityChart scenes={scenes} />}
         </div>
-        {!scenes.length ? (
-          <p className={s.empty}>Aucune séquence dans le texte.</p>
-        ) : (
-          <div ref={box}>
-            {report === 'summary' && <SummaryReport scenes={scenes} blocks={blocks} pages={pages} duration={duration} />}
-            {report === 'scenes' && <ScenesReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
-            {report === 'decors' && <DecorsReport scenes={scenes} pageOf={pageOf} onGo={onGo} />}
-            {report === 'characters' && <CharactersReport scenes={scenes} />}
-            {report === 'dialogues' && <DialoguesReport scenes={scenes} blocks={blocks} pageOf={pageOf} />}
-            {report === 'structure' && <StructureChart scenes={scenes} />}
-            {report === 'activity' && <ActivityChart scenes={scenes} />}
-          </div>
-        )}
-      </section>
-    </div>
+      )}
+    </section>
   );
 }
 

@@ -422,11 +422,11 @@ test('relecture : les séquences pas encore découpées figurent dans l’aperç
   // Scénario importé : trois séquences sans plan, avant les trois séquences découpées.
   await host.goto('/#/scenario?seed=fiction');
   const chooser = host.waitForEvent('filechooser');
-  await host.getByRole('button', { name: /^Importer/ }).click();
+  await host.getByTestId('version-switcher').click();
+  await host.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('INT. ENTREPRISE / ACCUEIL - JOUR\n\nFlora entre.\n\nEXT. RUE - NUIT\n\nUne voiture passe.\n') });
   await host.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
-  await host.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
-  await host.getByTestId('scenario-tab-shots').click();
+  await host.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
   await host.getByTestId('import-scenes').click();
   await host.evaluate(() => void (window.location.hash = '#/grid'));
   await expect(host.getByTestId('empty-sequence')).toHaveCount(2);

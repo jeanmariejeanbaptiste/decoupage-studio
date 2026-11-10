@@ -1,23 +1,23 @@
 /* Personnages, décors, recherche : listes sobres, fiche dépliée sous la ligne. */
-.panel { display: flex; flex-direction: column; gap: 10px; }
-.empty { margin: 4px 0; font-size: 12.5px; color: var(--ink-soft); }
-.sort { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft); }
+.panel { display: flex; flex-direction: column; gap: 16px; }
+.empty { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+.sort { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-soft); }
 .sort select { flex: 1; min-width: 0; padding: 4px 6px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 12.5px; }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .list > li { border-bottom: 1px solid var(--rule); }
-.row { display: grid; grid-template-columns: 1fr; gap: 3px; width: 100%; padding: 8px 2px; border: 0; background: none; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.row { display: grid; grid-template-columns: 1fr; gap: 4px; width: 100%; padding: 12px 4px; border: 0; background: none; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
 .row:hover { background: var(--hover); }
-.name { font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; }
-.meta { font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.name { font-size: 13px; font-weight: 500; letter-spacing: 0.02em; }
+.meta { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .strip { display: flex; gap: 1px; height: 6px; margin-top: 2px; }
 .strip i { flex: 1 1 0; min-width: 2px; background: var(--kraft-deep); opacity: 0.45; }
 .strip i.here { background: var(--ink-soft); opacity: 1; }
 .strip i.speaks { background: var(--ink); opacity: 1; }
 .open .row { background: var(--hover); }
-.fiche { display: flex; flex-direction: column; gap: 8px; padding: 6px 2px 12px; }
+.fiche { display: flex; flex-direction: column; gap: 12px; padding: 8px 4px 20px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 11.5px; color: var(--ink-soft); }
-.field input, .field textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 13px; resize: vertical; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; color: var(--ink-soft); }
+.field input, .field textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; font-size: 13.5px; resize: vertical; }
 .label { margin: 4px 0 0; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
 .sides { display: flex; flex-direction: column; gap: 6px; }
 .line { margin: 0 0 2px; font-size: 12.5px; color: var(--ink); }
@@ -25,6 +25,6 @@
 .scenes { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin: 0; }
 .sceneLink { border: 0; background: none; padding: 0; color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 2px; }
 .sceneLink:hover { text-decoration-color: currentColor; }
-.doc { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--rule); }
+.doc { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-top: 1px solid var(--rule); }
 .ghost { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
 .ghost:hover { color: var(--ink); }

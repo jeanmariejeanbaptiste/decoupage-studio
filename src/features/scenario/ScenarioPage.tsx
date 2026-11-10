@@ -3,33 +3,26 @@ import { shownComments } from '../../domain/comments';
 import { MarkLayer } from '../comments/MarkLayer';
 import { clearFocus, openComment, useCommentsUi } from '../comments/commentsUi';
 import { LinkModeToggle, addPassageAsShot } from './ScriptReader';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
-  BookOpen,
-  PanelRightClose,
-  PanelRightOpen,
   Bold,
   ChevronDown,
-  Clapperboard,
-  ListOrdered,
-  MapPin,
-  Users,
   FilePlus2,
   FileText,
-  FileUp,
   Highlighter,
   Italic,
   MessageSquarePlus,
+  PanelRight,
   Underline,
 } from 'lucide-react';
-import { HIGHLIGHTS, scriptOutline, type HighlightColor, type OutlineItem } from '../../domain/scriptLayout';
+import { HIGHLIGHTS, layoutScript, scriptOutline, type HighlightColor, type OutlineItem } from '../../domain/scriptLayout';
 import { chronoOf, chronoTimeline, mmss, type ScriptChrono } from '../../domain/chronometry';
 import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
 import { reviseScenario, revisionSummary, type RevisionReport } from '../../domain/revision';
 import { createVersion, ensureVersions, nextVersionName } from '../../domain/versions';
 import { VersionSwitcher } from '../versions/VersionSwitcher';
 import { ComparePage } from '../versions/ComparePage';
-import { useLocation } from '../../app/router';
+import { scenarioHref, scenarioLocation, useLocation, type ScenarioView } from '../../app/router';
 import { useRevisionMarks } from '../versions/useRevisionMarks';
 import { sequenceHeading, shotCode, shotNumberLabel } from '../../domain/numbering';
 import {
@@ -47,25 +40,39 @@ import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
 import { ask } from '../../ui/dialogStore';
 import { readScenarioFile } from './readScenarioFile';
 import { useUi } from '../../store/uiStore';
-import { Button } from '../../ui/Button';
 import { useIsMobile } from '../../ui/useIsMobile';
-import { ScriptExportButton } from './ScriptExportButton';
+import { ExportMenu, scriptExportSection, type ExportSection } from './ScriptExportButton';
 import { goToShot } from '../grid/goTo';
 import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
 import { CharactersPanel, DecorsPanel, ResearchPanel } from './ResearchPanels';
-import { ScriptStatsReports } from './ScriptStatsReports';
+import { CHART_REPORTS, REPORTS, ScriptStatsReports, isReport, savedReport, storeReport, type Report, type ReportsApi } from './ScriptStatsReports';
+import { TextToggle } from './TextToggle';
+import { OutlineView } from './outline/OutlineView';
+import { OutlineToolbar } from './outline/OutlineToolbar';
+import { outlineExportSection } from './outline/outlineExportSection';
 import s from './ScenarioPage.module.css';
 
-type Tab = 'scenes' | 'characters' | 'decors' | 'research' | 'shots';
-type View = 'script' | 'cut' | 'stats';
-/** Onglets du panneau : une icône chacun, le nom pour l'onglet ouvert (une seule ligne, toujours). */
-const TABS: ReadonlyArray<[Tab, string, typeof ListOrdered]> = [
-  ['scenes', 'Séquences', ListOrdered],
-  ['characters', 'Personnages', Users],
-  ['decors', 'Décors', MapPin],
-  ['research', 'Recherche', BookOpen],
-  ['shots', 'Plans', Clapperboard],
+/** Sous-pages, dans l'ordre du travail. */
+const VIEWS: ReadonlyArray<readonly [ScenarioView, string]> = [
+  ['outline', 'Séquencier'],
+  ['script', 'Texte'],
+  ['cut', 'Découpage'],
+  ['stats', 'Statistiques'],
 ];
+
+type Tab = 'scenes' | 'characters' | 'decors' | 'research';
+/** Onglets du panneau de Texte, en mots. */
+const TABS: ReadonlyArray<readonly [Tab, string]> = [
+  ['scenes', 'Séquences'],
+  ['characters', 'Personnages'],
+  ['decors', 'Décors'],
+  ['research', 'Recherche'],
+];
+
+/** Largeur du panneau latéral : par défaut, bornes. */
+const SIDE_W = 344;
+const SIDE_MIN = 280;
+const SIDE_MAX = 480;
 
 const stored = (key: string): string | null => {
   try {
@@ -82,39 +89,75 @@ const store = (key: string, v: string) => {
   }
 };
 
+// Les anciennes valeurs (« shots », l'onglet Plans d'avant) et les inconnues reviennent aux séquences.
 const savedTab = (): Tab => {
   const t = stored('ds-scenario-tab');
   return TABS.some(([k]) => k === t) ? (t as Tab) : 'scenes';
 };
+const savedSideWidth = () => {
+  const w = Number(stored('ds-scenario-side-w'));
+  return w ? Math.min(SIDE_MAX, Math.max(SIDE_MIN, w)) : SIDE_W;
+};
+
+/** Sous-page sans adresse : la dernière ouverte ; à la première visite, le texte s'il existe, sinon le séquencier. */
+const initialView = (doc: ProjectDoc, drive: boolean): ScenarioView => {
+  const v = stored('ds-scenario-view');
+  if ((v === 'outline' && !drive) || v === 'script' || v === 'cut' || v === 'stats') return v;
+  return drive || (doc.scenario ?? '').trim() ? 'script' : 'outline';
+};
+
+/** « 1:38:12 » au-delà d'une heure, « 4:37 » en deçà. */
+const hms = (sec: number) => {
+  const t = Math.max(0, Math.round(sec));
+  return t < 3600 ? mmss(t) : `${Math.floor(t / 3600)}:${mmss(t % 3600).padStart(5, '0')}`;
+};
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
 
 /** Scénario, ou sa sous-page de comparaison des versions (#/scenario?compare=A~B). */
 export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
   const { params } = useLocation();
   if (params.has('compare')) return <ComparePage doc={doc} />;
-  return <ScenarioMain doc={doc} seq={Number(params.get('seq')) || undefined} />;
+  return <ScenarioMain doc={doc} params={params} />;
 }
 
-/** Scénario : écrit sur des pages A4, comme dans un logiciel d'écriture, et relié au découpage. */
-function ScenarioMain({ doc, seq }: { doc: ProjectDoc; seq?: number }) {
+/**
+ * Scénario : quatre sous-pages (Séquencier, Texte, Découpage, Statistiques) sous une même adresse.
+ * Ligne 1 : où l'on est, et ce qui vaut pour tout le scénario (versions, exports). Ligne 2 : les outils
+ * de la sous-page. Barre d'état : les mesures.
+ */
+function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParams }) {
   const readOnly = useReadOnly();
   const phone = useIsMobile();
-  const [view, setView] = useState<View>('script');
+  // Relecture en ligne : pas de séquencier (les phrases ne sont pas publiées), ni fiches ni recherche.
+  const drive = useDriveReview();
+  const loc = scenarioLocation(params);
+  const [remembered, setRemembered] = useState<ScenarioView>(() => initialView(doc, drive));
+  const view: ScenarioView = loc.view && !(drive && loc.view === 'outline') ? loc.view : remembered;
+  useEffect(() => {
+    setRemembered(view);
+    store('ds-scenario-view', view);
+  }, [view]);
+  // Adresse sans sous-page : elle la reçoit (sans nouvelle entrée), pour que Précédent y revienne.
+  useEffect(() => {
+    if (loc.view) return;
+    const q = new URLSearchParams(params);
+    q.set('view', view);
+    window.history.replaceState(window.history.state, '', `#/scenario?${q.toString()}`);
+  }, [loc.view, view, params]);
+
   const [tabState, setTabState] = useState<Tab>(savedTab);
+  const tab: Tab = drive ? 'scenes' : tabState;
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    store('ds-scenario-tab', t);
+  };
   // Panneau latéral : masquable pour écrire sans rien autour (⌘\), retenu d'une visite à l'autre.
   const [side, setSideState] = useState(() => stored('ds-scenario-side') !== '0');
   const setSide = (on: boolean) => {
     setSideState(on);
     store('ds-scenario-side', on ? '1' : '0');
   };
-  // « Plans » n'a de sens qu'en vue Découpage : en vue Scénario, le panneau revient aux séquences.
-  // Relecture en ligne : fiches et recherche ne sont pas publiées, seules les séquences (et les plans).
-  const drive = useDriveReview();
-  const tabShown = (t: Tab) => (t !== 'shots' || view === 'cut') && (!drive || t === 'scenes' || t === 'shots');
-  const tab: Tab = tabShown(tabState) ? tabState : 'scenes';
-  const setTab = (t: Tab) => {
-    setTabState(t);
-    store('ds-scenario-tab', t);
-  };
+  const [sideW, setSideW] = useState(savedSideWidth);
   const [hover, setHover] = useState<ID | null>(null);
   const [caretAnchor, setCaretAnchor] = useState<ID | null>(null);
   const api = useRef<ScriptEditorApi | null>(null);
@@ -122,6 +165,25 @@ function ScenarioMain({ doc, seq }: { doc: ProjectDoc; seq?: number }) {
   const activeType = useScriptUi((u) => u.activeType);
   const selection = useScriptUi((u) => u.selection);
   const toast = useUi((u) => u.toast);
+
+  // Rapport des statistiques : celui de l'adresse, sinon le dernier ouvert.
+  const [report, setReportState] = useState<Report>(() => (isReport(loc.report) ? loc.report : savedReport()));
+  useEffect(() => {
+    if (isReport(loc.report)) setReportState(loc.report);
+  }, [loc.report]);
+  const setReport = (r: Report) => {
+    setReportState(r);
+    storeReport(r);
+    window.history.replaceState(window.history.state, '', scenarioHref('stats', { report: r }));
+  };
+  const reportsApi = useRef<ReportsApi>(null);
+
+  /** Changer de sous-page : une entrée d'historique (Précédent ramène à la précédente). */
+  const goView = (v: ScenarioView) => {
+    if (v === view) return;
+    if (view === 'script') api.current?.flush();
+    window.location.hash = scenarioHref(v, v === 'stats' ? { report } : {});
+  };
 
   // Relecture : passages commentés de la version courante (ouverts), et la bulle à ouvrir.
   // Commenter : un bouton pour les relecteurs invités ; l'auteur commente au clic droit sur une sélection.
@@ -145,16 +207,28 @@ function ScenarioMain({ doc, seq }: { doc: ProjectDoc; seq?: number }) {
     const x = shown.find((y) => y.c.id === id);
     if (x) openComment(x.anchor, rect.left, rect.bottom);
   };
+  // Commentaire à montrer : il est dans le texte, qui s'ouvre au besoin.
   const focus = useCommentsUi((u) => u.focus);
   useEffect(() => {
     if (focus?.kind !== 'script') return;
-    const t = setTimeout(() => {
+    if (view !== 'script') {
+      window.location.hash = scenarioHref('script');
+      return;
+    }
+    let k = 0;
+    let t = 0;
+    const tryShow = () => {
+      if (!api.current && k++ < 30) {
+        t = window.setTimeout(tryShow, 60);
+        return;
+      }
       const rect = api.current?.revealSource(focus.start, focus.end);
       clearFocus();
       if (rect) openComment(focus, rect.left, rect.bottom);
-    }, 120);
-    return () => clearTimeout(t);
-  }, [focus]);
+    };
+    t = window.setTimeout(tryShow, 120);
+    return () => window.clearTimeout(t);
+  }, [focus, view]);
   const commentSelection = () => {
     const sel = useScriptUi.getState().selection;
     const src = useProjectStore.getState().doc?.scenario ?? '';
@@ -227,10 +301,7 @@ function ScenarioMain({ doc, seq }: { doc: ProjectDoc; seq?: number }) {
   /** Crée un plan avec le passage sélectionné : dans la séquence de sa scène (mode lié) ou au choix. */
   const createShot = (at: { x: number; y: number }) => {
     const sel = useScriptUi.getState().selection;
-    if (!sel) {
-      toast({ message: 'Sélectionnez d’abord un passage du scénario.', tone: 'warn' });
-      return;
-    }
+    if (!sel) return;
     api.current?.flush();
     addPassageAsShot(sel.start, sel.end, at);
   };
@@ -263,16 +334,16 @@ function ScenarioMain({ doc, seq }: { doc: ProjectDoc; seq?: number }) {
     try {
       const content = await readScenarioFile(f);
       // Chaque scène retrouve sa séquence (même renumérotée, retouchée ou déplacée) ; les passages liés suivent.
-      let report: RevisionReport | null = null;
+      let rep: RevisionReport | null = null;
       mutateDoc((d) => {
         if (asVersion) {
           ensureVersions(d);
           createVersion(d);
         }
-        report = reviseScenario(d, content);
+        rep = reviseScenario(d, content);
       });
       const n = scenesOf(content).length;
-      const r = report as RevisionReport | null;
+      const r = rep as RevisionReport | null;
       const head = asVersion
         ? `${useProjectStore.getState().doc?.project.version} : `
         : 'Scénario importé : ';
@@ -290,295 +361,398 @@ function ScenarioMain({ doc, seq }: { doc: ProjectDoc; seq?: number }) {
   const title = doc.project.title || 'scenario';
   const current = () => useProjectStore.getState().doc ?? doc;
 
-  // Texte du panneau et des rapports : celui de l'éditeur quand il est ouvert ; sinon (Découpage,
-  // Statistiques) le texte enregistré, qui suit les changements de version.
+  // Texte du panneau, des rapports et des mesures : celui de l'éditeur quand il est ouvert ; sinon le
+  // texte enregistré, qui suit les changements de version.
   const editorBlocks = useScriptUi((u) => u.blocks);
-  const editorOutline = useScriptUi((u) => u.outline);
-  const editorPages = useScriptUi((u) => u.pages);
   const savedBlocks = useMemo(
     () => (view === 'script' ? null : blocksFromSource(doc.scenario ?? '').blocks),
     [view, doc.scenario],
   );
   const sideBlocks = savedBlocks ?? editorBlocks;
-  const savedOutline = useMemo(() => (savedBlocks ? scriptOutline(savedBlocks) : null), [savedBlocks]);
-  const outline = savedOutline ?? { items: editorOutline, pages: editorPages };
   // Aller à une séquence depuis un panneau ou un rapport. Hors de l'éditeur, les blocs n'ont plus les mêmes
-  // identifiants une fois le texte rouvert : la séquence est retrouvée par son numéro.
+  // identifiants une fois le texte rouvert : la séquence est retrouvée par son numéro, dans l'adresse.
   const goTo = (id: string, from: readonly SBlock[] = sideBlocks) => {
     if (view === 'script') return api.current?.scrollTo(id);
     const n = headingNumbers(from).get(id);
-    setView('script');
-    const tryGo = (k: number) => {
-      const o = useScriptUi.getState().outline.find((x) => x.n === n);
-      if (o && api.current && document.querySelector(`[data-bid="${o.id}"]`)) api.current.scrollTo(o.id);
-      else if (k < 30) setTimeout(() => tryGo(k + 1), 50);
-    };
-    if (n !== undefined) setTimeout(() => tryGo(0), 50);
+    if (n !== undefined) window.location.hash = scenarioHref('script', { seq: n });
   };
-  // Séquence demandée par l'adresse (depuis la comparaison des versions) : l'éditeur s'y place, puis l'adresse redevient simple.
+  // Séquence demandée par l'adresse : la sous-page s'y place, puis l'adresse redevient simple.
+  const seq = loc.seq;
   useEffect(() => {
     if (!seq) return;
     let k = 0;
     let timer = 0;
+    const settle = () => window.history.replaceState(window.history.state, '', scenarioHref(view, view === 'stats' ? { report } : {}));
     const tryGo = () => {
-      const o = useScriptUi.getState().outline.find((x) => x.n === seq);
-      if (o && api.current && document.querySelector(`[data-bid="${o.id}"]`)) {
-        api.current.scrollTo(o.id);
-        window.history.replaceState(null, '', '#/scenario');
-      } else if (k++ < 40) timer = window.setTimeout(tryGo, 50);
+      if (view === 'script') {
+        const o = useScriptUi.getState().outline.find((x) => x.n === seq);
+        if (o && api.current && document.querySelector(`[data-bid="${o.id}"]`)) {
+          api.current.scrollTo(o.id);
+          return settle();
+        }
+      } else if (view === 'outline') {
+        const row = document.querySelector<HTMLElement>(`[data-outline-n="${seq}"]`);
+        if (row) {
+          row.scrollIntoView({ block: 'center' });
+          row.setAttribute('data-flash', '');
+          window.setTimeout(() => row.removeAttribute('data-flash'), 1400);
+          return settle();
+        }
+      } else return settle();
+      if (k++ < 40) timer = window.setTimeout(tryGo, 50);
+      else settle();
     };
-    setView('script');
     timer = window.setTimeout(tryGo, 50);
     return () => window.clearTimeout(timer);
-  }, [seq]);
-  // Statistiques : calculées sur le texte enregistré (pages et numéros de l'impression).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seq, view]);
+
+  // Séquences du texte absentes du découpage : un bouton de la ligne 2 (Découpage) les y ajoute.
+  const scenes = useMemo(() => (view === 'cut' ? scenesOf(doc.scenario ?? '') : []), [view, doc.scenario]);
+  const missing = view === 'cut' ? scenes.filter((sc) => !matchSequence(doc, sc)).length : 0;
+  const addMissing = () => {
+    const src = useProjectStore.getState().doc?.scenario ?? '';
+    const r = mutateDoc((d) => importScenes(d, src));
+    if (r)
+      toast({
+        message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.characters} personnage${r.characters > 1 ? 's' : ''} ajouté${r.sequences + r.characters > 1 ? 's' : ''} au découpage.`,
+        actionLabel: 'Annuler',
+        action: undo,
+      });
+  };
+
+  // Menu Exporter : sections fixes ; Statistiques seulement sur sa sous-page.
+  const sections: ExportSection[] = [scriptExportSection(current, title)];
+  const outlineSection = drive ? null : outlineExportSection();
+  if (outlineSection) sections.push(outlineSection);
+  if (view === 'stats')
+    sections.push({
+      id: 'stats',
+      label: 'Statistiques',
+      items: [
+        { key: 'report', label: 'Rapport affiché (PDF)', run: () => reportsApi.current?.print() },
+        ...(CHART_REPORTS.has(report) ? [{ key: 'chart', label: 'Graphique (PNG)', run: () => reportsApi.current?.png() }] : []),
+      ],
+    });
+
+  const views = VIEWS.filter(([v]) => !drive || v !== 'outline');
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // Motif tablist : ← → déplacent le focus d'un onglet à l'autre (Début, Fin aux extrémités).
+  const onTabsKey = (e: ReactKeyboardEvent) => {
+    const all = Array.from(tabsRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? []);
+    const i = all.indexOf(document.activeElement as HTMLElement);
+    if (i < 0) return;
+    const j =
+      e.key === 'ArrowRight' ? (i + 1) % all.length
+      : e.key === 'ArrowLeft' ? (i - 1 + all.length) % all.length
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? all.length - 1
+      : -1;
+    if (j < 0) return;
+    e.preventDefault();
+    all[j].focus();
+  };
+  const withSide = view === 'script' || view === 'cut';
   const statsBlocks = savedBlocks ?? [];
+
   return (
-    <div className={['page page--wide', s.page].join(' ')}>
-      <header className={s.toolbar}>
-        <div className={s.tools}>
-          {/* La bascule de vue en tête, toujours à la même place : les outils d'écriture viennent après. */}
-          <div className={s.seg} role="radiogroup" aria-label="Affichage du scénario">
-            {(
-              [
-                ['script', 'Scénario', 'Le texte, page par page'],
-                ['cut', 'Découpage', 'Le découpage technique mis en forme comme un scénario (lecture seule)'],
-                ['stats', 'Statistiques', 'Rapports et graphiques du scénario'],
-              ] as const
-            ).map(([v, label, hint]) => (
-              <button
-                key={v}
-                type="button"
-                role="radio"
-                aria-checked={view === v}
-                className={view === v ? s.on : ''}
-                title={hint}
-                data-view
-                onClick={() => {
-                  api.current?.flush();
-                  setView(v);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {!readOnly && view === 'script' && (
+    <div className={s.page}>
+      <header className={s.head}>
+        <div className={s.views} role="tablist" aria-label="Scénario" ref={tabsRef} onKeyDown={onTabsKey} data-view>
+          {views.map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              id={`scenario-tab-view-${v}`}
+              aria-selected={view === v}
+              aria-controls="scenario-view"
+              tabIndex={view === v ? 0 : -1}
+              className={view === v ? s.viewOn : ''}
+              data-label={label}
+              onClick={() => goView(v)}
+              data-testid={`scenario-view-${v}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className={s.headEnd}>
+          <VersionSwitcher doc={doc} onImport={readOnly ? undefined : () => void importFile()} />
+          <ExportMenu sections={sections} />
+        </div>
+      </header>
+
+      <div className={s.tools} data-testid="scenario-tools">
+        <div className={s.toolsMain}>
+          {view === 'outline' && <OutlineToolbar doc={doc} />}
+          {view === 'script' && !readOnly && (
             <>
               <TypePicker type={activeType} onPick={(t) => api.current?.setType(t)} />
-              <span className={s.marks} role="group" aria-label="Mise en forme">
+              <span className={s.group} role="group" aria-label="Mise en forme">
                 {(
                   [
-                    ['**', <Bold key="b" size={15} strokeWidth={1.5} />, 'Gras (⌘B)'],
-                    ['*', <Italic key="i" size={15} strokeWidth={1.5} />, 'Italique (⌘I)'],
-                    ['_', <Underline key="u" size={15} strokeWidth={1.5} />, 'Souligné (⌘U)'],
+                    ['**', Bold, 'Gras (⌘B)', 'b'],
+                    ['*', Italic, 'Italique (⌘I)', 'i'],
+                    ['_', Underline, 'Souligné (⌘U)', 'u'],
                   ] as const
-                ).map(([m, icon, label]) => (
+                ).map(([m, Icon, label, id]) => (
                   <button
                     key={m}
                     type="button"
+                    className={s.icon}
                     aria-label={label}
                     title={label}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => api.current?.emphasis(m)}
-                    data-testid={`emphasis-${m === '**' ? 'b' : m === '*' ? 'i' : 'u'}`}
+                    data-testid={`emphasis-${id}`}
                   >
-                    {icon}
+                    <Icon size={16} strokeWidth={1.25} />
                   </button>
                 ))}
                 <HighlightPicker onPick={(c) => api.current?.highlight(c)} />
               </span>
-              <Button
-                variant="icon"
-                icon={<FileText size={16} strokeWidth={1.25} />}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => api.current?.editTitle()}
-                aria-label="Page de garde"
-                title="Page de garde"
-                data-testid="edit-title-page"
-              />
-              <Button
-                icon={<FilePlus2 size={16} strokeWidth={1.25} />}
+              <button
+                type="button"
+                className={s.labelled}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
                   createShot({ x: r.left, y: r.bottom + 4 });
                 }}
                 disabled={!selection}
-                variant="icon"
-                aria-label="Créer un plan"
-                title="Créer un plan avec le passage sélectionné (aussi au clic droit)"
                 data-testid="create-shot-from-selection"
-              />
+              >
+                <FilePlus2 size={16} strokeWidth={1.25} aria-hidden="true" />
+                Créer un plan
+              </button>
+              <button
+                type="button"
+                className={s.labelled}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => api.current?.editTitle()}
+                data-testid="edit-title-page"
+              >
+                <FileText size={16} strokeWidth={1.25} aria-hidden="true" />
+                Page de garde
+              </button>
             </>
           )}
-          {canComment && isGuest && view === 'script' && (
-            <Button
-              icon={<MessageSquarePlus size={15} strokeWidth={1.25} />}
+          {view === 'script' && canComment && isGuest && (
+            <button
+              type="button"
+              className={s.labelled}
               onMouseDown={(e) => e.preventDefault()}
               onClick={commentSelection}
               disabled={!selection}
-              title="Commenter le passage sélectionné"
-              aria-label="Commenter le passage sélectionné"
               data-comment-trigger
               data-view
               data-testid="comment-selection"
             >
+              <MessageSquarePlus size={16} strokeWidth={1.25} aria-hidden="true" />
               Commenter
-            </Button>
+            </button>
           )}
-        </div>
-        <div className={s.tools}>
-          {view === 'script' && !phone && <Chrono settings={doc.project.settings.scriptChrono} />}
-          <VersionSwitcher doc={doc} />
-          {!readOnly && (
-            <Button
-              variant="icon"
-              icon={<FileUp size={16} strokeWidth={1.25} />}
-              onClick={importFile}
-              aria-label="Importer"
-              title="Importer : Final Draft, Fountain, PDF, Word, Markdown ou texte"
+          {view === 'cut' && !readOnly && (
+            <>
+              <LinkModeToggle doc={doc} />
+              {missing > 0 && (
+                <button type="button" className={s.labelled} onClick={addMissing} data-testid="import-scenes">
+                  Ajouter {plural(missing, 'séquence')} au découpage
+                </button>
+              )}
+            </>
+          )}
+          {view === 'stats' && (
+            <TextToggle
+              label="Rapports"
+              items={REPORTS.map(([k, short]) => [k, short] as const)}
+              value={report}
+              onChange={setReport}
+              testId="report"
             />
           )}
-          <ScriptExportButton doc={doc} current={current} title={title} />
-          {/* Toujours au bout de la barre ; sans objet (et invisible) dans les statistiques, pour que rien ne bouge. */}
+        </div>
+        {withSide && (
           <button
             type="button"
-            className={[s.sideToggle, view === 'stats' ? s.ghost : ''].join(' ')}
+            className={[s.icon, side ? s.iconOn : ''].join(' ')}
             aria-pressed={side}
             aria-label={side ? 'Masquer le panneau (⌘\\)' : 'Afficher le panneau (⌘\\)'}
             title={side ? 'Masquer le panneau (⌘\\)' : 'Afficher le panneau (⌘\\)'}
-            tabIndex={view === 'stats' ? -1 : undefined}
             onClick={() => setSide(!side)}
             data-view
             data-testid="scenario-side-toggle"
           >
-            {side ? (
-              <PanelRightClose size={16} strokeWidth={1.25} />
-            ) : (
-              <PanelRightOpen size={16} strokeWidth={1.25} />
-            )}
+            <PanelRight size={16} strokeWidth={1.25} />
           </button>
-        </div>
-      </header>
+        )}
+      </div>
 
-      {view === 'stats' ? (
-        <ScriptStatsReports doc={doc} blocks={statsBlocks} onGo={(id) => goTo(id, statsBlocks)} />
-      ) : (
-        <div className={[s.layout, side ? '' : s.solo].join(' ')}>
-          <div className={s.center} ref={center}>
-            {view === 'cut' ? (
-              // Même largeur que la page du scénario (réduite comme elle) : rien ne bouge d'une vue à l'autre.
-              <div className={['a4-sheet', s.cutSheet].join(' ')} style={phone ? undefined : { width: PAGE.w * zoom }}>
-                <CutView doc={doc} />
-              </div>
-            ) : (
-              <div
-                className={s.zoom}
-                // Réduction par mise à l'échelle uniforme (et non `zoom`, qui arrondit chaque page à sa façon :
-                // le texte dérivait d'une fraction de pixel par page jusqu'à sortir des feuilles).
-                style={phone || zoom === 1 ? undefined : { width: PAGE.w * zoom, height: zoomH * zoom }}
-                // Safari sélectionne le mot sous un clic droit : seule une sélection faite avant compte.
-                onPointerDownCapture={(e) => {
-                  if (e.button === 2) hadSelection.current = !!useScriptUi.getState().selection;
-                }}
-                onContextMenu={(e) => {
-                  // Clic droit sur une sélection : en faire un plan, ou la commenter.
-                  if (readOnly || !useScriptUi.getState().selection || !hadSelection.current) return;
-                  e.preventDefault();
-                  const at = { x: e.clientX, y: e.clientY };
-                  useUi.getState().set({
-                    menu: {
-                      ...at,
-                      items: [
-                        { label: 'Créer un plan', action: () => createShot(at) },
-                        { label: 'Commenter', action: () => commentSelection() },
-                      ],
-                    },
-                  });
-                }}
-              >
-                <div
-                  ref={zoomInner}
-                  style={
-                    phone || zoom === 1
-                      ? { position: 'relative' }
-                      : {
-                          position: 'relative',
-                          width: PAGE.w,
-                          transform: `scale(${zoom})`,
-                          transformOrigin: '0 0',
-                        }
-                  }
-                >
-                  <MarkLayer surface="script" />
-                  <ScriptEditor
-                    key={doc.project.id}
-                    doc={doc}
-                    readOnly={readOnly}
-                    anchors={anchors}
-                    hot={hover ?? caretAnchor}
-                    onCaretAnchor={setCaretAnchor}
-                    apiRef={api}
-                    paged={!phone}
-                    comments={scriptComments}
-                    onComment={openScriptComment}
-                  />
+      <div className={s.body} id="scenario-view" role="tabpanel" aria-labelledby={`scenario-tab-view-${view}`}>
+        {view === 'outline' && <OutlineView doc={doc} />}
+        {view === 'stats' && (
+          <ScriptStatsReports doc={doc} blocks={statsBlocks} report={report} onGo={(id) => goTo(id, statsBlocks)} apiRef={reportsApi} />
+        )}
+        {withSide && (
+          <div
+            className={[s.layout, side ? '' : s.solo].join(' ')}
+            style={{ ['--side-w' as string]: `${sideW}px` }}
+          >
+            <div className={s.center} ref={center}>
+              {view === 'cut' ? (
+                // Même largeur que la page du texte (réduite comme elle) : rien ne bouge d'une vue à l'autre.
+                <div className={['a4-sheet', s.cutSheet].join(' ')} style={phone ? undefined : { width: PAGE.w * zoom }}>
+                  <CutView doc={doc} />
                 </div>
-              </div>
+              ) : (
+                <div
+                  className={s.zoom}
+                  // Réduction par mise à l'échelle uniforme (et non `zoom`, qui arrondit chaque page à sa façon :
+                  // le texte dérivait d'une fraction de pixel par page jusqu'à sortir des feuilles).
+                  style={phone || zoom === 1 ? undefined : { width: PAGE.w * zoom, height: zoomH * zoom }}
+                  // Safari sélectionne le mot sous un clic droit : seule une sélection faite avant compte.
+                  onPointerDownCapture={(e) => {
+                    if (e.button === 2) hadSelection.current = !!useScriptUi.getState().selection;
+                  }}
+                  onContextMenu={(e) => {
+                    // Clic droit sur une sélection : en faire un plan, ou la commenter.
+                    if (readOnly || !useScriptUi.getState().selection || !hadSelection.current) return;
+                    e.preventDefault();
+                    const at = { x: e.clientX, y: e.clientY };
+                    useUi.getState().set({
+                      menu: {
+                        ...at,
+                        items: [
+                          { label: 'Créer un plan', action: () => createShot(at) },
+                          { label: 'Commenter', action: () => commentSelection() },
+                        ],
+                      },
+                    });
+                  }}
+                >
+                  <div
+                    ref={zoomInner}
+                    style={
+                      phone || zoom === 1
+                        ? { position: 'relative' }
+                        : {
+                            position: 'relative',
+                            width: PAGE.w,
+                            transform: `scale(${zoom})`,
+                            transformOrigin: '0 0',
+                          }
+                    }
+                  >
+                    <MarkLayer surface="script" />
+                    <ScriptEditor
+                      key={doc.project.id}
+                      doc={doc}
+                      readOnly={readOnly}
+                      anchors={anchors}
+                      hot={hover ?? caretAnchor}
+                      onCaretAnchor={setCaretAnchor}
+                      apiRef={api}
+                      paged={!phone}
+                      comments={scriptComments}
+                      onComment={openScriptComment}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {side && (
+              <aside className={s.side} aria-label="Navigation du scénario">
+                {!phone && <SideResize width={sideW} onChange={setSideW} />}
+                {view === 'cut' ? (
+                  <div className={s.sideScroll}>
+                    <ShotsPanel doc={doc} hot={hover ?? caretAnchor} onHover={setHover} />
+                  </div>
+                ) : (
+                  <>
+                    {!drive && (
+                      <div className={s.tabs} role="tablist" aria-label="Panneau">
+                        {TABS.map(([t, label]) => (
+                          <button
+                            key={t}
+                            type="button"
+                            role="tab"
+                            aria-selected={tab === t}
+                            className={tab === t ? s.tabOn : ''}
+                            data-label={label}
+                            onClick={() => setTab(t)}
+                            data-testid={`scenario-tab-${t}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className={s.sideScroll}>
+                      {tab === 'scenes' && <Outline doc={doc} onPick={goTo} />}
+                      {tab === 'characters' && (
+                        <CharactersPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />
+                      )}
+                      {tab === 'decors' && (
+                        <DecorsPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />
+                      )}
+                      {tab === 'research' && <ResearchPanel doc={doc} readOnly={readOnly} />}
+                    </div>
+                  </>
+                )}
+              </aside>
             )}
           </div>
+        )}
+      </div>
 
-          {side && (
-            <aside className={s.side} aria-label="Navigation du scénario">
-              <div className={s.tabs} role="tablist">
-                {/* « Plans » garde sa place hors de la vue Découpage (invisible) : les onglets ne bougent pas. */}
-                {TABS.filter(([t]) => !drive || t === 'scenes' || t === 'shots').map(([t, label, Icon]) => (
-                  <button
-                    key={t}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === t}
-                    aria-label={label}
-                    title={label}
-                    className={[tab === t ? s.tabOn : '', t === 'shots' && view !== 'cut' ? s.ghost : ''].join(' ')}
-                    aria-hidden={t === 'shots' && view !== 'cut' ? true : undefined}
-                    tabIndex={t === 'shots' && view !== 'cut' ? -1 : undefined}
-                    onClick={() => setTab(t)}
-                    data-testid={`scenario-tab-${t}`}
-                  >
-                    <Icon size={15} strokeWidth={1.4} aria-hidden="true" />
-                    {tab === t && <span>{label}</span>}
-                  </button>
-                ))}
-              </div>
-              {tab === 'scenes' &&
-                (view === 'cut' && !outline.items.length && doc.project.sequenceIds.length ? (
-                  <CutOutline doc={doc} />
-                ) : (
-                  <Outline doc={doc} items={outline.items} pages={outline.pages} onPick={goTo} />
-                ))}
-              {tab === 'characters' && (
-                <CharactersPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />
-              )}
-              {tab === 'decors' && (
-                <DecorsPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />
-              )}
-              {tab === 'research' && <ResearchPanel doc={doc} readOnly={readOnly} />}
-              {tab === 'shots' && (
-                <ShotsPanel
-                  doc={doc}
-                  readOnly={readOnly}
-                  hot={hover ?? caretAnchor}
-                  onHover={setHover}
-                  onFlush={() => api.current?.flush()}
-                />
-              )}
-            </aside>
-          )}
-        </div>
+      {view !== 'stats' && (
+        <footer className={s.status} data-testid="scenario-status">
+          {view === 'script' && <ScriptStatus settings={doc.project.settings.scriptChrono} />}
+          {view === 'outline' && <OutlineStatus doc={doc} />}
+          {view === 'cut' && <CutStatus doc={doc} />}
+        </footer>
       )}
     </div>
+  );
+}
+
+/** Poignée du panneau : tirer pour régler la largeur (280 à 480 px), double-clic pour revenir à 344. */
+function SideResize({ width, onChange }: { width: number; onChange: (w: number) => void }) {
+  const save = (w: number) => store('ds-scenario-side-w', String(w));
+  return (
+    <div
+      className={s.resize}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Largeur du panneau"
+      aria-valuemin={SIDE_MIN}
+      aria-valuemax={SIDE_MAX}
+      aria-valuenow={width}
+      data-view
+      onDoubleClick={() => {
+        onChange(SIDE_W);
+        save(SIDE_W);
+      }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        const x0 = e.clientX;
+        let w = width;
+        const move = (ev: PointerEvent) => {
+          w = Math.min(SIDE_MAX, Math.max(SIDE_MIN, width + (x0 - ev.clientX)));
+          onChange(w);
+        };
+        const up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          save(w);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      }}
+      data-testid="scenario-side-resize"
+    />
   );
 }
 
@@ -601,11 +775,11 @@ function TypePicker({ type, onPick }: { type: BlockType | null; onPick: (t: Bloc
         onClick={() => setOpen(!open)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Type du paragraphe (Tab pour en changer)"
+        title="Type du paragraphe (Tab)"
         data-testid="block-type"
       >
-        {type ? blockLabel(type) : 'Paragraphe'}
-        <ChevronDown size={14} strokeWidth={1.4} aria-hidden="true" />
+        <span>{type ? blockLabel(type) : 'Paragraphe'}</span>
+        <ChevronDown size={14} strokeWidth={1.25} aria-hidden="true" />
       </button>
       {open && (
         <ul className={s.pickerMenu} role="listbox" aria-label="Type du paragraphe">
@@ -631,58 +805,44 @@ function TypePicker({ type, onPick }: { type: BlockType | null; onPick: (t: Bloc
   );
 }
 
-/** Sommaire : une ligne par séquence, avec sa page ; un clic y mène. */
-function Outline({
-  doc,
-  items: outline,
-  pages,
-  onPick,
-}: {
-  doc: ProjectDoc;
-  items: readonly OutlineItem[];
-  pages: number;
-  onPick: (id: string) => void;
-}) {
+/** Onglet Séquences (provisoire) : une ligne par séquence du texte, avec sa page ; un clic y mène. */
+function Outline({ doc, onPick }: { doc: ProjectDoc; onPick: (id: string) => void }) {
+  const outline = useScriptUi((u) => u.outline);
   const marks = useRevisionMarks(doc);
   const from = marks
     ? doc.versions?.find((v) => v.id === doc.versions?.find((x) => x.id === doc.activeVersionId)?.from)?.name
     : undefined;
   const active = useScriptUi((u) => u.activeHeading);
-  if (!outline.length) return <p className={s.muted}>Aucune séquence pour l’instant.</p>;
+  if (!outline.length) return <p className={s.muted}>Aucune séquence</p>;
   return (
-    <>
-      <p className={s.count}>
-        {outline.length} séquence{outline.length > 1 ? 's' : ''} · {pages} page{pages > 1 ? 's' : ''}
-      </p>
-      <ol className={s.outline} data-testid="scenario-outline">
-        {outline.map((o, i) => (
-          <li key={o.id}>
-            <button
-              type="button"
-              className={o.id === active ? s.current : ''}
-              aria-current={o.id === active || undefined}
-              onClick={() => onPick(o.id)}
-              data-view
-            >
-              <span className={s.n}>
-                {marks?.get(i) && (
-                  <i
-                    className={s.rev}
-                    title={marks.get(i) === 'new' ? `Nouvelle depuis ${from}` : `Modifiée depuis ${from}`}
-                    data-testid="revision-mark"
-                  >
-                    *
-                  </i>
-                )}
-                {o.n}
-              </span>
-              <span className={s.h}>{o.text || 'Sans titre'}</span>
-              <span className={s.p}>{o.page}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
-    </>
+    <ol className={s.outline} data-testid="scenario-outline">
+      {outline.map((o: OutlineItem, i) => (
+        <li key={o.id}>
+          <button
+            type="button"
+            className={o.id === active ? s.current : ''}
+            aria-current={o.id === active || undefined}
+            onClick={() => onPick(o.id)}
+            data-view
+          >
+            <span className={s.n}>
+              {marks?.get(i) && (
+                <i
+                  className={s.rev}
+                  title={marks.get(i) === 'new' ? `Nouvelle depuis ${from}` : `Modifiée depuis ${from}`}
+                  data-testid="revision-mark"
+                >
+                  *
+                </i>
+              )}
+              {o.n}
+            </span>
+            <span className={s.h}>{o.text || 'Sans titre'}</span>
+            <span className={s.p}>{o.page}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -692,85 +852,13 @@ const cutHeading = (doc: ProjectDoc, seqId: ID) => {
   return [seq?.intExt, seq?.label, seq?.effect].filter(Boolean).join(' – ');
 };
 
-/** Vue Découpage d'un projet sans texte : le sommaire est celui du découpage ; un clic y mène. */
-function CutOutline({ doc }: { doc: ProjectDoc }) {
+/** Panneau du Découpage : les plans, séquence par séquence, reliés à leurs passages. */
+function ShotsPanel({ doc, hot, onHover }: { doc: ProjectDoc; hot: ID | null; onHover: (id: ID | null) => void }) {
   const ids = doc.project.sequenceIds;
+  if (!ids.some((id) => doc.sequences[id]?.shotIds.length)) return <p className={s.muted}>Aucun plan</p>;
   return (
-    <>
-      <p className={s.count}>
-        {ids.length} séquence{ids.length > 1 ? 's' : ''}
-      </p>
-      <ol className={s.outline} data-testid="scenario-outline">
-        {ids.map((id, i) => (
-          <li key={id}>
-            <button
-              type="button"
-              onClick={() =>
-                document.querySelector(`[data-cut-seq="${id}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-              }
-              data-view
-            >
-              <span className={s.n}>{i + 1}</span>
-              <span className={s.h}>{cutHeading(doc, id).toLocaleUpperCase('fr') || 'Sans titre'}</span>
-              <span className={s.p} />
-            </button>
-          </li>
-        ))}
-      </ol>
-    </>
-  );
-}
-
-/** Plans du découpage, séquence par séquence, reliés à leurs passages. */
-function ShotsPanel({
-  doc,
-  readOnly,
-  hot,
-  onHover,
-  onFlush,
-}: {
-  doc: ProjectDoc;
-  readOnly: boolean;
-  hot: ID | null;
-  onHover: (id: ID | null) => void;
-  onFlush: () => void;
-}) {
-  const toast = useUi((u) => u.toast);
-  const scenes = useMemo(() => scenesOf(doc.scenario ?? ''), [doc.scenario]);
-  const missing = scenes.filter((sc) => !matchSequence(doc, sc)).length;
-  return (
-    <div className={s.shots}>
-      {!readOnly && (
-        <div className={s.shotsHead}>
-          <LinkModeToggle doc={doc} />
-          {missing > 0 && (
-            <button
-              type="button"
-              className={s.quiet}
-              data-testid="import-scenes"
-              title="Ajoute à la fin du découpage les séquences du scénario qui n’y figurent pas encore (rien n’est modifié ni réordonné)"
-              onClick={() => {
-                onFlush();
-                const src = useProjectStore.getState().doc?.scenario ?? '';
-                const r = mutateDoc((d) => importScenes(d, src));
-                if (r)
-                  toast({
-                    message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.characters} personnage${r.characters > 1 ? 's' : ''} ajouté${r.sequences + r.characters > 1 ? 's' : ''} au découpage.`,
-                    actionLabel: 'Annuler',
-                    action: undo,
-                  });
-              }}
-            >
-              + Ajouter au découpage{' '}
-              {missing > 1 ? `les ${missing} séquences absentes` : 'la séquence absente'}
-            </button>
-          )}
-        </div>
-      )}
-      {doc.project.sequenceIds.length === 0 && (
-        <p className={s.muted}>Le découpage est vide : sélectionnez un passage puis « Créer un plan ».</p>
-      )}
-      {doc.project.sequenceIds.map((seqId) => {
+    <div className={s.shots} data-testid="scenario-shots">
+      {ids.map((seqId) => {
         const seq = doc.sequences[seqId];
         return (
           <section key={seqId} className={s.scene}>
@@ -786,9 +874,7 @@ function ShotsPanel({
                 return (
                   <li
                     key={id}
-                    className={[linked ? s.linked : '', hot && shot.actionBlockId === hot ? s.hot : ''].join(
-                      ' ',
-                    )}
+                    className={[linked ? s.linked : '', hot && shot.actionBlockId === hot ? s.hot : ''].join(' ')}
                     onMouseEnter={() => linked && onHover(shot.actionBlockId)}
                     onMouseLeave={() => onHover(null)}
                     data-testid="scenario-shot"
@@ -803,7 +889,7 @@ function ShotsPanel({
                   </li>
                 );
               })}
-              {seq && seq.shotIds.length === 0 && <li className={s.muted}>Aucun plan.</li>}
+              {seq && seq.shotIds.length === 0 && <li className={s.muted}>Aucun plan</li>}
             </ul>
           </section>
         );
@@ -812,28 +898,75 @@ function ShotsPanel({
   );
 }
 
-const METHOD_HINT: Record<ScriptChrono['method'], string> = {
-  pages: 'par pages',
-  characters: 'par caractères',
-  configurable: 'par type de paragraphe',
+const METHOD: Record<ScriptChrono['method'], string> = {
+  pages: 'Minutage : par pages',
+  characters: 'Minutage : par caractères',
+  configurable: 'Minutage : par type de paragraphe',
 };
 
-/** Chronomètre : durée estimée à la position du curseur, puis au total, selon la méthode du projet. */
-function Chrono({ settings }: { settings?: Partial<ScriptChrono> }) {
+/** Barre d'état du texte : séquence et page du curseur, puis la durée estimée au curseur et au total. */
+function ScriptStatus({ settings }: { settings?: Partial<ScriptChrono> }) {
   const c = useMemo(() => chronoOf(settings), [settings]);
   const blocks = useScriptUi((u) => u.blocks);
   const caret = useScriptUi((u) => u.caret);
+  const outline = useScriptUi((u) => u.outline);
+  const pages = useScriptUi((u) => u.pages);
+  const activeHeading = useScriptUi((u) => u.activeHeading);
   // Même minutage que les statistiques : celui des pages imprimées (les notes n'y comptent pas).
   const timeline = useMemo(() => chronoTimeline(blocks, c), [blocks, c]);
   const at = timeline.at(caret);
-  const chrono = { at: at === null ? null : Math.round(at), total: Math.round(timeline.total) };
+  const total = Math.round(timeline.total);
+  const k = outline.findIndex((o) => o.id === activeHeading);
+  // Page imprimée du curseur ; une ligne qui ne s'imprime pas (note) prend celle de sa séquence.
+  const placed = caret ? layoutScript(blocks).placement.get(caret.id) : undefined;
+  const page = placed ? placed.page + 1 : k >= 0 ? outline[k].page : null;
   return (
-    <span
-      className={s.chrono}
-      title={`Durée estimée ${METHOD_HINT[c.method]} : position du curseur / total`}
-      data-testid="scenario-chrono"
-    >
-      <span>{chrono.at !== null ? mmss(chrono.at) : '–'}</span> / <b>{mmss(chrono.total)}</b>
+    <>
+      {/* Curseur hors du texte : les comptes, comme au séquencier. */}
+      <span data-testid="scenario-position">
+        {page === null ? (
+          <>
+            {plural(outline.length, 'séquence')} · {plural(pages, 'page')}
+          </>
+        ) : (
+          <>
+            {outline.length > 0 && <>Séquence {k >= 0 ? outline[k].n : '–'} / {outline.length} · </>}
+            Page {page} / {pages}
+          </>
+        )}
+      </span>
+      <span title={METHOD[c.method]} data-testid="scenario-chrono">
+        {at !== null ? mmss(Math.round(at)) : '–'} / {mmss(total)}
+      </span>
+    </>
+  );
+}
+
+/** Barre d'état du séquencier : séquences et pages du texte, durée totale estimée. */
+function OutlineStatus({ doc }: { doc: ProjectDoc }) {
+  const settings = doc.project.settings.scriptChrono;
+  const { n, pages, total } = useMemo(() => {
+    const blocks = blocksFromSource(doc.scenario ?? '').blocks;
+    const o = scriptOutline(blocks);
+    return { n: o.items.length, pages: o.pages, total: chronoTimeline(blocks, chronoOf(settings)).total };
+  }, [doc.scenario, settings]);
+  return (
+    <>
+      <span>
+        {plural(n, 'séquence')} · {plural(pages, 'page')}
+      </span>
+      <span title={METHOD[chronoOf(settings).method]}>{hms(total)}</span>
+    </>
+  );
+}
+
+/** Barre d'état du découpage : séquences et plans. */
+function CutStatus({ doc }: { doc: ProjectDoc }) {
+  const ids = doc.project.sequenceIds;
+  const shots = ids.reduce((k, id) => k + (doc.sequences[id]?.shotIds.length ?? 0), 0);
+  return (
+    <span>
+      {plural(ids.length, 'séquence')} · {plural(shots, 'plan')}
     </span>
   );
 }
@@ -897,14 +1030,16 @@ function HighlightPicker({ onPick }: { onPick: (c: HighlightColor | undefined) =
     <span className={s.hlWrap} ref={ref}>
       <button
         type="button"
+        className={s.iconMenu}
         aria-label="Surligner"
-        title="Surligner (révision, non imprimé)"
+        title="Surligner"
         aria-expanded={open}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen(!open)}
         data-testid="highlight"
       >
-        <Highlighter size={15} strokeWidth={1.5} />
+        <Highlighter size={16} strokeWidth={1.25} />
+        <ChevronDown size={12} strokeWidth={1.25} aria-hidden="true" />
       </button>
       {open && (
         <span className={s.hlMenu} role="menu" onMouseDown={(e) => e.preventDefault()}>

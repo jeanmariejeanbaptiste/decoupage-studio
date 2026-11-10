@@ -290,7 +290,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
             <Button ref={createFirst} variant="primary" autoFocus onClick={newSequenceAfter} data-testid="create-first">
               Créer la première séquence
             </Button>
-            <Button variant="outline" onClick={() => navigate('scenario')}>
+            <Button variant="outline" onClick={() => navigate('scenario', { view: 'script' })}>
               Écrire ou importer un scénario
             </Button>
           </div>

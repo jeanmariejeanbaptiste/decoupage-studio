@@ -42,8 +42,8 @@ async function selectText(page: Page, needle: string) {
 test.describe('scénario et liaison', () => {
   test('clic droit → créer un plan avec cette action, ou la commenter', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    // L'onglet Plans ne sert qu'en vue Découpage (ailleurs, il garde sa place sans se montrer).
-    await expect(page.getByTestId('scenario-tab-shots')).toBeHidden();
+    // Plus d'onglet Plans : les plans sont le panneau du Découpage.
+    await expect(page.getByTestId('scenario-tab-shots')).toHaveCount(0);
     const count = () => page.evaluate(() => Object.values((window as unknown as { __ds: { doc: () => { shots: Record<string, { subject: string }> } } }).__ds.doc().shots).length);
     const before = await count();
     await selectText(page, 'Marc attend sous la pluie');
@@ -51,10 +51,9 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('menuitem', { name: 'Créer un plan' }).click();
     // Mode lié (par défaut) : le plan va directement dans la séquence de la scène.
     await expect.poll(count).toBe(before + 1);
-    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
-    await page.getByTestId('scenario-tab-shots').click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
     await expect(page.getByTestId('scenario-shot').filter({ hasText: 'Marc attend sous la pluie' }).first()).toBeVisible();
-    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Scénario' }).click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
     // Même geste : commenter le passage (l'auteur aussi).
     await selectText(page, 'Marc attend sous la pluie');
     await page.getByTestId('script-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
@@ -66,11 +65,10 @@ test.describe('scénario et liaison', () => {
 
   test('les répliques sélectionnées vont dans le dialogue', async ({ page }) => {
     await page.goto('/#/scenario?seed=fiction');
-    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
-    await page.getByTestId('scenario-tab-shots').click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
     // Mode libre : la séquence se choisit, celle de la scène est suggérée en premier.
     await page.getByTestId('scenario-link-mode').uncheck();
-    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Scénario' }).click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
     await selectText(page, "GUICHETIER\nC'est pour combien de temps ?");
     await page.getByTestId('create-shot-from-selection').click();
     await expect(page.getByRole('menuitem').first()).toContainText('(suggérée)');
@@ -93,8 +91,7 @@ test.describe('scénario et liaison', () => {
     await expect(editor.locator('[data-type="character"]').last()).toHaveText('NINA');
     await expect(editor.locator('[data-type="dialogue"]').last()).toHaveText('Bonsoir.');
     await expect(page.getByTestId('scenario-outline')).toContainText('CAFÉ DE LA GARE');
-    await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
-    await page.getByTestId('scenario-tab-shots').click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario)).toContain('NINA\nBonsoir.');
     await expect(page.locator('aside').getByText('4, CAFÉ DE LA GARE')).toHaveCount(0);
     await page.getByTestId('import-scenes').click();
@@ -117,16 +114,16 @@ test.describe('scénario et liaison', () => {
     await expect(page.getByTestId('title-page')).toContainText('Nina Roy');
     // Page A4 au gabarit du modèle (une ligne de 12,1 pt = 16 px).
     await expect(page.getByTestId('script-stack')).toHaveCSS('width', /^78\d/);
-    await page.getByRole('radio', { name: 'Découpage' }).click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
     await expect(page.getByTestId('scenario-cut')).toContainText('GARE');
-    await page.getByRole('radio', { name: 'Scénario' }).click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
     const dl = page.waitForEvent('download');
-    await page.getByTestId('tab-export').click();
-    await page.getByTestId('tab-export-panel').getByText('Fountain', { exact: true }).click();
-    await page.getByTestId('tab-export-go').click();
+    await page.getByTestId('scenario-export').click();
+    await page.getByRole('menuitem', { name: 'Fountain', exact: true }).click();
     expect((await dl).suggestedFilename()).toBe('La Consigne.fountain');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: /^Importer/ }).click();
+    await page.getByTestId('version-switcher').click();
+    await page.getByTestId('version-import').click();
     await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('EXT. TOIT - AUBE\n\nLe soleil se lève.\n') });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
     await expect(page.getByTestId('script-editor')).toContainText('Le soleil se lève.');
@@ -139,19 +136,19 @@ test.describe('scénario et liaison', () => {
     const fixture = (n: string) => readFileSync(new URL(`../src/domain/__fixtures__/kit/${n}`, import.meta.url));
     await page.goto('/#/scenario?seed=fiction');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: /^Importer/ }).click();
+    await page.getByTestId('version-switcher').click();
+    await page.getByTestId('version-import').click();
     await (await chooser).setFiles({ name: 'modele.fdx', mimeType: 'application/xml', buffer: fixture('modele-complet.fdx') });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
     // Les 17 pages du modèle, à l'écran comme à l'export.
-    await expect(page.getByText('22 séquences · 17 pages')).toBeVisible();
+    await expect(page.getByTestId('scenario-position')).toHaveText(/^(22 séquences · 17 pages|Séquence \S+ \/ 22 · Page \d+ \/ 17)$/);
     // Chronomètre : 1 page ≈ 1 minute ; la dernière page est entamée.
     await expect(page.getByTestId('scenario-chrono')).toContainText('/ 16:');
     await expect(page.getByTestId('script-editor')).toContainText('Sed rhoncus convallis mollis.');
     const exportAs = async (format: string) => {
       const dl = page.waitForEvent('download', { timeout: 30_000 });
-      await page.getByTestId('tab-export').click();
-      await page.getByTestId('tab-export-panel').getByText(format, { exact: true }).click();
-      await page.getByTestId('tab-export-go').click();
+      await page.getByTestId('scenario-export').click();
+      await page.getByRole('group', { name: 'Scénario' }).getByRole('menuitem', { name: format, exact: true }).click();
       const d = await dl;
       return { name: d.suggestedFilename(), buf: readFileSync(await d.path()) };
     };
@@ -236,8 +233,8 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await page.getByLabel('Adresse de tournage').click();
   await expect(page.getByTestId('script-editor')).toContainText('INT. GARE DU NORD — HALL');
   // Statistiques : une vue à part entière, le panneau latéral s'efface.
-  const views = page.getByRole('radiogroup', { name: 'Affichage du scénario' });
-  await views.getByRole('radio', { name: 'Statistiques' }).click();
+  const views = page.getByRole('tablist', { name: 'Scénario' });
+  await views.getByRole('tab', { name: 'Statistiques' }).click();
   const reports = page.getByTestId('script-reports');
   await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
   await page.getByTestId('report-summary').click();
@@ -250,15 +247,20 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   // Une séquence du rapport rouvre le texte à sa place.
   await page.getByTestId('report-scenes').click();
   await reports.getByRole('button', { name: /GARE DU NORD — HALL/ }).first().click();
-  await expect(views.getByRole('radio', { name: 'Scénario' })).toHaveAttribute('aria-checked', 'true');
+  await expect(views.getByRole('tab', { name: 'Texte' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('script-editor')).toBeVisible();
   await page.getByTestId('scenario-tab-research').click();
-  await page.getByLabel('Logline').fill('Une valise, une décision.');
+  // La logline et le synopsis sont en tête du séquencier, plus dans la recherche.
+  await expect(page.getByTestId('scenario-research').getByLabel('Logline')).toHaveCount(0);
   await page.getByTestId('research-add-doc').click();
+  await views.getByRole('tab', { name: 'Séquencier' }).click();
+  await page.getByLabel('Logline').fill('Une valise, une décision.');
+  await page.getByLabel('Synopsis').click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { research?: { logline?: string } } } }).__ds.doc().research?.logline)).toBe('Une valise, une décision.');
   await page.goto('/#/registry?tab=characters');
   await expect(page.getByText('Alice Martin')).toBeVisible();
   // Panneau latéral masqué (bouton ou ⌘\), et retenu au rechargement.
-  await page.goto('/#/scenario');
+  await page.goto('/#/scenario?view=script');
   await page.getByTestId('scenario-side-toggle').click();
   await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
   await page.reload();
@@ -277,7 +279,8 @@ test('scénario : aucune ligne ne sort de sa feuille (sauts de page, blocs vari�
   await page.getByRole('button', { name: 'Écrire ou importer un scénario' }).click();
   await expect(page.getByTestId('script-editor')).toBeVisible();
   page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-pages.fountain'));
-  await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await expect(page.getByText(/Scénario importé/)).toBeVisible();
   await page.waitForTimeout(800);
   const bad = await page.evaluate(() => {
@@ -369,16 +372,20 @@ test('scénario : minutage par pages, caractères ou type (réglages) ; graphiqu
   await expect(chrono).toBeVisible();
   await expect(chrono).not.toHaveText(before);
   await expect(chrono).toHaveAttribute('title', /par type de paragraphe/);
-  await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Statistiques' }).click();
+  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Statistiques' }).click();
   await page.getByTestId('report-structure').click();
   const dl = page.waitForEvent('download');
-  await page.getByTestId('report-png').click();
+  await page.getByTestId('scenario-export').click();
+  await page.getByRole('menuitem', { name: 'Graphique (PNG)' }).click();
   expect((await dl).suggestedFilename()).toBe('la-consigne-structure-de-l-histoire.png');
   // Rapport en PDF : les contrôles de l'écran ne sont pas imprimés.
   await page.getByTestId('report-scenes').click();
   await page.getByTestId('script-reports').locator('select').selectOption({ index: 1 });
   const pdf = page.waitForEvent('download', { timeout: 30_000 });
-  await page.getByRole('button', { name: 'Exporter ce rapport en PDF' }).click();
+  await page.getByTestId('scenario-export').click();
+  // Sommaire, tableaux : pas de graphique à exporter.
+  await expect(page.getByRole('menuitem', { name: 'Graphique (PNG)' })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: 'Rapport affiché (PDF)' }).click();
   // (Le nom accentué n'est pas rendu par Chromium sans interface : seul le contenu est vérifié.)
   const { readFileSync } = await import('node:fs');
   expect(readFileSync((await (await pdf).path())!).subarray(0, 5).toString()).toBe('%PDF-');
@@ -437,22 +444,27 @@ test('recherche : ce qui est tapé reste, même panneau masqué au clavier ou pa
   await page.goto('/#/scenario?seed=fiction');
   const research = () => page.evaluate(() => (window as unknown as { __ds: { doc: () => { research?: Record<string, string> } } }).__ds.doc().research ?? {});
   await page.getByTestId('scenario-tab-research').click();
-  await page.getByLabel('Logline').fill('Une valise, une décision.');
+  await page.getByLabel('Genre').fill('Drame');
   await page.keyboard.press('Control+Backslash');
   await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
-  await expect.poll(async () => (await research()).logline).toBe('Une valise, une décision.');
+  await expect.poll(async () => (await research()).genre).toBe('Drame');
   await page.keyboard.press('Control+Backslash');
-  await expect(page.getByLabel('Logline')).toHaveValue('Une valise, une décision.');
-  await page.getByLabel('Genre').fill('Drame');
+  await expect(page.getByLabel('Genre')).toHaveValue('Drame');
+  await page.getByLabel('Année').fill('2026');
   await page.evaluate(() => (location.hash = '#/grid'));
   await expect(page.locator('[data-testid="shot-row"]').first()).toBeVisible();
-  await expect.poll(async () => (await research()).genre).toBe('Drame');
+  await expect.poll(async () => (await research()).year).toBe('2026');
+  // Séquencier : la logline, quittée sans clic, reste aussi.
+  await page.goto('/#/scenario?view=outline');
+  await page.getByLabel('Logline').fill('Une valise, une décision.');
+  await page.evaluate(() => (location.hash = '#/grid'));
+  await expect.poll(async () => (await research()).logline).toBe('Une valise, une décision.');
 });
 
-test('vue Découpage : le panneau suit la version choisie ; les onglets ne bougent pas d’une vue à l’autre', async ({ page }) => {
+test('vue Découpage : le panneau suit la version choisie ; la bascule du panneau ne bouge pas d’une vue à l’autre', async ({ page }) => {
   await page.goto('/#/scenario?seed=fiction');
-  const tabX = async () => (await page.getByTestId('scenario-tab-research').boundingBox())!.x;
-  const x0 = await tabX();
+  const toggleX = async () => (await page.getByTestId('scenario-side-toggle').boundingBox())!.x;
+  const x0 = await toggleX();
   const switcher = page.getByTestId('version-switcher');
   await switcher.click();
   await page.getByTestId('version-new').click();
@@ -462,25 +474,29 @@ test('vue Découpage : le panneau suit la version choisie ; les onglets ne bouge
   await page.keyboard.type('\nINT. CAFÉ DU PORT - NUIT\nUn café fume.');
   const outline = page.getByTestId('scenario-outline');
   await expect(outline).toContainText('CAFÉ DU PORT');
-  const views = page.getByRole('radiogroup', { name: 'Affichage du scénario' });
-  await views.getByRole('radio', { name: 'Découpage' }).click();
-  expect(await tabX()).toBe(x0);
-  await expect(outline).toContainText('CAFÉ DU PORT');
+  const views = page.getByRole('tablist', { name: 'Scénario' });
+  await views.getByRole('tab', { name: 'Découpage' }).click();
+  expect(await toggleX()).toBe(x0);
+  // Panneau du Découpage : les plans, sans onglet ; la séquence nouvelle se propose à la ligne 2.
+  await expect(page.getByTestId('scenario-tab-scenes')).toHaveCount(0);
+  await expect(page.getByTestId('scenario-shots')).toBeVisible();
+  await expect(page.getByTestId('import-scenes')).toHaveText('Ajouter 1 séquence au découpage');
   await switcher.click();
   await page.getByTestId('version-item').filter({ hasText: 'V1' }).getByRole('menuitemradio').click();
   await expect(switcher).toHaveText('V1');
+  await expect(page.getByTestId('import-scenes')).toHaveCount(0);
+  await views.getByRole('tab', { name: 'Texte' }).click();
   await expect(outline).not.toContainText('CAFÉ DU PORT');
   await expect(outline.locator('li')).toHaveCount(3);
   await page.getByTestId('scenario-tab-characters').click();
   await expect(page.getByTestId('scenario-characters')).toBeVisible();
-  // Sans texte, la vue Découpage liste les séquences du découpage, et non « aucune séquence ».
+  // Sans texte, le panneau du Découpage montre les séquences du découpage.
   await page.goto('/#/scenario?seed=rav3');
-  await views.getByRole('radio', { name: 'Découpage' }).click();
-  await page.getByTestId('scenario-tab-scenes').click();
-  await expect(page.getByText('Aucune séquence pour l’instant.')).toHaveCount(0);
+  await views.getByRole('tab', { name: 'Découpage' }).click();
   const n = await page.locator('[data-cut-seq]').count();
   expect(n).toBeGreaterThan(0);
-  await expect(outline.locator('li')).toHaveCount(n);
+  await expect(page.getByTestId('scenario-shots').locator('section')).toHaveCount(n);
+  await expect(page.getByTestId('scenario-status')).toContainText(`${n} séquence`);
 });
 
 test('versions : un nouveau texte importé devient la V2, chaque scène retrouve sa séquence', async ({ page }) => {
@@ -491,7 +507,8 @@ test('versions : un nouveau texte importé devient la V2, chaque scène retrouve
   await page.keyboard.press('Enter');
   await page.getByRole('button', { name: /^Scénario$/ }).first().click();
   page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-v2.fountain'));
-  await page.getByRole('button', { name: 'Importer', exact: true }).first().click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Créer la V2' }).click();
   await expect(page.getByTestId('toast')).toContainText('V2 : 3 séquences reprises dont 1 modifiée · 1 nouvelle, ajoutée au découpage');
   await expect(page.getByTestId('version-switcher')).toHaveText('V2');
@@ -587,16 +604,18 @@ test('scénario : les notes ne comptent ni dans les pages ni dans la durée ; ba
   const src = `Title: Notes\n\n> FONDU D’OUVERTURE :\n\nUne ouverture.\n\n${Array.from({ length: 30 }, (_, k) => scene(k + 1)).join('')}`;
   await page.goto('/#/scenario?seed=fiction');
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /^Importer/ }).click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'notes.fountain', mimeType: 'text/plain', buffer: Buffer.from(src) });
   await page.getByRole('alertdialog').getByRole('button', { name: /^Remplacer/ }).click();
-  const count = page.getByText(/^30 séquences · \d+ pages$/);
-  await expect(count).toBeVisible();
-  const pages = Number(/· (\d+) pages/.exec((await count.textContent()) ?? '')![1]);
+  // Le panneau ne compte plus : la barre d'état, curseur hors du texte.
+  const count = page.getByTestId('scenario-position');
+  await expect(count).toHaveText(/30 séquences · \d+ pages|\/ 30 · Page \d+ \/ \d+$/);
+  const pages = Number(/(\d+) pages$|\/ (\d+)$/.exec((await count.textContent()) ?? '')!.slice(1).find(Boolean));
   // La dernière séquence est sur la dernière page imprimée.
   await expect(page.getByTestId('scenario-outline').locator('li').last().locator('span').last()).toHaveText(String(pages));
   const total = /\/ (\d+:\d\d)/.exec((await page.getByTestId('scenario-chrono').textContent()) ?? '')![1];
-  await page.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Statistiques' }).click();
+  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Statistiques' }).click();
   await page.getByTestId('report-summary').click();
   const kpi = (label: string) => page.getByTestId('script-reports').getByText(label, { exact: true }).locator('xpath=preceding-sibling::b');
   await expect(kpi('Durée')).toHaveText(total);

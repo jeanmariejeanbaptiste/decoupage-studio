@@ -1,5 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { parseHash } from './router';
+import { isScenarioView, parseHash, scenarioHref, scenarioLocation } from './router';
+
+describe('adresse du Scénario', () => {
+  const at = (h: string) => scenarioLocation(parseHash(h).params);
+  it('sous-page, séquence et rapport', () => {
+    expect(at('#/scenario?view=outline')).toEqual({ view: 'outline', seq: undefined, report: undefined });
+    expect(at('#/scenario?view=stats&report=structure')).toEqual({ view: 'stats', seq: undefined, report: 'structure' });
+    expect(at('#/scenario?view=outline&seq=4')).toEqual({ view: 'outline', seq: 4, report: undefined });
+  });
+  it('?seq=N seul mène au texte ; rien, ou une sous-page inconnue : pas de sous-page imposée', () => {
+    expect(at('#/scenario?seq=7').view).toBe('script');
+    expect(at('#/scenario').view).toBeUndefined();
+    expect(at('#/scenario?view=plans').view).toBeUndefined();
+    expect(at('#/scenario?seq=abc').seq).toBeUndefined();
+    expect(at('#/scenario?seq=-2').seq).toBeUndefined();
+  });
+  it('aller-retour', () => {
+    expect(scenarioHref('script', { seq: 3 })).toBe('#/scenario?view=script&seq=3');
+    expect(scenarioHref('stats', { report: 'activity' })).toBe('#/scenario?view=stats&report=activity');
+    expect(at(scenarioHref('cut'))).toEqual({ view: 'cut', seq: undefined, report: undefined });
+    expect(isScenarioView('stats')).toBe(true);
+    expect(isScenarioView(null)).toBe(false);
+  });
+});
 
 describe('parseHash', () => {
   it('reconnaît une route et ses paramètres', () => {

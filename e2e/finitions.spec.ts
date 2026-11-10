@@ -28,7 +28,8 @@ test('import d’un scénario Word : séquences, personnages et répliques', asy
     { t: 'Il pleut.' },
   ]);
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /^Importer/ }).click();
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'scenario.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: buf });
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
   await expect(page.getByTestId('toast').filter({ hasText: 'Scénario importé : 2 séquences' })).toBeVisible();
@@ -308,9 +309,15 @@ test('exports des onglets : les pages contiennent bien le texte (jamais de page 
   for (const route of ['/#/scenario?seed=fiction', '/#/intention?seed=fiction', '/#/schedule?seed=rav3']) {
     await page.goto(route);
     const dl = page.waitForEvent('download', { timeout: 30_000 });
-    await page.getByTestId('tab-export').click();
-    await page.getByTestId('tab-export-panel').getByText('Images A4', { exact: true }).click();
-    await page.getByTestId('tab-export-go').click();
+    if (route.startsWith('/#/scenario')) {
+      // Scénario : menu Exporter à sections, un clic par format.
+      await page.getByTestId('scenario-export').click();
+      await page.getByTestId('export-script-images').click();
+    } else {
+      await page.getByTestId('tab-export').click();
+      await page.getByTestId('tab-export-panel').getByText('Images A4', { exact: true }).click();
+      await page.getByTestId('tab-export-go').click();
+    }
     const d = await dl;
     const buf = readFileSync(await d.path());
     // Une seule page : une image ; plusieurs : un dossier compressé (chaque page est vérifiée).
