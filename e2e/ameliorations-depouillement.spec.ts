@@ -132,6 +132,11 @@ test('dépouillement : catégories sans doublon, renommées sans perdre leurs é
   await page.getByLabel('Ajouter (Animeaux)').fill('Chien');
   await page.keyboard.press('Enter');
   await page.getByTestId('breakdown-perso:Animeaux').getByText('Animeaux').dblclick();
+  // Vers une catégorie de base : refusé, le champ reste ouvert et marqué.
+  await page.getByTestId('breakdown-rename').fill('Costumes');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('breakdown-rename')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByTestId('breakdown-perso:Animeaux')).toBeVisible();
   await page.getByTestId('breakdown-rename').fill('Animaux');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('breakdown-perso:Animaux')).toContainText('Chien');
@@ -155,6 +160,19 @@ test('dépouillement : renommer un élément dans tout le film depuis la liste',
   await expect(full.getByTestId('tag-mark').filter({ hasText: 'valise cabossée' })).toHaveCount(1);
   await undo(page);
   await expect(page.getByTestId('whole-item').filter({ hasText: 'Valise cabossée' })).toHaveCount(0);
+  // Au clavier : F2 ouvre, Échap annule ; quitter le champ valide.
+  const name = page.getByTestId('whole-item').filter({ hasText: 'Valise' }).getByText('Valise');
+  await name.focus();
+  await page.keyboard.press('F2');
+  await page.keyboard.type('Valoche');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('breakdown-rename')).toHaveCount(0);
+  await expect(page.getByTestId('whole-item').filter({ hasText: 'Valoche' })).toHaveCount(0);
+  await name.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Malle');
+  await page.getByTestId('breakdown-rename').blur();
+  await expect(page.getByTestId('whole-item').filter({ hasText: 'Malle' }).locator('button')).toHaveText(['1', '2', '']);
   // Un personnage (registre) ne se renomme pas d'ici.
   await page.getByTestId('whole-item').filter({ hasText: 'Léa' }).getByText('Léa').dblclick();
   await expect(page.getByTestId('breakdown-rename')).toHaveCount(0);

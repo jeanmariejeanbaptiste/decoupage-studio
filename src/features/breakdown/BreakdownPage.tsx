@@ -21,7 +21,8 @@ import { sequenceCharacterIds } from '../../domain/characters';
 import { fold } from '../../domain/text';
 import { parseDialogue } from '../../domain/fountain';
 import { createSequenceForScene } from '../../domain/scriptToShot';
-import type { ID, ProjectDoc } from '../../domain/types';
+import { aggregateEquipment, type EquipmentLine } from '../../domain/equipment';
+import type { EquipmentCategory, ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useReadOnly } from '../../store/share';
 import { useUi } from '../../store/uiStore';
@@ -102,33 +103,64 @@ function pastedList(e: ClipboardEvent<HTMLInputElement>): string[] | null {
   return items;
 }
 
-/** Saisie en place d'un nom : Entrée valide, Échap (ou quitter le champ) annule. */
-function InlineRename({ value, label, onCommit, onDone }: { value: string; label: string; onCommit: (v: string) => void; onDone: () => void }) {
+/**
+ * Saisie en place d'un nom : Entrée ou quitter le champ valide, Échap annule. Un nom refusé
+ * (onCommit rend false) garde le champ ouvert, marqué invalide.
+ */
+function InlineRename({ value, label, onCommit, onDone }: { value: string; label: string; onCommit: (v: string) => boolean | void; onDone: () => void }) {
   const [draft, setDraft] = useState(value);
+  const [invalid, setInvalid] = useState(false);
+  // Une seule issue : le champ qui disparaît après Entrée ou Échap ne valide pas une seconde fois.
+  const closed = useRef(false);
+  const close = () => {
+    closed.current = true;
+    onDone();
+  };
+  const commit = () => {
+    if (closed.current) return true;
+    const v = draft.trim();
+    if (!v || v === value) return true;
+    return onCommit(v) !== false;
+  };
   return (
     <input
       className={s.rename}
       value={draft}
       autoFocus
       aria-label={label}
-      onChange={(e) => setDraft(e.target.value)}
+      aria-invalid={invalid || undefined}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        setInvalid(false);
+      }}
       onFocus={(e) => e.currentTarget.select()}
-      onBlur={onDone}
+      onBlur={() => {
+        if (closed.current) return;
+        commit();
+        close();
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          if (draft.trim() && draft.trim() !== value) onCommit(draft.trim());
-          onDone();
+          if (commit()) close();
+          else setInvalid(true);
         } else if (e.key === 'Escape') {
           e.preventDefault();
           e.stopPropagation();
-          onDone();
+          close();
         }
       }}
       data-testid="breakdown-rename"
     />
   );
 }
+
+/** Ouvre le renommage d'un nom au clavier (F2 ou Entrée). */
+const renameKeys = (open: () => void) => (e: KeyboardEvent<HTMLElement>) => {
+  if (e.key !== 'F2' && e.key !== 'Enter') return;
+  e.preventDefault();
+  open();
+};
 
 type View = 'sequence' | 'full' | 'reports';
 const VIEW_KEY = 'ds-breakdown-view';
@@ -152,6 +184,8 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const numbers = useMemo(() => entryNumbers(doc, entries), [doc, entries]);
   const index = useMemo(() => breakdownIndex(doc), [doc]);
   const counts = useMemo(() => itemCountBySequence(index), [index]);
+  // Matériel du film : une fois par modification, pour toutes les séquences du scénario entier.
+  const eq = useMemo(() => aggregateEquipment(doc), [doc]);
   const marks = useRevisionMarks(doc);
   const [view, setViewState] = useState<View>(readView);
   const [picked, setPicked] = useState<{ seqId?: ID; sceneStart?: number }>(() => ({ seqId: selectedSequence(doc) }));
@@ -358,7 +392,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           {view === 'full' ? (
             <div className={[s.sheet, s.sheetFull].join(' ')} ref={flow} data-testid="breakdown-full">
               {entries.map((e) => (
-                <EntryText key={e.key} doc={doc} entry={e} n={numbers.byKey.get(e.key)} active={e.key === entry.key} full hot={hot} readOnly={readOnly} onTag={(items) => tagIn(e, items)} onUntag={(cat, item) => untagIn(e, cat, item)} onMove={(from, to, item) => moveIn(e, from, to, item)} onFocus={() => e.key !== entry.key && pick(e)} />
+                <EntryText key={e.key} doc={doc} entry={e} n={numbers.byKey.get(e.key)} active={e.key === entry.key} full hot={hot} readOnly={readOnly} onTag={(items) => tagIn(e, items)} onUntag={(cat, item) => untagIn(e, cat, item)} onMove={(from, to, item) => moveIn(e, from, to, item)} onFocus={() => e.key !== entry.key && pick(e)} eq={eq} />
               ))}
             </div>
           ) : (
@@ -426,6 +460,7 @@ function EntryText({
   onUntag,
   onMove,
   onFocus,
+  eq,
 }: {
   doc: ProjectDoc;
   entry: Entry;
@@ -438,6 +473,7 @@ function EntryText({
   onUntag: (cat: BreakdownCategory, item: string) => void;
   onMove: (from: BreakdownCategory, to: BreakdownCategory, item: string) => void;
   onFocus?: () => void;
+  eq?: Record<EquipmentCategory, EquipmentLine[]>;
 }) {
   const paragraphs = useMemo(() => paragraphsFor(doc, entry), [doc, entry]);
   // Seule la fiche d'une séquence propose « Tout ajouter » en tête du texte (la liste du film a le sien).
@@ -455,7 +491,7 @@ function EntryText({
       )}
       {seq?.summary && <p className={s.summary}>{seq.summary}</p>}
       {suggestions && <AddAll suggestions={suggestions} onAdd={onTag} />}
-      {paragraphs.length > 0 && <SceneText doc={doc} seqId={entry.seqId ?? ''} paragraphs={paragraphs} hot={active ? hot : null} readOnly={readOnly} onTag={(cat, item) => onTag([{ cat, item }])} onUntag={onUntag} onMove={onMove} />}
+      {paragraphs.length > 0 && <SceneText doc={doc} seqId={entry.seqId ?? ''} paragraphs={paragraphs} hot={active ? hot : null} readOnly={readOnly} onTag={(cat, item) => onTag([{ cat, item }])} onUntag={onUntag} onMove={onMove} eq={eq} />}
     </article>
   );
 }
@@ -520,7 +556,7 @@ function WholeSheet({
                       {renaming === key ? (
                         <InlineRename value={e.item} label={`Renommer ${e.item}`} onCommit={(v) => mutateDoc((d) => void renameBreakdownItem(d, cat, e.item, v))} onDone={() => setRenaming(null)} />
                       ) : (
-                        <span className={s.wName} onDoubleClick={renamable ? () => setRenaming(key) : undefined}>
+                        <span className={s.wName} onDoubleClick={renamable ? () => setRenaming(key) : undefined} tabIndex={renamable ? 0 : undefined} onKeyDown={renamable ? renameKeys(() => setRenaming(key)) : undefined}>
                           {e.item}
                         </span>
                       )}
@@ -627,7 +663,17 @@ function BreakdownSheet({
           onAdd={(v) => onAdd(cat, v)}
           onRemove={(v) => onRemove(cat, v)}
           onHot={onHot}
-          onRename={isCustomCategory(cat) && !readOnly ? (to) => mutateDoc((d) => void renameCustomCategory(d, breakdownLabel(cat), to)) : undefined}
+          onRename={
+            isCustomCategory(cat) && !readOnly
+              ? (to) => {
+                  // Vers une catégorie de base : refusé, le champ reste ouvert.
+                  const same = categoryNamed(doc, to);
+                  if (same && !isCustomCategory(same)) return false;
+                  mutateDoc((d) => void renameCustomCategory(d, breakdownLabel(cat), to));
+                  return true;
+                }
+              : undefined
+          }
           onRemoveCategory={
             isCustomCategory(cat) && !readOnly
               ? async () => {
@@ -687,7 +733,7 @@ function Category({
   onAdd: (v: string[]) => void;
   onRemove: (v: string) => void;
   onHot: (v: string | null) => void;
-  onRename?: (to: string) => void;
+  onRename?: (to: string) => boolean;
   onRemoveCategory?: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
@@ -701,7 +747,9 @@ function Category({
         {renaming && onRename ? (
           <InlineRename value={breakdownLabel(cat)} label={`Renommer la catégorie ${breakdownLabel(cat)}`} onCommit={onRename} onDone={() => setRenaming(false)} />
         ) : (
-          <span onDoubleClick={onRename ? () => setRenaming(true) : undefined}>{breakdownLabel(cat)}</span>
+          <span onDoubleClick={onRename ? () => setRenaming(true) : undefined} tabIndex={onRename ? 0 : undefined} onKeyDown={onRename ? renameKeys(() => setRenaming(true)) : undefined}>
+            {breakdownLabel(cat)}
+          </span>
         )}
         {count > 0 && <em>{count}</em>}
         {onRemoveCategory && (
