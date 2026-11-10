@@ -265,3 +265,15 @@
 @media (max-width: 1100px) {
   .panel { height: auto; min-height: 0; overflow: visible; }
 }
+
+/*
+ * Température de couleur : seule couleur du plan. La teinte de la source arrive par --k-papier et
+ * --k-encre (une par thème) ; sans température, le gris du thème.
+ */
+.beamGroup, .light, .kDot { --light-k: var(--k-papier, var(--ochre)); }
+:root[data-theme='encre'] .beamGroup, :root[data-theme='encre'] .light, :root[data-theme='encre'] .kDot { --light-k: var(--k-encre, var(--ochre)); }
+.beamStop { stop-color: var(--light-k); }
+.light { fill: var(--light-k); }
+.kDot { flex: none; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--light-k); vertical-align: 0; }
+.kUnit { display: inline-flex; align-items: center; }
+.kUnit .kDot { margin-right: 5px; }
