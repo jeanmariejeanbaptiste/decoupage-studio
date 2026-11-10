@@ -113,8 +113,9 @@ test('Scénario : menu Exporter à sections fixes', async ({ page }) => {
     return page.getByTestId('scenario-export-menu');
   };
   let menu = await open();
-  await expect(menu.getByRole('group')).toHaveCount(1);
+  await expect(menu.getByRole('group')).toHaveCount(2);
   await expect(menu.getByRole('group', { name: 'Scénario' }).getByRole('menuitem')).toHaveText(['PDF', 'Word', 'Final Draft', 'Fountain', 'Images']);
+  await expect(menu.getByRole('group', { name: 'Séquencier' }).getByRole('menuitem')).toHaveText(['PDF', 'Word']);
   const dl = page.waitForEvent('download');
   await menu.getByRole('menuitem', { name: 'Fountain' }).click();
   expect((await dl).suggestedFilename()).toBe('La Consigne.fountain');
@@ -123,7 +124,7 @@ test('Scénario : menu Exporter à sections fixes', async ({ page }) => {
   await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Statistiques' }).click();
   await page.getByTestId('report-summary').click();
   menu = await open();
-  await expect(menu.getByRole('group')).toHaveCount(2);
+  await expect(menu.getByRole('group')).toHaveCount(3);
   await expect(menu.getByRole('group').last()).toHaveAccessibleName('Statistiques');
   await expect(menu.getByRole('group', { name: 'Statistiques' }).getByRole('menuitem')).toHaveText(['Rapport affiché (PDF)']);
   await page.keyboard.press('Escape');
@@ -193,7 +194,7 @@ test('Scénario sur téléphone : menus entiers, Exporter et version toujours vi
   expect(await inside(page, page.getByTestId('version-switcher'))).toBe(true);
   await page.getByTestId('scenario-export').click();
   const items = page.getByTestId('scenario-export-menu').getByRole('menuitem');
-  await expect(items).toHaveCount(5);
+  await expect(items).toHaveCount(7);
   for (const it of await items.all()) await expect(it).toBeInViewport({ ratio: 1 });
   await page.keyboard.press('Escape');
   await page.getByTestId('block-type').click();
@@ -208,7 +209,7 @@ test('Scénario au clavier : Exporter (Échap, Tab), ⌘\\ hors panneau, poigné
   await expect(page.getByTestId('script-editor')).toBeVisible();
   const trigger = page.getByTestId('scenario-export');
   await trigger.click();
-  await expect(page.getByRole('menuitem', { name: 'PDF' })).toBeFocused();
+  await expect(page.getByTestId('export-script-pdf')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('scenario-export-menu')).toHaveCount(0);
   await expect(trigger).toBeFocused();

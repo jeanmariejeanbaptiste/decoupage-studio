@@ -493,6 +493,7 @@ test('vue Découpage : le panneau suit la version choisie ; la bascule du pannea
   // Sans texte, le panneau du Découpage montre les séquences du découpage.
   await page.goto('/#/scenario?seed=rav3');
   await views.getByRole('tab', { name: 'Découpage' }).click();
+  await expect(page.locator('[data-cut-seq]').first()).toBeVisible();
   const n = await page.locator('[data-cut-seq]').count();
   expect(n).toBeGreaterThan(0);
   await expect(page.getByTestId('scenario-shots').locator('section')).toHaveCount(n);
