@@ -16,6 +16,10 @@
 .right { flex: none; gap: 6px; }
 .group { display: flex; align-items: center; gap: 0; padding-right: 6px; margin-right: 2px; border-right: 1px solid var(--rule); }
 .status { margin-left: 6px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.statusText { overflow: hidden; text-overflow: ellipsis; }
+/* Échec de l'enregistrement : marqué d'une icône, visible à toute largeur (le libellé seul se masque). */
+.failed { display: inline-flex; align-items: center; gap: 5px; color: var(--ink); flex: none; }
+.failed svg { flex: none; }
 .assistant { height: 30px; padding: 0 10px; border-color: var(--rule); font-size: 13px; }
 .assistant:hover:not(:disabled) { border-color: var(--ink-soft); }
 .pressed, .pressed:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); color: var(--paper); }
@@ -28,7 +32,8 @@
 @media (prefers-reduced-motion: reduce) { .appear { animation: none; } }
 
 @media (max-width: 1100px) {
-  .status { display: none; }
+  .status:not(.failed) { display: none; }
+  .failed .statusText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 /* Téléphone : menu, projet, assistant et partage ; le reste au clavier et dans la palette. */
 @media (max-width: 700px) {
