@@ -2,6 +2,7 @@ import { newId } from '../../domain/factory';
 import { migrate, projectCopy } from '../../domain/serialize';
 import { loadProject, saveProject } from '../../store/db';
 import { flushPendingSave } from '../../store/persistence';
+import { announceProjects } from '../../store/homeHistory';
 
 /**
  * Copie d'un projet de ce navigateur, sans l'ouvrir : même contenu, nouvel identifiant, titre suivi de
@@ -16,5 +17,6 @@ export async function duplicateProject(id: string): Promise<string | null> {
   const now = new Date().toISOString();
   copy.project = { ...copy.project, createdAt: now, updatedAt: now };
   await saveProject(copy);
+  announceProjects(copy.project.id);
   return copy.project.id;
 }

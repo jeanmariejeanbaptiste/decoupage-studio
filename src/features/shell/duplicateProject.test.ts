@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../../seed/fiction';
 import { db, deleteProject, listProjects, loadProject, saveProject } from '../../store/db';
+import { removeProject, undoHome } from '../../store/homeHistory';
 import { duplicateProject } from './duplicateProject';
 
 describe('dupliquer un projet', () => {
@@ -27,5 +28,24 @@ describe('dupliquer un projet', () => {
 
   it('projet introuvable : rien', async () => {
     expect(await duplicateProject('absent')).toBeNull();
+  });
+
+  it('copie, suppression et restauration sont annoncées aux autres onglets', async () => {
+    await db.projects.clear();
+    const orig = buildFiction();
+    await saveProject(orig);
+    const heard: Array<{ id: string; updatedAt: string; tab: string }> = [];
+    const listener = new BroadcastChannel('ds-projects');
+    listener.onmessage = (e) => heard.push(e.data);
+    const wait = () => new Promise((r) => setTimeout(r, 30));
+
+    const id = await duplicateProject(orig.project.id);
+    await removeProject(orig.project.id);
+    await undoHome(orig.project.id);
+    await wait();
+    listener.close();
+    expect(heard.map((m) => m.id)).toEqual([id, orig.project.id, orig.project.id]);
+    // Même format que les enregistrements ; une date vide ne fait rouvrir le projet nulle part.
+    for (const m of heard) expect(m).toEqual({ id: m.id, updatedAt: '', tab: expect.any(String) });
   });
 });
