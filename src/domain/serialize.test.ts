@@ -177,6 +177,7 @@ describe('projet abîmé relu (fichier ou base)', () => {
     (doc.project.settings as unknown as Raw).gridColumns = ['subject', null, 'inconnue'];
     raw.scenario = 42;
     raw.comments = [null, { id: 'sans-ancre' }, { id: 'c', anchor: { kind: 'sequence', sequenceId: seq.id }, replies: null, attachments: [null, 'k:1'] }];
+    raw.geocodes = { bon: { address: 'a', lat: 48.8, lon: 2.3 }, introuvable: { address: 'b', missing: true }, vide: { address: 'c' }, casse: { address: 'd', lat: '48' } };
     const back = migrate(doc);
     expect(back.sequences[seq.id].characterIds).not.toContain('disparu');
     expect(back.sequences[seq.id].decorId).toBeUndefined();
@@ -187,5 +188,6 @@ describe('projet abîmé relu (fichier ou base)', () => {
     expect(back.comments).toHaveLength(1);
     expect(back.comments![0].replies).toEqual([]);
     expect(mediaKeys(back)).toContain('k:1');
+    expect(Object.keys(back.geocodes!).sort()).toEqual(['bon', 'introuvable']);
   });
 });
