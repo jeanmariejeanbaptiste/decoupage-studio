@@ -322,7 +322,7 @@ test.describe('vérifications sur téléphone', () => {
     await expect(input).toBeFocused();
     await page.keyboard.type('0:20');
     await page.keyboard.press('Enter');
-    const d = await docOf(page);
-    expect(Object.values(d.sequences).find((q) => q.label === 'PARVIS DE LA GARE')!.estimatedSec).toBe(20);
+    await expect(input).not.toBeFocused();
+    await expect.poll(async () => Object.values((await docOf(page)).sequences).find((q) => q.label === 'PARVIS DE LA GARE')!.estimatedSec).toBe(20);
   });
 });
