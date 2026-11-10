@@ -12,7 +12,8 @@ test.describe('registre', () => {
     await expect(row).toContainText('1:10');
     await expect(row).toContainText('−0:35 (−50 %)');
     await page.getByRole('table', { name: 'Séquences' }).getByRole('button', { name: '4', exact: true }).click();
-    await expect(page.locator('[data-cell="18:subject"]')).toHaveAttribute('aria-selected', 'true');
+    // Le numéro mène à l'en-tête de la séquence (sa cellule SÉQUENCE).
+    await expect(page.locator('[data-cell="18:sequence"]')).toHaveAttribute('aria-selected', 'true');
   });
 
   test('personnages : fusion de doublons par menu et par glisser-déposer', async ({ page }) => {
