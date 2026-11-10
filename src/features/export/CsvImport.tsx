@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { navigate } from '../../app/router';
-import { COLUMN_DEFS } from '../../domain/columns';
-import { CSV_COLUMNS, guessMapping, importRows, parseDelimited } from '../../domain/csv';
+import { columnMenuLabel } from '../../domain/columns';
+import { CSV_COLUMNS, guessMapping, importRows, parseDelimited, tcModeOfColumn } from '../../domain/csv';
 import { createProjectDoc } from '../../domain/factory';
 import type { ColumnKey } from '../../domain/types';
 import { openDoc } from '../../store/persistence';
@@ -25,6 +25,12 @@ export function CsvImport({ text, onDone }: { text: string; onDone: () => void }
   const run = async (target: 'current' | 'new') => {
     if (target === 'new') {
       const doc = createProjectDoc({ title: 'Import CSV', format: 'fiction' });
+      // Plages « 0:00 - 0:35 » (découpage calé sur une piste) : le nouveau projet adopte ce minutage.
+      const tcCol = mapping.indexOf('tc');
+      if (tcCol >= 0 && tcModeOfColumn(body.map((r) => r[tcCol] ?? '')) === 'piste') {
+        doc.project.settings.tcMode = 'piste';
+        doc.project.settings.tcModeChosen = true;
+      }
       const n = importRows(doc, body, mapping);
       await openDoc(doc);
       toast({ message: `${n} plans importés dans un nouveau projet.` });
@@ -56,7 +62,7 @@ export function CsvImport({ text, onDone }: { text: string; onDone: () => void }
                     <option value="">— ignorer —</option>
                     {CSV_COLUMNS.filter((c) => c !== 'number').map((c) => (
                       <option key={c} value={c}>
-                        {COLUMN_DEFS[c].label}
+                        {columnMenuLabel(c)}
                       </option>
                     ))}
                   </select>
@@ -76,7 +82,7 @@ export function CsvImport({ text, onDone }: { text: string; onDone: () => void }
         </table>
       </div>
       <p className={s.note}>
-        {body.length} ligne{body.length > 1 ? 's' : ''} · une séquence par libellé distinct · les actions identiques consécutives sont liées.
+        {body.length} ligne{body.length > 1 ? 's' : ''}
       </p>
       <div className={s.importRow}>
         <Button onClick={onDone}>Annuler</Button>
