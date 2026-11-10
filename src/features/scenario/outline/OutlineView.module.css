@@ -2,16 +2,6 @@
 .view { max-width: 880px; margin: 0 auto; padding-bottom: 64px; outline: none; }
 .wide { max-width: none; }
 
-/* En-tête du film. */
-.film { display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
-.logline, .synopsis {
-  display: block; width: 100%; margin: 0; padding: 0; border: 0; resize: none; overflow: hidden;
-  background: none; color: var(--ink); font-family: inherit; outline: none;
-}
-.logline { font-size: 20px; line-height: 28px; font-weight: 500; }
-.synopsis { font-size: 15px; line-height: 22px; color: var(--ink-soft); }
-.logline::placeholder, .synopsis::placeholder { color: var(--ink-soft); opacity: 0.6; }
-
 /* Ajout rapide : une ligne de 44 px, un filet bas. Les colonnes s'alignent sur le contenu des lignes. */
 .quick {
   display: grid; grid-template-columns: 72px 220px 120px minmax(0, 1fr); align-items: center; gap: 8px;
@@ -135,7 +125,6 @@ button.partTitle:hover { color: var(--ink); }
 
 /* Téléphone : la liste seule, sans poignée ni mesures en colonne. */
 @media (max-width: 700px) {
-  .film { margin-bottom: 28px; }
   .row { grid-template-columns: 28px minmax(0, 1fr) 28px; padding: 12px 0 12px 4px; }
   .rowRead { grid-template-columns: 28px minmax(0, 1fr); }
   .handle { display: none; }

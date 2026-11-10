@@ -248,7 +248,7 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
   );
 }
 
-/** Recherche : genre, année et documents libres du projet (logline et synopsis sont en tête du Séquencier). */
+/** Recherche : genre, année, logline, synopsis et documents libres du projet. */
 export function ResearchPanel({ doc, readOnly }: { doc: ProjectDoc; readOnly: boolean }) {
   const r = doc.research ?? {};
   const set = (patch: Partial<NonNullable<ProjectDoc['research']>>) => mutateDoc((d) => void Object.assign((d.research ??= {}), patch));
@@ -258,6 +258,8 @@ export function ResearchPanel({ doc, readOnly }: { doc: ProjectDoc; readOnly: bo
         <Field label="Genre" value={r.genre ?? ''} readOnly={readOnly} placeholder="Thriller psychologique" onCommit={(v) => set({ genre: v.trim() || undefined })} />
         <Field label="Année" value={r.year ?? ''} readOnly={readOnly} onCommit={(v) => set({ year: v.trim() || undefined })} />
       </div>
+      <Field label="Logline" multiline value={r.logline ?? ''} readOnly={readOnly} placeholder="Le film en une phrase." onCommit={(v) => set({ logline: v.trim() || undefined })} />
+      <Field label="Synopsis" multiline value={r.synopsis ?? ''} readOnly={readOnly} onCommit={(v) => set({ synopsis: v.trim() || undefined })} />
       <p className={s.label}>Documents</p>
       {(r.docs ?? []).map((d) => (
         <div key={d.id} className={s.doc}>

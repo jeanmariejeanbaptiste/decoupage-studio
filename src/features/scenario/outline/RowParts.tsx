@@ -7,8 +7,8 @@ import { registerFlush } from '../../../store/persistence';
 import { isShortcut } from '../../../store/shortcuts';
 import { useCommitDraft } from '../ResearchPanels';
 import { Combo, EFFECTS, IntExtSelect, useLocationChoices } from './HeadingFields';
-import { ActionMenu, PlotPicker, StepMenu } from './OutlineMenus';
-import { commitHeading, commitPhrase, moveStep, setPlot, setStep, writeSequence } from './outlineActions';
+import { ActionMenu, StepMenu } from './OutlineMenus';
+import { commitHeading, commitPhrase, moveStep, setStep, writeSequence } from './outlineActions';
 import { setActive, setEditing, setInsertAfter, useOutlineUi } from './outlineUi';
 import s from './OutlineView.module.css';
 
@@ -169,34 +169,12 @@ export function HeadingEditor({ it, doc }: { it: OutlineSequence; doc: Parameter
   );
 }
 
-/** Étape et intrigue d'une séquence : chaque mot est un menu ; non renseignés, ils n'apparaissent qu'au survol. */
-export function Attrs({
-  it,
-  plots,
-  plotShown,
-  readOnly,
-  className,
-}: {
-  it: OutlineSequence;
-  plots: ReadonlyArray<{ key: string; name: string }>;
-  /** L'intrigue se lit toujours quand le projet en a plusieurs (ou si ce n'est pas la principale). */
-  plotShown: boolean;
-  readOnly: boolean;
-  className?: string;
-}) {
-  const [open, setOpen] = useState<'step' | 'plot' | null>(null);
+/** Étape d'une séquence : le mot est un menu ; non renseignée, elle n'apparaît qu'au survol. */
+export function Attrs({ it, readOnly, className }: { it: OutlineSequence; readOnly: boolean; className?: string }) {
+  const [open, setOpen] = useState(false);
   const stepRef = useRef<HTMLButtonElement>(null);
-  const plotRef = useRef<HTMLButtonElement>(null);
   const hasStep = it.step !== undefined;
-  const plotLabel = plots.find((p) => p.key === it.plot)?.name ?? `Intrigue ${it.plot}`;
-  if (readOnly)
-    return (
-      <div className={[s.attrs, className].join(' ')}>
-        {hasStep && <span>{stepLabel(it.step!)}</span>}
-        {hasStep && plotShown && <span className={s.dot} aria-hidden="true">·</span>}
-        {plotShown && <span>{plotLabel}</span>}
-      </div>
-    );
+  if (readOnly) return <div className={[s.attrs, className].join(' ')}>{hasStep && <span>{stepLabel(it.step!)}</span>}</div>;
   return (
     <div className={[s.attrs, className].join(' ')}>
       <button
@@ -204,36 +182,17 @@ export function Attrs({
         type="button"
         className={[s.attr, hasStep ? '' : s.attrGhost].join(' ')}
         aria-haspopup="dialog"
-        aria-expanded={open === 'step'}
+        aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation();
           setActive(it.n);
-          setOpen(open === 'step' ? null : 'step');
+          setOpen(!open);
         }}
         data-testid="outline-step"
       >
         {hasStep ? stepLabel(it.step!) : 'Étape'}
       </button>
-      <span className={[s.dot, hasStep && plotShown ? '' : s.attrGhost].join(' ')} aria-hidden="true">
-        ·
-      </span>
-      <button
-        ref={plotRef}
-        type="button"
-        className={[s.attr, plotShown ? '' : s.attrGhost].join(' ')}
-        aria-haspopup="dialog"
-        aria-expanded={open === 'plot'}
-        onClick={(e) => {
-          e.stopPropagation();
-          setActive(it.n);
-          setOpen(open === 'plot' ? null : 'plot');
-        }}
-        data-testid="outline-plot"
-      >
-        {plotShown ? plotLabel : 'Intrigue'}
-      </button>
-      {open === 'step' && <StepMenu anchor={stepRef} value={it.step} onClose={() => setOpen(null)} onPick={(n) => setStep(it.n, n)} />}
-      {open === 'plot' && <PlotPicker anchor={plotRef} plots={plots} value={it.plot} onClose={() => setOpen(null)} onPick={(k) => setPlot(it.n, k)} />}
+      {open && <StepMenu anchor={stepRef} value={it.step} onClose={() => setOpen(false)} onPick={(n) => setStep(it.n, n)} />}
     </div>
   );
 }

@@ -48,7 +48,6 @@ import { CHART_REPORTS, REPORTS, ScriptStatsReports, isReport, savedReport, stor
 import { SequencesPanel } from './SequencesPanel';
 import { TextToggle } from './TextToggle';
 import { OutlineView } from './outline/OutlineView';
-import { OutlineToolbar } from './outline/OutlineToolbar';
 import { outlineExportSection } from './outline/outlineExportSection';
 import s from './ScenarioPage.module.css';
 
@@ -490,7 +489,6 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
 
       <div className={s.tools} data-testid="scenario-tools">
         <div className={s.toolsMain}>
-          {view === 'outline' && <OutlineToolbar doc={doc} />}
           {view === 'script' && !readOnly && (
             <>
               <TypePicker type={activeType} onPick={(t) => api.current?.setType(t)} />

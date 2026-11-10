@@ -250,12 +250,10 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await expect(views.getByRole('tab', { name: 'Continuité dialoguée' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('script-editor')).toBeVisible();
   await page.getByTestId('scenario-tab-research').click();
-  // La logline et le synopsis sont en tête du séquencier, plus dans la recherche.
-  await expect(page.getByTestId('scenario-research').getByLabel('Logline')).toHaveCount(0);
+  // La logline et le synopsis sont dans la recherche, pas dans le séquencier.
   await page.getByTestId('research-add-doc').click();
-  await views.getByRole('tab', { name: 'Séquencier' }).click();
-  await page.getByLabel('Logline').fill('Une valise, une décision.');
-  await page.getByLabel('Synopsis').click();
+  await page.getByTestId('scenario-research').getByLabel('Logline').fill('Une valise, une décision.');
+  await page.getByTestId('scenario-research').getByLabel('Synopsis').click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { research?: { logline?: string } } } }).__ds.doc().research?.logline)).toBe('Une valise, une décision.');
   await page.goto('/#/registry?tab=characters');
   await expect(page.getByText('Alice Martin')).toBeVisible();
@@ -454,9 +452,10 @@ test('recherche : ce qui est tapé reste, même panneau masqué au clavier ou pa
   await page.evaluate(() => (location.hash = '#/grid'));
   await expect(page.locator('[data-testid="shot-row"]').first()).toBeVisible();
   await expect.poll(async () => (await research()).year).toBe('2026');
-  // Séquencier : la logline, quittée sans clic, reste aussi.
-  await page.goto('/#/scenario?view=outline');
-  await page.getByLabel('Logline').fill('Une valise, une décision.');
+  // La logline, quittée sans clic, reste aussi.
+  await page.goto('/#/scenario');
+  await page.getByTestId('scenario-tab-research').click();
+  await page.getByTestId('scenario-research').getByLabel('Logline').fill('Une valise, une décision.');
   await page.evaluate(() => (location.hash = '#/grid'));
   await expect.poll(async () => (await research()).logline).toBe('Une valise, une décision.');
 });

@@ -115,8 +115,8 @@ function outlineRows(doc: ProjectDoc, opts: OutlineExportOptions): Row[] {
   };
   const rows: Row[] = [];
   if (opts.order === 'list') {
-    const several = declared.length > 1 || sequences.some((x) => x.plot !== declared[0]?.key);
-    for (const it of items) rows.push(it.kind === 'part' ? { kind: 'part', title: it.title } : entry(it, several));
+    // Un séquencier se lit dans l'ordre du récit, sans intrigue.
+    for (const it of items) rows.push(it.kind === 'part' ? { kind: 'part', title: it.title } : entry(it, false));
     return rows;
   }
   const used = [...new Set(sequences.map((x) => x.plot))];

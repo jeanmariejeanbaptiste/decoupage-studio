@@ -14,9 +14,6 @@ import s from './OutlineView.module.css';
 export interface RowContext {
   doc: ProjectDoc;
   readOnly: boolean;
-  plots: ReadonlyArray<{ key: string; name: string }>;
-  plotShown: (plot: string) => boolean;
-  dimmed: (plot: string) => boolean;
   measures: OutlineMeasures;
   marks: Map<number, 'new' | 'changed'> | null;
   markFrom?: string;
@@ -54,7 +51,7 @@ function SequenceRow({ it, ctx, mark, dragging }: { it: OutlineSequence; ctx: Ro
   return (
     <li
       ref={dnd.setRow}
-      className={[s.row, readOnly ? s.rowRead : '', active ? s.rowOn : '', ctx.dimmed(it.plot) ? s.dim : '', dragging ? s.dragging : ''].join(' ')}
+      className={[s.row, readOnly ? s.rowRead : '', active ? s.rowOn : '', dragging ? s.dragging : ''].join(' ')}
       data-outline-n={it.n}
       data-drop={mark ?? undefined}
       tabIndex={active ? 0 : -1}
@@ -95,7 +92,7 @@ function SequenceRow({ it, ctx, mark, dragging }: { it: OutlineSequence; ctx: Ro
             {it.phrase || ' '}
           </p>
         )}
-        <Attrs it={it} plots={ctx.plots} plotShown={ctx.plotShown(it.plot)} readOnly={readOnly} />
+        <Attrs it={it} readOnly={readOnly} />
       </div>
       <span className={s.measures}>
         {m && <span>p. {m.page}</span>}

@@ -73,7 +73,7 @@ test('Scénario : ?seq=N mène au texte ou à la ligne du séquencier, puis l’
   await expect(page.locator('[data-outline-n="2"]')).toBeInViewport();
 });
 
-test('Scénario : un projet sans texte s’ouvre sur le séquencier ; logline et synopsis y sont', async ({ page }) => {
+test('Scénario : un projet sans texte s’ouvre sur le séquencier, sans logline ni synopsis (ils sont dans la recherche)', async ({ page }) => {
   await page.goto('/#/');
   await page.getByTestId('new-project').click();
   await page.getByLabel('Titre du projet').fill('Vide');
@@ -81,8 +81,9 @@ test('Scénario : un projet sans texte s’ouvre sur le séquencier ; logline et
   await expect(page.getByTestId('create-first')).toBeVisible();
   await page.evaluate(() => void (location.hash = '#/scenario'));
   await expect(page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Séquencier' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Logline')).toBeVisible();
-  await expect(page.getByLabel('Synopsis')).toBeVisible();
+  await expect(page.getByTestId('outline-view')).toBeVisible();
+  await expect(page.getByLabel('Logline')).toHaveCount(0);
+  await expect(page.getByLabel('Synopsis')).toHaveCount(0);
   await expect(page.getByTestId('scenario-status')).toContainText('0 séquence · 1 page');
 });
 
