@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRight, Clock, Map as MapIcon, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRight, Clock, FileText, Map as MapIcon, Plus, Trash2, X } from 'lucide-react';
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, dayStats, dayTotalsText, longDate, plural, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
+import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, liveShotCount, scheduleProgress, stripOwnShots, dayStats, dayTotalsText, longDate, plural, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
@@ -32,6 +32,27 @@ const TONE: Record<StripTone, string> = {
   'ext-twilight': s.tExtTwilight,
 };
 
+/** Capacité de « Répartir » : réglage personnel, retenu dans le navigateur (le projet n'est pas modifié). */
+const CAPACITY_KEY = 'ds-schedule-capacity';
+const DEFAULT_CAPACITY = 20;
+
+function readCapacity(): number {
+  try {
+    const v = Math.floor(Number(localStorage.getItem(CAPACITY_KEY)));
+    return v >= 1 ? v : DEFAULT_CAPACITY;
+  } catch {
+    return DEFAULT_CAPACITY;
+  }
+}
+
+function writeCapacity(v: number): void {
+  try {
+    localStorage.setItem(CAPACITY_KEY, String(v));
+  } catch {
+    /* stockage indisponible : la valeur vaut pour la page */
+  }
+}
+
 /** Plan de travail (§15.3) : bandes par jour de tournage. */
 export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
@@ -41,7 +62,11 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const places = useMemo(() => mapPlaces(doc), [doc]);
   const [mapOn, toggleMap] = useMapVisible();
   const showMap = mapOn && places.length > 0;
-  const [capacity, setCapacity] = useState(20);
+  const [capacity, setCapacityState] = useState(readCapacity);
+  const setCapacity = (v: number) => {
+    setCapacityState(v);
+    writeCapacity(v);
+  };
   // Réserve « Non planifié » vide : affichée seulement pendant un glisser, comme cible de dépôt.
   const [dragging, setDragging] = useState(false);
   const [openDays, setOpenDays] = useState<number[]>([]);
@@ -60,7 +85,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
     const toDay = Number(to[1]);
     if (fromDay === toDay) return;
     const strip = strips.get(fromDay)?.find((x) => x.seqId === from[2]);
-    if (strip) mutateDoc((d) => assignShots(d, strip.shotIds, toDay || undefined));
+    // Seuls les plans dont c'est le jour suivent la bande (une reprise reste où elle est).
+    const ids = strip ? stripOwnShots(doc, fromDay, strip) : [];
+    if (ids.length) mutateDoc((d) => assignShots(d, ids, toDay || undefined));
   };
 
   const suggest = async () => {
@@ -72,8 +99,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
     mutateDoc((d) => void suggestSchedule(d, capacity));
   };
 
-  const total = [...strips.values()].flat().reduce((n, x) => n + x.shotIds.length, 0);
-  const planned = total - (strips.get(0) ?? []).reduce((n, x) => n + x.shotIds.length, 0);
+  const { planned, total } = scheduleProgress(doc);
 
   return (
     <div className="page page--wide">
@@ -116,9 +142,10 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
         }}>
         <div className={s.bands}>
           {days.map((d) => {
-            const st = dayStats(doc, timing, d.n);
+            const dayStrips = strips.get(d.n) ?? [];
+            const st = dayStats(doc, timing, d.n, dayStrips);
             return (
-              <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} items={dayAgenda(doc, d.n)} days={days.map((x) => x.n)} nums={nums} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
+              <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n, dayStrips)} items={dayAgenda(doc, d.n)} days={days.map((x) => x.n)} nums={nums} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
                 <div className={s.dayHead}>
                   <div className={s.dayTitle}>
                   <strong>
@@ -168,6 +195,15 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     >
                       Emploi du temps
                     </Button>
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      aria-label={`Feuille du jour ${d.n}`}
+                      icon={<FileText size={13} strokeWidth={1.25} />}
+                      onClick={() => navigate('callsheet', { day: String(d.n) })}
+                      data-view
+                      data-testid={`callsheet-link-${d.n}`}
+                    />
                     <Button
                       variant="icon"
                       size="sm"
@@ -277,8 +313,8 @@ function BannerRow({ day, item, first, last }: { day: number; item: Extract<Agen
         min
       </label>
       <span className={s.bannerTools}>
-        <Button variant="icon" size="sm" aria-label="Avancer" disabled={first} icon={<ArrowUp size={13} strokeWidth={1.25} />} onClick={() => mutateDoc((d) => moveBanner(d, day, b.id, -1))} />
-        <Button variant="icon" size="sm" aria-label="Reculer" disabled={last} icon={<ArrowDown size={13} strokeWidth={1.25} />} onClick={() => mutateDoc((d) => moveBanner(d, day, b.id, 1))} />
+        <Button variant="icon" size="sm" aria-label={`Avancer : ${name}`} disabled={first} icon={<ArrowUp size={13} strokeWidth={1.25} />} onClick={() => mutateDoc((d) => moveBanner(d, day, b.id, -1))} />
+        <Button variant="icon" size="sm" aria-label={`Reculer : ${name}`} disabled={last} icon={<ArrowDown size={13} strokeWidth={1.25} />} onClick={() => mutateDoc((d) => moveBanner(d, day, b.id, 1))} />
         <Button variant="icon" size="sm" aria-label={`Supprimer : ${name}`} icon={<X size={13} strokeWidth={1.25} />} onClick={() => mutateDoc((d) => removeBanner(d, day, b.id))} />
       </span>
     </div>
@@ -293,7 +329,7 @@ function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number
   const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
   // Distribution du jour : les personnages des plans de cette bande (pas toute la séquence).
   const cast = numberedCast(doc, day > 0 ? stripCharacterIds(doc, strip) : sequenceCharacterIds(doc, strip.seqId), nums);
-  const totalInSeq = seq?.shotIds.length ?? 0;
+  const totalInSeq = liveShotCount(doc, strip.seqId);
   const planned = doc.schedule?.days.find((x) => x.n === day)?.durations?.[strip.seqId];
   return (
     <div
@@ -314,7 +350,7 @@ function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number
           {strip.shotIds.length !== totalInSeq ? ` / ${totalInSeq}` : ''} pl.
         </span>
       </div>
-      <button type="button" className={s.toggle} aria-expanded={open} aria-label="Détail des plans" onClick={() => setOpen(!open)}>
+      <button type="button" className={s.toggle} aria-expanded={open} aria-label={`Détail des plans de la séquence ${sequenceNumber(doc, strip.seqId)}`} data-view onClick={() => setOpen(!open)}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
       {open && day > 0 && (
