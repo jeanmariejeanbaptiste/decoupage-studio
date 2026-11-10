@@ -95,6 +95,15 @@ function pointAt(root: HTMLElement, pos: number): [Node, number] {
   return last ? [last, (last.nodeValue ?? '').length] : [root, 0];
 }
 
+/** Le passage du curseur est-il surligné ? */
+function highlighted(node: HTMLElement, root: HTMLElement): boolean {
+  for (let n: HTMLElement | null = node; n && n !== root; n = n.parentElement) {
+    const bg = n.style?.backgroundColor;
+    if (bg && bg !== 'transparent' && !/rgba\(0, 0, 0, 0\)/.test(bg)) return true;
+  }
+  return false;
+}
+
 /** Blocs touchés par la sélection (paragraphes, titres, citations, éléments de liste). */
 function selectedBlocks(root: HTMLElement): HTMLElement[] {
   const sel = window.getSelection();
@@ -351,6 +360,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
         marks[c] = false;
       }
     }
+    marks.highlight = highlighted(node, el);
     const tag = (block?.tagName.toLowerCase() ?? 'p') as ParagraphStyle | 'li';
     const bcs = block ? getComputedStyle(block) : null;
     const lh = block?.style.lineHeight ?? '';
@@ -441,6 +451,27 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     const el = root.current;
     if (el) for (const f of Array.from(el.querySelectorAll('font[size="7"]'))) f.setAttribute('data-pt', pt);
     normalize();
+    afterChange();
+  };
+
+  /** Surlignage retiré de la sélection (ou du passage surligné où se trouve le curseur). */
+  const unhighlight = () => {
+    const el = root.current;
+    if (!el) return;
+    restoreRange();
+    snapshot(true);
+    const sel = window.getSelection();
+    if (sel?.rangeCount) {
+      const range = sel.getRangeAt(0);
+      const start = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : (sel.anchorNode as HTMLElement | null);
+      const hits = Array.from(el.querySelectorAll<HTMLElement>('[style*="background-color"]')).filter((x) => range.intersectsNode(x) || x.contains(start));
+      for (const x of hits) {
+        x.style.backgroundColor = '';
+        if (!x.getAttribute('style')?.trim()) x.removeAttribute('style');
+      }
+      // Ancêtre surligné d'une sélection partielle : la marque part aussi.
+      for (let n: HTMLElement | null = start; n && n !== el; n = n.parentElement) if (n.style?.backgroundColor) n.style.backgroundColor = '';
+    }
     afterChange();
   };
 
@@ -629,7 +660,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
       )}
       {readOnly && trail && <div className={s.readTrail}>{trail}</div>}
 
-      <div className={s.scroller}>
+      <div className={s.scroller} ref={scroller}>
         <div className={s.stack} style={{ width: NOTE_PAGE.w, height, zoom: zoom / 100 }} data-testid="note-stack">
           <div className={s.sheets} aria-hidden="true">
             {Array.from({ length: pages }, (_, i) => (
