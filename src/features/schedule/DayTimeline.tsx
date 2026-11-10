@@ -299,6 +299,7 @@ function Chip({
   onPlace?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, disabled });
+  const kind = id.split(':')[0];
   return (
     <div
       ref={setNodeRef}
@@ -307,10 +308,16 @@ function Chip({
       {...listeners}
       {...attributes}
       onDoubleClick={onPlace}
+      data-pool-chip={onPlace ? kind : undefined}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && onPlace && !disabled) {
           e.preventDefault();
+          // Le focus passe à la fiche suivante de même nature (sinon à la précédente) une fois celle-ci placée.
+          const all = [...(e.currentTarget.closest('aside')?.querySelectorAll<HTMLElement>(`[data-pool-chip="${kind}"]`) ?? [])];
+          const i = all.indexOf(e.currentTarget);
+          const candidates = [...all.slice(i + 1), ...all.slice(0, Math.max(0, i)).reverse()];
           onPlace();
+          requestAnimationFrame(() => requestAnimationFrame(() => candidates.find((el) => el.isConnected)?.focus()));
         }
       }}
     >

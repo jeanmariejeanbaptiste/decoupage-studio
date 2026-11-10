@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useA4Pages } from '../../ui/useA4Pages';
 import { navigate, useLocation } from '../../app/router';
 import { aggregateEquipment, equipmentCategories } from '../../domain/equipment';
@@ -62,7 +62,8 @@ function showDay(n: number): void {
 /** Feuille de service d'un jour de tournage (§15.4). */
 export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const days = scheduleDays(doc);
-  const n = Number(useLocation().params.get('day'));
+  const raw = useLocation().params.get('day');
+  const n = Number(raw);
   const day = days.find((d) => d.n === n) ?? days[0];
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const sheetRef = useRef<HTMLElement>(null);
@@ -70,6 +71,10 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const [mapOn, toggleMap] = useMapVisible();
   // La carte du jour, montrée ou masquée, déplace la suite de la feuille : pagination refaite.
   useA4Pages(sheetRef, [doc, day?.n, mapOn]);
+  // Jour demandé inconnu (hors bornes, illisible) : l'adresse donne le jour réellement affiché.
+  useEffect(() => {
+    if (raw !== null && day && Number(raw) !== day.n) showDay(day.n);
+  }, [raw, day]);
 
   if (!day) {
     return (

@@ -30,6 +30,7 @@
 .dragging { opacity: 0.85; box-shadow: 0 8px 20px rgba(42, 40, 36, 0.2); }
 .num { font-weight: 700; font-variant-numeric: oldstyle-nums; color: var(--rust); }
 .ie { font-size: 11px; letter-spacing: 0.06em; color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.ieShort { display: none; font-size: 10.5px; letter-spacing: 0.04em; white-space: nowrap; color: color-mix(in srgb, var(--ink) 70%, transparent); }
 .label { font-weight: 600; letter-spacing: 0.02em; }
 .decor, .cast { color: color-mix(in srgb, var(--ink) 70%, transparent); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .count { text-align: right; font-variant-numeric: tabular-nums; font-size: 12.5px; }
@@ -65,10 +66,11 @@
   .num, .ie, .label, .when, .count { grid-area: auto; }
   .decor, .cast { display: none; }
 }
-/* Téléphone : INT/EXT se lit au ton de la bande ; l'intitulé passe à la ligne au lieu de chevaucher l'horaire. */
+/* Téléphone : INT/EXT et l'effet en forme courte ; l'intitulé passe à la ligne au lieu de chevaucher l'horaire. */
 @container bands (max-width: 480px) {
-  .stripMain { grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 8px; }
+  .stripMain { grid-template-columns: 22px auto minmax(0, 1fr) auto auto; gap: 6px; }
   .ie { display: none; }
+  .ieShort { display: inline; }
   .label { overflow-wrap: anywhere; }
   .when { font-size: 11px; }
 }
@@ -89,7 +91,7 @@
 .unplanned .strips { flex-direction: row; flex-wrap: wrap; gap: 4px; min-height: 0; }
 .unplanned .strip { background: var(--paper-card) !important; border-color: var(--rule); border-radius: 10px; }
 .unplanned .stripMain { display: flex; gap: 6px; padding: 1px 24px 1px 8px; font-size: 11.5px; }
-.unplanned .ie, .unplanned .decor, .unplanned .cast, .unplanned .when { display: none; }
+.unplanned .ie, .unplanned .ieShort, .unplanned .decor, .unplanned .cast, .unplanned .when { display: none; }
 .unplanned .label { font-weight: 500; letter-spacing: 0; }
 .unplanned .toggle { top: 0; right: 2px; }
 .unplanned .shots { position: absolute; z-index: 5; top: 100%; left: 0; min-width: 360px; border: 1px solid var(--rule); box-shadow: 0 6px 16px rgba(42, 40, 36, 0.15); background: var(--paper-card); }
