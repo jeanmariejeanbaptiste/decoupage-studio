@@ -1,0 +1,447 @@
+{
+ "ideas": [
+  {
+   "title": "Recharger depuis le stockage écrase d'abord la version plus récente (autre onglet, Drive)",
+   "kind": "perte de données",
+   "why": "openStoredProject commence par flushSave(), qui enregistre « pending ?? doc courant » sans condition. Quand un autre onglet annonce une version plus récente, ce chemin réécrit l'ancienne version de cet onglet par-dessus, puis la relit : les modifications de l'autre onglet sont effacées de IndexedDB. Même chose pour le bouton « Recharger » du toast (pending = null puis openStoredProject : la saisie locale part par-dessus) et pour syncAll, qui enregistre la version tirée du Drive puis appelle openStoredProject(openId) : le projet ouvert réécrit aussitôt la version distante. Chaque rechargement efface aussi l'historique d'annulation de l'onglet (loadDoc → temporal.clear).",
+   "what": "Séparer « enregistrer puis changer de projet » de « relire ce projet ». Ajouter à openStoredProject une option { reload: true } (ou une fonction reloadStoredProject) qui ne fait ni flushEditors ni flushSave quand l'id demandé est celui du projet ouvert : vider le minuteur (clearTimeout, pending = null), relire, migrer, loadDoc. L'utiliser dans le gestionnaire du BroadcastChannel, l'action « Recharger » et syncAll. Pour « Recharger » avec une saisie locale, proposer plutôt de garder la sienne (enregistrer) ou de prendre l'autre (relire sans enregistrer).",
+   "preuve": "src/store/persistence.ts:49-51 « export async function openStoredProject(id) { flushEditors(); await flushSave(); » ; :96 « const doc = pending ?? useProjectStore.getState().doc; » (aucune comparaison de date) ; :122 « if (!pending) void openStoredProject(m.id); » ; :128 « pending = null; void openStoredProject(m.id); » ; src/store/cloud.ts:535-544 « const doc = parseProjectFile(...); await saveProject(doc); … if (reopen && openId) await openStoredProject(openId); »",
+   "files": [
+    "src/store/persistence.ts",
+    "src/store/cloud.ts",
+    "src/store/projectStore.test.ts"
+   ],
+   "fichiers": [
+    "src/store/persistence.ts",
+    "src/store/cloud.ts",
+    "src/store/projectStore.test.ts"
+   ],
+   "risk": "moyen",
+   "risque": "moyen",
+   "effort": "petit",
+   "test": "Vitest (fake-indexeddb) : enregistrer le doc A1 ; charger A1 dans le store ; écrire A2 (updatedAt plus récent) directement dans db ; appeler le chemin de rechargement : db contient toujours A2 et le store aussi. Playwright : deux onglets sur le même projet, modifier dans l'onglet 1, attendre 1 s, vérifier que l'onglet 2 montre la modification et que le stockage la garde après fermeture de l'onglet 1."
+  },
+  {
+   "title": "Annuler fait reculer la date du projet : l'autre onglet et le Drive reprennent l'état annulé",
+   "kind": "perte de données",
+   "why": "zundo mémorise le doc entier, updatedAt compris. Sonde (vite-node, scratchpad probes/rob2.ts) : après une modification updatedAt = 2026-11-10T12:45, après ⌘Z il revient à 2026-01-01. Conséquences : l'onglet voisin ignore l'annonce (m.updatedAt <= cur.updatedAt) et sa prochaine modification réenregistre l'état d'avant l'annulation ; sur un autre appareil, syncAll juge sa copie plus récente et repousse dans le Drive l'état annulé ; openFromFile peut se tromper de « version plus récente » ; un projet annulé peut passer sous la date d'une marque de suppression d'un autre appareil et être effacé (cloud.ts:519).",
+   "what": "Après undo() et redo(), poser updatedAt = maintenant hors historique : dans projectStore, juste après temporal.undo()/redo(), faire un setState avec temporal pause/resume qui ne change que doc.project.updatedAt (même schéma que mutateQuiet, sans toucher aux états mémorisés). Les annonces et la synchronisation suivent alors l'heure réelle de la dernière action.",
+   "preuve": "src/store/projectStore.ts:59 « partialize: (s) => ({ doc: s.doc }) » ; :52 « d.project.updatedAt = new Date().toISOString(); » (seulement dans mutate) ; src/store/persistence.ts:120 « m.updatedAt <= cur.project.updatedAt) return; » ; src/store/cloud.ts:534 « if (r && (!l || rAt > l.updatedAt)) »",
+   "files": [
+    "src/store/projectStore.ts",
+    "src/store/projectStore.test.ts"
+   ],
+   "fichiers": [
+    "src/store/projectStore.ts",
+    "src/store/projectStore.test.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest : loadDoc(updatedAt ancien), mutate, undo : updatedAt est postérieur à celui d'avant undo ; redo idem ; canUndo/canRedo inchangés (pas d'étape ajoutée)."
+  },
+  {
+   "title": "Ménage des médias au démarrage d'un onglet : il efface les images qu'un autre onglet peut encore rétablir",
+   "kind": "perte de données",
+   "why": "pruneOrphanBlobs tourne 1,5 s après chaque ouverture de l'application. Il ne garde que les clés des projets enregistrés et de l'historique d'annulation de SON onglet. Un autre onglet ouvert garde dans son historique des images remplacées ou effacées (et une image ajoutée dont l'enregistrement attend encore 600 ms) : ouvrir un second onglet les supprime de IndexedDB, et ⌘Z dans le premier ramène une référence vers une image disparue.",
+   "what": "Ne lancer le ménage que si cet onglet est seul : navigator.locks.request('ds-prune', { ifAvailable: true }) tenu par chaque onglet ouvert (verrou partagé) et ménage seulement si le verrou exclusif est libre ; à défaut, ne supprimer que les blobs plus vieux qu'un délai (ajouter un champ createdAt à StoredBlob, ou garder une liste « vus orphelins » et ne supprimer qu'au deuxième passage, au démarrage suivant).",
+   "preuve": "src/app/App.tsx:129 « setTimeout(() => void pruneOrphanBlobs().catch(() => undefined), 1500); » ; src/store/persistence.ts:296-299 « for (const p of await db.projects.toArray()) … for (const d of [st.doc, ...t.pastStates.map((s) => s.doc), ...]) » (états de cet onglet seulement)",
+   "files": [
+    "src/store/persistence.ts",
+    "src/store/db.ts",
+    "src/app/App.tsx",
+    "src/store/prune.test.ts"
+   ],
+   "fichiers": [
+    "src/store/persistence.ts",
+    "src/store/db.ts",
+    "src/app/App.tsx",
+    "src/store/prune.test.ts"
+   ],
+   "risk": "moyen",
+   "risque": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : blob référencé seulement par un état « autre onglet » simulé (verrou tenu) : pruneOrphanBlobs n'efface rien. Sans verrou concurrent : comportement actuel conservé."
+  },
+  {
+   "title": "Partage à plusieurs : deux ajouts simultanés dans une séquence, un plan perdu de chaque côté",
+   "kind": "perte de données",
+   "why": "diff remplace d'un bloc tout tableau modifié (shotIds, sequenceIds). Sonde (probes/rob1.ts, cas 4) : l'hôte et l'invité ajoutent chacun un plan à la même séquence ; après échange des opérations, chacun a un « Plan orphelin » (présent dans shots, absent de shotIds), donc invisible ; à la réouverture, migrate le supprime (4 plans → 3). Les deux participants divergent sans le savoir.",
+   "what": "Dans diff, pour les tableaux d'identifiants (chaînes) dont la longueur change, émettre des opérations d'insertion/retrait ({ p, ins: id, after: idPrécédent } / { p, rm: id }) au lieu du remplacement ; apply les rejoue en fusionnant (insérer après l'ancre si présente, sinon en fin ; ignorer un retrait absent). À défaut, côté hôte, après applyRemote, remettre dans leur séquence les plans orphelins (shot.sequenceId) et renvoyer l'état réparé à tous ; et envoyer périodiquement un condensé (nombre de plans, ordre) pour détecter la divergence.",
+   "preuve": "src/domain/patch.ts:12 « Les tableaux modifiés sont remplacés d'un bloc. » ; :28 « out.push({ p: path, v: b }); » ; :53 « else o[last] = structuredClone(op.v); » ; src/store/share.ts:228 « applyRemote(ops); »",
+   "files": [
+    "src/domain/patch.ts",
+    "src/domain/patch.test.ts",
+    "src/store/share.ts"
+   ],
+   "fichiers": [
+    "src/domain/patch.ts",
+    "src/domain/patch.test.ts",
+    "src/store/share.ts"
+   ],
+   "risk": "élevé",
+   "risque": "élevé",
+   "effort": "moyen",
+   "test": "Vitest patch.test : deux addShot concurrents sur la même séquence, ops croisées : checkInvariants vide des deux côtés, mêmes shotIds (ordre déterministe). Déplacement concurrent d'un plan entre deux séquences : le plan reste dans une seule."
+  },
+  {
+   "title": "Un plan rattaché à une autre séquence que celle qui le liste rend le projet impossible à ouvrir",
+   "kind": "plantage",
+   "why": "migrate filtre seq.shotIds AVANT de supprimer les plans dont la séquence propriétaire ne les liste pas ; l'identifiant reste dans la séquence qui le liste, puis la ligne 165 lit doc.shots[id].actionBlockId sur undefined. Sonde (probes/rob1.ts, cas 1) : TypeError « Cannot read properties of undefined (reading 'actionBlockId') ». openStoredProject affiche « Ce projet est endommagé » ; openFromFile affiche le message anglais. Cet état naît précisément d'un déplacement concurrent en partage (remplacement des tableaux) : la réparation prévue échoue.",
+   "what": "Dans migrate, refaire le filtrage des shotIds après la boucle de suppression (ou, mieux, rattacher : si shot.sequenceId ne liste pas le plan mais qu'une seule séquence le liste, corriger shot.sequenceId plutôt que supprimer le plan). Garder le message en français pour toute exception non ProjectFileError (envelopper migrate).",
+   "preuve": "src/domain/serialize.ts:137 « seq.shotIds = (seq.shotIds ?? []).filter((id) => isObject(doc.shots[id])); » puis :141-144 « if (!seq || !seq.shotIds.includes(id)) { delete doc.shots[id]; » puis :165 « new Set(seq.shotIds.map((id) => doc.shots[id].actionBlockId)) »",
+   "files": [
+    "src/domain/serialize.ts",
+    "src/domain/serialize.test.ts"
+   ],
+   "fichiers": [
+    "src/domain/serialize.ts",
+    "src/domain/serialize.test.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest serialize.test : doc où shots[x].sequenceId = B mais x listé dans A seulement : migrate ne lève pas, checkInvariants(migrate(d)) est vide et le plan x est conservé dans A."
+  },
+  {
+   "title": "migrate laisse passer plans en double et séquences hors de l'ordre",
+   "kind": "état impossible",
+   "why": "checkInvariants connaît « Plan présent deux fois », « Séquence hors ordre », « Bloc non contigu », mais migrate ne les répare pas. Sondes (probes/rob1.ts, cas 2 et 3) : un id répété dans shotIds sort tel quel (« Plan présent deux fois ») ; une séquence absente de sequenceIds reste dans doc.sequences avec ses plans (invisible au découpage, mais comptée par scheduleDays, l'équipement, l'assistant). Un plan en double fausse la numérotation dérivée de l'ordre et donne des clés React dupliquées.",
+   "what": "Dans migrate : dédoublonner chaque seq.shotIds (et un plan listé par deux séquences ne reste que dans celle de shot.sequenceId) ; ajouter en fin de sequenceIds les séquences existantes absentes de l'ordre (ou les supprimer si elles n'ont ni plan ni texte) ; appeler normalizeBlocks par séquence pour rétablir la contiguïté. Ajouter un test qui vérifie checkInvariants(migrate(x)) vide sur des fixtures abîmées.",
+   "preuve": "src/domain/serialize.ts:133 « p.sequenceIds = p.sequenceIds.filter((id, i, all) => isObject(doc.sequences[id]) && all.indexOf(id) === i); » (dédoublonné) contre :137 « seq.shotIds = (seq.shotIds ?? []).filter((id) => isObject(doc.shots[id])); » (pas de dédoublonnage) ; src/domain/ops.ts:477-478 et :493 (invariants vérifiés)",
+   "files": [
+    "src/domain/serialize.ts",
+    "src/domain/serialize.test.ts"
+   ],
+   "fichiers": [
+    "src/domain/serialize.ts",
+    "src/domain/serialize.test.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest : trois fixtures abîmées (plan en double, séquence hors ordre, bloc non contigu) : checkInvariants(migrate(d)) renvoie [] et aucun plan ni texte n'est perdu."
+  },
+  {
+   "title": "Invité qui quitte un partage : son propre projet de même identifiant est supprimé",
+   "kind": "perte de données",
+   "why": "Le projet reçu garde l'identifiant de l'hôte. Un collaborateur qui a déjà ce projet dans son navigateur (fichier .decoupage ouvert auparavant, copie d'un partage précédent) le perd : leaveSession, et le message « settings » quand l'hôte retire la copie, appellent deleteProject(id) sans vérifier que l'entrée appartenait au partage ; deleteProject efface aussi ses images. À l'inverse, expelled() et la copie accordée (saveProject) écrasent sa version locale sans demander.",
+   "what": "À l'arrivée (welcome), regarder si db.projects contient déjà cet id : si oui, retenir hadLocal = true et ne jamais supprimer ni écraser cette entrée ; enregistrer la copie de l'invité sous un nouvel id (projectCopy) ou demander comme openFromFile. N'appeler deleteProject que pour une entrée créée par le partage (drapeau en mémoire, posé au premier saveProject de la copie).",
+   "preuve": "src/store/share.ts:376 « if (shared && unload) void deleteProject(shared.project.id); » ; :317 « if (wasKept && !m.keep && doc) void deleteProject(doc.project.id); » ; :348 « await saveProject(doc); » (expelled, sans comparaison)",
+   "files": [
+    "src/store/share.ts"
+   ],
+   "fichiers": [
+    "src/store/share.ts"
+   ],
+   "risk": "moyen",
+   "risque": "moyen",
+   "effort": "petit",
+   "test": "Vitest (fake-indexeddb, PeerJS simulé) : projet P enregistré localement ; rejoindre un partage de P sans copie puis quitter : P toujours dans db avec ses blobs. Avec copie accordée puis fermeture : deux projets (l'original intact et la copie)."
+  },
+  {
+   "title": "Invité « Commenter » : opérations reçues sans contrôle (prototype pollué, tous les commentaires effaçables)",
+   "kind": "intégrité",
+   "why": "En mode relecture, l'hôte ne filtre que le premier segment du chemin (« comments »). Sonde (probes/rob1.ts, cas 5) : l'opération { p: ['comments','__proto__','polluted'], v: 1 } appliquée par apply donne ([]).polluted === 1 (Array.prototype modifié dans l'onglet de l'hôte). Une seule opération { p: ['comments'], del: true } efface aussi tous les commentaires de l'hôte, y compris ceux des autres versions. En mode modification, aucun chemin n'est vérifié non plus.",
+   "what": "Dans apply : refuser tout segment '__proto__', 'constructor', 'prototype' (et ne descendre que dans des propriétés propres : Object.hasOwn). Côté hôte en mode review : n'accepter que des chemins ['comments', index, ...] qui touchent un commentaire existant ou en ajoutent un (pas de del/v sur ['comments'] entier), et vérifier la forme reçue (id, anchor, replies tableau).",
+   "preuve": "src/store/share.ts:225 « mode === 'review' ? m.ops.filter((o) => o.p[0] === 'comments') » ; src/domain/patch.ts:43-53 (descente par o[k] sans hasOwn, « o[last] = structuredClone(op.v) »)",
+   "files": [
+    "src/domain/patch.ts",
+    "src/domain/patch.test.ts",
+    "src/store/share.ts"
+   ],
+   "fichiers": [
+    "src/domain/patch.ts",
+    "src/domain/patch.test.ts",
+    "src/store/share.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest patch.test : apply avec un chemin contenant '__proto__' ne modifie ni Object.prototype ni Array.prototype. Test du filtre de l'hôte : ['comments'] del refusé, ajout d'un commentaire accepté."
+  },
+  {
+   "title": "Un commentaire sans « replies » bloque la suppression des projets, le ménage et ⌘S",
+   "kind": "plantage",
+   "why": "migrate ne normalise jamais doc.comments (adoptUnversionedComments les tolère, sans les réparer). commentAttachments lit c.replies.flatMap sans garde. Sonde (probes/rob3.ts) : un fichier avec un commentaire sans replies passe parseProjectFile, puis mediaKeys lève « Cannot read properties of undefined (reading 'flatMap') ». mediaKeys sert à deleteProject (sur TOUS les autres projets : supprimer n'importe quel projet avec images échoue), à pruneOrphanBlobs (échec muet), à collectMedia (⌘S échoue) et à la synchronisation de relecture.",
+   "what": "Ajouter normalizeComments(doc) dans migrate : garder les entrées objets avec id chaîne et anchor objet, replies → tableau filtré, attachments → tableau de chaînes, text → chaîne ; supprimer le reste. Dans commentAttachments, lire (c.replies ?? []).",
+   "preuve": "src/domain/comments.ts:191 « ...c.replies.flatMap((r) => r.attachments ?? []) » ; src/domain/serialize.ts:66 « for (const k of commentAttachments(doc)) add(k); » ; src/store/db.ts:74-75 « const others = (await db.projects.toArray()).map((p) => p.doc); const owners = sharedMediaOwners(keys, others); »",
+   "files": [
+    "src/domain/serialize.ts",
+    "src/domain/comments.ts",
+    "src/domain/serialize.test.ts"
+   ],
+   "fichiers": [
+    "src/domain/serialize.ts",
+    "src/domain/comments.ts",
+    "src/domain/serialize.test.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest : parseProjectFile d'un fichier dont un commentaire n'a pas replies : mediaKeys ne lève pas, le commentaire a replies = [] ; une entrée non objet est retirée."
+  },
+  {
+   "title": "Synchronisation Drive : un seul fichier distant abîmé bloque tous les projets, à chaque fois",
+   "kind": "plantage",
+   "why": "Dans syncAll, parseProjectFile du fichier téléchargé n'est pas protégé projet par projet : la première ProjectFileError (ou un JSON coupé par une coupure réseau pendant un envoi précédent) sort de la boucle vers le catch général. Les projets suivants ne sont ni tirés ni poussés, et cela recommence à chaque synchronisation tant que le fichier reste dans le Drive.",
+   "what": "Entourer de try/catch le traitement de chaque id dans la boucle : noter l'échec (liste des titres en erreur dans useCloud.error), continuer avec les autres, et ne pas écraser la version locale. Optionnel : pousser la version locale si elle existe, pour remplacer le fichier abîmé.",
+   "preuve": "src/store/cloud.ts:534-541 « if (r && (!l || rAt > l.updatedAt)) { const doc = parseProjectFile(await (await download(r.id)).text()); await saveProject(doc); … } else if … » sans try ; :546-548 « } catch (e) { fail((e as Error).message); } »",
+   "files": [
+    "src/store/cloud.ts"
+   ],
+   "fichiers": [
+    "src/store/cloud.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest (fetch simulé) : trois projets distants dont le deuxième est un JSON invalide : le premier et le troisième sont enregistrés, status = 'error' avec un message qui nomme le projet abîmé."
+  },
+  {
+   "title": "Synchronisation Drive : la version écrasée n'est gardée nulle part",
+   "kind": "perte de données",
+   "why": "syncAll compare seulement updatedAt et remplace tout le document : des modifications faites hors connexion sur un appareil sont effacées sans trace si l'autre appareil a enregistré plus tard (même pour un autre champ). Avec les horloges décalées ou l'annulation qui fait reculer la date (voir l'entrée sur ⌘Z), le mauvais côté peut l'emporter. Aucun double n'est conservé avant saveProject.",
+   "what": "Avant d'écraser une version locale par la distante (et inversement), si les deux ont changé depuis la dernière synchronisation (mémoriser par projet la date de dernier accord, ex. appProperties.syncedFrom + localStorage), garder la version perdante comme copie (projectCopy, titre « … (conflit du JJ/MM HH:MM) ») et le signaler une fois. Sinon, comportement actuel.",
+   "preuve": "src/store/cloud.ts:534-537 « if (r && (!l || rAt > l.updatedAt)) { const doc = parseProjectFile(...); await saveProject(doc); » ; :538-540 « else if (l && (!r || l.updatedAt > rAt)) { … await pushProject(doc, files); » (aucune base commune, aucune copie)",
+   "files": [
+    "src/store/cloud.ts"
+   ],
+   "fichiers": [
+    "src/store/cloud.ts"
+   ],
+   "risk": "moyen",
+   "risque": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : local modifié et distant modifié depuis le dernier accord : après syncAll, deux projets (le plus récent sous l'id d'origine, l'autre en copie de conflit). Un seul côté modifié : pas de copie."
+  },
+  {
+   "title": "Synchronisation Drive : les images d'une copie ne partent jamais vers les autres appareils",
+   "kind": "perte de données",
+   "why": "pushProject choisit les blobs par propriétaire (projectId), pas par usage. Une copie (« Ouvrir comme copie », copie de partage) réutilise les clés de l'original : restoreMedia ne range pas l'image sous la copie si elle existe déjà, et deleteProject le prévoit (« ses médias changent de propriétaire »). Sur un autre appareil, la copie arrive sans ses images tant que l'original n'y est pas synchronisé, et pullBlobs ne les cherche que sous projectId === id.",
+   "what": "Dans pushProject, envoyer les blobs de mediaKeys(doc) absents du Drive (lus par clé, quel que soit leur propriétaire) ; dans pullBlobs, tirer les clés de mediaKeys du doc tiré (appProperties.key), puis les ranger sous ce projet s'ils sont absents.",
+   "preuve": "src/store/cloud.ts:478 « const rows = await db.blobs.where('projectId').equals(doc.project.id).toArray(); » ; src/store/persistence.ts:204-205 « for (const [key, m] of Object.entries(mediaOfFile(text))) { if (await getBlob(key, false)) continue; » ; src/store/db.ts:70-71 (commentaire « Une copie … peut garder les clés de l'original »)",
+   "files": [
+    "src/store/cloud.ts"
+   ],
+   "fichiers": [
+    "src/store/cloud.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest (fetch simulé) : projet copie dont le storyboard référence un blob détenu par l'original : pushProject envoie ce blob ; pullBlobs côté autre appareil le récupère pour la copie."
+  },
+  {
+   "title": "Projet supprimé dans un onglet, encore ouvert dans un autre : il revient sans ses images",
+   "kind": "perte de données",
+   "why": "La suppression depuis l'accueil n'est pas annoncée aux autres onglets (le canal ne transporte que des mises à jour). L'onglet qui a le projet ouvert le réenregistre à sa prochaine modification ou à pagehide : le projet réapparaît à l'accueil, mais deleteProject a déjà effacé ses blobs (storyboard, piste, plans au sol).",
+   "what": "Annoncer la suppression sur le BroadcastChannel ({ id, deleted: true }) depuis removeProject/redoHome ; l'onglet qui l'a ouvert vide pending, décharge le projet (loadDoc(null), retour à l'accueil, message). Annoncer aussi la restauration (undoHome) pour rafraîchir les accueils ouverts.",
+   "preuve": "src/store/persistence.ts:115 « channel?.postMessage({ id: doc.project.id, updatedAt: doc.project.updatedAt, tab: TAB }); » (seul message émis) ; src/store/homeHistory.ts:40-45 (removeProject : flush, dropPendingSave local, deleteProject, aucun message) ; src/store/db.ts:77-78 « if (dead.length) await db.blobs.bulkDelete(dead); »",
+   "files": [
+    "src/store/persistence.ts",
+    "src/store/homeHistory.ts"
+   ],
+   "fichiers": [
+    "src/store/persistence.ts",
+    "src/store/homeHistory.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Playwright : deux onglets, projet ouvert dans l'onglet 2, suppression depuis l'accueil de l'onglet 1 : l'onglet 2 revient à l'accueil, le projet ne réapparaît pas après une frappe."
+  },
+  {
+   "title": "Ouvrir un .decoupage : un média mal encodé fait échouer toute l'ouverture, message en anglais",
+   "kind": "plantage",
+   "why": "restoreMedia décode chaque média par atob sans garde : une seule entrée base 64 invalide (fichier tronqué, édité à la main) lève « Failed to execute 'atob' … », affiché tel quel par openFromFile, et le projet n'est pas ouvert alors que le document lui-même est lisible. Le texte est en outre analysé trois fois (parseProjectFile, mediaOfFile, structuredClone de migrate) : avec une piste audio intégrée de plusieurs centaines de Mo, la mémoire triple.",
+   "what": "Dans restoreMedia, try/catch par entrée : ignorer le média illisible et compter les manquants pour un seul message (« 2 images n'ont pas pu être relues »). Analyser le JSON une fois : faire renvoyer à parseProjectFile { doc, media } (mediaOfFile devient un accès au même objet) ; décoder par morceaux (fetch('data:…;base64,…').then(r => r.blob())) plutôt que charCodeAt en boucle.",
+   "preuve": "src/store/persistence.ts:206 « const bin = atob(m.data); » (sans try) ; :266 « let doc = parseProjectFile(text); » puis :204 « mediaOfFile(text) » (deuxième JSON.parse) ; :283-284 « catch (e) { useUi.getState().toast({ message: (e as Error).message, tone: 'warn' }); »",
+   "files": [
+    "src/store/persistence.ts",
+    "src/domain/serialize.ts"
+   ],
+   "fichiers": [
+    "src/store/persistence.ts",
+    "src/domain/serialize.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest : fichier avec un média { data: '%%%' } : openFromFile renvoie true, le projet est ouvert, un message signale un média manquant."
+  },
+  {
+   "title": "Images importées : échec de stockage muet, et images gardées à leur taille d'origine",
+   "kind": "plantage",
+   "why": "Les imports d'image (inspecteur, storyboard, note d'intention) attendent putBlob sans try : quota IndexedDB atteint ou stockage refusé → rejet non rattrapé, rien ne s'affiche. Les fichiers sont rangés tels quels (photo de 20 Mo), ce qui gonfle IndexedDB, le .decoupage (base 64 : +33 %) et la synchronisation, et rapproche du quota. Pour la piste audio, l'erreur de quota est annoncée comme « fichier audio illisible ».",
+   "what": "Une fonction storeImage(projectId, file) commune : réduire (createImageBitmap + canvas, plus grand côté 2400 px, JPEG/WebP 0,85, sauf SVG et fichiers déjà petits), puis putBlob dans un try ; en cas d'erreur, un message unique (« Stockage du navigateur plein : image non ajoutée »), distinguant QuotaExceededError. TrackBar : séparer le décodage du stockage dans les messages.",
+   "preuve": "src/features/inspector/Inspector.tsx:59 « const key = await putBlob(doc.project.id, file.name, file); » ; src/features/storyboard/StoryboardPage.tsx:369 (même ligne, sans try) ; src/features/intention/RichEditor.tsx:414 « const key = await putBlob(projectId, file.name, file); » ; src/features/grid/TrackBar.tsx:102-113 (catch unique « Ce fichier audio n'a pas pu être lu »)",
+   "files": [
+    "src/features/inspector/Inspector.tsx",
+    "src/features/storyboard/StoryboardPage.tsx",
+    "src/features/intention/RichEditor.tsx",
+    "src/features/grid/TrackBar.tsx",
+    "src/store/db.ts"
+   ],
+   "fichiers": [
+    "src/features/inspector/Inspector.tsx",
+    "src/features/storyboard/StoryboardPage.tsx",
+    "src/features/intention/RichEditor.tsx",
+    "src/features/grid/TrackBar.tsx",
+    "src/store/db.ts"
+   ],
+   "risk": "moyen",
+   "risque": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : storeImage d'une image 6000×4000 renvoie un blob ≤ 2400 px ; putBlob qui rejette QuotaExceededError → toast « Stockage du navigateur plein », aucune mutation. Playwright : import d'une grande photo, le storyboard l'affiche."
+  },
+  {
+   "title": "État « Enregistré » affiché alors qu'une saisie attend encore",
+   "kind": "état incohérent",
+   "why": "flushSave passe saveStatus à 'saved' quand SON écriture se termine, même si une frappe arrivée pendant l'écriture a remis pending et 'dirty'. L'indicateur ment jusqu'au prochain enregistrement ; startCloudPush se déclenche sur cette transition, et toute garde « quitter avec des changements non enregistrés » fondée sur saveStatus serait trompée.",
+   "what": "Dans flushSave, après await saveProject : ne passer à 'saved' que si pending === null (sinon laisser 'dirty'). Idem pour l'erreur : garder 'error' prioritaire jusqu'à une réussite.",
+   "preuve": "src/store/persistence.ts:99-102 « useUi.getState().set({ saveStatus: 'saving' }); try { await saveProject(doc); useUi.getState().set({ saveStatus: 'saved' }); » ; :143-146 « pending = state.doc; useUi.getState().set({ saveStatus: 'dirty' }); … timer = setTimeout(…) »",
+   "files": [
+    "src/store/persistence.ts"
+   ],
+   "fichiers": [
+    "src/store/persistence.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest : saveProject simulé lent ; mutate pendant l'écriture : à la fin de la première écriture saveStatus vaut 'dirty', puis 'saved' après la seconde."
+  },
+  {
+   "title": "Supprimer une séquence ne nettoie pas ce que nettoie la suppression d'un plan",
+   "kind": "état impossible",
+   "why": "removeShot détache le plan des caméras des autres plans au sol (unlinkShotFromPlans), retire ses créneaux et reprises (timeline, parts). deleteSequence efface ses plans directement : les caméras de plans au sol d'autres séquences ou de décors gardent les ids supprimés (shotIds[0] sert de clé à la chorégraphie), les créneaux et reprises restent dans doc.schedule, l'ordre du plan de travail garde la séquence. Le commentaire annonce que « les jours de la séquence partent avec elle », ce que le code ne fait pas.",
+   "what": "Dans deleteSequence, pour chaque plan, appliquer la même branche que removeShot quand !keptElsewhere(doc, 'shots', id) (unlinkShotFromPlans(doc, id, true), retrait des timeline/parts), retirer seqId de doc.schedule.order, puis supprimer. Ajouter à checkInvariants un contrôle « référence vers un plan absent » pour les caméras et l'emploi du temps.",
+   "preuve": "src/domain/ops.ts:120-126 (removeShot : « unlinkShotFromPlans(doc, shotId, true); for (const d of doc.schedule?.days ?? []) { … delete d.timeline[shotId]; … delete d.parts[shotId]; » ) contre :142 « for (const id of seq.shotIds) delete doc.shots[id]; » (deleteSequence) ; :136-137 (commentaire « … et jours de la séquence partent avec elle »)",
+   "files": [
+    "src/domain/ops.ts",
+    "src/domain/ops.test.ts"
+   ],
+   "fichiers": [
+    "src/domain/ops.ts",
+    "src/domain/ops.test.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest ops.test : séquence dont un plan est lié à une caméra d'un plan au sol d'une autre séquence et placé dans l'emploi du temps : après deleteSequence, aucune caméra ni aucun jour ne mentionne ses plans ; avec une version rangée qui garde la séquence, rien n'est retiré."
+  },
+  {
+   "title": "Partage : les images reçues restent en mémoire après la fin du partage",
+   "kind": "fuite",
+   "why": "blobCache (images demandées aux autres participants) n'est jamais vidé : ni stopHosting, ni leaveSession, ni expelled ne le touchent. Après un partage d'un projet illustré, des dizaines de Mo restent dans l'onglet ; un invité sans copie autorisée garde même les images du projet de l'hôte en mémoire jusqu'au rechargement, et answerBlob peut encore les servir à un partage suivant.",
+   "what": "Vider blobCache et blobWaiters (en résolvant les attentes par undefined) dans stopHosting et leaveSession.",
+   "preuve": "src/store/share.ts:59 « const blobCache = new Map<string, Blob>(); » ; :143 « blobCache.set(m.key, blob); » ; aucune autre écriture (grep : blobCache n'apparaît qu'aux lignes 59, 134, 143, 153)",
+   "files": [
+    "src/store/share.ts"
+   ],
+   "fichiers": [
+    "src/store/share.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest : après receiveBlob puis leaveSession, requestBlob de la même clé ne la trouve plus en cache."
+  },
+  {
+   "title": "Note d'intention : adresses d'images créées après la fermeture, jamais libérées",
+   "kind": "fuite",
+   "why": "resolveImages lance getBlob puis URL.createObjectURL sans vérifier que l'éditeur est encore monté. Le nettoyage au démontage ne révoque que les adresses présentes à ce moment ; celles créées ensuite (changement de page pendant le chargement d'une note illustrée) restent jusqu'à la fermeture de l'onglet, avec leurs blobs.",
+   "what": "Garder un drapeau alive (ref mise à false au démontage) : si l'éditeur est démonté quand getBlob répond, ne pas créer d'adresse. Même schéma que useBlob (ui/useBlobUrl.ts).",
+   "preuve": "src/features/intention/RichEditor.tsx:192-195 « void getBlob(key).then((b) => { if (!b) return; const url = URL.createObjectURL(b); imgUrls.current.set(key, url); » ; :216-218 « const urls = imgUrls.current; return () => urls.forEach((u) => URL.revokeObjectURL(u)); »",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "fichiers": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest (jsdom) : monter l'éditeur avec une image, démonter avant la résolution de getBlob : URL.createObjectURL n'est pas appelé."
+  },
+  {
+   "title": "Noms des fichiers exportés : titre brut dans certains exports, titres non latins réduits à « v1 »",
+   "kind": "entrée extrême",
+   "why": "Le scénario (Fountain, FDX, Word, PDF) et la comparaison des versions prennent le titre brut : « Paris / Berlin : 1989 ? » donne des noms que le navigateur réécrit à sa façon (différente selon le système) ou tronque. À l'inverse fileNameFor ne garde que \\w : un titre en cyrillique, grec, arabe ou japonais devient « v1.decoupage » (tous les projets non latins s'appellent pareil) ; aucune longueur maximale (un titre de 300 caractères dépasse la limite de 255 octets de nombreux systèmes de fichiers).",
+   "what": "Tous les exports passent par exportBase(doc). Dans fileNameFor : garder les lettres Unicode (/[^\\p{L}\\p{N}_-]+/gu), retomber sur « projet » seulement si rien ne reste, couper la base à 80 caractères sans couper un caractère. La comparaison : `${exportBase(doc)}-comparaison-${v1}-${v2}.pdf` avec les noms de version nettoyés de même.",
+   "preuve": "src/features/scenario/ScenarioPage.tsx:290 « const title = doc.project.title || 'scenario'; » → src/features/scenario/ScriptExportButton.tsx:31-35 « `${title}.fountain` … `${title}.pdf` » ; src/features/versions/ComparePage.tsx:251 « `${doc.project.title || 'scenario'}-${nameOf(pair.a)}-${nameOf(pair.b)}.pdf` » ; src/domain/serialize.ts:218 « .replace(/[^\\w-]+/g, '-') »",
+   "files": [
+    "src/domain/serialize.ts",
+    "src/domain/serialize.test.ts",
+    "src/features/scenario/ScriptExportButton.tsx",
+    "src/features/scenario/ScenarioPage.tsx",
+    "src/features/versions/ComparePage.tsx"
+   ],
+   "fichiers": [
+    "src/domain/serialize.ts",
+    "src/domain/serialize.test.ts",
+    "src/features/scenario/ScriptExportButton.tsx",
+    "src/features/scenario/ScenarioPage.tsx",
+    "src/features/versions/ComparePage.tsx"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest : fileNameFor('Фильм', 'V1') = 'фильм-v1.decoupage' ; titre de 300 caractères → base ≤ 80 ; « Paris / Berlin : 1989 ? » → 'paris-berlin-1989-v1'. Les exports du scénario et de la comparaison utilisent exportBase."
+  },
+  {
+   "title": "Accueil : chaque rafraîchissement lit le contenu complet de tous les projets",
+   "kind": "performance",
+   "why": "listProjects charge toArray() des fiches complètes (doc entier : scénario, note, versions rangées, commentaires) pour n'en garder que le résumé et le lien de relecture. L'accueil le rappelle à chaque rev et à chaque synchronisation ; avec quelques longs métrages versionnés, cela représente des dizaines de Mo désérialisés à chaque fois, et syncAll l'appelle deux fois par passage.",
+   "what": "Ranger liveReview dans la fiche (champ de StoredProject calculé dans saveProject) et lire seulement les champs utiles : db.projects.orderBy('updatedAt').reverse() sur une table de résumés (nouvelle version Dexie : table « summaries » ou index), ou au minimum une version du schéma qui stocke liveReview à côté. Migration Dexie version(2) qui remplit le champ.",
+   "preuve": "src/store/db.ts:43-46 « const all = await db.projects.orderBy('updatedAt').reverse().toArray(); return all.map((p) => { const live = liveReviewOf(p.doc); … » ; src/store/cloud.ts:513 et :526 (« let locals = await listProjects(); … locals = await listProjects(); »)",
+   "files": [
+    "src/store/db.ts"
+   ],
+   "fichiers": [
+    "src/store/db.ts"
+   ],
+   "risk": "moyen",
+   "risque": "moyen",
+   "effort": "moyen",
+   "test": "Vitest (fake-indexeddb) : migration version 1 → 2 conserve tous les projets et remplit liveReview ; listProjects ne lit plus doc (espion sur liveReviewOf)."
+  },
+  {
+   "title": "Plan-séquence : l'ordre des temps ne se change qu'à la souris",
+   "kind": "accessibilité",
+   "why": "La frise des temps du plan-séquence utilise @dnd-kit avec le seul PointerSensor : aucun capteur clavier, aucun bouton « Avancer / Reculer ». Au clavier ou avec un lecteur d'écran, on peut supprimer un temps mais pas le déplacer (le storyboard et le plan de travail ont, eux, KeyboardSensor).",
+   "what": "Ajouter useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }) comme dans StoryboardPage, et des libellés d'annonce en français (accessibility.announcements) ; ou Alt+← / Alt+→ sur la poignée qui appelle reorderBeat.",
+   "preuve": "src/features/oneshot/OneShotStudio.tsx:28 « const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } })); » ; comparer src/features/storyboard/StoryboardPage.tsx:107 « useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }) »",
+   "files": [
+    "src/features/oneshot/OneShotStudio.tsx"
+   ],
+   "fichiers": [
+    "src/features/oneshot/OneShotStudio.tsx"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Playwright : ouvrir le studio d'un plan-séquence à trois temps, tabuler sur la poignée du temps 1, Espace, →, Espace : le temps 1 passe en deuxième position."
+  },
+  {
+   "title": "Assistant : réponse non JSON d'un service (proxy, portail captif) affichée comme erreur technique",
+   "kind": "exception",
+   "why": "postJson et getJson font JSON.parse sur une réponse 200 sans garde. Un service compatible mal configuré, un proxy d'entreprise ou un portail Wi-Fi qui répond une page HTML provoque « Erreur : Unexpected token '<', \"<!DOCTYPE \"… is not valid JSON » dans la conversation, et la vérification de la clé échoue de même.",
+   "what": "Envelopper ces deux JSON.parse : en cas d'échec, lever AiError('Réponse illisible du service (adresse ou réseau à vérifier).').",
+   "preuve": "src/features/assistant/providers.ts:130 « return JSON.parse(text) as unknown; » ; :412 (même ligne dans getJson) ; src/features/assistant/assistant.ts:132 « e instanceof AiError ? e.message : `Erreur : ${(e as Error).message}` »",
+   "files": [
+    "src/features/assistant/providers.ts",
+    "src/features/assistant/providers.test.ts"
+   ],
+   "fichiers": [
+    "src/features/assistant/providers.ts",
+    "src/features/assistant/providers.test.ts"
+   ],
+   "risk": "faible",
+   "risque": "faible",
+   "effort": "petit",
+   "test": "Vitest providers.test : fetch simulé renvoyant 200 « <html> » : l'erreur est une AiError au message français."
+  }
+ ]
+}
