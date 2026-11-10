@@ -7,3 +7,13 @@
 .field select:disabled { cursor: default; opacity: 1; }
 .field input:focus, .field select:focus { border-color: var(--ink-soft); outline: none; }
 .alias { margin: 0; font-size: 11.5px; color: var(--ink-soft); }
+.delete { align-self: flex-start; color: var(--ink-soft); }
+.delete:hover { color: var(--ink); }
+/* Fiches que le texte ne nomme pas : sous la liste du panneau, même présentation. */
+.orphans { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.orphansHead { margin: 0 0 6px; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.orphans ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.orphan > button { width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6px 2px; border: 0; background: none; font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; }
+.orphan > button:hover { background: var(--hover); }
+.orphan > button span { font-size: 11.5px; color: var(--ink-soft); }
+.fiche { display: flex; flex-direction: column; gap: 8px; padding: 6px 2px 12px; }

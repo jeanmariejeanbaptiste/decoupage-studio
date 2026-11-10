@@ -2,15 +2,17 @@ import { decorLocation, setDecorLocation } from '../../domain/locations';
 import type { FilmingLocation, ID, IntExt, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { CommitField } from './CommitField';
+import { DeleteFiche } from './DeleteFiche';
 import s from './Facts.module.css';
 
 const INT_EXT: IntExt[] = ['INT', 'EXT', 'INT/EXT'];
 
 /**
  * Lieu de tournage réel d'un décor (nom, accès, contact) et son INT / EXT : repris par la feuille de
- * service. À monter dans la fiche du décor, à côté de l'adresse de tournage.
+ * service. À monter dans la fiche du décor, à côté de l'adresse de tournage. « Supprimer la fiche » :
+ * sans question si aucune séquence ne s'y passe.
  */
-export function DecorFacts({ doc, decorId, readOnly }: { doc: ProjectDoc; decorId: ID; readOnly?: boolean }) {
+export function DecorFacts({ doc, decorId, readOnly, onDeleted }: { doc: ProjectDoc; decorId: ID; readOnly?: boolean; onDeleted?: () => void }) {
   const decor = doc.decors[decorId];
   if (!decor) return null;
   const loc = decorLocation(decor);
@@ -33,6 +35,7 @@ export function DecorFacts({ doc, decorId, readOnly }: { doc: ProjectDoc; decorI
       </div>
       <CommitField label="Accès" value={loc.access ?? ''} readOnly={readOnly} onCommit={(v) => set({ access: v })} />
       <CommitField label="Contact" value={loc.contact ?? ''} readOnly={readOnly} onCommit={(v) => set({ contact: v })} />
+      {!readOnly && <DeleteFiche doc={doc} kind="decor" id={decorId} onDeleted={onDeleted} />}
     </div>
   );
 }

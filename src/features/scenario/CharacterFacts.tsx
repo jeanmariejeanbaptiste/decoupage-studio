@@ -3,6 +3,7 @@ import { mergeCharacters } from '../../domain/ops';
 import type { CharacterKind, ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { ask } from '../../ui/dialogStore';
+import { DeleteFiche } from './DeleteFiche';
 import s from './Facts.module.css';
 
 const KINDS: CharacterKind[] = ['principal', 'secondaire', 'figurant', 'silhouette', 'voix off'];
@@ -11,9 +12,9 @@ const KINDS: CharacterKind[] = ['principal', 'secondaire', 'figurant', 'silhouet
  * Nature d'un personnage (principal, secondaire, figurant…) et fusion d'un doublon (« Candi » dans
  * « Candice ») : à monter dans la fiche du personnage. La fiche fusionnée disparaît, ses plans, ses
  * séquences, ses convocations et ses versions passent à l'autre, qui garde son nom en alias ;
- * confirmée, puis annulable (⌘Z).
+ * confirmée, puis annulable (⌘Z). « Supprimer la fiche » : sans question si rien ne s'en sert.
  */
-export function CharacterFacts({ doc, characterId, readOnly, onMerged }: { doc: ProjectDoc; characterId: ID; readOnly?: boolean; onMerged?: (intoId: ID) => void }) {
+export function CharacterFacts({ doc, characterId, readOnly, onMerged, onDeleted }: { doc: ProjectDoc; characterId: ID; readOnly?: boolean; onMerged?: (intoId: ID) => void; onDeleted?: () => void }) {
   const c = doc.characters[characterId];
   if (!c) return null;
   const others = sortedCharacters(doc).filter((o) => o.id !== characterId);
@@ -57,6 +58,7 @@ export function CharacterFacts({ doc, characterId, readOnly, onMerged }: { doc: 
         )}
       </div>
       {c.aliases?.length ? <p className={s.alias}>Aussi nommé {c.aliases.join(', ')}</p> : null}
+      {!readOnly && <DeleteFiche doc={doc} kind="character" id={characterId} onDeleted={onDeleted} />}
     </div>
   );
 }
