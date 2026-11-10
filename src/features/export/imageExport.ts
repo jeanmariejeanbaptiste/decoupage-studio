@@ -137,6 +137,8 @@ export async function exportDocumentPages(html: string, base: string, opts: Page
   document.body.appendChild(wrap);
   try {
     await document.fonts.ready;
+    // Images du document (carte des lieux…) décodées avant la mesure des pages.
+    await Promise.all([...host.querySelectorAll('img')].map((i) => i.decode().catch(() => undefined)));
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const d = host;
     const body = host;

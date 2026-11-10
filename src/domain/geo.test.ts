@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
-import { cleanAddress, dayPlaces, geocodeQueries, geoKey, mapPlaces, markerLabel, nominatimUrl, parseNominatim, placeCoords, routeUrl, setGeocode, storedGeocode } from './geo';
+import { cleanAddress, dayLabels, dayPlaces, geocodeQueries, mercator, staticMapFrame, TILE_SIZE, geoKey, mapPlaces, markerLabel, nominatimUrl, parseNominatim, placeCoords, routeUrl, setGeocode, storedGeocode } from './geo';
 import { callSheetDocument } from './documents';
 import { setDecorLocation } from './locations';
 import { assignShots, updateDay } from './schedule';
@@ -84,6 +84,15 @@ describe('carte des lieux de tournage', () => {
     expect(html).toContain('href="https://www.openstreetmap.org/search?query=H%C3%B4pital%20Saint-Antoine%2C%20184%20rue%20du%20Faubourg%20Saint-Antoine%2C%2075012%20Paris">Itinéraire</a>');
     const geo = produce(doc, (d) => setGeocode(d, key, { address: '20 bd Diderot, 75012 Paris', lat: 48.8443, lon: 2.3744 }));
     expect(callSheetDocument(geo, 1).html).toContain('href="https://www.openstreetmap.org/directions?route=%3B48.8443%2C2.3744#map=16/48.8443/2.3744">Itinéraire</a>');
+    // Carte réduite des lieux du jour : seulement quand elle est fournie, avec sa légende numérotée.
+    expect(callSheetDocument(geo, 1).html).not.toContain('class="cs-map"');
+    const map = { src: 'data:image/png;base64,AAAA', width: 560, height: 260, legend: [{ label: '1', title: 'Gare de Lyon' }, { label: 'H', title: 'Hôpital <Saint-Antoine>', hospital: true }] };
+    const withMap = callSheetDocument(geo, 1, { map }).html;
+    expect(withMap).toContain('<h3>Lieux du jour</h3><div class="cs-map"><img src="data:image/png;base64,AAAA" width="560" height="260" alt="Carte des lieux du jour">');
+    expect(withMap).toContain('<li><span class="pin">1</span>Gare de Lyon</li><li><span class="pin h">H</span>Hôpital &lt;Saint-Antoine&gt;</li>');
+    // Sous le tableau des séquences (adresses, itinéraires), avant les plans.
+    expect(withMap.indexOf('cs-map"')).toBeGreaterThan(withMap.indexOf('<h3>Séquences</h3>'));
+    expect(withMap.indexOf('cs-map"')).toBeLessThan(withMap.indexOf('<h3>Plans</h3>'));
   });
 
   it('garde le géocodage dans le projet, pour les seules adresses encore utilisées', () => {
@@ -125,5 +134,44 @@ describe('carte des lieux de tournage', () => {
     const k1 = geoKey('20 bd Diderot, 75012 Paris');
     const b = produce(a, (d) => setGeocode(d, k1, { address: '20 bd Diderot, 75012 Paris', lat: 48.84, lon: 2.37 }));
     expect(Object.keys(b.geocodes ?? {}).sort()).toEqual([k1, key].sort());
+  });
+
+  it('cadre une carte statique : zoom, tuiles couvrant l’image, points dans la marge', () => {
+    const pts = [
+      { lat: 48.8589, lon: 2.3318 },
+      { lat: 48.853, lon: 2.3499 },
+      { lat: 48.8826, lon: 2.3522 },
+    ];
+    const f = staticMapFrame(pts, 560, 260)!;
+    expect(f.zoom).toBe(12);
+    for (const p of pts) {
+      const { x, y } = f.at(p.lat, p.lon);
+      expect(x).toBeGreaterThanOrEqual(28);
+      expect(x).toBeLessThanOrEqual(560 - 28);
+      expect(y).toBeGreaterThanOrEqual(28);
+      expect(y).toBeLessThanOrEqual(260 - 28);
+    }
+    // Les tuiles couvrent toute l'image, sans trou ni doublon.
+    const xs = [...new Set(f.tiles.map((t) => t.left))].sort((a, b) => a - b);
+    const ys = [...new Set(f.tiles.map((t) => t.top))].sort((a, b) => a - b);
+    expect(xs[0]).toBeLessThanOrEqual(0);
+    expect(xs[xs.length - 1] + TILE_SIZE).toBeGreaterThanOrEqual(560);
+    expect(ys[0]).toBeLessThanOrEqual(0);
+    expect(ys[ys.length - 1] + TILE_SIZE).toBeGreaterThanOrEqual(260);
+    expect(f.tiles).toHaveLength(xs.length * ys.length);
+    // La tuile du premier point est la bonne (numérotation OSM).
+    const m = mercator(48.8589, 2.3318, f.zoom);
+    expect(f.tiles.some((t) => t.x === Math.floor(m.x / TILE_SIZE) && t.y === Math.floor(m.y / TILE_SIZE))).toBe(true);
+    // Un seul lieu : zoom de rue, au centre.
+    const one = staticMapFrame([pts[0]], 560, 260)!;
+    expect(one.zoom).toBe(15);
+    expect(one.at(pts[0].lat, pts[0].lon)).toEqual({ x: 280, y: 130 });
+    expect(staticMapFrame([], 560, 260)).toBeUndefined();
+  });
+
+  it('numérote les lieux du jour dans l’ordre, l’hôpital en « H »', () => {
+    const doc = project();
+    const today = dayPlaces(mapPlaces(doc), doc, 1);
+    expect([...dayLabels(today).values()]).toEqual(['1', 'H']);
   });
 });

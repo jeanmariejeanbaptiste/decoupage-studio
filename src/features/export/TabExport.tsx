@@ -7,7 +7,7 @@ import { exportDocumentPages } from './imageExport';
 
 interface Props {
   /** Document mis en page : PDF et images A4 (générés par l'outil), Word. */
-  doc: () => DocPage;
+  doc: () => DocPage | Promise<DocPage>;
   fileBase?: string;
   /** Données brutes (CSV, texte…), secondaires. */
   file?: { label: string; name: string; content: () => string | Promise<Blob>; type?: string; hint?: string };
@@ -33,12 +33,12 @@ export function TabExport({ doc, fileBase = 'document', file, id = 'tab', orient
         defaultOrientation={orientation}
         extra={extra}
         onExport={async ({ format, orientation, numbers }) => {
-          if (format === 'word') return downloadWord(doc(), fileBase, orientation);
+          if (format === 'word') return downloadWord(await doc(), fileBase, orientation);
           if (format === 'file' && file) {
             const c = await file.content();
             return downloadBlob(typeof c === 'string' ? new Blob([c], { type: file.type ?? 'text/csv;charset=utf-8' }) : c, file.name);
           }
-          if (format === 'pdf' || format === 'images') return exportDocumentPages(doc().html, `${fileBase}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });
+          if (format === 'pdf' || format === 'images') return exportDocumentPages((await doc()).html, `${fileBase}-A4-${orientation === 'portrait' ? 'portrait' : 'paysage'}`, { format, orientation, numbers });
         }}
       />
     </span>

@@ -40,7 +40,8 @@ const subscribe = (l: () => void) => {
 const online = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function known(doc: ProjectDoc | null | undefined, key: string): GeocodeEntry | undefined {
+/** Géocodage connu d'une adresse : gardé dans le projet, sinon trouvé pendant la session. */
+export function known(doc: ProjectDoc | null | undefined, key: string): GeocodeEntry | undefined {
   return doc?.geocodes?.[key] ?? session.get(key);
 }
 

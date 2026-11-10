@@ -187,3 +187,78 @@ export function setGeocode(doc: ProjectDoc, key: string, entry: GeocodeEntry): v
   for (const k of stale) delete store[k];
   store[key] = clean;
 }
+
+/** Titre d'un lieu : ses décors (ou le nom de l'hôpital), à défaut sa nature. */
+export const placeTitle = (p: MapPlace) => p.names.join(', ') || (p.kind === 'hopital' ? 'Hôpital' : 'Lieu de tournage');
+
+/** Repères d'une journée, numérotés dans l'ordre de la journée ; l'hôpital garde « H ». */
+export function dayLabels(today: readonly MapPlace[]): Map<MapPlace, string> {
+  const out = new Map<MapPlace, string>();
+  let i = 0;
+  for (const p of today) out.set(p, p.kind === 'hopital' ? 'H' : String(++i));
+  return out;
+}
+
+/** Tuile OpenStreetMap à poser sur une image : position de son coin haut gauche dans l'image. */
+export interface FrameTile {
+  z: number;
+  x: number;
+  y: number;
+  left: number;
+  top: number;
+}
+
+export interface StaticFrame {
+  zoom: number;
+  tiles: FrameTile[];
+  /** Position d'un point dans l'image, en pixels. */
+  at: (lat: number, lon: number) => { x: number; y: number };
+}
+
+export const TILE_SIZE = 256;
+
+/** Projection de Mercator (celle des tuiles), en pixels du monde au zoom donné. */
+export function mercator(lat: number, lon: number, zoom: number): { x: number; y: number } {
+  const size = TILE_SIZE * 2 ** zoom;
+  const s = Math.sin((Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180);
+  return { x: ((lon + 180) / 360) * size, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * size };
+}
+
+/**
+ * Cadrage d'une carte statique (export de la feuille de service) : le zoom entier le plus fort qui
+ * fait tenir tous les points dans l'image, marge comprise (15 au plus, comme à l'écran), et les tuiles
+ * qui la couvrent.
+ */
+export function staticMapFrame(points: ReadonlyArray<{ lat: number; lon: number }>, width: number, height: number, { padding = 28, maxZoom = 15, minZoom = 2 } = {}): StaticFrame | undefined {
+  if (!points.length) return undefined;
+  const spread = (z: number) => {
+    const px = points.map((p) => mercator(p.lat, p.lon, z));
+    const xs = px.map((p) => p.x);
+    const ys = px.map((p) => p.y);
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+  };
+  let zoom = maxZoom;
+  for (; zoom > minZoom; zoom--) {
+    const b = spread(zoom);
+    if (b.x1 - b.x0 <= width - 2 * padding && b.y1 - b.y0 <= height - 2 * padding) break;
+  }
+  const b = spread(zoom);
+  const ox = (b.x0 + b.x1) / 2 - width / 2;
+  const oy = (b.y0 + b.y1) / 2 - height / 2;
+  const n = 2 ** zoom;
+  const tiles: FrameTile[] = [];
+  for (let ty = Math.floor(oy / TILE_SIZE); ty <= Math.floor((oy + height - 1) / TILE_SIZE); ty++) {
+    if (ty < 0 || ty >= n) continue;
+    for (let tx = Math.floor(ox / TILE_SIZE); tx <= Math.floor((ox + width - 1) / TILE_SIZE); tx++) {
+      tiles.push({ z: zoom, x: ((tx % n) + n) % n, y: ty, left: tx * TILE_SIZE - ox, top: ty * TILE_SIZE - oy });
+    }
+  }
+  return {
+    zoom,
+    tiles,
+    at: (lat, lon) => {
+      const p = mercator(lat, lon, zoom);
+      return { x: p.x - ox, y: p.y - oy };
+    },
+  };
+}

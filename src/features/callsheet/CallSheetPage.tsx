@@ -37,6 +37,7 @@ import { exportBase } from '../../domain/serialize';
 import { dayPlaces, mapPlaces } from '../../domain/geo';
 import { Map as MapIcon } from 'lucide-react';
 import { DayMap } from '../map/PlacesMap';
+import { dayMapImage } from '../map/staticMap';
 import { useMapVisible } from '../map/visibility';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -116,7 +117,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
             </select>
           </label>
           <TabExport id="callsheet" orientation="portrait"
-            doc={() => callSheetDocument(doc, day.n)}
+            doc={async () => callSheetDocument(doc, day.n, { map: mapOn && hasPlaces ? await dayMapImage(doc, day.n) : undefined })}
             fileBase={`${exportBase(doc)}-feuille-de-service-J${day.n}`}
             file={{
               label: 'CSV',

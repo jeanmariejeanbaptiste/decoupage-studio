@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { Route } from 'lucide-react';
-import { dayPlaces, markerLabel, placeCoords, routeUrl, type MapPlace } from '../../domain/geo';
+import { dayLabels, dayPlaces, markerLabel, placeCoords, placeTitle, routeUrl, type MapPlace } from '../../domain/geo';
 import type { ProjectDoc } from '../../domain/types';
 import { useGeocodes, type PlaceState } from '../../store/geocoder';
 import type { MapPoint } from './LeafletMap';
@@ -30,7 +30,6 @@ class MapBoundary extends Component<{ children: ReactNode }, { failed: boolean }
 }
 
 const placeId = (p: MapPlace) => `${p.kind}:${p.key}`;
-const placeTitle = (p: MapPlace) => p.names.join(', ') || (p.kind === 'hopital' ? 'Hôpital' : 'Lieu de tournage');
 /** Adresse affichée : sans le nom déjà donné en titre (« Hôpital X, 2 rue Y » → « 2 rue Y »). */
 const placeAddress = (p: MapPlace) => {
   const name = p.names[0];
@@ -141,13 +140,11 @@ export function DayMap({ doc, places, day }: { doc: ProjectDoc; places: MapPlace
   const today = useMemo(() => dayPlaces(places, doc, day), [places, doc, day]);
   const geo = useGeocodes(doc, today, true);
   const [focus, setFocus] = useState<string>();
-  // Repères numérotés dans l'ordre de la journée ; l'hôpital garde « H ».
-  const labels = new Map<string, string>();
-  let i = 0;
-  for (const p of today) labels.set(placeId(p), p.kind === 'hopital' ? 'H' : String(++i));
+  // Repères numérotés dans l'ordre de la journée ; l'hôpital garde « H » (comme dans l'export).
+  const labels = dayLabels(today);
   const points = today.flatMap((p): MapPoint[] => {
     const at = placeCoords(geo.entry(p));
-    return at ? [{ id: placeId(p), ...at, label: labels.get(placeId(p))!, title: placeTitle(p), address: placeAddress(p), tone: 'normal', hospital: p.kind === 'hopital' }] : [];
+    return at ? [{ id: placeId(p), ...at, label: labels.get(p)!, title: placeTitle(p), address: placeAddress(p), tone: 'normal', hospital: p.kind === 'hopital' }] : [];
   });
   if (!today.length) return null;
   return (
@@ -155,7 +152,7 @@ export function DayMap({ doc, places, day }: { doc: ProjectDoc; places: MapPlace
       <MapView className={s.dayMapMap} points={points} fit={`${day}|${points.map((p) => p.id).join(',')}`} focus={focus} tiles={geo.online} onPick={setFocus} />
       <ol className={s.legend}>
         {today.map((p) => (
-          <PlaceRow key={placeId(p)} place={p} label={labels.get(placeId(p))!} tone="normal" state={geo.state(p)} route={routeUrl(p.address, geo.entry(p))} active={focus === placeId(p)} onClick={() => setFocus(placeId(p))} />
+          <PlaceRow key={placeId(p)} place={p} label={labels.get(p)!} tone="normal" state={geo.state(p)} route={routeUrl(p.address, geo.entry(p))} active={focus === placeId(p)} onClick={() => setFocus(placeId(p))} />
         ))}
       </ol>
     </div>
