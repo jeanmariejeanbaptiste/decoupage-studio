@@ -14,7 +14,7 @@ const DESTINATIONS = {
   shot: 'Ouvre le plan dans le découpage',
   shots: 'Sélectionne ces plans dans le découpage',
   sequence: 'Ouvre la séquence dans le découpage',
-  registry: 'Ouvre la durée estimée dans le registre',
+  'seq-head': 'Ouvre la durée estimée de la séquence',
   interview: 'Ouvre la caméra dans la fiche d’interview',
 } as const;
 type Destination = keyof typeof DESTINATIONS;
@@ -26,7 +26,7 @@ function destination(t: CheckTarget): Destination {
 
 /**
  * Vérifications (§9) : les avertissements de la scripte, regroupés par type de contrôle. Chaque ligne
- * mène à l'endroit exact (plan, série de plans, séquence, registre, fiche d'interview) ; « Ignorer »
+ * mène à l'endroit exact (plan, série de plans, séquence, durée estimée, fiche d'interview) ; « Ignorer »
  * reste à part, à droite.
  */
 export function ChecksPage({ doc }: { doc: ProjectDoc }) {

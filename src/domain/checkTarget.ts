@@ -72,9 +72,9 @@ export function checkTarget(doc: ProjectDoc, issue: Issue): CheckTarget {
   // visible (colonne masquée) : la ligne entière plutôt qu'une cellule sans rapport.
   const cols = issue.code === 'jump-cut' ? shown.filter((c) => wanted.includes(c)) : wanted.filter((c) => shown.includes(c)).slice(0, 1);
   // Une seule cellule à remplir : ouverte en saisie. Pas pour un rappel (rien n'y manque), ni pour une
-  // cellule qui ne s'écrit pas ici (temps d'un plan-séquence, réglés dans son éditeur).
+  // cellule qui ne s'écrit pas ici (temps d'un plan-séquence, réglés dans son éditeur ; plan d'interview).
   const shot = doc.shots[shotId];
-  const edit = issue.level === 'warn' && cols.length === 1 && isEditable(cols[0]) && !(shot.oneShot && BEAT_COLUMNS.includes(cols[0]));
+  const edit = issue.level === 'warn' && cols.length === 1 && isEditable(cols[0]) && !shot.interview && !(shot.oneShot && BEAT_COLUMNS.includes(cols[0]));
   return { page: 'grid', sequenceId, shotId, cols, ...(edit ? { edit: true as const } : {}) };
 }
 
