@@ -427,68 +427,84 @@ function WholeSheet({
   );
 }
 
+const NEW_DECOR = '__nouveau__';
+
 /**
- * Décor de la séquence : un décor existant (proposé à la saisie) ou un nouveau, créé à son nom. Il
- * range la séquence au plan de travail et donne son lieu à la feuille de service. Appliqué en
- * quittant le champ ou avec Entrée, et avant un enregistrement.
+ * Décor de la séquence : choisi parmi les décors du projet, ou « Nouveau décor… » nommé puis validé
+ * (Entrée ou en quittant le champ ; Échap renonce). Un nom déjà connu, à la casse, aux accents ou aux
+ * tirets près, rattache au décor existant : pas de doublon. Il range la séquence au plan de travail
+ * et donne son lieu à la feuille de service. Renommer un décor se fait dans sa fiche, pas ici.
  */
 function DecorField({ doc, seqId, readOnly }: { doc: ProjectDoc; seqId: ID; readOnly: boolean }) {
   const decorId = doc.sequences[seqId]?.decorId;
-  const value = decorId ? (doc.decors[decorId]?.name ?? '') : '';
-  const [draft, setDraftState] = useState(value);
-  const draftRef = useRef(value);
-  const valueRef = useRef(value);
-  valueRef.current = value;
-  const setDraft = (v: string) => {
-    draftRef.current = v;
-    setDraftState(v);
-  };
+  const current = decorId ? doc.decors[decorId] : undefined;
+  const [naming, setNaming] = useState(false);
+  const [draft, setDraft] = useState('');
+  const decors = useMemo(() => Object.values(doc.decors).sort((a, b) => a.name.localeCompare(b.name, 'fr')), [doc.decors]);
+  const draftRef = useRef('');
+  draftRef.current = draft;
+  const create = useCallback(() => {
+    const name = draftRef.current.trim();
+    draftRef.current = '';
+    setNaming(false);
+    setDraft('');
+    if (name) mutateDoc((d) => setSequenceDecorByName(d, seqId, name));
+  }, [seqId]);
+  // Un nom en cours de saisie est appliqué avant un enregistrement ou si le champ disparaît.
   useEffect(() => {
-    draftRef.current = value;
-    setDraftState(value);
-  }, [value]);
-  const commit = useCallback(() => {
-    if (readOnly || draftRef.current.trim() === valueRef.current.trim()) return;
-    valueRef.current = draftRef.current;
-    mutateDoc((d) => setSequenceDecorByName(d, seqId, draftRef.current));
-  }, [readOnly, seqId]);
-  useEffect(() => {
+    if (!naming) return;
     const project = useProjectStore.getState().doc?.project.id;
-    const off = registerFlush(commit);
+    const off = registerFlush(create);
     return () => {
       off();
-      if (useProjectStore.getState().doc?.project.id === project) commit();
+      if (useProjectStore.getState().doc?.project.id === project) create();
     };
-  }, [commit]);
-  const names = useMemo(() => Object.values(doc.decors).map((d) => d.name).sort((a, b) => a.localeCompare(b, 'fr')), [doc.decors]);
-  const listId = `decors-${seqId}`;
-  if (readOnly && !value) return null;
+  }, [naming, create]);
+  if (readOnly && !current) return null;
   return (
-    <section className={[s.cat, value ? '' : s.catEmpty].join(' ')} data-testid="breakdown-decor">
+    <section className={[s.cat, current ? '' : s.catEmpty].join(' ')} data-testid="breakdown-decor">
       <h3>
         <label htmlFor={`decor-${seqId}`}>Décor</label>
       </h3>
-      <input
-        id={`decor-${seqId}`}
-        value={draft}
-        readOnly={readOnly}
-        list={listId}
-        placeholder="Ajouter…"
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur();
-          if (e.key === 'Escape') {
-            setDraft(valueRef.current);
-            e.currentTarget.blur();
-          }
-        }}
-      />
-      <datalist id={listId}>
-        {names.map((n) => (
-          <option key={n} value={n} />
-        ))}
-      </datalist>
+      {naming ? (
+        <input
+          id={`decor-${seqId}`}
+          autoFocus
+          value={draft}
+          placeholder="Nom du nouveau décor"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={create}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') {
+              draftRef.current = '';
+              setDraft('');
+              setNaming(false);
+            }
+          }}
+          data-testid="breakdown-decor-new"
+        />
+      ) : (
+        <select
+          id={`decor-${seqId}`}
+          className={s.decorSelect}
+          value={current?.id ?? ''}
+          disabled={readOnly}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === NEW_DECOR) return setNaming(true);
+            mutateDoc((d) => void (d.sequences[seqId].decorId = v || undefined));
+          }}
+        >
+          <option value="">—</option>
+          {decors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+          {!readOnly && <option value={NEW_DECOR}>Nouveau décor…</option>}
+        </select>
+      )}
     </section>
   );
 }
