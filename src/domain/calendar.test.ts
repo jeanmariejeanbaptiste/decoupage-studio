@@ -20,6 +20,7 @@ import {
   layoutDay,
   monthGrid,
   periodTitle,
+  moveEvent,
   removeEvent,
   shiftAnchor,
   shiftStart,
@@ -150,6 +151,27 @@ describe('éléments du calendrier', () => {
     expect(eventsOn(out, '2026-11-20').map((it) => it.title)).toEqual(['Sans titre']);
     const none = migrate({ ...buildRav3(), calendar: 'x' } as unknown as ReturnType<typeof buildRav3>);
     expect(none.calendar).toBeUndefined();
+  });
+
+  it('déplace un rendez-vous de quelques jours, heures et durée gardées', () => {
+    const doc = produce(buildRav3(), (d) => {
+      d.calendar = [
+        { id: 'a', title: 'Lecture', start: '2026-11-10T14:00', end: '2026-11-10T16:00' },
+        { id: 'b', title: 'Repérages', start: '2026-11-09', end: '2026-11-12', allDay: true },
+        { id: 'c', title: 'Nuit', start: '2026-11-30T20:00', end: '2026-12-01T02:00' },
+      ];
+    });
+    const moved = produce(doc, (d) => {
+      moveEvent(d, 'a', 3);
+      moveEvent(d, 'b', -2);
+      moveEvent(d, 'c', 1);
+    });
+    expect(moved.calendar).toEqual([
+      { id: 'a', title: 'Lecture', start: '2026-11-13T14:00', end: '2026-11-13T16:00' },
+      { id: 'b', title: 'Repérages', start: '2026-11-07', end: '2026-11-10', allDay: true },
+      { id: 'c', title: 'Nuit', start: '2026-12-01T20:00', end: '2026-12-02T02:00' },
+    ]);
+    expect(produce(doc, (d) => moveEvent(d, 'zz', 2))).toBe(doc);
   });
 
   it('montre les jours de tournage datés : « Jour n · décors », RDV', () => {

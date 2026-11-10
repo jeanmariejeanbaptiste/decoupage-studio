@@ -61,6 +61,38 @@ test('rendez-vous sur plusieurs jours : nommé le premier jour, suite sans titre
   await expect(page.getByTestId('day-2027-03-12').getByTestId('calendar-item')).toHaveCount(0);
 });
 
+test('vue Mois : glisser un rendez-vous d’un jour à l’autre, Échap annule, Ctrl+Z le ramène', async ({ page }) => {
+  await page.goto(MONTH);
+  const dlg = await newEvent(page);
+  await dlg.getByTestId('event-title').fill('Lecture');
+  await dlg.getByTestId('event-start').fill('14:00');
+  await dlg.getByTestId('event-save').click();
+  const item = (d: string) => page.getByTestId(`day-2027-03-${d}`).getByTestId('calendar-item');
+  const drag = async (to: string, escape = false) => {
+    const a = (await item('10').boundingBox())!;
+    const b = (await page.getByTestId(`day-2027-03-${to}`).boundingBox())!;
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+    if (escape) await page.keyboard.press('Escape');
+    await page.mouse.up();
+  };
+  // Échap : rien ne bouge, et la fenêtre ne s'ouvre pas.
+  await drag('13', true);
+  await expect(item('10')).toContainText('Lecture');
+  await expect(dlg).toBeHidden();
+  await drag('13');
+  await expect(item('10')).toHaveCount(0);
+  await expect(item('13')).toContainText('Lecture');
+  await expect(item('13')).toContainText('14:00');
+  await expect(dlg).toBeHidden();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(item('10')).toContainText('Lecture');
+  // Un simple clic ouvre toujours la fenêtre.
+  await item('10').click();
+  await expect(dlg.getByTestId('event-title')).toHaveValue('Lecture');
+});
+
 test('fenêtre d’un rendez-vous : saisie gardée au clic à côté, focus piégé puis rendu', async ({ page }) => {
   await page.goto(MONTH);
   // Sans saisie, un clic à côté ferme.
