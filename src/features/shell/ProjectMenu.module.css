@@ -61,4 +61,6 @@
 @media (max-width: 700px) {
   .version { display: none; }
   .phoneOnly { display: flex; }
+  /* Le panneau tient dans l’écran, quelle que soit la place du titre dans la barre. */
+  .panel { position: fixed; top: calc(var(--topbar-h) + 4px); left: 8px; right: 8px; width: auto; max-width: none; }
 }
