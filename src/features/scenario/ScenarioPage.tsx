@@ -15,7 +15,7 @@ import {
   PanelRight,
   Underline,
 } from 'lucide-react';
-import { HIGHLIGHTS, layoutScript, scriptOutline, type HighlightColor, type OutlineItem } from '../../domain/scriptLayout';
+import { HIGHLIGHTS, layoutScript, scriptOutline, type HighlightColor } from '../../domain/scriptLayout';
 import { chronoOf, chronoTimeline, mmss, type ScriptChrono } from '../../domain/chronometry';
 import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../domain/fountain';
 import { reviseScenario, revisionSummary, type RevisionReport } from '../../domain/revision';
@@ -23,7 +23,6 @@ import { createVersion, ensureVersions, nextVersionName } from '../../domain/ver
 import { VersionSwitcher } from '../versions/VersionSwitcher';
 import { ComparePage } from '../versions/ComparePage';
 import { scenarioHref, scenarioLocation, useLocation, type ScenarioView } from '../../app/router';
-import { useRevisionMarks } from '../versions/useRevisionMarks';
 import { sequenceHeading, shotCode, shotNumberLabel } from '../../domain/numbering';
 import {
   BLOCK_LABELS,
@@ -46,6 +45,7 @@ import { goToShot } from '../grid/goTo';
 import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
 import { CharactersPanel, DecorsPanel, ResearchPanel } from './ResearchPanels';
 import { CHART_REPORTS, REPORTS, ScriptStatsReports, isReport, savedReport, storeReport, type Report, type ReportsApi } from './ScriptStatsReports';
+import { SequencesPanel } from './SequencesPanel';
 import { TextToggle } from './TextToggle';
 import { OutlineView } from './outline/OutlineView';
 import { OutlineToolbar } from './outline/OutlineToolbar';
@@ -698,7 +698,7 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
                       </div>
                     )}
                     <div className={s.sideScroll}>
-                      {tab === 'scenes' && <Outline doc={doc} onPick={goTo} />}
+                      {tab === 'scenes' && <SequencesPanel doc={doc} api={api} readOnly={readOnly} />}
                       {tab === 'characters' && (
                         <CharactersPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />
                       )}
@@ -832,47 +832,6 @@ function TypePicker({ type, onPick }: { type: BlockType | null; onPick: (t: Bloc
         </ul>
       )}
     </div>
-  );
-}
-
-/** Onglet Séquences (provisoire) : une ligne par séquence du texte, avec sa page ; un clic y mène. */
-function Outline({ doc, onPick }: { doc: ProjectDoc; onPick: (id: string) => void }) {
-  const outline = useScriptUi((u) => u.outline);
-  const marks = useRevisionMarks(doc);
-  const from = marks
-    ? doc.versions?.find((v) => v.id === doc.versions?.find((x) => x.id === doc.activeVersionId)?.from)?.name
-    : undefined;
-  const active = useScriptUi((u) => u.activeHeading);
-  if (!outline.length) return <p className={s.muted}>Aucune séquence</p>;
-  return (
-    <ol className={s.outline} data-testid="scenario-outline">
-      {outline.map((o: OutlineItem, i) => (
-        <li key={o.id}>
-          <button
-            type="button"
-            className={o.id === active ? s.current : ''}
-            aria-current={o.id === active || undefined}
-            onClick={() => onPick(o.id)}
-            data-view
-          >
-            <span className={s.n}>
-              {marks?.get(i) && (
-                <i
-                  className={s.rev}
-                  title={marks.get(i) === 'new' ? `Nouvelle depuis ${from}` : `Modifiée depuis ${from}`}
-                  data-testid="revision-mark"
-                >
-                  *
-                </i>
-              )}
-              {o.n}
-            </span>
-            <span className={s.h}>{o.text || 'Sans titre'}</span>
-            <span className={s.p}>{o.page}</span>
-          </button>
-        </li>
-      ))}
-    </ol>
   );
 }
 

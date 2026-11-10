@@ -61,7 +61,7 @@ export function SequencesPanel({ doc, api, activeN, readOnly = false, onPick }: 
   };
 
   return (
-    <ol className={s.list} data-testid="sequences-panel">
+    <ol className={s.list} data-testid="scenario-outline">
       {rows.map((r) =>
         r.kind === 'part' ? (
           <li key={r.key} className={s.part}>
