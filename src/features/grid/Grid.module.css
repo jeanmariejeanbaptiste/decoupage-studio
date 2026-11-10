@@ -304,3 +304,6 @@ tr[data-lifted], tbody[data-lifted] { filter: drop-shadow(0 8px 16px rgba(17, 19
 .emptyBody:has(+ .emptyBody) .gapRow td { height: 0; }
 .emptyBody:has(+ .emptyBody) .seqAddRow td { height: 10px; }
 .emptyBody + .emptyBody .emptyRow > td { border-top: 0; }
+
+/* Plan abandonné : texte estompé (la sélection garde son fond), à l'écran seulement. */
+.row[data-status='abandonné'] > td:not(.gutter) { color: var(--ink-soft); }

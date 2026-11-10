@@ -397,6 +397,7 @@ export function SequenceBody({
               shotId={r.shotId}
               className={[s.row, shot?.oneShot ? s.oneShot : '', shot?.interview ? s.itwRow : ''].join(' ')}
               data-shot={r.shotId}
+              data-status={shot?.status}
               data-testid="shot-row"
             >
               {withGutter(

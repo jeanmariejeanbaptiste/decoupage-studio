@@ -63,3 +63,7 @@
 /* Séquence sans plan : ligne fantôme, le « + » au trait à la place du numéro. */
 .listSeq .listGhost { background: transparent; border: 1px dashed var(--rule); color: var(--ink-soft); }
 .listGhost .listNum { background: none; border: 1px solid var(--rule); color: var(--ink-soft); }
+
+/* Plan abandonné : estompé dans la vue d'ensemble. */
+.listDropped:not(.listOn) .listBody strong { color: var(--ink-soft); font-weight: 500; }
+.listDropped:not(.listOn) .listNum { background: var(--ink-soft); }

@@ -159,7 +159,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
                   <li key={id}>
                     <button
                       type="button"
-                      className={id === shotId ? s.listOn : ''}
+                      className={[id === shotId ? s.listOn : '', sh.status === 'abandonné' ? s.listDropped : ''].join(' ')}
                       onClick={() => {
                         setCurrent(id);
                         setList(false);
