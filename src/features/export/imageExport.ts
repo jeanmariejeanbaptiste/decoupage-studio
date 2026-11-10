@@ -8,6 +8,8 @@ export interface PageExportOptions {
   orientation: Orientation;
   /** Numéro « n / total » en petit, en bas à droite. */
   numbers: boolean;
+  /** Pied de page en bas à gauche (titre, version, date), même taille et même gris que le numéro. */
+  footer?: string;
 }
 
 /** Éléments exclus de l'image : boutons, champs et tout ce qui est marqué « no-image ». */
@@ -74,16 +76,23 @@ export async function exportSvgPages(svgs: string[], base: string, opts: PageExp
 
 /** Numérote, puis enregistre en PDF (assemblé ici, sans le module d'impression) ou en images. */
 export async function finish(canvases: HTMLCanvasElement[], base: string, opts: PageExportOptions, links?: PdfLink[][]): Promise<void> {
-  if (!canvases.length) return;
-  if (opts.numbers)
+  // Aucune page rendue (pagination qui n'aboutit pas) : une erreur, plutôt qu'un export muet.
+  if (!canvases.length) throw new Error('aucune page à exporter');
+  if (opts.numbers || opts.footer)
     canvases.forEach((c, i) => {
       const ctx = c.getContext('2d')!;
       const mm = c.width / a4(opts.orientation).w;
       ctx.font = `${Math.round(2.8 * mm)}px "Inter Variable", "Helvetica Neue", sans-serif`;
       ctx.fillStyle = '#555';
-      ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(`${i + 1} / ${canvases.length}`, c.width - 6 * mm, c.height - 4.5 * mm);
+      if (opts.numbers) {
+        ctx.textAlign = 'right';
+        ctx.fillText(`${i + 1} / ${canvases.length}`, c.width - 6 * mm, c.height - 4.5 * mm);
+      }
+      if (opts.footer) {
+        ctx.textAlign = 'left';
+        ctx.fillText(opts.footer, 6 * mm, c.height - 4.5 * mm, c.width - 40 * mm);
+      }
     });
   const blob = (c: HTMLCanvasElement, type: string) => new Promise<Blob>((ok, ko) => c.toBlob((b) => (b ? ok(b) : ko(new Error('Rendu impossible'))), type, 0.92));
   if (opts.format === 'pdf') {
