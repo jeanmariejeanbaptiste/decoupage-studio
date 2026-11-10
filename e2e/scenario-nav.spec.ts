@@ -4,9 +4,9 @@ test('Scénario : quatre onglets, adresse, Précédent, clavier, sous-page reten
   await page.goto('/#/scenario?seed=fiction');
   const tabs = page.getByRole('tablist', { name: 'Scénario' });
   const tab = (name: string) => tabs.getByRole('tab', { name });
-  await expect(tabs.getByRole('tab')).toHaveText(['Séquencier', 'Texte', 'Découpage', 'Statistiques']);
+  await expect(tabs.getByRole('tab')).toHaveText(['Séquencier', 'Continuité dialoguée', 'Découpage', 'Statistiques']);
   // Premier passage, texte présent : le texte.
-  await expect(tab('Texte')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab('Continuité dialoguée')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('script-editor')).toBeVisible();
   await expect(page.getByTestId('scenario-chrono')).toBeVisible();
 
@@ -27,11 +27,11 @@ test('Scénario : quatre onglets, adresse, Précédent, clavier, sous-page reten
   await page.goBack();
   await expect(tab('Séquencier')).toHaveAttribute('aria-selected', 'true');
   await page.goBack();
-  await expect(tab('Texte')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab('Continuité dialoguée')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('script-editor')).toBeVisible();
 
   // Motif tablist : ← → déplacent le focus, Entrée ouvre.
-  await tab('Texte').focus();
+  await tab('Continuité dialoguée').focus();
   await page.keyboard.press('ArrowRight');
   await expect(tab('Découpage')).toBeFocused();
   await page.keyboard.press('ArrowLeft');
@@ -222,7 +222,7 @@ test('Scénario au clavier : Exporter (Échap, Tab), ⌘\\ hors panneau, poigné
   await tabs.getByRole('tab', { name: 'Séquencier' }).click();
   await expect(tabs.getByRole('tab', { name: 'Séquencier' })).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('Control+Backslash');
-  await tabs.getByRole('tab', { name: 'Texte' }).click();
+  await tabs.getByRole('tab', { name: 'Continuité dialoguée' }).click();
   await expect(page.getByLabel('Navigation du scénario')).toBeVisible();
 
   const grip = page.getByTestId('scenario-side-resize');

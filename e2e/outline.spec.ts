@@ -59,7 +59,7 @@ test('séquencier : trois séquences saisies deviennent trois en-têtes du texte
   expect(src).toContain('INT. CAFÉ - SOIR\n\n= Marc rend la clé.');
 
   // Texte : trois en-têtes, aucune phrase sur la feuille.
-  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
+  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Continuité dialoguée' }).click();
   const editor = page.getByTestId('script-editor');
   await expect(editor).toContainText('INT. GARE - JOUR');
   await expect(editor).toContainText('INT. QUAI - NUIT');
@@ -104,7 +104,7 @@ test('séquencier : ⌥↓ réordonne le texte, les numéros et le découpage ; 
 
   // Le texte suit l'ordre : la séquence 1 du Texte est bien la première.
   await page.keyboard.press('Alt+ArrowDown');
-  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
+  await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Continuité dialoguée' }).click();
   await expect(page.getByTestId('script-editor').locator('[data-type="heading"]').first()).toContainText('GARE — CONSIGNE');
 });
 

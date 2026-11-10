@@ -55,7 +55,7 @@ import s from './ScenarioPage.module.css';
 /** Sous-pages, dans l'ordre du travail. */
 const VIEWS: ReadonlyArray<readonly [ScenarioView, string]> = [
   ['outline', 'Séquencier'],
-  ['script', 'Texte'],
+  ['script', 'Continuité dialoguée'],
   ['cut', 'Découpage'],
   ['stats', 'Statistiques'],
 ];

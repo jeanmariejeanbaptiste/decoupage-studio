@@ -616,11 +616,11 @@ test('relecteur : rien de la synchronisation privée, onglets publiés seulement
   await nina.getByRole('navigation').getByRole('button', { name: /Scénario/ }).click();
   // Pas de séquencier (les phrases ne sont pas publiées) ; le panneau : les séquences seules, sans onglets.
   const views = nina.getByRole('tablist', { name: 'Scénario' }).getByRole('tab');
-  await expect(views).toHaveText(['Texte', 'Découpage', 'Statistiques']);
+  await expect(views).toHaveText(['Continuité dialoguée', 'Découpage', 'Statistiques']);
   await expect(nina.getByTestId('scenario-outline')).toBeVisible();
   for (const t of ['scenes', 'characters', 'decors', 'research']) await expect(nina.getByTestId(`scenario-tab-${t}`)).toHaveCount(0);
   await nina.evaluate(() => void (location.hash = '#/scenario?view=outline'));
-  await expect(views.filter({ hasText: 'Texte' })).toHaveAttribute('aria-selected', 'true');
+  await expect(views.filter({ hasText: 'Continuité dialoguée' })).toHaveAttribute('aria-selected', 'true');
   await expect(nina).toHaveURL(/#\/scenario\?view=script$/);
 
   // Lien arrêté : un autre relecteur qui commente n'ouvre pas le sélecteur de Google.

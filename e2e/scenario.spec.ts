@@ -53,7 +53,7 @@ test.describe('scénario et liaison', () => {
     await expect.poll(count).toBe(before + 1);
     await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
     await expect(page.getByTestId('scenario-shot').filter({ hasText: 'Marc attend sous la pluie' }).first()).toBeVisible();
-    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Continuité dialoguée' }).click();
     // Même geste : commenter le passage (l'auteur aussi).
     await selectText(page, 'Marc attend sous la pluie');
     await page.getByTestId('script-editor').dispatchEvent('contextmenu', { clientX: 500, clientY: 400, button: 2 });
@@ -68,7 +68,7 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
     // Mode libre : la séquence se choisit, celle de la scène est suggérée en premier.
     await page.getByTestId('scenario-link-mode').uncheck();
-    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Continuité dialoguée' }).click();
     await selectText(page, "GUICHETIER\nC'est pour combien de temps ?");
     await page.getByTestId('create-shot-from-selection').click();
     await expect(page.getByRole('menuitem').first()).toContainText('(suggérée)');
@@ -116,7 +116,7 @@ test.describe('scénario et liaison', () => {
     await expect(page.getByTestId('script-stack')).toHaveCSS('width', /^78\d/);
     await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
     await expect(page.getByTestId('scenario-cut')).toContainText('GARE');
-    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Texte' }).click();
+    await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Continuité dialoguée' }).click();
     const dl = page.waitForEvent('download');
     await page.getByTestId('scenario-export').click();
     await page.getByRole('menuitem', { name: 'Fountain', exact: true }).click();
@@ -247,7 +247,7 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   // Une séquence du rapport rouvre le texte à sa place.
   await page.getByTestId('report-scenes').click();
   await reports.getByRole('button', { name: /GARE DU NORD — HALL/ }).first().click();
-  await expect(views.getByRole('tab', { name: 'Texte' })).toHaveAttribute('aria-selected', 'true');
+  await expect(views.getByRole('tab', { name: 'Continuité dialoguée' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('script-editor')).toBeVisible();
   await page.getByTestId('scenario-tab-research').click();
   // La logline et le synopsis sont en tête du séquencier, plus dans la recherche.
@@ -485,7 +485,7 @@ test('vue Découpage : le panneau suit la version choisie ; la bascule du pannea
   await page.getByTestId('version-item').filter({ hasText: 'V1' }).getByRole('menuitemradio').click();
   await expect(switcher).toHaveText('V1');
   await expect(page.getByTestId('import-scenes')).toHaveCount(0);
-  await views.getByRole('tab', { name: 'Texte' }).click();
+  await views.getByRole('tab', { name: 'Continuité dialoguée' }).click();
   await expect(outline).not.toContainText('CAFÉ DU PORT');
   await expect(outline.locator('li')).toHaveCount(3);
   await page.getByTestId('scenario-tab-characters').click();

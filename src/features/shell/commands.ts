@@ -74,7 +74,7 @@ export const COMMANDS: readonly Command[] = [
   ...(
     [
       ['outline', 'Séquencier'],
-      ['script', 'Texte'],
+      ['script', 'Continuité dialoguée'],
       ['cut', 'Découpage'],
       ['stats', 'Statistiques'],
     ] as const satisfies ReadonlyArray<readonly [ScenarioView, string]>
