@@ -76,7 +76,6 @@ export const COMMANDS: readonly Command[] = [
   { id: 'go-grid', group: 'Aller à', label: 'Découpage technique', run: () => navigate('grid'), needsProject: true },
   { id: 'go-storyboard', group: 'Aller à', label: 'Storyboard', run: () => navigate('storyboard'), needsProject: true },
   { id: 'go-floorplan', group: 'Aller à', label: 'Plan au sol', run: () => navigate('floorplan'), needsProject: true },
-  { id: 'go-registry', group: 'Aller à', label: 'Registre', run: () => navigate('registry'), needsProject: true },
   { id: 'go-checks', group: 'Aller à', label: 'Vérifications', run: () => navigate('checks'), needsProject: true },
   { id: 'go-equipment', group: 'Aller à', label: 'Listes de matériel', run: () => navigate('equipment'), needsProject: true },
   { id: 'go-schedule', group: 'Aller à', label: 'Plan de travail', run: () => navigate('schedule'), needsProject: true },

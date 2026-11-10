@@ -61,7 +61,6 @@ const ROUTE_LABEL: Record<string, string> = {
   schedule: 'Plan de travail',
   callsheet: 'Feuille de service',
   export: 'Exporter',
-  registry: 'Registre',
 };
 
 /** Où en est l'utilisateur : page affichée et plan sélectionné (pour « ce plan », « cette séquence »). */

@@ -28,7 +28,6 @@ import { CalendarPage } from '../features/calendar/CalendarPage';
 import { BreakdownPage } from '../features/breakdown/BreakdownPage';
 import { PrintPage } from '../features/export/PrintPage';
 import { GridPage } from '../features/grid/GridPage';
-import { RegistryPage } from '../features/registry/RegistryPage';
 import { CommandPalette } from '../features/shell/CommandPalette';
 import { HelpDialog } from '../features/shell/HelpDialog';
 import { HomePage } from '../features/shell/HomePage';
@@ -297,7 +296,6 @@ function Page({ route }: { route: Route }) {
   if (drive && !REVIEWED.has(route)) return <GridPage doc={doc} />;
   // Invité sans droit de copie : rien à exporter, le découpage à la place.
   if (route === 'export') return canCopy ? <ExportPage doc={doc} /> : <GridPage doc={doc} />;
-  if (route === 'registry') return <RegistryPage doc={doc} />;
   // Lecture seule : pas de réglages, le découpage à la place.
   if (route === 'settings') return readOnly ? <GridPage doc={doc} /> : <SettingsPage doc={doc} />;
   if (route === 'checks') return <ChecksPage doc={doc} />;

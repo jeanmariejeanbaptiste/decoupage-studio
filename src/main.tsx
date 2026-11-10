@@ -7,6 +7,7 @@ import './styles/tokens.css';
 import './styles/paper.css';
 import './styles/print.css';
 import { App } from './app/App';
+import { redirectLegacyHash } from './app/legacy';
 import { checkInvariants } from './domain/ops';
 import { useProjectStore } from './store/projectStore';
 
@@ -30,6 +31,10 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // Projets gardés durablement par le navigateur (Safari efface sinon les données d'un site inactif).
 void navigator.storage?.persist?.().catch(() => undefined);
+
+// Anciennes adresses (le Registre…) : remplacées avant que l'application ne les lise.
+redirectLegacyHash();
+window.addEventListener('hashchange', redirectLegacyHash);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

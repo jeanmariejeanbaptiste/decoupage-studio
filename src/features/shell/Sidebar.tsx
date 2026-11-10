@@ -1,5 +1,5 @@
 import { useCanCopy, useDriveReview, useReadOnly } from '../../store/share';
-import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
+import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
@@ -23,7 +23,7 @@ interface Props {
   activeRoute: Route;
   /** Menu replié en barre d'icônes (les libellés restent en infobulle et pour les lecteurs d'écran). */
   collapsed?: boolean;
-  counts?: { registry?: number; checks?: number };
+  counts?: { checks?: number };
   /** Après un choix (téléphone : le tiroir se referme). */
   onNavigate?: () => void;
 }
@@ -78,7 +78,6 @@ export function Sidebar({ activeRoute, collapsed = false, counts = {}, onNavigat
         {!drive && <div className={s.group}>
           <p className={s.section}>Projet</p>
           <ul className={s.steps}>
-            {item('registry', 'Registre', <Database {...ICON} />, counts.registry)}
             {item('checks', 'Vérifications', <ShieldCheck {...ICON} />, counts.checks)}
             {canCopy && item('export', 'Exporter', <Download {...ICON} />)}
           </ul>
