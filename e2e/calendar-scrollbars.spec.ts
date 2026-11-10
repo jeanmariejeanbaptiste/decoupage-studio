@@ -7,7 +7,7 @@ test.use({ launchOptions: { executablePath: process.env.PW_CHROMIUM || undefined
 test('semaine : en-tête, rangée « journée » et grille horaire tombent en face', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 560 });
   await page.goto('/#/calendar?seed=fiction');
-  await page.getByRole('tab', { name: 'Semaine' }).click();
+  await page.getByRole('radio', { name: 'Semaine' }).click();
   const edges = await page.getByTestId('calendar-week').evaluate((g) => {
     const xs = (sel: string) => Array.from(g.querySelectorAll<HTMLElement>(sel)).map((e) => Math.round(e.getBoundingClientRect().right));
     const scroll = g.querySelector<HTMLElement>('[class*="tgScroll"]')!;

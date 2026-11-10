@@ -99,7 +99,7 @@ interface Menu {
 }
 
 /** Calendrier de production : tableau des étapes à gauche, frise (Gantt) à droite. */
-/** Vue « Production » du calendrier : `seg` est le sélecteur de vue commun, au centre de la barre. */
+/** Sous-page « Production » du calendrier : la frise du calendrier de production. */
 export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode }) {
   const readOnly = useReadOnly();
   const today = todayIso();
@@ -285,7 +285,7 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
   if (!plan?.phases.length) {
     return (
       <div className={s.page} data-testid="production">
-        <header className={s.bar}>{seg}</header>
+        {seg && <header className={s.bar}>{seg}</header>}
         <div className="card empty">
           <span className="hand">Aucune étape</span>
           {!readOnly && (

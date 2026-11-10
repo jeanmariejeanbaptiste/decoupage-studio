@@ -174,3 +174,15 @@
   .line { padding-left: 6px; }
   .chipTime { display: none; }
 }
+
+/* Sous-pages (Calendrier, Production) : ligne de tête comme celle du Scénario. */
+.shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.shell > :not(.head) { flex: 1; min-height: 0; }
+.head { display: flex; align-items: stretch; height: 56px; padding: 0 32px; flex: none; border-bottom: 1px solid var(--rule); background: var(--paper); }
+.pages { display: flex; align-items: stretch; gap: 32px; margin-bottom: -1px; }
+.pages button { position: relative; display: inline-flex; flex-direction: column; justify-content: center; padding: 0; border: 0; background: none; cursor: pointer; white-space: nowrap; font: inherit; font-size: 15px; color: var(--ink-soft); }
+.pages button::before { content: attr(data-label); height: 0; overflow: hidden; visibility: hidden; font-weight: 500; }
+.pages button:hover { color: var(--ink); }
+.pages .pageOn { color: var(--ink); font-weight: 500; }
+.pages .pageOn::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--ink); }
+@media (max-width: 720px) { .head { padding: 0 16px; } .pages { gap: 24px; } }

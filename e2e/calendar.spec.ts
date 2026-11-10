@@ -28,17 +28,17 @@ test('calendrier : mois, création, vues, aujourd’hui, modification', async ({
   await expect(cell.getByTestId('calendar-item')).toContainText('14:00');
 
   // Vues Semaine, Jour, Année ; le choix est retenu.
-  await page.getByRole('tab', { name: 'Semaine' }).click();
+  await page.getByRole('radio', { name: 'Semaine' }).click();
   await expect(page.getByTestId('calendar-week').getByTestId('calendar-item')).toContainText('Repérages lycée');
-  await page.getByRole('tab', { name: 'Jour' }).click();
+  await page.getByRole('radio', { name: 'Jour' }).click();
   await expect(page.getByTestId('calendar-day').getByTestId('calendar-item')).toContainText('Repérages lycée');
-  await page.getByRole('tab', { name: 'Année' }).click();
+  await page.getByRole('radio', { name: 'Année' }).click();
   await expect(page.getByTestId('calendar-title')).toHaveText(String(now.getFullYear()));
   await page.getByTestId(`year-${today}`).click();
   await expect(page.getByTestId('calendar-day')).toBeVisible();
 
   // Période suivante, puis retour à aujourd'hui.
-  await page.getByRole('tab', { name: 'Mois' }).click();
+  await page.getByRole('radio', { name: 'Mois' }).click();
   await page.getByRole('button', { name: 'Suivant' }).click();
   await expect(page.getByTestId('calendar-title')).not.toHaveText(monthTitle(now));
   await page.getByRole('button', { name: 'Aujourd’hui' }).click();
@@ -55,7 +55,7 @@ test('calendrier : mois, création, vues, aujourd’hui, modification', async ({
   await expect(cell.getByTestId('calendar-item')).toHaveCount(0);
 
   // La vue choisie est retenue d'une visite à l'autre.
-  await page.getByRole('tab', { name: 'Semaine' }).click();
+  await page.getByRole('radio', { name: 'Semaine' }).click();
   await page.reload();
   await expect(page.getByTestId('calendar-week')).toBeVisible();
 });

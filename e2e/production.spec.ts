@@ -249,7 +249,8 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
 
   // Dans le calendrier : pastilles en lecture seule qui ramènent au calendrier de production.
   await page.getByRole('button', { name: 'Calendrier', exact: true }).click();
-  await page.getByRole('tab', { name: 'Mois' }).click();
+  await page.getByRole('tab', { name: 'Calendrier' }).click();
+  await page.getByRole('radio', { name: 'Mois' }).click();
   await page.getByRole('button', { name: 'Aujourd’hui' }).click();
   const now = new Date();
   for (let i = (first.getFullYear() - now.getFullYear()) * 12 + first.getMonth() - now.getMonth(); i > 0; i--) await page.getByRole('button', { name: 'Suivant' }).click();
@@ -284,7 +285,10 @@ test('calendrier de production : rendez-vous du calendrier sur la frise, lien ve
   await expect(page).toHaveURL(new RegExp(`#/calendar\\?date=${day}`));
   // Et l'inverse : de la frise au mois, dans la même page.
   await toProduction(page);
-  await page.getByRole('tab', { name: 'Mois' }).click();
+  // Les échelles ne valent que pour le calendrier : on y revient par son onglet.
+  await expect(page.getByRole('radio', { name: 'Mois' })).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Calendrier' }).click();
+  await page.getByRole('radio', { name: 'Mois' }).click();
   await expect(page).toHaveURL(/#\/calendar$/);
   await expect(page.getByTestId('calendar-title')).toBeVisible();
   // La vue retenue est la dernière : le menu latéral rouvre la frise.
