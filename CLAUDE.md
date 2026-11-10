@@ -47,6 +47,8 @@ Vite 5 + React 18 + TypeScript strict · Zustand + immer + zundo · Dexie (Index
 - Google Drive : `store/cloud.ts` (dormant sans `VITE_GOOGLE_CLIENT_ID`, variable de dépôt `GOOGLE_CLIENT_ID` lue par deploy.yml).
 - Relecture en ligne (Drive) : `domain/reviewSnapshot.ts`, `reviewMerge.ts`, `reviewTrailer.ts`, `store/review.ts`, `store/reviewDrive.ts`, `features/review` (route `review`) ; variables `GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`, `GOOGLE_APP_ID`.
 
+- Séquencier : `domain/outline.ts` (phrase « = » et note `[[ds:…]]`, `moveEntry`, `insertEntry`, `carryOutline`, intrigues, `sequenceSummary`), `domain/truby.ts`, `domain/outlineLayout.ts`, `ops.applyScenarioEdit` (ancres recalées, `reorderCut`) ; `features/scenario/outline/` (Liste, Par intrigue, Intrigues), `SequencesPanel.tsx`, `outlineExport.ts`. Page Scénario : `#/scenario?view=outline|script|cut|stats`.
+
 ## Chantiers en cours (au 10 nov. 2026, v2.9.0)
 - Google Drive (synchronisation et relecture en ligne) : code prêt ; l'utilisateur doit créer l'ID client OAuth, la clé d'API restreinte et noter le numéro du projet, puis les mettre dans les variables de dépôt `GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`, `GOOGLE_APP_ID`.
 - Ouvert : numéro de page de l'éditeur au-delà du PDF sur un scénario annoté (notes comptées à l'écran).

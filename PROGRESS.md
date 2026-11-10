@@ -303,11 +303,15 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Vérifications : chaque ligne mène à l'endroit exact (`domain/checkTarget.ts`, `features/checks/openCheck.ts`), sautes consécutives en une ligne, contrôle d'angle incompatible.
 - Tests : 614 unitaires, 179 parcours de bout en bout.
 
+## Scénario et séquencier — 2026-11-10 (publié)
+- Page Scénario refondue : une entrée de menu, quatre sous-pages Séquencier · Texte · Découpage · Statistiques (`#/scenario?view=…&seq=…&report=…`), onglets en mots, ligne d'outils par sous-page, barre d'état seule à compter, panneau redimensionnable (Séquences · Personnages · Décors · Recherche ; Découpage = plans), menu Exporter à sections fixes, import dans le menu des versions.
+- Séquencier (Truby) : la phrase de chaque séquence est une ligne Fountain « = » sous l'en-tête, avec la note `[[ds:etape=N;intrigue=X]]` ; vue Liste (logline, synopsis, ajout rapide, édition sur place, étapes, intrigues, parties, glisser et ⌥↑/⌥↓ qui réordonnent aussi le découpage s'il suivait le texte), vue Par intrigue (tissage), menu Intrigues ; phrase hors de la feuille dans l'éditeur (pages inchangées), éditable dans le panneau Séquences ; exports PDF et Word, dans le dossier .zip ; Final Draft (Summary) ; résumé unique (`sequenceSummary`) ; outils de l'assistant.
+- Relectures contradictoires : 8 défauts du domaine corrigés (dont une séquence supprimée qui prenait le lien et la phrase de la suivante), mise en page téléphone et 700–1000 px corrigée.
+
 ## File d'attente (à reprendre dans cet ordre)
-1. Scénario : refonte complète des sous-sections (barre trop compacte, « pas épurée » : plus d'air, moins de boutons tassés) et séquencier façon John Truby (« tissage des séquences » : une phrase par séquence, vue d'ensemble du film, lisible avant et après l'écriture).
-2. Retirer le Registre en déplaçant ce qui n'existe que là : nature et fusion des personnages (`mergeCharacters`) vers les fiches du Scénario ; durée estimée, écart et avancement vers l'en-tête de séquence du découpage ; personnages manuels de séquence vers le Dépouillement ; tableaux et CSV vers Exporter. La cible `registry` de `checkTarget` (écart estimé) passe alors à l'en-tête de séquence.
-3. Vérifications : la cellule visée s'ouvre directement en saisie (comme un double-clic), un test par type de contrôle.
-4. Cent améliorations (ergonomie, fonctions, robustesse), par lots indépendants, stabilité d'abord : un lot qui casse un test est écarté.
+1. Registre retiré + vérifications ouvertes en saisie : prêts sur la branche `wip-registre` (relus, défauts corrigés, e2e verts sauf instabilité connue de `review-drive`). Reste à : fusionner `main` dans la branche, monter `CharacterFacts`, `DecorFacts` et `OrphanFiches` dans les panneaux Personnages et Décors du Scénario (`ResearchPanels.tsx`), passer la porte complète, captures, publier. Retraits acceptés par l'utilisateur : liste filtrée des plans, registre des invités sans copie.
+2. Cent améliorations : confiées à une autre session (voir ci-dessous).
+3. Fin : version 2.10.0, CLAUDE.md, bilan.
 
 ## Cent améliorations — 2026-11-10 (rien publié sur main, tout sur branches)
 - Dix lots en worktree isolé, environ 190 améliorations commitées (coquille 21, intention ~14, dépouillement 20, découpage 16, plan au sol 20, tournage 21, calendriers 23, exports 20, partage-assistant 5 commits, robustesse 17 dont les 23 défauts de `relais/reperage-robustesse.json` traités en tête), chacune avec test.
