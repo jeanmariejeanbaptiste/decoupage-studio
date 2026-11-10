@@ -16,6 +16,10 @@ export const CSV_COLUMNS: readonly ColumnKey[] = activeColumns([...DEFAULT_COLUM
  * qu'Excel enregistre sous Windows (« Séquence » y deviendrait « S�quence »).
  */
 export function decodeText(buf: ArrayBuffer | Uint8Array): string {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  // « Texte Unicode » d'Excel : UTF-16 avec sa marque d'ordre des octets.
+  if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder('utf-16le').decode(b.subarray(2));
+  if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder('utf-16be').decode(b.subarray(2));
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^\uFEFF/, '');
   } catch {
@@ -123,8 +127,9 @@ export function guessMapping(headers: readonly string[]): Array<ColumnKey | null
   const used = new Set<ColumnKey>();
   return headers.map((h) => {
     const f = fold(h).replace(/[^\p{L}\p{N}° ]/gu, '').trim();
+    // Seules les colonnes proposées à l'import : une colonne abandonnée (lumière…) n'écrirait qu'un champ invisible.
     const found = (Object.keys(HEADER_ALIASES) as ColumnKey[]).find(
-      (k) => !used.has(k) && (HEADER_ALIASES[k] ?? []).some((a) => fold(a) === f),
+      (k) => CSV_COLUMNS.includes(k) && !used.has(k) && (HEADER_ALIASES[k] ?? []).some((a) => fold(a) === f),
     );
     if (found) used.add(found);
     return found ?? null;
