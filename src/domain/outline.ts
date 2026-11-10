@@ -551,8 +551,9 @@ export function mapRange(edit: SourceEdit, start: number, end: number): [number,
 }
 
 /**
- * Nouveau texte (version, réimport, réécriture) : chaque scène rapprochée de l'ancienne, et qui n'a
- * ni phrase ni note, reprend les siennes. Rien n'est jamais écrasé.
+ * Nouveau texte (version, réimport, réécriture) : chaque scène rapprochée de l'ancienne reprend sa
+ * phrase si elle n'en a pas, et sa note si elle n'en a pas (un texte relu de Final Draft garde la
+ * phrase mais perd la note). Rien n'est jamais écrasé.
  */
 export function carryOutline(before: string, after: string): string {
   if (!before || !after || before === after) return after;
@@ -561,16 +562,19 @@ export function carryOutline(before: string, after: string): string {
   const al = alignScenes(before, after);
   const byStart = (items: OutlineSequence[], at: number) => items.find((x) => at >= x.headingStart && at <= x.headingEnd);
   const newItems = outlineSequences(after);
-  const todo: Array<{ to: OutlineSequence; from: OutlineSequence }> = [];
+  const todo: Array<{ to: OutlineSequence; phrase: string; meta?: string }> = [];
   for (const m of al.matches) {
     const from = byStart(oldItems, al.oldScenes[m.from].start);
     const to = byStart(newItems, al.newScenes[m.to].start);
-    if (!from || !to || (!from.phrase && !from.meta) || to.phrase || to.meta) continue;
-    todo.push({ from, to });
+    if (!from || !to) continue;
+    // Chacune séparément : la phrase si la scène n'en a pas, la note si elle n'en a pas (texte venu de Final Draft).
+    const phrase = to.phrase || from.phrase;
+    const meta = to.meta ?? from.meta;
+    if (phrase !== to.phrase || meta !== to.meta) todo.push({ to, phrase, meta });
   }
   todo.sort((a, b) => b.to.headingStart - a.to.headingStart);
   let src = after;
-  for (const { from, to } of todo) src = writePhrase(src, to, from.phrase, from.meta).source;
+  for (const { to, phrase, meta } of todo) src = writePhrase(src, to, phrase, meta).source;
   return src;
 }
 

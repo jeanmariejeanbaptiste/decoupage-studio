@@ -349,7 +349,10 @@ describe('carryOutline', () => {
     const after = before.replace('= Léa arrive. [[ds:etape=4;intrigue=B]]', '= Autre phrase.').replace('= Le train part.\n\n', '');
     const out = carryOutline(before, after);
     expect(seqs(out).map((x) => x.phrase)).toEqual(['Autre phrase.', 'Le train part.', '']);
-    expect(seqs(out)[0].step).toBeUndefined();
+    // La note manquait : elle est reprise, la phrase écrite reste.
+    expect(seqs(out)[0]).toMatchObject({ phrase: 'Autre phrase.', step: 4, plot: 'B' });
+    const own = before.replace('[[ds:etape=4;intrigue=B]]', '[[ds:etape=7]]').replace('= Le train part.\n\n', '');
+    expect(seqs(carryOutline(before, own))[0]).toMatchObject({ phrase: 'Léa arrive.', step: 7, plot: 'A' });
   });
 });
 

@@ -13,6 +13,7 @@ import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
 import { bannerLabel, showTime, callSheetAgenda, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
 import { decorLocation } from './locations';
+import { sequenceSummary } from './outline';
 import { cleanAddress, routeUrl, storedGeocode } from './geo';
 import { formatTc } from './timecode';
 import { computeTiming, formatGap } from './timing';
@@ -97,9 +98,10 @@ export function breakdownDocument(doc: ProjectDoc): DocPage {
       const m = breakdownOf(doc, id);
       const d = derivedBreakdown(doc, id);
       const seq = doc.sequences[id];
+      const summary = sequenceSummary(doc, id);
       const rows = breakdownCategories(doc).map((c) => ({ c, items: [...(d[c] ?? []), ...(m[c] ?? [])] })).filter((r) => r.items.length);
       return `<section class="block"><h2>${esc(sequenceHeading(doc, id))} <span class="muted" style="font-size:10pt">${esc([seq.intExt, seq.effect].filter(Boolean).join(' · '))}</span></h2>${
-        seq.summary ? `<p class="muted">${esc(seq.summary)}</p>` : ''
+        summary ? `<p class="muted">${esc(summary)}</p>` : ''
       }${rows.length ? `<table><tbody>${rows.map((r) => `<tr><th style="width:24%">${esc(breakdownLabel(r.c))}</th><td class="chips">${r.items.map((x) => `<span>${esc(x)}</span>`).join('')}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Rien à signaler.</p>'}</section>`;
     })
     .join('');
@@ -212,6 +214,7 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
       if (it.type === 'banner') return bannerRow(it, 5);
       const strip = it.strip;
       const seq = doc.sequences[strip.seqId];
+      const summary = seq ? sequenceSummary(doc, strip.seqId) : undefined;
       const r = it.start ? it : undefined;
       const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
       const heading = [[seq?.intExt, decor?.name ?? seq?.label].filter(Boolean).join('. '), seq?.effect].filter(Boolean).join(' — ');
@@ -221,7 +224,7 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
       // Lieu de tournage : nom, adresse (celle du jour d'abord), accès et contact.
       const address = d?.seqAddresses?.[strip.seqId] ?? (seq?.decorId ? d?.addresses?.[seq.decorId] : undefined) ?? loc.address ?? '';
       const place = [loc.name && `<b>${esc(loc.name)}</b>`, esc(address), address.trim() && routeLink(doc, address), loc.access && `<span class="muted">Accès : ${esc(loc.access)}</span>`, loc.contact && `<span class="muted">Contact : ${esc(loc.contact)}</span>`].filter(Boolean).join('<br>');
-      return `<tr><td class="time">${r ? esc(slotText(r)) : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${seq?.summary ? `<br><span class="muted">${esc(seq.summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
+      return `<tr><td class="time">${r ? esc(slotText(r)) : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${summary ? `<br><span class="muted">${esc(summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
     })
     .join('');
   const scenes = `<h3>Séquences</h3><table><thead><tr><th>Horaire</th><th>Séq.</th><th>Description</th><th>Personnages</th><th>Plans · durée</th><th>Lieu de tournage</th></tr></thead><tbody>${seqRows || '<tr><td colspan="6" class="muted">Aucune séquence ce jour.</td></tr>'}</tbody></table>`;
