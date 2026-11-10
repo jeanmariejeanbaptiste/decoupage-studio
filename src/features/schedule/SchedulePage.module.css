@@ -6,7 +6,12 @@
 .band { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); padding: 10px 12px; transition: box-shadow var(--t-fast) var(--ease); }
 .unplanned { background: transparent; border-style: dashed; }
 .over { box-shadow: inset 0 0 0 2px var(--rust); }
-.dayHead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+/* En-tête du jour en deux colonnes : titre, date et RDV à gauche (ils passent à la ligne entre eux),
+   outils à droite sur la première ligne, quelle que soit la longueur de la date ; bilan et rendez-vous dessous. */
+.dayHead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; margin-bottom: 8px; }
+.dayTitle { grid-column: 1; grid-row: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+.dayTools { grid-column: 2; grid-row: 1; align-self: start; display: inline-flex; align-items: center; gap: 8px; }
+.dayHead > .stats, .dayHead > .events { grid-column: 1 / -1; }
 .dayHead strong { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
 .dayHead input { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
 .of { font-size: 14px; font-weight: 400; color: var(--ink-soft); }
@@ -16,8 +21,7 @@
 .date input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; border: 0; }
 .date:focus-within { outline: 1px solid var(--focus); outline-offset: 1px; }
 .dateEmpty { color: var(--ink-soft); }
-.stats { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 12.5px; color: var(--ink-soft); }
-.dayActions { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; }
+.stats { font-size: 12.5px; color: var(--ink-soft); }
 .strips { display: flex; flex-direction: column; gap: 3px; min-height: 30px; }
 .empty { margin: 4px 0; font-style: italic; color: var(--ink-soft); font-size: 13px; }
 .strip { position: relative; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 2px; }
@@ -43,7 +47,24 @@
 .tExtNight { background: color-mix(in srgb, var(--ink) 23%, var(--paper-card)); }
 .tIntTwilight { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink) 12%, var(--paper-card)) 0 5px, var(--paper-card) 5px 10px); }
 .tExtTwilight { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink) 16%, var(--paper-card)) 0 5px, color-mix(in srgb, var(--ink) 7%, var(--paper-card)) 5px 10px); }
-@media (max-width: 1100px) { .stripMain { grid-template-columns: 30px 90px 1fr 60px; } .decor, .cast { display: none; } }
+/* Largeur réelle des bandes (carte affichée ou non, panneau latéral réduit ou non) : le décor passe
+   sous l'intitulé, puis la distribution s'efface ; l'horaire et le nombre de plans restent en place. */
+.bands { container: bands / inline-size; }
+@container bands (max-width: 1000px) {
+  .stripMain { grid-template-columns: 32px 96px minmax(0, 1.3fr) minmax(0, 1fr) 90px 60px; grid-template-areas: 'num ie label cast when count' 'num ie decor cast when count'; row-gap: 0; }
+  .num { grid-area: num; }
+  .ie { grid-area: ie; }
+  .label { grid-area: label; }
+  .decor { grid-area: decor; font-size: 11.5px; }
+  .cast { grid-area: cast; }
+  .when { grid-area: when; }
+  .count { grid-area: count; }
+}
+@container bands (max-width: 720px) {
+  .stripMain { grid-template-columns: 30px 84px minmax(0, 1fr) 90px 56px; grid-template-areas: none; }
+  .num, .ie, .label, .when, .count { grid-area: auto; }
+  .decor, .cast { display: none; }
+}
 .slot { position: absolute; right: 30px; top: 4px; display: inline-flex; gap: 4px; align-items: center; font-size: 12px; color: var(--ink-soft); }
 .slot input, .rdv input { font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 1px 3px; border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); border-radius: 3px; background: color-mix(in srgb, var(--paper-card) 80%, transparent); color: var(--ink); }
 .rdv { display: inline-flex; gap: 6px; align-items: center; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
@@ -80,10 +101,12 @@
 .planned input { width: 64px; font: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper-card); color: var(--ink); text-align: right; }
 
 /* Rendez-vous du calendrier ce jour-là : une ligne discrète sous l'en-tête du jour. */
-.events { flex-basis: 100%; display: flex; align-items: center; gap: 4px 14px; margin: -2px 0 0; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12.5px; color: var(--ink-soft); }
+.events { display: flex; align-items: center; gap: 4px 14px; margin: -2px 0 0; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12.5px; color: var(--ink-soft); }
 .events > svg { flex: none; }
-.event { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+/* Titres courts entiers ; seul un titre long cède la place (points de suspension). */
+.event { display: block; flex: 0 0 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .event:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.eventLong { flex: 0 1 auto; min-width: 6em; }
 .eventTime { margin-right: 6px; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 /* Carte des lieux : colonne de droite, collante, quand la place le permet ; bandeau au-dessus sinon. */

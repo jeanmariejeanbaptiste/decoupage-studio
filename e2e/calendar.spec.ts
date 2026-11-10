@@ -96,10 +96,18 @@ test('plan de travail : rendez-vous du calendrier sous chaque jour daté, dans l
   await create('Repérages lycée', today, '14:00');
   await create('Réunion technique', today);
   await create('Lecture', later, '10:00');
+  const long = 'Essais caméra et lumière avec le chef opérateur, la cheffe électricienne, le chef machiniste et toute l’équipe image au complet, au studio';
+  await create(long, today, '09:30');
 
   await page.getByRole('button', { name: 'Plan de travail' }).click();
   const line = page.getByTestId('band-1').getByTestId('day-events');
-  await expect(line.getByTestId('day-event')).toHaveText(['Réunion technique', '14:00Repérages lycée']);
+  await expect(line.getByTestId('day-event')).toHaveText(['Réunion technique', `09:30${long}`, '14:00Repérages lycée']);
+  // Une seule ligne : les titres courts restent entiers, seul le long est raccourci.
+  const cut = await line.getByTestId('day-event').evaluateAll((els) => els.map((e) => e.scrollWidth > e.clientWidth + 1));
+  expect(cut).toEqual([false, true, false]);
+  const box = await line.boundingBox();
+  const last = await line.getByTestId('day-event').last().boundingBox();
+  expect(last!.x + last!.width).toBeLessThanOrEqual(box!.x + box!.width + 1);
   // Les jours sans date n'en montrent aucun.
   await expect(page.getByTestId('band-2').getByTestId('day-events')).toHaveCount(0);
 
@@ -113,7 +121,7 @@ test('plan de travail : rendez-vous du calendrier sous chaque jour daté, dans l
   await dlg.getByTestId('event-save').click();
   await expect(dlg).toBeHidden();
   await page.getByRole('button', { name: 'Plan de travail' }).click();
-  await expect(line.getByTestId('day-event')).toHaveText(['Réunion technique']);
+  await expect(line.getByTestId('day-event')).toHaveText(['Réunion technique', `09:30${long}`]);
   // Le jour de tournage déplacé prend les rendez-vous de sa nouvelle date.
   await page.getByLabel('Date du jour 1').fill(later);
   await expect(line.getByTestId('day-event')).toHaveText(['10:00Lecture', '14:00Repérages lycée']);

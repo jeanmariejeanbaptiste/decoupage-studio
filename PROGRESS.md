@@ -277,3 +277,10 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Menu des versions (Scénario et Découpage) : « Comparer les versions… » remplace les différences abrégées ; invités et relecteurs : un bouton à côté du nom de la version.
 - Sous-page `#/scenario?compare=A~B` : « Comparer [A] avec [B] » (par défaut la courante avec celle dont elle est partie), texte entier aux colonnes du scénario, marques sans couleur, résumé (séquences, mots, pages, durée), seulement les changements, J / K, séquence ouverte dans l'éditeur (version courante), export PDF.
 - Domaine : `domain/scriptDiff.ts` (séquences par `sceneAlign`, blocs, mots), `domain/scriptDiffLayout.ts` (pages A4 de l'export) ; `sceneAlign` compte les triplets communs par index (plus rapide, mêmes résultats).
+
+## Carte des lieux — 2026-11-09
+- Plan de travail : carte Leaflet masquable (réglage retenu), tuiles OpenStreetMap en gris, repères numérotés par jour, jour choisi en avant, infobulle décor et adresse, liste avec état de la recherche et lien d'itinéraire ; rendez-vous du calendrier sous chaque jour daté.
+- Géocodage Nominatim : une requête par seconde au plus, seulement carte affichée et en ligne, résultat gardé dans le projet (hors annulation), délai, nouvel essai et pause après refus.
+- Feuille de service : carte réduite des lieux du jour à l'écran et dans l'export (image composée des tuiles en gris, repères numérotés, légende, attribution), lien d'itinéraire par lieu, cliquable dans le PDF et le Word.
+- Relecture : carte isolée sous les fenêtres et panneaux ; hôpital sans nom jamais replié sur la ville ; aucune requête après une carte masquée pendant la pause d'un refus 429 ; outils du jour en colonne fixe ; rendez-vous courts entiers ; réserve sans indication superflue ; légende entière.
+- Tests : 498 unitaires, 131 parcours de bout en bout (1 capture sur demande ignorée).

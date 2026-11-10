@@ -66,6 +66,10 @@ tr.banner td { border-bottom: .6pt dashed #b9bbc0; color: #6b7079; font-style: i
 .time { font-family: 'Inter Variable', sans-serif; font-size: 9pt; white-space: nowrap; }
 p.text { white-space: pre-wrap; line-height: 1.6; font-size: 11pt; }
 a.route { color: #111318; font-size: 8pt; text-decoration: underline; text-decoration-thickness: .5pt; }
+.cs-map { display: grid; grid-template-columns: 1.7fr 1fr; gap: 10pt; align-items: start; break-inside: avoid; margin: 2pt 0 8pt; }
+.cs-map img { display: block; width: 100%; height: auto; border: .6pt solid #d6d8dd; }
+.cs-map ol { list-style: none; margin: 0; padding: 0; } .cs-map li { display: flex; gap: 5pt; align-items: baseline; padding: 1.5pt 0; font-size: 9pt; }
+.cs-map .pin { flex: none; min-width: 13pt; padding: 0 3pt; border-radius: 7pt; background: #111318; color: #fff; font-size: 7.5pt; font-weight: 600; text-align: center; line-height: 12pt; } .cs-map .pin.h { border-radius: 2pt; }
 `;
 
 export interface DocPage {
@@ -162,7 +166,15 @@ function routeLink(doc: ProjectDoc, address: string): string {
   return `<a class="route" href="${esc(routeUrl(address, storedGeocode(doc, address)))}">Itinéraire</a>`;
 }
 
-export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
+/** Carte des lieux du jour pour l'export : image composée à part (tuiles et repères), légende numérotée. */
+export interface CallSheetMap {
+  src: string;
+  width: number;
+  height: number;
+  legend: Array<{ label: string; title: string; hospital?: boolean }>;
+}
+
+export function callSheetDocument(doc: ProjectDoc, day: number, opts: { map?: CallSheetMap } = {}): DocPage {
   const days = scheduleDays(doc);
   const d = days.find((x) => x.n === day);
   const strips = callSheetStrips(doc, day);
@@ -212,6 +224,14 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
     })
     .join('');
   const scenes = `<h3>Séquences</h3><table><thead><tr><th>Horaire</th><th>Séq.</th><th>Description</th><th>Personnages</th><th>Plans · durée</th><th>Lieu de tournage</th></tr></thead><tbody>${seqRows || '<tr><td colspan="6" class="muted">Aucune séquence ce jour.</td></tr>'}</tbody></table>`;
+
+  // Carte réduite des lieux du jour, sous le tableau qui donne leurs adresses et itinéraires.
+  const m = opts.map;
+  const map = m
+    ? `<h3>Lieux du jour</h3><div class="cs-map"><img src="${esc(m.src)}" width="${m.width}" height="${m.height}" alt="Carte des lieux du jour"><ol>${m.legend
+        .map((x) => `<li><span class="pin${x.hospital ? ' h' : ''}">${esc(x.label)}</span>${esc(x.title)}</li>`)
+        .join('')}</ol></div>`
+    : '';
 
   const shots = `<h3>Plans</h3><table><thead><tr><th>Horaire</th><th>Plan</th><th>Image</th><th>Sujet · action</th></tr></thead><tbody>${strips
     .flatMap((x) => x.shotIds)
@@ -263,7 +283,7 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
     ? `<h3>Prévisions · jour ${next.n}${next.date ? `, ${esc(new Date(`${next.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))}` : ''}${next.callTime ? ` · RDV ${esc(next.callTime)}` : ''}</h3><p>${nextStrips.map((x) => esc(sequenceHeading(doc, x.seqId))).join(' · ') || '<span class="muted">À préciser.</span>'}</p>`
     : '';
 
-  const body = `${head}${scenes}${shots}${cast}${figuration}${depts}${tomorrow}${d?.notes ? `<h3>Notes</h3><p class="text">${esc(d.notes)}</p>` : ''}`;
+  const body = `${head}${scenes}${map}${shots}${cast}${figuration}${depts}${tomorrow}${d?.notes ? `<h3>Notes</h3><p class="text">${esc(d.notes)}</p>` : ''}`;
   return shell(doc, 'Étape 9', `Feuille de service — Jour ${day}`, body);
 }
 

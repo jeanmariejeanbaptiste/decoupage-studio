@@ -106,7 +106,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
       <div className={s.layout}>
       <div className={[s.columns, showMap ? s.withMap : ''].join(' ')}>
       {showMap && (
-        <aside className={s.mapSide}>
+        <aside className={[s.mapSide, 'no-print'].join(' ')}>
           <ScheduleMap doc={doc} places={places} days={days.map((d) => d.n)} />
         </aside>
       )}
@@ -120,6 +120,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
             return (
               <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} items={dayAgenda(doc, d.n)} days={days.map((x) => x.n)} nums={nums} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
                 <div className={s.dayHead}>
+                  <div className={s.dayTitle}>
                   <strong>
                     Jour {d.n} <span className={s.of}>sur {days.length}</span>
                   </strong>
@@ -138,11 +139,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     RDV
                     <input type="time" value={d.callTime ?? ''} onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { callTime: e.target.value || undefined }))} aria-label={`Rendez-vous du jour ${d.n}`} />
                   </label>
-                  <span className={s.stats} title={dayTotalsText(doc, st)} data-testid={`day-stats-${d.n}`}>
-                    {dayTotalsText(doc, st)}
-                  </span>
-                  {/* Actions groupées : toujours à droite, jamais renvoyées à la ligne par les totaux. */}
-                  <span className={s.dayActions}>
+                  </div>
+                  {/* Outils du jour groupés, toujours au même endroit ; le bilan du jour passe dessous. */}
+                  <span className={s.dayTools}>
                     <select
                       className={s.addBanner}
                       value=""
@@ -189,6 +188,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                       }}
                     />
                   </span>
+                  <span className={s.stats} title={dayTotalsText(doc, st)} data-testid={`day-stats-${d.n}`}>
+                    {dayTotalsText(doc, st)}
+                  </span>
                   <DayEvents doc={doc} date={d.date} />
                 </div>
               </Band>
@@ -207,6 +209,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   );
 }
 
+/** Au-delà, un titre de rendez-vous peut être raccourci ; en deçà, il reste entier. */
+const LONG_EVENT = 24;
+
 /** Rendez-vous du calendrier ce jour-là : une ligne discrète, un clic ouvre le jour dans le calendrier. */
 function DayEvents({ doc, date }: { doc: ProjectDoc; date?: string }) {
   const items = eventsOn(doc, date);
@@ -218,7 +223,7 @@ function DayEvents({ doc, date }: { doc: ProjectDoc; date?: string }) {
       {items.map((it) => {
         const time = timeOn(it, date);
         return (
-          <button key={it.key} type="button" className={s.event} onClick={open} title="Ouvrir ce jour dans le calendrier" data-testid="day-event">
+          <button key={it.key} type="button" className={[s.event, it.title.length > LONG_EVENT ? s.eventLong : ''].join(' ')} onClick={open} title="Ouvrir ce jour dans le calendrier" data-testid="day-event">
             {time && <span className={s.eventTime}>{time}</span>}
             {it.title}
           </button>

@@ -59,6 +59,63 @@ describe('géocodage des adresses', () => {
     again();
   });
 
+  it('service indisponible : nouvel essai une minute plus tard, espacé après un refus 429', async () => {
+    vi.useFakeTimers();
+    const calls: number[] = [];
+    let status = 429;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls.push(Date.now());
+        return { ok: status === 200, status, json: async () => [{ lat: '45.76', lon: '4.83' }] } as Response;
+      }),
+    );
+    const doc = produce(project(), (d) => {
+      updateDay(d, 2, { seqAddresses: {} });
+      setDecorLocation(d, d.sequences[d.project.sequenceIds[0]].decorId!, { address: '2 place Bellecour, Lyon' });
+    });
+    useProjectStore.getState().loadDoc(doc);
+    const stop = watchPlaces(mapPlaces(doc));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(calls).toHaveLength(1);
+    // Rien d'autre pendant la minute d'attente.
+    status = 200;
+    await vi.advanceTimersByTimeAsync(50_000);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(calls).toHaveLength(2);
+    expect(Object.values(useProjectStore.getState().doc!.geocodes ?? {})).toEqual([{ address: '2 place Bellecour, Lyon', lat: 45.76, lon: 4.83 }]);
+    stop();
+  });
+
+  it('carte masquée pendant la pause qui suit un refus 429 : aucune requête ne part', async () => {
+    vi.useFakeTimers();
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        return { ok: false, status: 429, json: async () => [] } as Response;
+      }),
+    );
+    const doc = produce(project(), (d) => {
+      updateDay(d, 2, { seqAddresses: {} });
+      setDecorLocation(d, d.sequences[d.project.sequenceIds[0]].decorId!, { address: '5 rue Mercière, Lyon' });
+    });
+    useProjectStore.getState().loadDoc(doc);
+    const stop = watchPlaces(mapPlaces(doc));
+    // Le refus (après l'éventuelle pause laissée par un test précédent).
+    for (let i = 0; i < 120 && !calls.length; i++) await vi.advanceTimersByTimeAsync(1000);
+    expect(calls).toHaveLength(1);
+    // Nouvelle adresse demandée, mais la pause de 30 s court ; la carte est masquée avant la fin.
+    const stop2 = watchPlaces(mapPlaces(produce(doc, (d) => setDecorLocation(d, d.sequences[d.project.sequenceIds[0]].decorId!, { address: '9 quai Saint-Antoine, Lyon' }))));
+    await vi.advanceTimersByTimeAsync(10_000);
+    stop();
+    stop2();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(calls).toHaveLength(1);
+  });
+
   it('rien ne part hors ligne', async () => {
     vi.useFakeTimers();
     const fetch = vi.fn();

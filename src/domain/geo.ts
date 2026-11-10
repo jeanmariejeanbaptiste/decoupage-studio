@@ -51,14 +51,23 @@ export function cleanAddress(text: string): string {
     .trim();
 }
 
+const segments = (address: string) => address.split(',').map((x) => x.trim()).filter(Boolean);
+
+/** Nom d'établissement en tête d'une adresse (« Hôpital X, 2 rue Y ») : un premier segment sans chiffre. */
+export function leadingName(address: string): string | undefined {
+  const parts = segments(address);
+  return parts.length > 1 && /^\D+$/.test(parts[0]) ? parts[0] : undefined;
+}
+
 /**
  * Requêtes à essayer pour une adresse, dans l'ordre : l'adresse entière, puis, pour un hôpital saisi
- * avec son nom en tête (« Hôpital X, 2 rue Y, Paris »), l'adresse sans ce nom.
+ * avec son nom en tête et suivi d'une adresse numérotée (« Hôpital X, 2 rue Y, Paris »), l'adresse
+ * sans ce nom. Jamais la ville seule : un hôpital sans nom dont la rue est introuvable reste introuvable.
  */
 export function geocodeQueries(place: Pick<MapPlace, 'address' | 'kind'>): string[] {
   const out = [place.address];
-  const parts = place.address.split(',').map((x) => x.trim()).filter(Boolean);
-  if (place.kind === 'hopital' && parts.length > 2) out.push(parts.slice(1).join(', '));
+  const parts = segments(place.address);
+  if (place.kind === 'hopital' && parts.length > 2 && leadingName(place.address) && /\d/.test(parts[1])) out.push(parts.slice(1).join(', '));
   return out;
 }
 
@@ -83,8 +92,7 @@ export function mapPlaces(doc: ProjectDoc): MapPlace[] {
     }
     if (d.hospital?.trim()) {
       const address = cleanAddress(d.hospital);
-      const name = address.split(',')[0]?.trim();
-      add(address, 'hopital', name && name !== address ? name : 'Hôpital', d.n);
+      add(address, 'hopital', leadingName(address) ?? 'Hôpital', d.n);
     }
   }
   // Décors dont le lieu de tournage est connu mais qui ne sont pas encore planifiés.
@@ -142,6 +150,25 @@ export function routeUrl(address: string, entry?: GeocodeEntry): string {
 
 const round = (n: number) => Math.round(n * 1e5) / 1e5;
 
+/**
+ * Clés de toutes les adresses saisies dans le projet, qu'elles servent ou non dans la version courante
+ * (une séquence absente de cette version garde son adresse du jour) : leur géocodage est conservé.
+ */
+export function addressKeys(doc: ProjectDoc): Set<string> {
+  const out = new Set<string>();
+  const add = (text: string | undefined) => {
+    const k = text?.trim() ? geoKey(text) : '';
+    if (k) out.add(k);
+  };
+  for (const d of doc.schedule?.days ?? []) {
+    for (const a of Object.values(d.seqAddresses ?? {})) add(a);
+    for (const a of Object.values(d.addresses ?? {})) add(a);
+    if (d.hospital?.trim()) add(cleanAddress(d.hospital));
+  }
+  for (const decor of Object.values(doc.decors)) add(decorLocation(decor).address);
+  return out;
+}
+
 /** Géocodage connu d'une adresse dans le projet. */
 export const storedGeocode = (doc: ProjectDoc, address: string): GeocodeEntry | undefined => doc.geocodes?.[geoKey(cleanAddress(address))] ?? doc.geocodes?.[geoKey(address)];
 
@@ -150,7 +177,7 @@ export const storedGeocode = (doc: ProjectDoc, address: string): GeocodeEntry | 
  * d'adresses disparues sont retirés au passage (ils seraient recherchés de nouveau au besoin).
  */
 export function setGeocode(doc: ProjectDoc, key: string, entry: GeocodeEntry): void {
-  const keys = new Set(mapPlaces(doc).map((p) => p.key));
+  const keys = addressKeys(doc);
   if (!keys.has(key)) return;
   const clean: GeocodeEntry = entry.missing ? { address: entry.address, missing: true } : { address: entry.address, lat: round(entry.lat!), lon: round(entry.lon!) };
   const cur = doc.geocodes ?? {};
@@ -159,4 +186,79 @@ export function setGeocode(doc: ProjectDoc, key: string, entry: GeocodeEntry): v
   const store = (doc.geocodes ??= {});
   for (const k of stale) delete store[k];
   store[key] = clean;
+}
+
+/** Titre d'un lieu : ses décors (ou le nom de l'hôpital), à défaut sa nature. */
+export const placeTitle = (p: MapPlace) => p.names.join(', ') || (p.kind === 'hopital' ? 'Hôpital' : 'Lieu de tournage');
+
+/** Repères d'une journée, numérotés dans l'ordre de la journée ; l'hôpital garde « H ». */
+export function dayLabels(today: readonly MapPlace[]): Map<MapPlace, string> {
+  const out = new Map<MapPlace, string>();
+  let i = 0;
+  for (const p of today) out.set(p, p.kind === 'hopital' ? 'H' : String(++i));
+  return out;
+}
+
+/** Tuile OpenStreetMap à poser sur une image : position de son coin haut gauche dans l'image. */
+export interface FrameTile {
+  z: number;
+  x: number;
+  y: number;
+  left: number;
+  top: number;
+}
+
+export interface StaticFrame {
+  zoom: number;
+  tiles: FrameTile[];
+  /** Position d'un point dans l'image, en pixels. */
+  at: (lat: number, lon: number) => { x: number; y: number };
+}
+
+export const TILE_SIZE = 256;
+
+/** Projection de Mercator (celle des tuiles), en pixels du monde au zoom donné. */
+export function mercator(lat: number, lon: number, zoom: number): { x: number; y: number } {
+  const size = TILE_SIZE * 2 ** zoom;
+  const s = Math.sin((Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180);
+  return { x: ((lon + 180) / 360) * size, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * size };
+}
+
+/**
+ * Cadrage d'une carte statique (export de la feuille de service) : le zoom entier le plus fort qui
+ * fait tenir tous les points dans l'image, marge comprise (15 au plus, comme à l'écran), et les tuiles
+ * qui la couvrent.
+ */
+export function staticMapFrame(points: ReadonlyArray<{ lat: number; lon: number }>, width: number, height: number, { padding = 28, maxZoom = 15, minZoom = 2 } = {}): StaticFrame | undefined {
+  if (!points.length) return undefined;
+  const spread = (z: number) => {
+    const px = points.map((p) => mercator(p.lat, p.lon, z));
+    const xs = px.map((p) => p.x);
+    const ys = px.map((p) => p.y);
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+  };
+  let zoom = maxZoom;
+  for (; zoom > minZoom; zoom--) {
+    const b = spread(zoom);
+    if (b.x1 - b.x0 <= width - 2 * padding && b.y1 - b.y0 <= height - 2 * padding) break;
+  }
+  const b = spread(zoom);
+  const ox = (b.x0 + b.x1) / 2 - width / 2;
+  const oy = (b.y0 + b.y1) / 2 - height / 2;
+  const n = 2 ** zoom;
+  const tiles: FrameTile[] = [];
+  for (let ty = Math.floor(oy / TILE_SIZE); ty <= Math.floor((oy + height - 1) / TILE_SIZE); ty++) {
+    if (ty < 0 || ty >= n) continue;
+    for (let tx = Math.floor(ox / TILE_SIZE); tx <= Math.floor((ox + width - 1) / TILE_SIZE); tx++) {
+      tiles.push({ z: zoom, x: ((tx % n) + n) % n, y: ty, left: tx * TILE_SIZE - ox, top: ty * TILE_SIZE - oy });
+    }
+  }
+  return {
+    zoom,
+    tiles,
+    at: (lat, lon) => {
+      const p = mercator(lat, lon, zoom);
+      return { x: p.x - ox, y: p.y - oy };
+    },
+  };
 }

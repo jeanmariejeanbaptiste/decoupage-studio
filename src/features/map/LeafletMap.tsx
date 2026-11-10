@@ -62,6 +62,8 @@ export default function LeafletMap({ points, fit, focus, tiles, onPick }: Props)
   const markers = useRef(new Map<string, L.Marker>());
   const pick = useRef(onPick);
   pick.current = onPick;
+  // Repères recréés seulement s'ils changent (pas à chaque modification du projet) : l'infobulle ouverte reste.
+  const sig = JSON.stringify(points);
 
   useEffect(() => {
     const m = L.map(el.current!, { center: [46.6, 2.4], zoom: 5, scrollWheelZoom: false, attributionControl: true, zoomSnap: 0.5 });
@@ -95,7 +97,8 @@ export default function LeafletMap({ points, fit, focus, tiles, onPick }: Props)
       mk.addTo(group);
       markers.current.set(p.id, mk);
     }
-  }, [points]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig]);
 
   useEffect(() => {
     const m = map.current;
@@ -115,7 +118,7 @@ export default function LeafletMap({ points, fit, focus, tiles, onPick }: Props)
     if (!mk || !map.current) return;
     map.current.panTo(mk.getLatLng());
     mk.openTooltip();
-  }, [focus, points]);
+  }, [focus, sig]);
 
   return <div ref={el} className="ds-map" data-testid="map" />;
 }
