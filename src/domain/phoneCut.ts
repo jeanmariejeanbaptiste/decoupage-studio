@@ -4,7 +4,7 @@
  * Fonctions pures ; l'écriture passe toujours par `setCellText`.
  */
 import { characterName, displayName, parseFountain, type ScriptElement } from './fountain';
-import { formatShotCode, sequenceNumber } from './numbering';
+import { cameraLetter, formatShotCode, sequenceNumber } from './numbering';
 import { printedPassage, sentenceSpans } from './scriptToShot';
 import { mergeKey } from './text';
 import type { Focal, ID, ProjectDoc, VocabEntry } from './types';
@@ -254,3 +254,26 @@ export function shotCodeAt(doc: ProjectDoc, seqId: ID, at: number): string {
   return formatShotCode(sequenceNumber(doc, seqId), n + 1, doc.project.settings.shotCodeFormat);
 }
 
+
+/**
+ * Numéros pendant un déplacement : ceux qu'auront les plans si `id` est posé à la place `at` de
+ * `toSeq` (la rangée soulevée montre déjà son futur numéro, les autres se renumérotent).
+ */
+export function codesAfterMove(doc: ProjectDoc, id: ID, toSeq: ID, at: number): Map<ID, string> {
+  const out = new Map<ID, string>();
+  const fmt = doc.project.settings.shotCodeFormat;
+  doc.project.sequenceIds.forEach((sid, si) => {
+    let ids = (doc.sequences[sid]?.shotIds ?? []).filter((x) => x !== id);
+    if (sid === toSeq) ids = [...ids.slice(0, at), id, ...ids.slice(at)];
+    let n = 0;
+    let prev: string | undefined;
+    for (const x of ids) {
+      const setup = doc.shots[x]?.interview?.setupId;
+      if (!setup || setup !== prev) n++;
+      prev = setup;
+      const cam = cameraLetter(doc, x);
+      out.set(x, formatShotCode(si + 1, n, fmt) + (cam ? (fmt === '{seq}{letter}' ? `-${cam}` : cam) : ''));
+    }
+  });
+  return out;
+}
