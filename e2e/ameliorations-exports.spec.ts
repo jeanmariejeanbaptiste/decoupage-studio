@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const getDoc = () => (window as unknown as { __ds: { doc: () => { project: { title: string } } } }).__ds.doc();
 
@@ -71,16 +71,18 @@ test('dossier de production : Word, note mise en forme, scénario .docx et LISEZ
 });
 
 /** Pixels sombres dans le coin bas gauche de la première page (zone du pied de page). */
-async function footerInk(page: Page, footer: boolean): Promise<number> {
-  await page.goto('/#/export?seed=rav3');
+async function footerInk(page: Page, footer: boolean, content: 'grid' | 'storyboard' = 'grid', save?: string): Promise<number> {
+  await page.goto(`/#/export?seed=${content === 'grid' ? 'rav3' : 'fiction'}`);
   const box = page.getByRole('checkbox', { name: 'Pied de page' });
   if (footer) await box.check();
   else await box.uncheck();
   await page.evaluate(() => void (window.location.hash = '#/grid'));
   const dl = page.waitForEvent('download');
   await page.getByTestId('grid-export').click();
-  await page.getByTestId('grid-export-panel').getByText('Images A4', { exact: true }).click();
-  await page.getByTestId('grid-export-go').click();
+  if (content === 'storyboard') await page.getByTestId('grid-export-panel').getByText('Storyboard', { exact: true }).click();
+  const id = content === 'grid' ? 'grid' : 'storyboard';
+  await page.getByTestId(`${id}-export-panel`).getByText('Images A4', { exact: true }).click();
+  await page.getByTestId(`${id}-export-go`).click();
   const d = await dl;
   const buf = readFileSync(await d.path());
   let png = buf;
@@ -89,6 +91,7 @@ async function footerInk(page: Page, footer: boolean): Promise<number> {
     const zip = await JSZip.loadAsync(buf);
     png = Buffer.from(await zip.file(/page-01\.png$/)[0].async('uint8array'));
   }
+  if (save) writeFileSync(save, png);
   return page.evaluate(async (b64) => {
     const img = new Image();
     img.src = `data:image/png;base64,${b64}`;
@@ -110,6 +113,12 @@ test('images du découpage : pied de page selon le réglage', async ({ page }) =
   test.setTimeout(90_000);
   expect(await footerInk(page, true)).toBeGreaterThan(50);
   expect(await footerInk(page, false)).toBe(0);
+});
+
+test('planches du storyboard : pied de page selon le réglage', async ({ page }) => {
+  test.setTimeout(90_000);
+  expect(await footerInk(page, true, 'storyboard', test.info().outputPath('storyboard-footer.png'))).toBeGreaterThan(50);
+  expect(await footerInk(page, false, 'storyboard')).toBe(0);
 });
 
 test('aperçu imprimé sur téléphone : pas de défilement horizontal de la page', async ({ page }) => {
