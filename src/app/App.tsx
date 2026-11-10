@@ -267,7 +267,7 @@ export function App() {
           onContextMenuCapture={readOnly ? (e) => e.stopPropagation() : undefined}
         >
           {booted && (
-            <ErrorBoundary key={route} onHome={() => navigate('home')}>
+            <ErrorBoundary key={route} resetKey={window.location.hash} onHome={() => navigate('home')}>
               <Page route={route} />
             </ErrorBoundary>
           )}
@@ -327,15 +327,6 @@ function Page({ route }: { route: Route }) {
   if (route === 'calendar' || route === 'production') return <CalendarPage doc={doc} />;
   if (route === 'breakdown') return <BreakdownPage doc={doc} />;
   if (route === 'equipment') return <EquipmentPage doc={doc} />;
-  return (
-    <div className="page">
-      <div className="card empty">
-        <span className="hand">Cette étape arrive bientôt</span>
-        <p>Le découpage technique est déjà prêt à l’emploi.</p>
-        <Button variant="outline" onClick={() => navigate('grid')}>
-          Ouvrir le découpage
-        </Button>
-      </div>
-    </div>
-  );
+  // Toute autre route (#/print sans droit de copie, par exemple) : le découpage.
+  return <GridPage doc={doc} />;
 }
