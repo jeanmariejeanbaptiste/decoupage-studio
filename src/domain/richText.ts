@@ -36,8 +36,24 @@ export const INDENT_STEP_CM = 1.25;
 const BLOCKS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE', 'UL', 'OL', 'LI']);
 const INLINE: Record<string, string> = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u', S: 's', STRIKE: 's', DEL: 's', SUB: 'sub', SUP: 'sup' };
 const ALIGN = /^(left|center|right|justify)$/;
+/** Balises dont rien ne passe (en-tête d'un document collé, scripts, objets, balises Office vides). */
+const SKIP = new Set(['SCRIPT', 'STYLE', 'TITLE', 'META', 'LINK', 'HEAD', 'TEMPLATE', 'NOSCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'XML', 'O:P']);
+const skipped = (el: Element) => SKIP.has(el.tagName.toUpperCase());
+const BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, li, div, table, hr';
 
-const escText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Un tableau collé : une ligne par rangée, cellules séparées par un point médian. */
+function tableRows(table: Element): string[] {
+  return Array.from((table as HTMLTableElement).rows ?? [])
+    .map((tr) =>
+      Array.from(tr.cells)
+        .map((td) => cleanInline(td).replace(/^(<br>)+|(<br>)+$/g, ''))
+        .filter((c) => c.replace(/<br>/g, '').trim())
+        .join(' · '),
+    )
+    .filter(Boolean);
+}
+
+const escText = (s: string) => s.replace(/\u200b/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escAttr = (s: string) => escText(s).replace(/"/g, '&quot;');
 
 /** Corps d'un ancien `<font size>` (1 à 7) en points. */
@@ -78,9 +94,19 @@ function inlineStyle(el: Element): string {
   const size = st?.fontSize ? sizeOk(st.fontSize) : el.tagName === 'FONT' && el.getAttribute('size') ? `${FONT_SIZE_PT[el.getAttribute('size')!] ?? 12}pt` : null;
   if (size) out.push(`font-size: ${size}`);
   if (st?.backgroundColor && st.backgroundColor !== 'transparent' && !/rgba\(0, 0, 0, 0\)/.test(st.backgroundColor)) out.push(`background-color: ${HIGHLIGHT}`);
-  if (/bold|[6-9]00/.test(st?.fontWeight ?? '')) out.push('font-weight: 700');
-  if (st?.fontStyle === 'italic') out.push('font-style: italic');
   return out.join('; ');
+}
+
+/** Marques portées par le style d'un élément en ligne (collage) : b, i, u, s, de l'intérieur vers l'extérieur. */
+function inlineMarks(el: Element): string[] {
+  const st = (el as HTMLElement).style;
+  const out: string[] = [];
+  const deco = `${st?.textDecoration ?? ''} ${st?.textDecorationLine ?? ''}`;
+  if (/line-through/.test(deco)) out.push('s');
+  if (/underline/.test(deco)) out.push('u');
+  if (st?.fontStyle === 'italic') out.push('i');
+  if (/bold|[6-9]00/.test(st?.fontWeight ?? '')) out.push('b');
+  return out;
 }
 
 function cleanInline(node: Node): string {
@@ -101,12 +127,23 @@ function cleanInline(node: Node): string {
       out += cleanImage(el);
       continue;
     }
-    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'IFRAME' || tag === 'OBJECT') continue;
+    if (skipped(el)) continue;
+    if (tag === 'TABLE') {
+      const rows = tableRows(el).join('<br>');
+      out += rows ? `${out && !out.endsWith('<br>') ? '<br>' : ''}${rows}` : '';
+      continue;
+    }
     const inner = cleanInline(el);
-    if (INLINE[tag]) out += inner ? `<${INLINE[tag]}>${inner}</${INLINE[tag]}>` : '';
+    // Gras « normal » (Google Docs enveloppe tout son texte dans un tel <b>) : transparent.
+    if ((tag === 'B' || tag === 'STRONG') && /^(normal|[1-5]00)$/.test((el as HTMLElement).style?.fontWeight ?? '')) out += inner;
+    else if (INLINE[tag]) out += inner ? `<${INLINE[tag]}>${inner}</${INLINE[tag]}>` : '';
     else if (tag === 'SPAN' || tag === 'FONT' || tag === 'MARK') {
       const style = tag === 'MARK' ? `background-color: ${HIGHLIGHT}` : inlineStyle(el);
-      out += style && inner ? `<span style="${style}">${inner}</span>` : inner;
+      // Gras, italique, souligné et barré portés par un style : ramenés aux balises de la note.
+      const marks = tag === 'MARK' ? '' : inlineMarks(el);
+      let body = inner;
+      for (const m of marks) body = `<${m}>${body}</${m}>`;
+      out += style && inner ? `<span style="${style}">${body}</span>` : inner ? body : '';
     } else if (BLOCKS.has(tag) || tag === 'DIV') out += inner ? `${out && !out.endsWith('<br>') ? '<br>' : ''}${inner}` : '';
     else out += inner;
   }
@@ -155,14 +192,20 @@ function cleanBlocks(node: Node): string {
       if (items.length) out += `<${tag.toLowerCase()}>${items.join('')}</${tag.toLowerCase()}>`;
       continue;
     }
-    if (BLOCKS.has(tag) || tag === 'DIV') {
+    if (skipped(el)) continue;
+    if (tag === 'TABLE') {
+      flush();
+      for (const row of tableRows(el)) out += `<p>${row}</p>`;
+      continue;
+    }
+    if (BLOCKS.has(tag) || tag === 'DIV' || /^H[56]$/.test(tag)) {
       flush();
       // Un bloc qui en contient d'autres (copier-coller) : ses blocs sont repris un par un.
-      if (Array.from(el.children).some((x) => BLOCKS.has(x.tagName) || x.tagName === 'DIV' || x.tagName === 'HR')) {
+      if (Array.from(el.children).some((x) => BLOCKS.has(x.tagName) || x.tagName === 'DIV' || x.tagName === 'HR' || x.tagName === 'TABLE')) {
         out += cleanBlocks(el);
         continue;
       }
-      const t = tag === 'DIV' || tag === 'LI' ? 'p' : tag.toLowerCase();
+      const t = tag === 'DIV' || tag === 'LI' ? 'p' : /^H[56]$/.test(tag) ? 'h3' : tag.toLowerCase();
       const st = blockStyle(el);
       const inner = cleanInline(el);
       out += `<${t}${st ? ` style="${st}"` : ''}>${inner || '<br>'}</${t}>`;
@@ -174,7 +217,12 @@ function cleanBlocks(node: Node): string {
       if (img) out += `<p>${img}</p>`;
       continue;
     }
-    if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+    // Élément en ligne qui contient des blocs (collage de Google Docs) : ses blocs restent des blocs.
+    if (el.querySelector(BLOCK_SELECTOR)) {
+      flush();
+      out += cleanBlocks(el);
+      continue;
+    }
     loose += cleanInline({ childNodes: [el] } as unknown as Node);
   }
   flush();
