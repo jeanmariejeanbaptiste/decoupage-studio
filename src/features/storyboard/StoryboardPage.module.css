@@ -155,3 +155,17 @@
 .print.previewSheets { display: flex; flex-direction: column; align-items: center; gap: 18px; }
 .previewSheets .sheet { box-shadow: 0 1px 2px rgba(17, 19, 24, 0.06), 0 8px 24px rgba(17, 19, 24, 0.08); border: 1px solid var(--rule); color: #111318; }
 .previewEmpty { color: var(--ink-soft); font-size: 13px; padding: 24px; }
+
+/* Écran tactile : pas de survol, les commandes des cartes restent visibles. */
+@media (hover: none) {
+  .draw, .addFrame, .icons, .cropBtn { opacity: 1; }
+}
+.cropBtn:focus-visible { opacity: 1; }
+
+/* Téléphone : la barre passe à la ligne ; le nombre de cartes par ligne suit la largeur. */
+@media (max-width: 700px) {
+  .toolbar { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  .perRow { display: none; }
+  .opts .opt:first-child { border-radius: 7px; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)) !important; }
+}

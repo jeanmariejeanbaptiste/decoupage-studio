@@ -103,6 +103,8 @@ export function StoryboardExportOptions({ doc }: { doc: ProjectDoc }) {
 export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { doc: ProjectDoc; lead?: ReactNode; trail?: ReactNode; selectedShot?: ID; onSelect?: (id: ID) => void }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const perPage = doc.project.settings.exportPrefs?.storyboard?.perPage ?? 4;
+  // Impression (⌘P) : l'orientation choisie à l'export, comme l'aperçu.
+  const portrait = doc.project.settings.exportPrefs?.storyboard?.orientation === 'portrait';
   const perRow = doc.project.settings.storyboardPerRow;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const allShots = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
@@ -165,9 +167,9 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
         </DndContext>
       </div>
 
-      {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
-      <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
-      {printing && <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} />}
+      {/* Page sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
+      <style>{`@media print { @page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 0; } }`}</style>
+      {printing && <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} orientation={portrait ? 'portrait' : undefined} print />}
     </div>
   );
 }
@@ -204,11 +206,12 @@ function paginateShots(doc: ProjectDoc, shots: ID[], cols: number, rows: number)
   return pages.filter((p) => p.length);
 }
 
-function Sheets({ doc, shots, perPage, timing, className, orientation, visible = false }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait'; visible?: boolean }) {
+function Sheets({ doc, shots, perPage, timing, className, orientation, visible = false, print = false }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait'; visible?: boolean; print?: boolean }) {
   const ink = !!doc.project.settings.exportInkSaver;
   const [cols, rows] = sheetDims(perPage, orientation ?? 'landscape');
   const pages = paginateShots(doc, shots, cols, rows);
-  const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
+  // À l'impression, hauteur prudente (marges ajoutées par certains navigateurs), comme en paysage.
+  const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': print ? '265mm' : '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
   return (
     <div className={className} aria-hidden={visible ? undefined : true} style={size as React.CSSProperties | undefined}>
       {pages.map((ids, i) => (
@@ -263,7 +266,7 @@ function FrameCell({ printing, children }: { printing: boolean; children: React.
 function PerRowPicker({ doc }: { doc: ProjectDoc }) {
   const v = doc.project.settings.storyboardPerRow;
   return (
-    <label className={s.opt}>
+    <label className={[s.opt, s.perRow].join(' ')}>
       <span className={s.optName}>Par ligne</span>
       <span className={s.optValue}>{v ?? 'Auto'}</span>
       <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
