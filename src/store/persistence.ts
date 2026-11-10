@@ -5,6 +5,7 @@ import { ask } from '../ui/dialogStore';
 import { db, getBlob, loadProject, putBlobRaw, saveProject } from './db';
 import { useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
+import { navigate } from '../app/router';
 
 const LAST_KEY = 'ds-last-project';
 export const AUTOSAVE_DELAY = 600;
@@ -49,21 +50,46 @@ export function flushEditors(): void {
 export async function openStoredProject(id: string): Promise<boolean> {
   flushEditors();
   await flushSave();
-  const stored = await loadProject(id);
-  if (!stored) return false;
+  return showStored(id);
+}
+
+/**
+ * Relit le projet ouvert tel qu'il est enregistré (modifié dans un autre onglet, tiré du Drive),
+ * sans y réécrire d'abord la version de cet onglet, ce qui effacerait la plus récente.
+ */
+export async function reloadStoredProject(id: string): Promise<boolean> {
+  if (pending?.project.id === id) {
+    clearTimeout(timer);
+    pending = null;
+  }
+  return showStored(id);
+}
+
+async function showStored(id: string): Promise<boolean> {
   let doc: ProjectDoc;
   try {
+    const stored = await loadProject(id);
+    if (!stored) return false;
     doc = migrate(stored);
   } catch (e) {
+    // Base indisponible (navigation privée, stockage bloqué) ou projet abîmé.
     console.error(e);
     useUi.getState().toast({ message: 'Ce projet est endommagé et n’a pas pu être ouvert.', tone: 'warn' });
     return false;
   }
   useProjectStore.getState().loadDoc(doc);
+  // Tel qu'il est enregistré : rien à réécrire.
+  if (pending?.project.id === id) {
+    clearTimeout(timer);
+    pending = null;
+  }
   rememberLastProject(id);
   useUi.getState().set({ saveStatus: 'saved', selection: null, editing: null });
   return true;
 }
+
+/** Une saisie de ce projet attend encore d'être enregistrée. */
+export const hasPendingSave = (projectId: string) => pending?.project.id === projectId;
 
 /** Ouvre un projet en mémoire et l'enregistre immédiatement. */
 export async function openDoc(doc: ProjectDoc): Promise<void> {
@@ -91,57 +117,110 @@ export async function flushPendingSave(projectId: string): Promise<void> {
   if (pending?.project.id === projectId) await flushSave();
 }
 
+/** Nouvel essai après un échec d'enregistrement (quota, base fermée) : de plus en plus espacé. */
+export const RETRY_DELAYS = [2000, 5000, 15000, 30000] as const;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let retries = 0;
+/** Numéro du dernier enregistrement lancé : un enregistrement dépassé ne décide plus de l'état. */
+let lastSave = 0;
+
+function scheduleRetry(): void {
+  clearTimeout(retryTimer);
+  const delay = RETRY_DELAYS[Math.min(retries, RETRY_DELAYS.length - 1)];
+  retries += 1;
+  retryTimer = setTimeout(() => void (pending && flushSave()), delay);
+}
+
 export async function flushSave(): Promise<void> {
   clearTimeout(timer);
   const doc = pending ?? useProjectStore.getState().doc;
   pending = null;
   if (!doc || (persistGuard && !persistGuard())) return;
-  useUi.getState().set({ saveStatus: 'saving' });
+  const n = ++lastSave;
+  // Après un échec, l'alerte reste jusqu'à la première réussite.
+  if (useUi.getState().saveStatus !== 'error') useUi.getState().set({ saveStatus: 'saving' });
   try {
     await saveProject(doc);
-    useUi.getState().set({ saveStatus: 'saved' });
+    if (n === lastSave) {
+      clearTimeout(retryTimer);
+      retries = 0;
+      // Une saisie arrivée pendant l'écriture attend encore : pas d'« Enregistré » trop tôt.
+      useUi.getState().set({ saveStatus: pending ? 'dirty' : 'saved' });
+    }
     announce(doc);
   } catch (e) {
     console.error(e);
-    useUi.getState().set({ saveStatus: 'error' });
+    // Rien n'est perdu : la version la plus récente reste en attente et sera réessayée.
+    if (n === lastSave) {
+      pending ??= doc;
+      useUi.getState().set({ saveStatus: 'error' });
+      scheduleRetry();
+    }
   }
 }
 
 // --- Plusieurs onglets sur le même projet : le plus récent l'emporte sans écraser l'autre ---
 
+type TabMessage = { id: string; updatedAt: string; tab: string; deleted?: boolean };
 const TAB = newId();
 const channel: BroadcastChannel | null = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ds-projects') : null;
 function announce(doc: ProjectDoc) {
-  channel?.postMessage({ id: doc.project.id, updatedAt: doc.project.updatedAt, tab: TAB });
+  channel?.postMessage({ id: doc.project.id, updatedAt: doc.project.updatedAt, tab: TAB } satisfies TabMessage);
 }
-channel?.addEventListener('message', (e: MessageEvent<{ id: string; updatedAt: string; tab: string }>) => {
-  const m = e.data;
+
+/** Projet supprimé ici : un autre onglet qui l'a ouvert ne doit pas le réenregistrer. */
+export function announceDeleted(projectId: string): void {
+  channel?.postMessage({ id: projectId, updatedAt: new Date().toISOString(), tab: TAB, deleted: true } satisfies TabMessage);
+}
+
+/** Message d'un autre onglet (exporté pour les tests). */
+export function onTabMessage(m: TabMessage | null | undefined): void {
   const cur = useProjectStore.getState().doc;
-  if (!m || m.tab === TAB || !cur || cur.project.id !== m.id || m.updatedAt <= cur.project.updatedAt) return;
+  if (!m || m.tab === TAB || !cur || cur.project.id !== m.id) return;
+  if (m.deleted) {
+    // Supprimé ailleurs : ce projet n'est plus enregistré ici, ni maintenant ni plus tard.
+    dropPendingSave(m.id);
+    useProjectStore.getState().loadDoc(null);
+    rememberLastProject(null);
+    useUi.getState().set({ saveStatus: 'idle', selection: null, editing: null });
+    navigate('home');
+    useUi.getState().toast({ message: 'Ce projet a été supprimé dans un autre onglet.' });
+    return;
+  }
+  if (m.updatedAt <= cur.project.updatedAt) return;
   // Modifié dans un autre onglet : sans saisie en attente ici, on reprend la version enregistrée.
-  if (!pending) void openStoredProject(m.id);
+  flushEditors();
+  if (!pending) void reloadStoredProject(m.id);
   else
     useUi.getState().toast({
       message: 'Ce projet a été modifié dans un autre onglet.',
       actionLabel: 'Recharger',
-      action: () => {
-        pending = null;
-        void openStoredProject(m.id);
-      },
+      action: () => void reloadStoredProject(m.id),
       duration: 20000,
     });
-});
+}
+channel?.addEventListener('message', (e: MessageEvent<TabMessage>) => onTabMessage(e.data));
 
 /** Sauvegarde automatique (débounce 600 ms) de chaque modification du projet. */
 /** Garde de l'enregistrement (invité d'un partage sans copie autorisée) : `false` = ne rien enregistrer. */
 let persistGuard: (() => boolean) | null = null;
 export const setPersistGuard = (g: (() => boolean) | null) => void (persistGuard = g);
 
+/**
+ * Fermeture de l'onglet après un échec d'enregistrement : le navigateur demande confirmation
+ * (pas pendant l'attente ordinaire avant l'enregistrement, qui aboutit à la fermeture).
+ */
+export function warnUnsaved(e: BeforeUnloadEvent): void {
+  if (useUi.getState().saveStatus !== 'error') return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+
 export function startAutosave(): () => void {
   const unsub = useProjectStore.subscribe((state, prev) => {
     if (!state.doc || state.doc === prev.doc || (persistGuard && !persistGuard())) return;
     pending = state.doc;
-    useUi.getState().set({ saveStatus: 'dirty' });
+    if (useUi.getState().saveStatus !== 'error') useUi.getState().set({ saveStatus: 'dirty' });
     clearTimeout(timer);
     timer = setTimeout(() => void flushSave(), AUTOSAVE_DELAY);
   });
@@ -151,9 +230,11 @@ export function startAutosave(): () => void {
     if (pending) void flushSave();
   };
   window.addEventListener('pagehide', onHide);
+  window.addEventListener('beforeunload', warnUnsaved);
   return () => {
     unsub();
     window.removeEventListener('pagehide', onHide);
+    window.removeEventListener('beforeunload', warnUnsaved);
   };
 }
 
@@ -200,14 +281,24 @@ export async function collectMedia(doc: ProjectDoc): Promise<Record<string, Medi
 }
 
 /** Médias d'un fichier ouvert : rangés dans ce navigateur sous leur clé d'origine. */
-async function restoreMedia(text: string, projectId: string): Promise<void> {
+export async function restoreMedia(text: string, projectId: string): Promise<number> {
+  // Un média illisible (fichier tronqué, modifié à la main) est passé : le projet s'ouvre quand même.
+  let lost = 0;
   for (const [key, m] of Object.entries(mediaOfFile(text))) {
     if (await getBlob(key, false)) continue;
-    const bin = atob(m.data);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    await putBlobRaw(key, projectId, new Blob([bytes], { type: m.type }));
+    let blob: Blob;
+    try {
+      const bin = atob(m.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      blob = new Blob([bytes], { type: m.type });
+    } catch {
+      lost += 1;
+      continue;
+    }
+    await putBlobRaw(key, projectId, blob);
   }
+  return lost;
 }
 
 /** ⌘S : enregistre le projet dans un fichier `.decoupage` (images et piste comprises). */
@@ -277,8 +368,9 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
       if (r.alt) doc = projectCopy(doc, newId());
       else if (!r.ok) return false;
     }
-    await restoreMedia(text, doc.project.id);
+    const lost = await restoreMedia(text, doc.project.id);
     await openDoc(doc);
+    if (lost) useUi.getState().toast({ message: lost > 1 ? `${lost} médias du fichier n’ont pas pu être relus.` : 'Un média du fichier n’a pas pu être relu.', tone: 'warn' });
     return true;
   } catch (e) {
     useUi.getState().toast({ message: (e as Error).message, tone: 'warn' });
