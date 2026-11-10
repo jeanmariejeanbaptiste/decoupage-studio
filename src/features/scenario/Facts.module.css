@@ -1,0 +1,9 @@
+/* Nature, fusion, lieu de tournage : mêmes champs que les fiches du Scénario. */
+.facts { display: flex; flex-direction: column; gap: 8px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 11.5px; color: var(--ink-soft); }
+.field input, .field select { width: 100%; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 13px; }
+.field select { appearance: none; -webkit-appearance: none; cursor: pointer; }
+.field select:disabled { cursor: default; opacity: 1; }
+.field input:focus, .field select:focus { border-color: var(--ink-soft); outline: none; }
+.alias { margin: 0; font-size: 11.5px; color: var(--ink-soft); }
