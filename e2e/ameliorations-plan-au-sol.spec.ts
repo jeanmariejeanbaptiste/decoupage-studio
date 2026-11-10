@@ -115,13 +115,21 @@ test('plan au sol : Alt pendant le glisser place au centimètre près', async ({
 
 test('plan au sol : repère vidé et largeur d’ouverture vide ou démesurée reprennent une valeur sûre', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
-  await place(page, 'camera', 0.5, 0.5);
+  await place(page, 'actor', 0.5, 0.5);
   const props = page.getByTestId('fp-properties');
   const label = props.getByLabel('Repère');
   await label.fill('');
+  // Entrée sur un repère de comédien vide : on reste dans le champ ; en le quittant, il revient.
   await label.press('Enter');
-  await expect(props.getByLabel('Repère')).toHaveValue('CAM A');
-  expect((await items(page))[0].label).toBe('CAM A');
+  await expect(label).toBeFocused();
+  await label.press('Tab');
+  await expect(props.getByLabel('Repère')).toHaveValue('1');
+  expect((await items(page))[0].label).toBe('1');
+  // Projecteur : le repère peut être vidé.
+  await place(page, 'light', 0.7, 0.5);
+  await props.getByLabel('Repère').fill('');
+  await props.getByLabel('Repère').press('Tab');
+  expect((await items(page)).find((i) => i.kind === 'light')!.label).toBe('');
   await place(page, 'door', 0.3, 0.3);
   const width = props.getByLabel('Largeur (cm)');
   await width.fill('');

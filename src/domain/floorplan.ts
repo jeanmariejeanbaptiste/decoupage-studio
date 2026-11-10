@@ -436,7 +436,7 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
   const label = (make: (n: number) => string) => nextLabel(plan.items, make);
   switch (kind) {
     case 'camera':
-      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: label((n) => `CAM ${String.fromCharCode(64 + n)}`) });
+      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: label(cameraLabel) });
       break;
     case 'actor':
       // Orientation : 90° = regarde vers le bas du plan.
@@ -457,7 +457,7 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
     }
     case 'door':
     case 'window': {
-      const width = kind === 'door' ? 80 : 120;
+      const width = openingDefault(kind);
       plan.items.push({ id, kind, ...p, rot: 0, width, ...fitOpeningToWall(plan.items, p, width) });
       break;
     }
@@ -481,14 +481,19 @@ export function updateFloorItem(doc: ProjectDoc, seqId: ID, id: ID, patch: Parti
   const i = plan.items.findIndex((x) => x.id === id);
   if (i < 0) return;
   const next = { ...plan.items[i], ...patch } as FloorItem;
-  if (next.kind === 'door' || next.kind === 'window') next.width = clampOpening(next.width);
+  if (next.kind === 'door' || next.kind === 'window') next.width = clampOpening(next.width, next.kind);
   plan.items[i] = next;
 }
 
 /** Largeur admissible d'une porte ou d'une fenêtre (cm). */
 export const OPENING_LIMITS = [20, 1000] as const;
-const clampOpening = (w: number) =>
-  Number.isFinite(w) ? Math.max(OPENING_LIMITS[0], Math.min(OPENING_LIMITS[1], Math.round(w))) : OPENING_LIMITS[0];
+/** Largeur par défaut : porte 80 cm, fenêtre 120 cm (aussi pour une donnée ancienne sans largeur). */
+export const openingDefault = (kind: 'door' | 'window') => (kind === 'door' ? 80 : 120);
+const clampOpening = (w: number, kind: 'door' | 'window') =>
+  Number.isFinite(w) ? Math.max(OPENING_LIMITS[0], Math.min(OPENING_LIMITS[1], Math.round(w))) : openingDefault(kind);
+
+/** Repère de la n-ième caméra : « CAM A » à « CAM Z », puis « CAM Z2 », « CAM Z3 »… */
+export const cameraLabel = (n: number) => (n <= 26 ? `CAM ${String.fromCharCode(64 + n)}` : `CAM Z${n - 25}`);
 
 /** Écart (cm) en deçà duquel une porte ou une fenêtre se pose sur un mur. */
 const OPENING_FIT = 20;
@@ -512,7 +517,8 @@ export function fitOpeningToWall(items: readonly FloorItem[], p: Point, width: n
   }
   if (!wall) return undefined;
   const len = Math.hypot(wall.x2 - wall.x, wall.y2 - wall.y);
-  if (len < 1) return undefined;
+  // Mur plus court que l'ouverture : elle n'y tient pas, rien ne change.
+  if (len < 1 || len < width) return undefined;
   const [ux, uy] = [(wall.x2 - wall.x) / len, (wall.y2 - wall.y) / len];
   const angle = Math.round((Math.atan2(uy, ux) * 180) / Math.PI);
   const flipped = rot !== undefined && Math.abs(((((rot - angle) % 360) + 540) % 360) - 180) > 179;
@@ -532,7 +538,7 @@ export function moveFloorItem(doc: ProjectDoc, seqId: ID, id: ID, dx: number, dy
   const plan = ensure(doc, seqId);
   const it = plan.items.find((i) => i.id === id);
   if (it?.kind !== 'door' && it?.kind !== 'window') return;
-  const fit = fitOpeningToWall(plan.items, it, it.width, it.rot);
+  const fit = fitOpeningToWall(plan.items, it, Number.isFinite(it.width) ? it.width : openingDefault(it.kind), it.rot);
   if (fit) Object.assign(it, fit);
 }
 
@@ -716,7 +722,7 @@ export function planInventory(doc: ProjectDoc, items: readonly FloorItem[]): Inv
             return { id: i.id, kind: i.kind, name: i.label?.trim() || 'CAM', detail: join(i.shotIds.filter((id) => doc.shots[id]).map((id) => shotCode(doc, id)).join(', '), f ? `${f}mm` : '', beat(i.beat)) };
           }
           case 'actor': {
-            const name = (i.characterId && doc.characters[i.characterId]?.name) || i.label.trim() || FLOOR_KIND_LABEL.actor;
+            const name = (i.characterId && doc.characters[i.characterId]?.name) || (i.label ?? '').trim() || FLOOR_KIND_LABEL.actor;
             return { id: i.id, kind: i.kind, name, detail: join(i.to ? 'déplacement' : '', beat(i.beat)) };
           }
           case 'light':
@@ -753,7 +759,7 @@ export function drawOrder<T extends FloorItem>(items: readonly T[]): T[] {
  */
 export function actorCaption(doc: ProjectDoc, actor: Pick<Extract<FloorItem, { kind: 'actor' }>, 'label' | 'characterId'>): string {
   const name = actor.characterId ? doc.characters[actor.characterId]?.name : undefined;
-  const label = actor.label.trim();
+  const label = (actor.label ?? '').trim();
   if (!name) return label;
   return !label || /^\d+$/.test(label) || label === name ? name : `${label} · ${name}`;
 }
@@ -784,7 +790,7 @@ export function subjectDistances(
 
 /** Repère d'une copie : la lettre ou le numéro libre suivant (« CAM B », « L2 »), sinon le même. */
 function copyLabel(items: readonly FloorItem[], label: string): string {
-  if (/^CAM [A-Z]$/.test(label)) return nextLabel(items, (n) => `CAM ${String.fromCharCode(64 + Math.min(n, 26))}`);
+  if (/^CAM [A-Z](\d+)?$/.test(label)) return nextLabel(items, cameraLabel);
   const m = /^(.*?)(\d+)$/.exec(label);
   return m ? nextLabel(items, (n) => `${m[1]}${n}`) : label;
 }
@@ -938,7 +944,7 @@ export function choreography(items: readonly FloorItem[]): ChoreoPath[] {
   const groups = new Map<string, ChoreoPath>();
   for (const it of items) {
     if ((it.kind !== 'camera' && it.kind !== 'actor') || !it.beat) continue;
-    const key = it.kind === 'camera' ? `cam:${it.shotIds[0] || it.label?.trim() || ''}` : `act:${it.characterId || it.label.trim()}`;
+    const key = it.kind === 'camera' ? `cam:${it.shotIds[0] || it.label?.trim() || ''}` : `act:${it.characterId || (it.label ?? '').trim()}`;
     const g = groups.get(key) ?? { kind: it.kind, key, points: [] };
     g.points.push({ x: it.x, y: it.y, beat: it.beat });
     groups.set(key, g);
