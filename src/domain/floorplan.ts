@@ -639,6 +639,8 @@ export interface InventoryRow {
   id: ID;
   kind: FloorKind;
   practical?: boolean;
+  /** Température de couleur d'un projecteur (K). */
+  kelvin?: number;
   name: string;
   detail: string;
 }
@@ -667,7 +669,7 @@ export function planInventory(doc: ProjectDoc, items: readonly FloorItem[]): Inv
             return { id: i.id, kind: i.kind, name, detail: join(i.to ? 'déplacement' : '', beat(i.beat)) };
           }
           case 'light':
-            return { id: i.id, kind: i.kind, practical: i.practical, name: i.label ?? 'L', detail: i.practical ? 'Lampe de jeu' : join(i.model, lightSpecs(i)) || FLOOR_KIND_LABEL.light };
+            return { id: i.id, kind: i.kind, practical: i.practical, kelvin: i.kelvin, name: i.label ?? 'L', detail: join(i.practical ? 'Lampe de jeu' : i.model, lightSpecs(i)) || FLOOR_KIND_LABEL.light };
           case 'reflector':
           case 'diffuser':
           case 'flag':
@@ -706,7 +708,21 @@ export interface Beam {
   intensity: number;
   /** Lumière douce (après un diffuseur ou un réflecteur). */
   soft?: boolean;
+  /** Température de couleur de la source d'origine (K) : renvoyée ou diffusée, la lumière la garde. */
+  kelvin?: number;
   points: Point[];
+}
+
+/**
+ * Dégradé d'un faisceau, du pied de la source au bout de sa portée : décalage (0 à 1) et opacité
+ * de chaque arrêt. Le même à l'écran et à l'export ; la lumière douce s'étale plus loin, moins dense.
+ */
+export function beamStops(b: Pick<Beam, 'intensity' | 'soft'>): Array<{ offset: number; opacity: number }> {
+  return [
+    { offset: 0, opacity: Math.min(0.85, (b.soft ? 0.32 : 0.55) * b.intensity) },
+    { offset: b.soft ? 0.8 : 0.6, opacity: Math.min(0.5, (b.soft ? 0.18 : 0.22) * b.intensity) },
+    { offset: 1, opacity: 0 },
+  ];
 }
 
 export function lightBeam(l: Light): Beam {
@@ -720,6 +736,7 @@ export function lightBeam(l: Light): Beam {
     spread,
     range,
     intensity: 1,
+    kelvin: l.kelvin,
     points: conePoints(l.x, l.y, l.rot, spread, range),
   };
 }
@@ -775,6 +792,7 @@ export function reflections(items: readonly FloorItem[]): Beam[] {
         spread,
         range,
         intensity,
+        kelvin: l.kelvin,
         points: conePoints(mx, my, rot, spread, range),
       });
     }
@@ -920,7 +938,7 @@ export function computeLighting(items: readonly FloorItem[]): { beams: Beam[]; s
         next = { rot: mirror(ang, g.seg), spread: 150, range, intensity: b.intensity * 0.3 * Math.max(0.4, share) };
       }
       if (next.intensity < 0.06) continue;
-      emit({ ...next, sourceId: id, x: mx, y: my, soft: true, points: [] }, depth + 1, id);
+      emit({ ...next, sourceId: id, x: mx, y: my, soft: true, kelvin: b.kelvin, points: [] }, depth + 1, id);
     }
   };
 

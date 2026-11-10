@@ -39,6 +39,7 @@ import {
   duplicatePlan,
   DEFAULT_RANGE,
   DEFAULT_SPREAD,
+  beamStops,
   computeLighting,
   plansOf,
   isLineKind,
@@ -102,6 +103,26 @@ import { downloadWord } from '../export/docExport';
 import { downloadBlob } from '../../store/persistence';
 import { floorPlansDocument } from '../../domain/documents';
 import { exportBase } from '../../domain/serialize';
+import { BEAM_GREY, lightTint, TINT_GAIN } from '../../domain/colorTemperature';
+
+/**
+ * Teinte d'une source selon sa température de couleur, pour les deux thèmes (la feuille de style
+ * choisit) ; sans température, rien : le gris du thème.
+ */
+function tintStyle(kelvin: number | undefined): React.CSSProperties | undefined {
+  const t = lightTint(kelvin);
+  return t ? ({ '--k-papier': t.papier, '--k-encre': t.encre } as React.CSSProperties) : undefined;
+}
+
+/** Faisceau : la teinte de sa température (et son opacité relevée), sinon un gris strictement neutre. */
+function beamStyle(kelvin: number | undefined): React.CSSProperties {
+  const t = lightTint(kelvin);
+  if (!t) return { '--k-papier': BEAM_GREY.papier, '--k-encre': BEAM_GREY.encre } as React.CSSProperties;
+  return { '--k-papier': t.papier, '--k-encre': t.encre, '--k-gain-papier': TINT_GAIN.papier, '--k-gain-encre': TINT_GAIN.encre } as React.CSSProperties;
+}
+
+/** Températures courantes, proposées sous le champ. */
+const KELVIN_PRESETS = [3200, 4300, 5600];
 
 type Tool = 'select' | FloorKind | 'practical';
 /** Outils rangés par famille : décor, équipe et machinerie, lumière. */
@@ -1254,7 +1275,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               <g
                 key={`beam-${b.sourceId}-${i}`}
                 className={s.beamGroup}
+                style={beamStyle(b.kelvin)}
                 data-testid={b.intensity < 1 ? 'fp-bounce' : 'fp-beam'}
+                data-kelvin={lightTint(b.kelvin) ? b.kelvin : undefined}
               >
                 <defs>
                   <radialGradient
@@ -1264,9 +1287,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                     r={b.range}
                     gradientUnits="userSpaceOnUse"
                   >
-                    <stop offset="0" stopColor="var(--ochre)" stopOpacity={Math.min(0.85, (b.soft ? 0.32 : 0.55) * b.intensity)} />
-                    <stop offset={b.soft ? '0.8' : '0.6'} stopColor="var(--ochre)" stopOpacity={Math.min(0.5, (b.soft ? 0.18 : 0.22) * b.intensity)} />
-                    <stop offset="1" stopColor="var(--ochre)" stopOpacity="0" />
+                    {beamStops(b).map((st) => (
+                      <stop key={st.offset} offset={st.offset} className={s.beamStop} style={{ '--stop-a': st.opacity } as React.CSSProperties} />
+                    ))}
                   </radialGradient>
                 </defs>
                 <polygon
@@ -1487,7 +1510,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                     >
                       <span className={s.itemIcon}>{KIND_ICON[r.practical ? 'practical' : r.kind]}</span>
                       <span className={s.itemName}>{r.name}</span>
-                      <span className={s.itemDetail}>{r.detail}</span>
+                      <span className={s.itemDetail}>
+                        {lightTint(r.kelvin) && <i className={s.kDot} style={tintStyle(r.kelvin)} data-testid="fp-item-kelvin" />}
+                        {r.detail}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -1656,7 +1682,7 @@ function ItemShape({
       if (item.practical)
         return (
           <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid="fp-practical">
-            <circle cx={item.x} cy={item.y} r={9} className={s.light} />
+            <circle cx={item.x} cy={item.y} r={9} className={s.light} style={tintStyle(item.kelvin)} />
             <path d={[0, 45, 90, 135, 180, 225, 270, 315].map((a) => { const r = (a * Math.PI) / 180; return `M ${item.x + Math.cos(r) * 12} ${item.y + Math.sin(r) * 12} L ${item.x + Math.cos(r) * 17} ${item.y + Math.sin(r) * 17}`; }).join(' ')} className={s.practicalRays} />
             <text x={item.x} y={item.y + 30} className={s.label}>
               {item.label}
@@ -2125,21 +2151,23 @@ function LightSpecsFields({ item, onCommit }: { item: { model?: string; watts?: 
           ))}
         </datalist>
       </label>
-      <div className={s.roomFields}>
+      <div className={`${s.roomFields} ${s.specFields}`}>
         <label className={s.roomField}>
           <span>Puissance</span>
           <input value={watts} inputMode="numeric" onChange={(e) => setWatts(e.target.value)} onBlur={() => commit()} aria-label="Puissance (W)" data-testid="fp-watts" />
           <em>W</em>
         </label>
-        <label className={s.roomField}>
+        <label className={`${s.roomField} ${s.kField}`}>
           <span>Température</span>
           <input value={kelvin} inputMode="numeric" onChange={(e) => setKelvin(e.target.value)} onBlur={() => commit()} aria-label="Température de couleur (K)" data-testid="fp-kelvin" />
+          {/* Teinte d'une valeur libre, dans le champ ; une valeur courante la porte déjà sur son bouton. */}
+          {lightTint(parseNum(kelvin)) && !KELVIN_PRESETS.includes(Number(kelvin)) && <i className={s.kDot} style={tintStyle(parseNum(kelvin))} data-testid="fp-kelvin-tint" />}
           <em>K</em>
         </label>
       </div>
       <div className={s.menuRow}>
-        {[3200, 4300, 5600].map((k) => (
-          <Button key={k} size="sm" variant={Number(kelvin) === k ? 'primary' : 'ghost'} onClick={() => (setKelvin(String(k)), commit(model, watts, String(k)))}>
+        {KELVIN_PRESETS.map((k) => (
+          <Button key={k} size="sm" variant={Number(kelvin) === k ? 'primary' : 'ghost'} icon={<i className={s.kDot} style={tintStyle(k)} />} onClick={() => (setKelvin(String(k)), commit(model, watts, String(k)))}>
             {k.toLocaleString('fr-FR')} K
           </Button>
         ))}
