@@ -11,6 +11,7 @@
 .seg:last-child { border-right: 0; }
 .on { background: var(--ink); color: var(--paper); }
 .check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-soft); margin-right: auto; }
+@media screen { .scroller { max-width: 100%; overflow-x: auto; padding: 0 16px 40px; } }
 .paper { margin: 28px auto 0; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 0 var(--rule), 0 14px 40px rgba(42, 40, 36, 0.14); }
 .paper_A4 { width: 297mm; min-height: 210mm; }
 .paper_A3 { width: 420mm; min-height: 297mm; }
