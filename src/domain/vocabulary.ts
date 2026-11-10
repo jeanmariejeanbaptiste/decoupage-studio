@@ -68,6 +68,7 @@ export const MOVEMENTS: readonly VocabEntry[] = [
   e('pano', 'Pano', 'Panoramique (sens à préciser)', undefined, ['panoramique']),
   e('pano_droite', 'Pano droite', 'Panoramique droite', undefined, ['panoramique droite']),
   e('pano_gauche', 'Pano gauche', 'Panoramique gauche', undefined, ['panoramique gauche']),
+  e('tilt', 'Tilt', 'Panoramique vertical (sens à préciser)', undefined, ['panoramique vertical']),
   e('tilt_up', 'Tilt up', 'Panoramique vertical haut', undefined, ['tilt haut']),
   e('tilt_down', 'Tilt down', 'Panoramique vertical bas', undefined, ['tilt bas']),
   e('roll', 'Roll', 'Roulis', undefined, ['roulis', 'dutch']),
