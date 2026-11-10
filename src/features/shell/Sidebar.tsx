@@ -1,5 +1,5 @@
 import { useCanCopy, useDriveReview, useReadOnly } from '../../store/share';
-import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Milestone, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
+import { CalendarDays, ChartNoAxesGantt, ClipboardList, Clapperboard, Database, Download, Feather, ListChecks, Map, Package, ScrollText, Settings, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Route } from '../../app/router';
 import { navigate } from '../../app/router';
@@ -17,7 +17,6 @@ const STEP_ICONS: Partial<Record<Route, ReactNode>> = {
   schedule: <ChartNoAxesGantt {...ICON} />,
   callsheet: <ClipboardList {...ICON} />,
   calendar: <CalendarDays {...ICON} />,
-  production: <Milestone {...ICON} />,
 };
 
 interface Props {
@@ -37,8 +36,8 @@ export function Sidebar({ activeRoute, collapsed = false, counts = {}, onNavigat
   // Relecture en ligne : seuls le scénario et le découpage sont publiés.
   const drive = useDriveReview();
   const shown = (route: Route) => !drive || REVIEWED.has(route);
-  // Le storyboard est une vue du découpage technique.
-  const current = activeRoute === 'storyboard' ? 'grid' : activeRoute;
+  // Le storyboard est une vue du découpage technique ; la frise de production, une vue du calendrier.
+  const current = activeRoute === 'storyboard' ? 'grid' : activeRoute === 'production' ? 'calendar' : activeRoute;
   const item = (route: Route, label: string, mark: ReactNode, count?: number, testId?: string) => {
     const active = current === route;
     return (

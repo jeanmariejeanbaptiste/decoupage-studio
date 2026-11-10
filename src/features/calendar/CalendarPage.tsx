@@ -33,14 +33,18 @@ import { mutateDoc } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
 import { useReadOnly } from '../../store/share';
 import { Button } from '../../ui/Button';
+import { ProductionPage } from '../production/ProductionPage';
 import { EventDialog } from './EventDialog';
 import s from './CalendarPage.module.css';
 
-const VIEWS: ReadonlyArray<{ view: CalendarView; label: string }> = [
+/** Vues de la page : les quatre échelles de l'agenda, puis la frise du calendrier de production. */
+type PageView = CalendarView | 'production';
+const VIEWS: ReadonlyArray<{ view: PageView; label: string }> = [
   { view: 'day', label: 'Jour' },
   { view: 'week', label: 'Semaine' },
   { view: 'month', label: 'Mois' },
   { view: 'year', label: 'Année' },
+  { view: 'production', label: 'Production' },
 ];
 const WEEKDAYS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
 const INITIALS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -53,10 +57,10 @@ const longDay = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeri
 const utc = (date: string) => new Date(`${date}T00:00Z`);
 const dayNum = (date: string) => Number(date.slice(8, 10));
 
-function storedView(): CalendarView {
+function storedView(): PageView {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    if (VIEWS.some((x) => x.view === v)) return v as CalendarView;
+    if (VIEWS.some((x) => x.view === v)) return v as PageView;
   } catch {
     /* stockage indisponible */
   }
@@ -78,34 +82,43 @@ interface Editing {
   fields: EventFields;
 }
 
-/** Calendrier du projet : rendez-vous saisis et jours de tournage datés du plan de travail. */
+/**
+ * Calendrier du projet, une seule page : rendez-vous saisis, jours de tournage datés du plan de
+ * travail et étapes du calendrier de production (Jour, Semaine, Mois, Année), ou la frise de
+ * production elle-même (vue « Production », adresse `#/production`).
+ */
 export function CalendarPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const now = useNow();
   const today = todayIso(now);
   // Venu d'une autre page (« ?date=AAAA-MM-JJ ») : ce jour-là, en vue Jour, ou dans la vue demandée
-  // (« &view=month »), sans changer la vue retenue.
-  const params = useLocation().params;
+  // (« &view=month »), sans changer la vue retenue. « #/production » ouvre la frise.
+  const { route, params } = useLocation();
   const focus = params.get('date') ?? undefined;
   const asked = params.get('view');
-  const focusView: CalendarView = VIEWS.some((x) => x.view === asked) ? (asked as CalendarView) : 'day';
-  const [view, setViewState] = useState<CalendarView>(() => (isValidDate(focus) ? focusView : storedView()));
+  const toProduction = route === 'production' || asked === 'production';
+  const focusView: CalendarView = VIEWS.some((x) => x.view === asked && x.view !== 'production') ? (asked as CalendarView) : 'day';
+  const [view, setViewState] = useState<PageView>(() => (toProduction ? 'production' : isValidDate(focus) ? focusView : storedView()));
   const [anchor, setAnchor] = useState(() => (isValidDate(focus) ? focus : today));
   useEffect(() => {
+    if (toProduction) return setViewState('production');
     if (!isValidDate(focus)) return;
     setAnchor(focus);
     setViewState(focusView);
-  }, [focus, focusView]);
+  }, [focus, focusView, toProduction]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const items = useMemo(() => calendarItems(doc), [doc]);
 
-  const setView = (v: CalendarView) => {
+  const setView = (v: PageView) => {
     setViewState(v);
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {
       /* stockage indisponible */
     }
+    // Une seule page : l'adresse suit la vue (« #/production » pour la frise), sans recharger.
+    const target = v === 'production' ? 'production' : 'calendar';
+    if (route !== target || params.toString()) navigate(target);
   };
   const openDay = (date: string) => {
     setAnchor(date);
@@ -132,6 +145,17 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
     downloadBlob(new Blob([calendarIcs(items, name)], { type: 'text/calendar;charset=utf-8' }), `${name}-calendrier.ics`);
   };
 
+  const seg = (
+    <div className={s.seg} role="tablist" aria-label="Vue" data-view>
+      {VIEWS.map((v) => (
+        <button key={v.view} type="button" role="tab" aria-selected={view === v.view} className={view === v.view ? s.on : ''} onClick={() => setView(v.view)} data-testid={`calendar-view-${v.view}`}>
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
+  if (view === 'production') return <ProductionPage doc={doc} seg={seg} />;
+
   const title = periodTitle(anchor, view);
   const props: ViewProps = { anchor, today, now, items, onCreate: create, onOpen: open, onDay: openDay };
 
@@ -141,13 +165,7 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
         <div className={s.barStart}>
           <Button variant="icon" aria-label="Nouvel événement" title="Nouvel événement" icon={<Plus {...ICON} />} onClick={() => create(view === 'year' || view === 'month' ? (sameMonth(anchor, today) ? today : anchor) : anchor)} data-edit data-testid="event-add" />
         </div>
-        <div className={s.seg} role="tablist" aria-label="Vue" data-view>
-          {VIEWS.map((v) => (
-            <button key={v.view} type="button" role="tab" aria-selected={view === v.view} className={view === v.view ? s.on : ''} onClick={() => setView(v.view)}>
-              {v.label}
-            </button>
-          ))}
-        </div>
+        {seg}
         <div className={s.barEnd} data-view>
           <Button variant="icon" aria-label="Exporter le calendrier (.ics)" title="Exporter le calendrier (.ics)" icon={<CalendarArrowDown {...ICON} />} disabled={!items.length} onClick={exportIcs} data-export data-testid="calendar-ics" />
         </div>

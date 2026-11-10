@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { produce } from 'immer';
-import { CalendarDays, Check, ChevronDown, ChevronRight, GripVertical, Link2, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, GripVertical, Link2, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { addDays, calendarIcs, calendarItems, isWeekend, productionItems, timeOn, todayIso } from '../../domain/calendar';
 import { productionDocument, productionWordDocument } from '../../domain/documents';
@@ -10,7 +10,6 @@ import {
   addPhase,
   addTask,
   applyTemplate,
-  planSpan,
   daysBetween,
   dependencyCandidates,
   durationDays,
@@ -100,7 +99,8 @@ interface Menu {
 }
 
 /** Calendrier de production : tableau des étapes à gauche, frise (Gantt) à droite. */
-export function ProductionPage({ doc }: { doc: ProjectDoc }) {
+/** Vue « Production » du calendrier : `seg` est le sélecteur de vue commun, au centre de la barre. */
+export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode }) {
   const readOnly = useReadOnly();
   const today = todayIso();
   const projectId = doc.project.id;
@@ -284,7 +284,12 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
 
   if (!plan?.phases.length) {
     return (
-      <div className="page" data-testid="production">
+      <div className={s.page} data-testid="production">
+        <header className={s.bar}>
+          <div className={s.barStart} />
+          {seg}
+          <div className={s.barEnd} />
+        </header>
         <div className="card empty">
           <span className="hand">Aucune étape</span>
           {!readOnly && (
@@ -318,9 +323,9 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
     <div className={s.page} data-testid="production">
       <header className={s.bar}>
         <div className={s.barStart}>
-          <Button variant="icon" aria-label="Voir dans le calendrier" title="Voir dans le calendrier" icon={<CalendarDays {...ICON} />} onClick={() => navigate('calendar', { date: planSpan(plan)?.start ?? today, view: 'month' })} data-view data-testid="production-to-calendar" />
           {!readOnly && <Button variant="icon" aria-label="Effacer le calendrier de production" title="Effacer le calendrier de production" icon={<Trash2 {...ICON} />} onClick={() => void clearAll()} data-edit data-testid="production-clear" />}
         </div>
+        {seg}
         <div className={s.barEnd} data-view>
           <div className={s.zoom} role="group" aria-label="Zoom">
             <Button variant="icon" size="sm" aria-label="Éloigner" title="Éloigner" icon={<Minus {...ICON} />} disabled={zoom === 'quarters'} onClick={() => setZoom(nextZoom(zoom, -1))} data-testid="zoom-out" />
