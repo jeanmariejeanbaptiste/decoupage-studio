@@ -223,3 +223,24 @@ describe('scénario en blocs', () => {
     expect(mergeWithPrevious(d2, d2.blocks[1].id)).toBeNull();
   });
 });
+
+describe('note du séquencier dans l’éditeur (relecture)', () => {
+  it('6. copier un résumé garde sa note ; changer son type puis revenir au résumé la rend telle quelle', () => {
+    const src = 'INT. A - JOUR\n\n= Phrase A. [[ds:etape=9;intrigue=B]]\n\nAa.\n\nINT. B - NUIT\n\nBb.\n';
+    const d = blocksFromSource(src);
+    const copied = rangeText(d, { id: d.blocks[0].id, offset: 0 }, { id: d.blocks[2].id, offset: d.blocks[2].text.length });
+    expect(copied).toBe('INT. A - JOUR\n\n= Phrase A. [[ds:etape=9;intrigue=B]]\n\nAa.');
+    const id = d.blocks[1].id;
+    const asAction = setBlockType(d, id, 'action').doc;
+    // Geste explicite : la phrase devient une action, la note n'est plus écrite.
+    expect(serialize(asAction).source).toBe('INT. A - JOUR\n\nPhrase A.\n\nAa.\n\nINT. B - NUIT\n\nBb.\n');
+    expect(serialize(setBlockType(asAction, id, 'synopsis').doc).source).toBe(src);
+  });
+
+  it('le texte d’un résumé garde son surlignage quand un voisin change', () => {
+    const src = 'INT. A - JOUR\n\n= Léa [[=jaune]]trouve[[=]] la lettre. [[ds:etape=9]]\n\nAction.\n';
+    const d = blocksFromSource(src);
+    expect(d.blocks[1].text).toBe('Léa [[=jaune]]trouve[[=]] la lettre.');
+    expect(serialize(setBlockText(d, d.blocks[2].id, '')).source).toBe('INT. A - JOUR\n\n= Léa [[=jaune]]trouve[[=]] la lettre. [[ds:etape=9]]\n');
+  });
+});

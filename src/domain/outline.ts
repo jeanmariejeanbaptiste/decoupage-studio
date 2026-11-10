@@ -11,7 +11,7 @@ import { isDraft } from 'immer';
 import { alignScenes } from './sceneAlign';
 import { chronoOf, chronoTimeline } from './chronometry';
 import { matchSequence, parseFountain, scenesOf, HEADING_RE, type ScriptElement } from './fountain';
-import { blocksFromSource, isEmptyBlock, outlineTagOf, OUTLINE_TAG_RE, HEADING_PREFIXES, type SBlock } from './screenplay';
+import { blocksFromSource, isEmptyBlock, outlineTagOf, OUTLINE_TAG_RE, EFFECT_WORDS, HEADING_PREFIXES, type SBlock } from './screenplay';
 import { scriptOutline } from './scriptLayout';
 import { shiftOffset } from './textDiff';
 import type { ID, ProjectDoc } from './types';
@@ -24,9 +24,10 @@ export interface SourceEdit {
   map: (pos: number, side: 'start' | 'end') => number;
   /**
    * Correspondance d'une plage (ancre) : par défaut, ses deux bornes passent par `map`. Un
-   * déplacement ramène une ancre à cheval sur deux morceaux dans le morceau de son début.
+   * déplacement ramène une ancre à cheval sur deux morceaux dans le morceau de son début ; `null` :
+   * le passage a disparu (séquence supprimée), l'ancre doit être retirée.
    */
-  range?: (start: number, end: number) => [number, number];
+  range?: (start: number, end: number) => [number, number] | null;
 }
 
 export type OutlineItem =
@@ -50,6 +51,8 @@ export type OutlineItem =
       effect?: string;
       /** Numéro de scène imposé (« #12# » → « 12 »). */
       forced?: string;
+      /** Numéro écrit en tête de l'en-tête (« 12. INT. … » → « 12. »), gardé à la réécriture. */
+      lead?: string;
       phrase: string;
       /** Plage de la phrase dans la source (sans « = » ni note). */
       phraseRange?: [number, number];
@@ -100,9 +103,12 @@ export function parseOutlineTag(s: string | undefined): OutlineTag {
 /** Écrit une note ; rien quand il n'y a ni étape, ni autre intrigue que A, ni paire inconnue. */
 export function formatOutlineTag(t: OutlineTag): string {
   const pairs: string[] = [];
-  if (t.step !== undefined && String(t.step).trim()) pairs.push(`etape=${String(t.step).trim()}`);
-  if (t.plot && t.plot !== DEFAULT_PLOT) pairs.push(`intrigue=${t.plot}`);
-  if (t.extra) pairs.push(t.extra);
+  const step = t.step !== undefined ? tagValue(String(t.step)) : '';
+  if (step) pairs.push(`etape=${step}`);
+  const plot = t.plot ? tagValue(t.plot) : '';
+  if (plot && plot !== DEFAULT_PLOT) pairs.push(`intrigue=${plot}`);
+  const extra = t.extra?.replace(/[[\]\r\n]/g, '').trim();
+  if (extra) pairs.push(extra);
   return pairs.length ? `[[ds:${pairs.join(';')}]]` : '';
 }
 
@@ -138,12 +144,38 @@ function lineIndexAt(lines: readonly Line[], pos: number): number {
 }
 
 const eolOf = (source: string) => (source.includes('\r\n') ? '\r\n' : '\n');
-const oneLine = (s: string) => s.replace(/\s*\n\s*/g, ' ').replace(/\s+/g, ' ').trim();
+/**
+ * Texte écrit dans le scénario par le séquencier, sur une ligne, sans « [[ », « ]] », « /* » ni « *\/ » :
+ * ils ouvriraient une note ou une zone écartée et feraient disparaître les scènes suivantes.
+ */
+const oneLine = (s: string) =>
+  s
+    .replace(/\s*\n\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\[\[/g, '[ [')
+    .replace(/\]\]/g, '] ]')
+    .replace(/\/\*/g, '/ *')
+    .replace(/\*\//g, '* /')
+    .trim();
+/** Valeur d'une note : ni crochet, ni séparateur, ni retour. */
+const tagValue = (v: string) => v.replace(/[[\];=\r\n]/g, '').trim();
 const upper = (s: string) => s.toLocaleUpperCase('fr');
 
-/** Découpe d'un en-tête tel qu'écrit : préfixe, lieu, moment (après le dernier tiret entouré d'espaces). */
-export function headingParts(heading: string): { intExt?: string; location: string; effect?: string } {
+/** Moments reconnus en fin d'en-tête (après un tiret) ; autrement, la fin de l'en-tête reste au lieu. */
+const MOMENT_RE =
+  /^(JOUR|NUIT|AUBE|CR[ÉE]PUSCULE|MATIN|MATIN[ÉE]E|SOIR|SOIR[ÉE]E|MIDI|APR[ÈE]S-MIDI|PETIT MATIN|FIN DE JOURN[ÉE]E|TOMB[ÉE]E DE LA NUIT|LEVER DU JOUR|CONTINU|CONTINUIT[ÉE]|SUITE|PLUS TARD|MOMENTS? PLUS TARD|M[ÊE]ME MOMENT|AU M[ÊE]ME MOMENT|FLASH-?BACK|DAY|NIGHT|DAWN|DUSK|MORNING|EVENING|CONTINUOUS|LATER)(\s*\(.*\))?\.?$/;
+const isMoment = (s: string) => MOMENT_RE.test(upper(s.trim())) || (EFFECT_WORDS as readonly string[]).includes(upper(s.trim()));
+
+/**
+ * Découpe d'un en-tête tel qu'écrit : numéro en tête (« 12. »), préfixe, lieu, moment. Le moment est la
+ * fin après le dernier tiret entouré d'espaces, seulement si c'est un moment connu (« GARE — CONSIGNE »
+ * reste un lieu entier).
+ */
+export function headingParts(heading: string): { lead?: string; intExt?: string; location: string; effect?: string } {
   let h = heading.trim();
+  const num = /^(\d+[A-Z]?[.)-]?)\s+(?=\S)/.exec(h);
+  const lead = num && /^(int|ext|est|i\/e)/i.test(h.slice(num[0].length)) ? num[1] : undefined;
+  if (lead) h = h.slice(num![0].length);
   let intExt: string | undefined;
   const m = /^(int\.?\s*\/\s*ext\.?|ext\.?\s*\/\s*int\.?|i\/e\.?|int\.?|ext\.?|est\.?)(?=[\s.\-–—:]|$)/i.exec(h);
   if (m) {
@@ -152,7 +184,8 @@ export function headingParts(heading: string): { intExt?: string; location: stri
     h = h.slice(m[0].length).replace(/^\s*[-–—.:]?\s*/, '');
   }
   const e = /^(.*?)\s+[-–—]\s+([^-–—]+)$/.exec(h);
-  return { intExt, location: (e ? e[1] : h).trim(), effect: e ? e[2].trim() : undefined };
+  const known = !!e && isMoment(e[2]);
+  return { ...(lead ? { lead } : {}), intExt, location: (known ? e![1] : h).trim(), effect: known ? e![2].trim() : undefined };
 }
 
 interface Unit {
@@ -252,6 +285,7 @@ function scan(source: string): Scan {
       location: parts.location,
       ...(parts.effect ? { effect: parts.effect } : {}),
       ...(forced ? { forced } : {}),
+      ...(parts.lead ? { lead: parts.lead } : {}),
       phrase,
       ...(phraseRange ? { phraseRange } : {}),
       ...(meta ? { meta } : {}),
@@ -366,9 +400,9 @@ function prefixOf(intExt: string | undefined): string {
   return HEADING_PREFIXES.map((p) => p.trim()).find((p) => p === upper(t)) ?? upper(t);
 }
 
-function headingLine(intExt: string | undefined, location: string, effect: string | undefined, forced?: string): string {
+function headingLine(intExt: string | undefined, location: string, effect: string | undefined, forced?: string, lead?: string): string {
   const prefix = prefixOf(intExt);
-  const body = [prefix, upper(oneLine(location))].filter(Boolean).join(' ') + (effect && oneLine(effect) ? ` - ${upper(oneLine(effect))}` : '');
+  const body = [prefix ? lead : undefined, prefix, upper(oneLine(location))].filter(Boolean).join(' ') + (effect && oneLine(effect) ? ` - ${upper(oneLine(effect))}` : '');
   const line = HEADING_RE.test(body) ? body : `.${body}`;
   return forced ? `${line} #${forced}#` : line;
 }
@@ -378,7 +412,7 @@ export function setHeading(source: string, n: number, h: { intExt?: string; loca
   const it = sequenceAt(source, n);
   const location = h.location ?? it.location;
   if (!oneLine(location)) throw new Error('Lieu manquant.');
-  const line = headingLine('intExt' in h ? h.intExt : it.intExt, location, 'effect' in h ? h.effect : it.effect, it.forced);
+  const line = headingLine('intExt' in h ? h.intExt : it.intExt, location, 'effect' in h ? h.effect : it.effect, it.forced, it.lead);
   const { lines } = scan(source);
   const L = lines[lineIndexAt(lines, it.headingStart)];
   if (L.text === line) return { source, map: (p) => p };
@@ -395,7 +429,12 @@ function entryText(eol: string, e: { intExt?: string; location: string; effect?:
 /** Insère `text` comme un morceau entier, avant le morceau qui commence en `at`, ou à la fin. */
 function insertUnit(source: string, text: string, before: Unit | undefined): SourceEdit {
   const eol = eolOf(source);
-  if (before) return replaceEdit(source, before.start, before.start, `${text}${eol}${eol}`);
+  if (before) {
+    // L'en-tête inséré n'est lu comme tel qu'après une ligne vide.
+    const head = source.slice(0, before.start);
+    const blank = !head.trim() || /\n[^\S\n]*\r?\n$/.test(head);
+    return replaceEdit(source, before.start, before.start, `${blank ? '' : eol}${text}${eol}${eol}`);
+  }
   if (!source.trim()) return replaceEdit(source, 0, source.length, `${text}${eol}`);
   const trailing = /(\r?\n)*$/.exec(source)![0].split('\n').length - 1;
   return replaceEdit(source, source.length, source.length, `${eol.repeat(Math.max(0, 2 - trailing))}${text}${eol}`);
@@ -449,10 +488,11 @@ export function removeEntry(source: string, n: number): SourceEdit {
   const u = seqUnits[n - 1];
   if (!u) throw new Error(`Séquence ${n} introuvable.`);
   const k = s.units.indexOf(u);
-  if (k < s.units.length - 1) return replaceEdit(source, u.start, u.end, '');
   // Dernier morceau : la fin du texte (retour final) reste, le séparateur qui le précédait part.
-  const prevEnd = k > 0 ? s.units[k - 1].contentEnd : s.preludeEnd;
-  return replaceEdit(source, prevEnd, u.contentEnd, '');
+  const edit = k < s.units.length - 1 ? replaceEdit(source, u.start, u.end, '') : replaceEdit(source, k > 0 ? s.units[k - 1].contentEnd : s.preludeEnd, u.contentEnd, '');
+  // Une ancre qui commence dans la séquence supprimée disparaît avec elle (sinon elle tomberait sur la suivante).
+  const gone = (p: number) => p >= u.start && p <= u.contentEnd;
+  return { ...edit, range: (a, b) => (gone(a) ? null : defaultRange(edit.map, a, b)) };
 }
 
 /**
@@ -530,7 +570,7 @@ export function moveEntry(source: string, from: number, to: number, opts: { edge
     if (p > u.contentEnd) return newEnd(u);
     return newStart(u) + (p - u.start);
   };
-  const range = (a: number, b: number): [number, number] => {
+  const range = (a: number, b: number): [number, number] | null => {
     const ms = map(a, 'start');
     if (b <= a) return [ms, ms];
     const ra = regionOf(Math.max(0, Math.min(a, oldLen)), 'start');
@@ -543,11 +583,23 @@ export function moveEntry(source: string, from: number, to: number, opts: { edge
   return { source: out, map, range };
 }
 
-/** Plage d'une ancre après une modification. */
-export function mapRange(edit: SourceEdit, start: number, end: number): [number, number] {
-  if (edit.range) return edit.range(start, end);
-  const s = edit.map(start, 'start');
-  return [s, end <= start ? s : Math.max(s, edit.map(end, 'end'))];
+function defaultRange(map: SourceEdit['map'], start: number, end: number): [number, number] {
+  const s = map(start, 'start');
+  return [s, end <= start ? s : Math.max(s, map(end, 'end'))];
+}
+
+/** Plage d'une ancre après une modification ; `null` si son passage a disparu. */
+export function mapRange(edit: SourceEdit, start: number, end: number): [number, number] | null {
+  return edit.range ? edit.range(start, end) : defaultRange(edit.map, start, end);
+}
+
+/** Textes des lignes « = » d'une séquence (sans note). */
+function synopsisLines(source: string, it: OutlineSequence): string[] {
+  return source
+    .slice(it.start, it.end)
+    .split('\n')
+    .filter((l) => /^\s*=(?!==)/.test(l))
+    .map((l) => l.replace(/\r$/, '').replace(OUTLINE_TAG_RE, '').replace(/^\s*=\s*/, '').trim());
 }
 
 /**
@@ -567,6 +619,8 @@ export function carryOutline(before: string, after: string): string {
     const from = byStart(oldItems, al.oldScenes[m.from].start);
     const to = byStart(newItems, al.newScenes[m.to].start);
     if (!from || !to) continue;
+    // Le nouveau texte porte déjà cette phrase sur une ligne « = » de la scène : rien à reprendre.
+    if (!to.phrase && from.phrase && synopsisLines(after, to).includes(from.phrase.trim())) continue;
     // Chacune séparément : la phrase si la scène n'en a pas, la note si elle n'en a pas (texte venu de Final Draft).
     const phrase = to.phrase || from.phrase;
     const meta = to.meta ?? from.meta;

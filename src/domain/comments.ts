@@ -192,12 +192,15 @@ export function commentAttachments(doc: ProjectDoc): string[] {
 }
 
 /** Les passages commentés suivent le texte quand il change (même règle que les passages liés). */
-export function shiftCommentAnchors(doc: ProjectDoc, map: (p: number, side: 'start' | 'end') => number, range?: (start: number, end: number) => [number, number]): void {
+export function shiftCommentAnchors(doc: ProjectDoc, map: (p: number, side: 'start' | 'end') => number, range?: (start: number, end: number) => [number, number] | null): void {
   for (const c of doc.comments ?? []) {
     if (c.anchor.kind !== 'script' || (doc.versions?.length && (c.versionId ?? doc.versions[0].id) !== doc.activeVersionId)) continue;
     const a = c.anchor;
     if (range) {
-      [a.start, a.end] = range(a.start, a.end);
+      // Passage disparu : le commentaire reste, réduit à un point (sa citation le garde lisible).
+      const r = range(a.start, a.end);
+      if (r) [a.start, a.end] = r;
+      else a.end = a.start = map(a.start, 'start');
       continue;
     }
     const empty = a.end <= a.start;
