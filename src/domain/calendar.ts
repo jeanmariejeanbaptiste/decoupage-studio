@@ -186,7 +186,7 @@ export function eventItem(e: CalendarEvent, projectId?: ID): CalendarItem | unde
   }
   const start = toMinutes(e.start.slice(11, 16)) ?? 0;
   const endDate = isValidDate(e.end) ? e.end.slice(0, 10) : date;
-  let end = toMinutes(e.end?.slice(11, 16));
+  const end = toMinutes(e.end?.slice(11, 16));
   // Fin absente ou avant le début : une heure par défaut, sans franchir minuit.
   if (end === undefined || endDate < date || (endDate === date && end <= start)) {
     return { ...base, endDate: date, start: fromMinutes(start), end: fromMinutes(Math.min(start + 60, 24 * 60 - 1)), allDay: false };
