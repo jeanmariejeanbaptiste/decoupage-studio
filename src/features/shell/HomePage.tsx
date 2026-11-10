@@ -210,7 +210,12 @@ export function HomePage() {
                   className={s.dup}
                   aria-label={`Dupliquer ${p.title}`}
                   title="Dupliquer"
-                  onClick={() => void duplicateProject(p.id).then(refresh)}
+                  onClick={() =>
+                    void duplicateProject(p.id).then(refresh, (e) => {
+                      console.error(e);
+                      useUi.getState().toast({ message: `Projet « ${p.title} » : la copie n’a pas pu être faite.`, tone: 'warn' });
+                    })
+                  }
                 >
                   <Copy size={13} strokeWidth={1.4} />
                 </button>
