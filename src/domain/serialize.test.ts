@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { checkInvariants } from './ops';
-import { exportBase, fileNameFor, parseProjectFile, ProjectFileError, projectCopy, serializeDoc, sharedMediaOwners } from './serialize';
+import { exportBase, fileNameFor, migrate, parseProjectFile, ProjectFileError, projectCopy, serializeDoc, sharedMediaOwners } from './serialize';
 
 describe('fichier .decoupage', () => {
   it('ouvert comme copie : nouvel identifiant, sans le fichier de relecture de l’original', () => {
@@ -91,5 +91,87 @@ describe('médias partagés entre projets', () => {
     copy.shots[shotId].storyboard = { blobKey: 'orig:image' };
     const owners = sharedMediaOwners(['orig:image', 'orig:seule'], [copy]);
     expect([...owners]).toEqual([['orig:image', 'copie']]);
+  });
+});
+
+describe('projet abîmé relu (fichier ou base)', () => {
+  type Raw = Record<string, unknown>;
+  type Doc = ReturnType<typeof buildRav3>;
+  /** Chemins d'un projet (un exemple par table), jusqu'à quatre niveaux. */
+  function paths(o: unknown, pre: string[] = [], out: string[][] = []): string[][] {
+    if (pre.length > 3 || o === null || typeof o !== 'object') return out;
+    const keys = Object.keys(o);
+    for (const k of Array.isArray(o) || keys.length > 30 ? keys.slice(0, 1) : keys) {
+      out.push([...pre, k]);
+      paths((o as Raw)[k], [...pre, k], out);
+    }
+    return out;
+  }
+  const corrupt = (doc: Doc, path: string[], value: unknown): Doc => {
+    const d = JSON.parse(JSON.stringify(doc)) as Raw;
+    let o = d;
+    for (const k of path.slice(0, -1)) o = o[k] as Raw;
+    o[path[path.length - 1]] = value;
+    return d as unknown as Doc;
+  };
+
+  it.each([['RAV3', buildRav3], ['fiction', buildFiction]])('une valeur nulle ou d’un autre type n’empêche jamais l’ouverture (%s)', (_n, build) => {
+    const base = build();
+    const failures: string[] = [];
+    for (const p of paths(base).filter((x) => ['project', 'sequences', 'shots', 'blocks', 'characters', 'decors'].includes(x[0]) && x.length > 1)) {
+      for (const value of [null, 'x', 42]) {
+        try {
+          const back = migrate(corrupt(base, p, value));
+          const errors = checkInvariants(back);
+          if (errors.length) failures.push(`${p.join('.')}=${value} : ${errors[0]}`);
+        } catch (e) {
+          if (!(e instanceof ProjectFileError)) failures.push(`${p.join('.')}=${value} : ${(e as Error).message}`);
+        }
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it('réparer deux fois ne change plus rien', () => {
+    const doc = buildFiction();
+    const once = migrate(corrupt(doc, ['sequences', doc.project.sequenceIds[0], 'shotIds'], null));
+    expect(migrate(once)).toEqual(once);
+  });
+
+  it('plan listé par deux séquences, rattaché à la mauvaise, séquence hors de l’ordre : rien ne se perd', () => {
+    const doc = buildFiction();
+    const [s1, s2] = doc.project.sequenceIds;
+    const shot = doc.sequences[s1].shotIds[0];
+    doc.sequences[s2].shotIds.push(shot);
+    doc.shots[shot].sequenceId = s2;
+    doc.project.sequenceIds = doc.project.sequenceIds.filter((id) => id !== s2);
+    const back = migrate(doc);
+    expect(checkInvariants(back)).toEqual([]);
+    expect(back.shots[shot].sequenceId).toBe(s1);
+    expect(back.sequences[s2].shotIds).not.toContain(shot);
+    expect(back.project.sequenceIds).toContain(s2);
+    expect(Object.keys(back.shots).length).toBe(Object.keys(doc.shots).length);
+  });
+
+  it('personnages, décors et réglages abîmés : références pendantes oubliées, réglages par défaut', () => {
+    const doc = buildFiction();
+    const seq = doc.sequences[doc.project.sequenceIds[0]];
+    seq.characterIds = [...seq.characterIds, 'disparu'];
+    seq.decorId = 'disparu';
+    const raw = doc as unknown as Raw;
+    (raw.characters as Raw).casse = null;
+    (doc.project.settings as unknown as Raw).fps = null;
+    (doc.project.settings as unknown as Raw).gridColumns = ['subject', null, 'inconnue'];
+    raw.scenario = 42;
+    raw.comments = [null, { id: 'c', replies: null }];
+    const back = migrate(doc);
+    expect(back.sequences[seq.id].characterIds).not.toContain('disparu');
+    expect(back.sequences[seq.id].decorId).toBeUndefined();
+    expect(back.characters.casse).toBeUndefined();
+    expect(back.project.settings.fps).toBe(25);
+    expect(back.project.settings.gridColumns).toEqual(['subject']);
+    expect(back.scenario).toBeUndefined();
+    expect(back.comments).toHaveLength(1);
+    expect(back.comments![0].replies).toEqual([]);
   });
 });
