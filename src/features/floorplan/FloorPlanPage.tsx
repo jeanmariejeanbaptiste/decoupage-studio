@@ -18,6 +18,7 @@ import {
   User,
   Flag,
   Grid2x2,
+  ChevronDown,
 } from 'lucide-react';
 import { sequenceCharacterIds, sortedCharacters } from '../../domain/characters';
 import {
@@ -249,6 +250,22 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [planMenu, setPlanMenu] = useState(false);
   const planMenuRef = useRef<HTMLDivElement>(null);
   const [tracing, setTracing] = useState(false);
+  // Section « Pièce » repliée par défaut ; le choix est retenu d'une visite à l'autre.
+  const [roomOpen, setRoomOpen] = useState(() => {
+    try {
+      return localStorage.getItem('ds-fp-room-open') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleRoom = (open: boolean) => {
+    setRoomOpen(open);
+    try {
+      localStorage.setItem('ds-fp-room-open', open ? '1' : '0');
+    } catch {
+      /* stockage indisponible */
+    }
+  };
   // L'assistant n'est proposé que s'il est réglé et a répondu.
   const aiReady = useAiStatus((a) => a.ready);
   const bgInput = useRef<HTMLInputElement>(null);
@@ -1359,10 +1376,17 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               />
             </section>
           ) : (
-            // Rien de sélectionné : la pièce en tête du panneau (masquée en lecture seule tant qu'elle n'existe pas).
+            // Rien de sélectionné : la pièce en tête du panneau, repliée en une ligne qui la résume
+            // (masquée en lecture seule tant qu'elle n'existe pas).
             <section className={s.section} data-edit={room ? undefined : true}>
-              <h2 className={s.sectionHead}>Pièce</h2>
-              <RoomFields key={planKey} room={room} onCommit={applyRoom} />
+              <h2 className={s.sectionHead}>
+                <button type="button" className={s.disclose} aria-expanded={roomOpen} onClick={() => toggleRoom(!roomOpen)} data-view data-testid="fp-room-toggle">
+                  Pièce
+                  <span className={s.roomSummary}>{room && !roomOpen ? `${formatRoom(room)} · ${frBig(roomSize(room).area)} m²` : ''}</span>
+                  <ChevronDown size={14} strokeWidth={1.4} className={s.discloseIcon} aria-hidden="true" />
+                </button>
+              </h2>
+              {roomOpen && <RoomFields key={planKey} room={room} onCommit={applyRoom} />}
             </section>
           )}
           <section className={s.section} data-testid="fp-shots">

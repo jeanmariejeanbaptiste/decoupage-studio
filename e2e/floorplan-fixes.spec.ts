@@ -65,6 +65,7 @@ test('plan au sol : à 1280 px, la barre reste sur une ligne quel que soit le no
 test('plan au sol : la pièce et le projecteur suivent l’annulation ; un passage dans un champ ne change rien', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
   const panel = page.getByTestId('fp-panel');
+  await page.getByTestId('fp-room-toggle').click();
   await panel.getByRole('radio', { name: /^Petite/ }).click();
   await expect(page.getByTestId('fp-room-size')).toHaveText('30 m² · 75 m³');
   // Entrer puis sortir d'un champ sans rien taper : aucune étape d'annulation.

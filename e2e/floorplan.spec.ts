@@ -236,6 +236,7 @@ test('plan au sol : sans assistant réglé, pas de bouton « Tracer les murs »'
 
 test('plan au sol : pièce aux dimensions réelles et projecteur chiffré (W, K)', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
+  await page.getByTestId('fp-room-toggle').click();
   await page.getByTestId('fp-panel').getByRole('radio', { name: /^Moyenne/ }).click();
   await expect(page.getByTestId('fp-room-size')).toHaveText('45 m² · 135 m³');
   await expect(page.getByTestId('fp-items')).toContainText('4 murs');
@@ -300,8 +301,11 @@ test('plan au sol : la pièce en tête du panneau, modèles chiffrés, cotes, re
   await page.goto('/#/floorplan?seed=fiction');
   const panel = page.getByTestId('fp-panel');
   const room = panel.getByTestId('fp-room');
-  // Plan vierge : la pièce est la première proposition du panneau.
+  // Plan vierge : la pièce est la première ligne du panneau, repliée ; un clic la déploie.
   await expect(panel.locator('section').first()).toContainText('Pièce');
+  await expect(room).toHaveCount(0);
+  await page.getByTestId('fp-room-toggle').click();
+  await expect(page.getByTestId('fp-room-toggle')).toHaveAttribute('aria-expanded', 'true');
   await expect(room.getByRole('radio', { name: 'Petite 5 × 6 × 2,5 m' })).toBeVisible();
   await expect(room.getByRole('radio', { name: 'Moyenne 6 × 7,5 × 3 m' })).toBeVisible();
   await expect(room.getByRole('radio', { name: 'Grande 8 × 10 × 5 m' })).toBeVisible();
@@ -357,11 +361,18 @@ test('plan au sol : la pièce en tête du panneau, modèles chiffrés, cotes, re
   await expect(room.getByLabel('Largeur de la pièce (m)')).toHaveValue('');
   await page.keyboard.press('Control+z');
   await expect(page.getByTestId('fp-wall')).toHaveCount(4);
+  // Repliée, la section résume la pièce sur une ligne ; le choix est retenu.
+  await page.getByTestId('fp-room-toggle').click();
+  await expect(room).toHaveCount(0);
+  await expect(page.getByTestId('fp-room-toggle')).toContainText('4 × 3,5 m · 14 m²');
+  await page.reload();
+  await expect(page.getByTestId('fp-room-toggle')).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('plan au sol : avec un outil, partir d’un mur de la pièce trace ou pose sans déplacer la pièce', async ({ page }) => {
   await page.goto('/#/floorplan?seed=fiction');
   const room = page.getByTestId('fp-panel').getByTestId('fp-room');
+  await page.getByTestId('fp-room-toggle').click();
   await room.getByRole('radio', { name: /^Petite/ }).click();
   await expect(page.getByTestId('fp-wall')).toHaveCount(4);
   const walls = () =>
