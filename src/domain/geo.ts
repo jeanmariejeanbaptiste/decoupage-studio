@@ -51,14 +51,23 @@ export function cleanAddress(text: string): string {
     .trim();
 }
 
+const segments = (address: string) => address.split(',').map((x) => x.trim()).filter(Boolean);
+
+/** Nom d'établissement en tête d'une adresse (« Hôpital X, 2 rue Y ») : un premier segment sans chiffre. */
+export function leadingName(address: string): string | undefined {
+  const parts = segments(address);
+  return parts.length > 1 && /^\D+$/.test(parts[0]) ? parts[0] : undefined;
+}
+
 /**
  * Requêtes à essayer pour une adresse, dans l'ordre : l'adresse entière, puis, pour un hôpital saisi
- * avec son nom en tête (« Hôpital X, 2 rue Y, Paris »), l'adresse sans ce nom.
+ * avec son nom en tête et suivi d'une adresse numérotée (« Hôpital X, 2 rue Y, Paris »), l'adresse
+ * sans ce nom. Jamais la ville seule : un hôpital sans nom dont la rue est introuvable reste introuvable.
  */
 export function geocodeQueries(place: Pick<MapPlace, 'address' | 'kind'>): string[] {
   const out = [place.address];
-  const parts = place.address.split(',').map((x) => x.trim()).filter(Boolean);
-  if (place.kind === 'hopital' && parts.length > 2) out.push(parts.slice(1).join(', '));
+  const parts = segments(place.address);
+  if (place.kind === 'hopital' && parts.length > 2 && leadingName(place.address) && /\d/.test(parts[1])) out.push(parts.slice(1).join(', '));
   return out;
 }
 
@@ -83,8 +92,7 @@ export function mapPlaces(doc: ProjectDoc): MapPlace[] {
     }
     if (d.hospital?.trim()) {
       const address = cleanAddress(d.hospital);
-      const name = address.split(',')[0]?.trim();
-      add(address, 'hopital', name && name !== address ? name : 'Hôpital', d.n);
+      add(address, 'hopital', leadingName(address) ?? 'Hôpital', d.n);
     }
   }
   // Décors dont le lieu de tournage est connu mais qui ne sont pas encore planifiés.

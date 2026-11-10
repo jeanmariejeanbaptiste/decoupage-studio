@@ -41,6 +41,12 @@ describe('carte des lieux de tournage', () => {
     const hosp = places.find((p) => p.kind === 'hopital');
     expect(hosp).toMatchObject({ address: 'Hôpital Saint-Antoine, 184 rue du Faubourg Saint-Antoine, 75012 Paris', names: ['Hôpital Saint-Antoine'], days: [1] });
     expect(geocodeQueries(hosp!)).toEqual([hosp!.address, '184 rue du Faubourg Saint-Antoine, 75012 Paris']);
+    // Hôpital saisi sans nom : jamais de repli sur la ville seule (le repère irait au centre de la ville).
+    const bare = { kind: 'hopital' as const, address: '12 rue Inconnue, 75010 Paris, France' };
+    expect(geocodeQueries(bare)).toEqual([bare.address]);
+    expect(geocodeQueries({ kind: 'hopital', address: 'Hôpital Necker, Paris, France' })).toEqual(['Hôpital Necker, Paris, France']);
+    const unnamed = mapPlaces(produce(doc, (d) => updateDay(d, 2, { hospital: bare.address }))).find((p) => p.kind === 'hopital' && p.days.includes(2));
+    expect(unnamed?.names).toEqual(['Hôpital']);
     expect(dayPlaces(places, doc, 1).map((p) => p.kind)).toEqual(['lieu', 'hopital']);
     expect(markerLabel(gare!)).toBe('1·2');
     expect(markerLabel(gare!, 2)).toBe('2');
