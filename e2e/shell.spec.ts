@@ -13,10 +13,10 @@ test('palette de commandes ⌘K', async ({ page }) => {
   await page.keyboard.press('Control+k');
   await expect(palette).toBeVisible();
   await expect(palette.getByRole('combobox')).toBeFocused();
-  await page.keyboard.type('registre');
-  await expect(palette.getByRole('option').first()).toContainText('Registre');
+  await page.keyboard.type('vérifications');
+  await expect(palette.getByRole('option').first()).toContainText('Vérifications');
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/#\/registry/);
+  await expect(page).toHaveURL(/#\/checks/);
 });
 
 test('aide des raccourcis « ? » et thème encre', async ({ page }) => {

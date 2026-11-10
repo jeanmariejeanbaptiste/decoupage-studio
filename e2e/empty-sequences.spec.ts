@@ -131,7 +131,7 @@ test('séquence sans plan au clavier : le « + » garde ses touches (Tab en sort
   await add.focus();
   // Une lettre n'ouvre la saisie d'aucun plan, la grille ne défile pas.
   await page.keyboard.press('x');
-  await expect(page.getByTestId('grid').locator('input, textarea')).toHaveCount(0);
+  await expect(page.getByTestId('cell-editor')).toHaveCount(0);
   await expect(add).toBeFocused();
   expect(await page.getByTestId('grid').evaluate((el) => el.scrollTop)).toBe(0);
   // Tab mène au bouton « depuis le texte », Maj+Tab revient.
@@ -201,7 +201,7 @@ test('retour sur le découpage : la grille reste en haut, l’inspecteur n’aff
     await page.getByRole('button', { name: 'Inspecteur', exact: true }).click();
     await expect(page.getByRole('complementary', { name: 'Inspecteur du plan' })).toContainText('Sélectionnez un plan');
     await page.getByRole('button', { name: 'Inspecteur', exact: true }).click();
-    await page.goto('/#/registry');
+    await page.goto('/#/checks');
     await page.goto('/#/grid');
   }
   // Un choix au clavier : la sélection devient la sienne, la grille va la montrer.
