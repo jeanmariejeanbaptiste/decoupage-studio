@@ -1,7 +1,7 @@
 import { redoHome, undoHome } from '../store/homeHistory';
 import { isShortcut } from '../store/shortcuts';
 import { useCanCopy, useDriveReview, useReadOnly, useShare } from '../store/share';
-import { forgetReviewSession, resumeReview, startReviewSync } from '../store/review';
+import { closeReviewLink, forgetReviewSession, reopenReviewLink, resumeReview, startReviewSync } from '../store/review';
 import { ReviewPage } from '../features/review/Review';
 import { REVIEWED } from '../features/shell/steps';
 import { switchTheme } from '../ui/themeSwitch';
@@ -116,7 +116,7 @@ export function App() {
     const stopSession = keepSessionAlive();
     // Relecture en ligne (si configurée) : retours relevés, réponses renvoyées.
     const stopReview = startReviewSync();
-    setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => void cloudRestore(id) });
+    setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => void cloudRestore(id), closeLink: closeReviewLink, reopenLink: reopenReviewLink });
     if (useCloud.getState().enabled && useCloud.getState().user) void preloadGoogle().catch(() => undefined);
     void boot().finally(() => {
       setBooted(true);

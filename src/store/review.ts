@@ -14,16 +14,16 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
 import { REVIEW_ENABLED } from '../app/config';
-import { commentAttachments, deleteComment, deleteReply } from '../domain/comments';
+import { commentAttachments, deleteComment, deleteReply, type ReviewComment } from '../domain/comments';
 import type { Op } from '../domain/patch';
-import { LIMITS, mergeDriveComments, mergeSnapshotComments, type DriveComment } from '../domain/reviewMerge';
+import { detachRemoved, LIMITS, mergeDriveComments, mergeSnapshotComments, type DriveComment } from '../domain/reviewMerge';
 import { parseReviewSnapshot, reviewDoc, reviewMediaKeys, reviewSnapshot, withComments, type ReviewPublication, type ReviewSnapshot } from '../domain/reviewSnapshot';
 import { cleanRef, decodeComment, driveKey, driveRefOf, encodeComment, MAX_CONTENT, type DriveRef, type TrailerPayload } from '../domain/reviewTrailer';
 import { ProjectFileError, type MediaEntry } from '../domain/serialize';
 import type { ID, ProjectDoc } from '../domain/types';
 import { ensureVersions } from '../domain/versions';
 import { driveFileToken, dropToken, forgetReviewerAccess, preloadGoogle, requestDriveFile, setReviewContext, useCloud } from './cloud';
-import { getBlob, putBlobRaw } from './db';
+import { getBlob, loadProject, putBlobRaw, saveProject } from './db';
 import { blobToBase64, flushEditors, flushSave } from './persistence';
 import { applyRemote, mutateDoc, mutateOutsideHistory, useProjectStore } from './projectStore';
 import * as drive from './reviewDrive';
@@ -276,6 +276,39 @@ export async function setReviewLink(open: boolean): Promise<void> {
   }
 }
 
+/**
+ * Projet supprimé : le lien de sa relecture se ferme d'abord (le fichier reste dans le Drive). À
+ * appeler depuis le geste. Lève une erreur lisible s'il ne se ferme pas (le projet reste alors).
+ */
+export async function closeReviewLink(fileId: string): Promise<void> {
+  if (!REVIEW_ENABLED) return;
+  const tokenP = requestDriveFile();
+  let token = '';
+  try {
+    token = await tokenP;
+    await drive.unshare(token, fileId);
+  } catch (e) {
+    // Fichier déjà supprimé du Drive : plus rien à fermer.
+    if (e instanceof drive.DriveError && e.status === 404) return;
+    if (token) forget401(e, token);
+    throw new Error(message(e));
+  }
+}
+
+/** Suppression annulée : le lien fermé par elle se rouvre ; sinon, le projet le dit arrêté (« Reprendre »). */
+export async function reopenReviewLink(projectId: string, fileId: string): Promise<void> {
+  if (!REVIEW_ENABLED) return;
+  try {
+    await drive.shareWithLink(await requestDriveFile(), fileId, 'commenter');
+    return;
+  } catch {
+    /* pas de jeton, ou Google injoignable */
+  }
+  const doc = await loadProject(projectId);
+  if (doc?.review?.fileId !== fileId) return;
+  await saveProject({ ...doc, review: { ...doc.review, stopped: true } });
+}
+
 /** Image jointe par un relecteur, lue par son lien : bornée, puis réencodée (jamais servie telle quelle). */
 async function remoteImage(ref: DriveRef): Promise<Blob> {
   return reduceImage(await drive.readPublic(ref, MAX_IMAGE));
@@ -335,10 +368,14 @@ export async function syncReview(): Promise<void> {
     const extra = await loadExtras(remote);
     const now = cur();
     if (now?.project.id !== doc.project.id || !now.review) return;
-    const { publishedVersionId, dismissed } = now.review;
-    // Hors historique : annuler ne défait pas des retours relevés, « Rétablir » reste possible.
+    const { publishedVersionId } = now.review;
+    // Hors historique : annuler ne défait pas des retours relevés, « Rétablir » reste possible. La
+    // reprise est rejouée dans chaque état de l'historique : chacun avec ses propres écartés (un
+    // retrait annulé n'est pas écarté dans l'état d'avant).
     const at = new Date().toISOString();
-    mutateOutsideHistory((d) => void mergeDriveComments(d, remote, { versionId: publishedVersionId, dismissed, extra, now: at }));
+    mutateOutsideHistory(
+      (d) => void mergeDriveComments(d, remote, { versionId: d.review?.publishedVersionId ?? publishedVersionId, dismissed: d.review?.dismissed ?? [], extra, now: at, removedHere: removed }),
+    );
     await fetchAttachments(doc.project.id);
     useReview.setState({ lastSync: new Date().toISOString() });
     if (pushDirty) schedulePush();
@@ -371,6 +408,8 @@ async function pushComments(): Promise<void> {
       // autre onglet ou appareil), pour ne jamais ramener une publication plus ancienne.
       const version = await drive.fileVersion(token, pub.fileId);
       const snap: ReviewSnapshot = parseReviewSnapshot(await drive.readFile(token, refOf(pub)));
+      // Retrait de Drive annulé ici depuis : le commentaire repart sans lien vers Drive.
+      if (cur()?.project.id === doc.project.id) mutateOutsideHistory((x) => void detachRemoved(x, removed));
       const d = cur();
       if (!d || d.project.id !== doc.project.id || d.review?.fileId !== pub.fileId) return;
       if (snap.publishedAt !== d.review.publishedAt) return;
@@ -395,6 +434,10 @@ async function pushComments(): Promise<void> {
 
 let session: { raw: string; ref: DriveRef; snap: ReviewSnapshot; docId: string } | null = null;
 const blobCache = new Map<string, Promise<Blob | undefined>>();
+/** Relecteur : images de ses envois manqués, reprises après un rechargement (le temps de l'onglet). */
+const draftBlobs = new Map<string, Blob>();
+/** Relecteur : images et tracés qu'il a téléversés (clé locale ou commentaire → fichier Drive). */
+const uploads = new Map<string, { ref: DriveRef; shared: boolean; marks?: string }>();
 /** Relecteur : envois et retraits, un seul à la fois par commentaire (enchaînés). */
 const flights = new Map<ID, Promise<void>>();
 /** Relecteur : commentaires déjà tentés (un nouvel essai cherche d'abord s'ils sont arrivés). */
@@ -413,6 +456,8 @@ function reviewBlob(key: string): Promise<Blob | undefined> {
   const hit = blobCache.get(key);
   if (hit) return hit;
   const m = session?.snap.media[key];
+  const draft = draftBlobs.get(key);
+  if (draft) return Promise.resolve(draft);
   const ref = m ? null : driveRefOf(key);
   if (!m && !ref) return Promise.resolve(undefined);
   const p = (m ? reduceImage(fromBase64(m)) : remoteImage(ref!)).catch(() => {
@@ -444,6 +489,84 @@ function reviewerDoc(snap: ReviewSnapshot, ref: DriveRef, comments = snap.doc.co
 
 const writeLocal = (recipe: (d: ProjectDoc) => void) => asComment(() => mutateDoc(recipe));
 
+/** Relecteur : envois manqués gardés le temps de l'onglet (un rechargement ne les perd pas). */
+interface SessionDrafts {
+  raw: string;
+  /** Commentaires pas encore partis, ou fils dont des réponses ne sont pas parties (celles-là seules). */
+  items?: ReviewComment[];
+  /** Leurs images (réduites), en base 64. */
+  media?: Record<string, MediaEntry>;
+}
+/** Poids des images gardées pour l'onglet (caractères base 64) : sessionStorage est limité. */
+const MAX_DRAFT_MEDIA = 3_000_000;
+
+function readSession(): SessionDrafts | null {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(SESSION_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw) as Partial<SessionDrafts>;
+    if (j && typeof j.raw === 'string') return { raw: j.raw, items: Array.isArray(j.items) ? j.items : [], media: j.media && typeof j.media === 'object' ? j.media : {} };
+  } catch {
+    /* ancien format : le lien seul */
+  }
+  return { raw };
+}
+
+function writeSession(v: SessionDrafts): void {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(v));
+  } catch {
+    // Trop lourd : les textes au moins (un rechargement ne ramènera pas les images).
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...v, media: {} }));
+    } catch {
+      /* stockage indisponible : un rechargement ramènera à l'accueil */
+    }
+  }
+}
+
+const unsentStatus = (v: ItemStatus | undefined) => v === 'sending' || v === 'failed' || v === 'stopped';
+let draftsRun = 0;
+
+/** Range dans l'onglet les commentaires et réponses du relecteur qui ne sont pas (encore) partis. */
+async function saveDrafts(): Promise<void> {
+  const s = session;
+  const doc = cur();
+  if (!s || doc?.project.id !== s.docId) return;
+  const run = ++draftsRun;
+  const { pending } = useReview.getState();
+  const unsent = (x: { id: ID; remoteId?: string }) => !x.remoteId && unsentStatus(pending[x.id]);
+  const items: ReviewComment[] = [];
+  for (const c of doc.comments ?? []) {
+    if (unsent(c)) items.push(c);
+    else {
+      const replies = c.replies.filter(unsent);
+      if (replies.length) items.push({ ...c, replies });
+    }
+  }
+  const media: Record<string, MediaEntry> = {};
+  let weight = 0;
+  for (const key of items.flatMap((c) => [...(c.attachments ?? []), ...c.replies.flatMap((r) => r.attachments ?? [])])) {
+    if (media[key] || driveRefOf(key)) continue;
+    try {
+      const blob = draftBlobs.get(key) ?? (await getBlob(key));
+      if (!blob) continue;
+      const data = await blobToBase64(await reduceImage(blob));
+      if ((weight += data.length) > MAX_DRAFT_MEDIA) break;
+      media[key] = { type: 'image/jpeg', data };
+    } catch {
+      /* image illisible : le texte reste */
+    }
+  }
+  if (run !== draftsRun || !sameSession(s)) return;
+  writeSession({ raw: s.raw, ...(items.length ? { items, media } : {}) });
+}
+
 /** Ouvre un lien de relecture (lecture sans compte). */
 export async function openReview(raw: string): Promise<boolean> {
   if (!REVIEW_ENABLED) {
@@ -468,29 +591,34 @@ export async function openReview(raw: string): Promise<boolean> {
   }
   flushEditors();
   await flushSave();
-  const doc = reviewerDoc(snap, ref);
+  // Rechargement : les envois manqués de cet onglet reviennent, « Non envoyé ».
+  const kept = readSession();
+  const drafts = kept?.raw === raw ? (kept.items ?? []) : [];
+  const doc = reviewerDoc(snap, ref, drafts.length ? mergeSnapshotComments(drafts, [], snap.doc.comments, snap.dismissed) : snap.doc.comments);
   enterDriveReview(doc.project.director || 'l’auteur', reviewBlob);
   session = { raw, ref, snap, docId: doc.project.id };
   blobCache.clear();
-  useProjectStore.getState().loadDoc(doc);
-  try {
-    sessionStorage.setItem(SESSION_KEY, raw);
-  } catch {
-    /* stockage indisponible : un rechargement ramènera à l'accueil */
+  draftBlobs.clear();
+  for (const [k, m] of Object.entries(kept?.raw === raw ? (kept.media ?? {}) : {})) if (m?.type === 'image/jpeg' && typeof m.data === 'string') draftBlobs.set(k, fromBase64(m));
+  const restored = new Set(drafts.flatMap((c) => [c, ...c.replies]).filter((x) => !x.remoteId).map((x) => x.id));
+  const items = new Set((doc.comments ?? []).flatMap((c) => [c, ...c.replies]).map((x) => x.id));
+  const pending: Record<ID, ItemStatus> = {};
+  for (const id of restored) {
+    if (!items.has(id)) continue;
+    pending[id] = 'failed';
+    // Peut-être parti avant le rechargement : un nouvel essai le cherche d'abord dans Drive.
+    attempted.add(id);
   }
-  useReview.setState({ phase: 'ready', pending: {}, mine: [] });
+  useProjectStore.getState().loadDoc(doc);
+  useReview.setState({ phase: 'ready', pending, mine: [] });
+  void saveDrafts();
   void listAsReviewer();
   return true;
 }
 
 /** Rechargement de la page pendant une relecture : elle se rouvre. */
 export async function resumeReview(): Promise<boolean> {
-  let raw: string | null = null;
-  try {
-    raw = sessionStorage.getItem(SESSION_KEY);
-  } catch {
-    raw = null;
-  }
+  const raw = readSession()?.raw;
   return raw ? openReview(raw) : false;
 }
 
@@ -614,7 +742,8 @@ async function deliver(it: DriveItem, tokenP: Promise<string>): Promise<void> {
   if (!s) throw new Error('Relecture fermée.');
   const { c, r, target } = findItem(cur(), it);
   if (!c || !target) return;
-  // Images jointes : dans le Drive du relecteur, lisibles par le lien.
+  // Images jointes : dans le Drive du relecteur, lisibles par le lien. Chacune est rangée dans
+  // l'élément dès qu'elle est en ligne : un nouvel essai la reprend, sans la téléverser de nouveau.
   const files: DriveRef[] = [];
   for (const key of target.attachments ?? []) {
     const known = driveRefOf(key);
@@ -622,13 +751,26 @@ async function deliver(it: DriveItem, tokenP: Promise<string>): Promise<void> {
       files.push(known);
       continue;
     }
-    const blob = await getBlob(key);
-    if (!blob) continue;
-    const small = await reduceImage(blob);
-    const ref = await drive.createFile(token, 'Découpage Studio — image.jpg', small);
-    await drive.shareWithLink(token, ref.id, 'reader');
-    blobCache.set(driveKey(ref), Promise.resolve(small));
-    files.push(ref);
+    let up = uploads.get(key);
+    if (!up) {
+      const blob = await getBlob(key);
+      if (!blob) continue;
+      const small = await reduceImage(blob);
+      up = { ref: await drive.createFile(token, 'Découpage Studio — image.jpg', small), shared: false };
+      uploads.set(key, up);
+      blobCache.set(driveKey(up.ref), Promise.resolve(small));
+    }
+    if (!up.shared) {
+      await drive.shareWithLink(token, up.ref.id, 'reader');
+      up.shared = true;
+    }
+    const dk = driveKey(up.ref);
+    if (sameSession(s))
+      writeLocal((d) => {
+        const t = findItem(d, it).target;
+        if (t?.attachments) t.attachments = t.attachments.map((k) => (k === key ? dk : k));
+      });
+    files.push(up.ref);
   }
   const versionId = r ? r.versionId : c.versionId;
   const payload: TrailerPayload = {
@@ -638,11 +780,27 @@ async function deliver(it: DriveItem, tokenP: Promise<string>): Promise<void> {
     ...(files.length ? { f: files } : {}),
   };
   let content = encodeComment(target.text, payload);
+  // Tracés trop lourds pour le commentaire : un fichier à part, le même d'un essai à l'autre ; remplacé
+  // (puis supprimé) seulement si les tracés changent.
+  let stale: DriveRef | undefined;
   if (content.length > MAX_CONTENT && payload.m) {
-    const ref = await drive.createFile(token, 'Découpage Studio — tracés.json', jsonBlob({ m: payload.m }));
-    await drive.shareWithLink(token, ref.id, 'reader');
+    const marks = JSON.stringify(payload.m);
+    const slot = `marks:${target.id}`;
+    let up = uploads.get(slot);
+    if (up && up.marks !== marks) {
+      stale = up.ref;
+      up = undefined;
+    }
+    if (!up) {
+      up = { ref: await drive.createFile(token, 'Découpage Studio — tracés.json', jsonBlob({ m: payload.m })), shared: false, marks };
+      uploads.set(slot, up);
+    }
+    if (!up.shared) {
+      await drive.shareWithLink(token, up.ref.id, 'reader');
+      up.shared = true;
+    }
     delete payload.m;
-    payload.x = ref;
+    payload.x = up.ref;
     content = encodeComment(target.text, payload);
   }
   // Nouvel essai d'un envoi sans réponse : il est peut-être arrivé ; on le corrige plutôt que d'en créer un second.
@@ -662,6 +820,7 @@ async function deliver(it: DriveItem, tokenP: Promise<string>): Promise<void> {
     if (!(await drive.openWithPicker(token, s.ref.id))) throw e;
     res = await post();
   }
+  if (stale) void drive.deleteFile(token, stale.id).catch(() => undefined);
   if (!sameSession(s)) return;
   writeLocal((d) => {
     const t = findItem(d, it).target;
@@ -727,8 +886,14 @@ export function deleteDriveItem(it: DriveItem): void {
   setPending(id, 'removing');
   // Après l'envoi en cours, s'il y en a un : le commentaire créé entre-temps est retiré aussi.
   void chain(id, async () => {
-    const rid = findItem(cur(), it).target?.remoteId;
-    if (rid) await drive.removeComment(await tokenP, s.ref.id, rid);
+    const t = findItem(cur(), it).target;
+    if (!t?.remoteId) return;
+    const token = await tokenP;
+    await drive.removeComment(token, s.ref.id, t.remoteId);
+    // Ses images et ses tracés quittent aussi le Drive du relecteur (ils étaient lisibles par lien).
+    const files = [...(t.attachments ?? []).map(driveRefOf), uploads.get(`marks:${id}`)?.ref].filter((r): r is DriveRef => !!r);
+    for (const r of files) void drive.deleteFile(token, r.id).catch(() => undefined);
+    uploads.delete(`marks:${id}`);
   }).then(
     () => {
       if (sameSession(s)) remove();
@@ -788,6 +953,8 @@ export function startReviewSync(): () => void {
     if (prev.via === 'drive' && s.via !== 'drive') {
       session = null;
       blobCache.clear();
+      draftBlobs.clear();
+      uploads.clear();
       flights.clear();
       attempted.clear();
       withdrawn.clear();
@@ -803,6 +970,16 @@ export function startReviewSync(): () => void {
       if (pushDirty) schedulePush();
     }
   });
+  // Relecteur : ses envois manqués gardés pour l'onglet ; fermer l'onglet les perdrait, on prévient.
+  const unsubPending = useReview.subscribe((st, prev) => {
+    if (session && st.pending !== prev.pending) void saveDrafts();
+  });
+  const onLeave = (e: BeforeUnloadEvent) => {
+    if (!session || !Object.values(useReview.getState().pending).some((v) => v === 'sending' || v === 'failed')) return;
+    e.preventDefault();
+    e.returnValue = '';
+  };
+  window.addEventListener('beforeunload', onLeave);
   const onFocus = () => refresh();
   window.addEventListener('focus', onFocus);
   const timer = setInterval(() => document.visibilityState === 'visible' && refresh(), SYNC_EVERY);
@@ -810,6 +987,8 @@ export function startReviewSync(): () => void {
     unsubDoc();
     unsubShare();
     unsubCloud();
+    unsubPending();
+    window.removeEventListener('beforeunload', onLeave);
     window.removeEventListener('focus', onFocus);
     clearInterval(timer);
     clearTimeout(pushTimer);

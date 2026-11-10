@@ -2,7 +2,7 @@ import { removeProject, undoHome, useHomeHistory } from '../../store/homeHistory
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, FileUp, Trash2 } from 'lucide-react';
 import { navigate } from '../../app/router';
-import { listProjects, type ProjectSummary } from '../../store/db';
+import { listProjects, liveReviewOf, type ProjectSummary } from '../../store/db';
 import { openFromFile, openStoredProject, rememberLastProject } from '../../store/persistence';
 import { useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -10,7 +10,8 @@ import { NewProjectWizard } from './NewProjectWizard';
 import { switchTheme } from '../../ui/themeSwitch';
 import s from './HomePage.module.css';
 import { AccountButton } from './Account';
-import { useCloud } from '../../store/cloud';
+import { preloadGoogle, useCloud } from '../../store/cloud';
+import { REVIEW_ENABLED } from '../../app/config';
 
 const FORMAT_LABEL: Record<string, string> = {
   fiction: 'Fiction',
@@ -37,13 +38,27 @@ export function HomePage() {
   // Après une synchronisation Google Drive, des projets ont pu arriver d'un autre ordinateur.
   const synced = useCloud((c) => c.lastSync);
   useEffect(refresh, [refresh, rev, synced]);
+  // Relecture en ligne ouverte : la connexion Google prête pour fermer son lien si le projet est supprimé.
+  const anyLive = !!projects?.some((p) => p.liveReview);
+  useEffect(() => {
+    if (anyLive && REVIEW_ENABLED) void preloadGoogle().catch(() => undefined);
+  }, [anyLive]);
 
   const open = async (id: string) => {
     if (await openStoredProject(id)) navigate('grid');
   };
   // Suppression directe, annulable (⌘Z ou « Annuler ») et rétablissable (⌘⇧Z).
   const remove = async (p: ProjectSummary) => {
-    await removeProject(p.id);
+    // Projet encore ouvert : son état en mémoire fait foi (un enregistrement peut être en attente).
+    const openDoc = useProjectStore.getState().doc;
+    const live = openDoc?.project.id === p.id ? liveReviewOf(openDoc) : p.liveReview;
+    try {
+      await removeProject(p.id, live);
+    } catch (e) {
+      // Lien de relecture resté ouvert : le projet reste (on ne laisse pas un lien public sans moyen de l'arrêter).
+      useUi.getState().toast({ message: `Projet « ${p.title} » gardé : ${(e as Error).message}` });
+      return;
+    }
     if (useProjectStore.getState().doc?.project.id === p.id) {
       useProjectStore.getState().loadDoc(null);
       rememberLastProject(null);

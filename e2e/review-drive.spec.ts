@@ -114,6 +114,14 @@ class FakeGoogle {
       if (!f || !this.canSee(f, token, token ? null : url.searchParams.get('key'), req.headers()['x-goog-drive-resource-keys'])) return fail(404, 'notFound');
       return route.fulfill({ status: 200, headers: CORS, contentType: f.mime, body: f.body });
     }
+    if (m && method === 'DELETE') {
+      const f = this.files.get(m[1]);
+      if (!f) return fail(404, 'notFound');
+      if (f.owner !== token) return fail(403, 'insufficientFilePermissions');
+      this.files.delete(f.id);
+      this.comments.delete(f.id);
+      return route.fulfill({ status: 204, headers: CORS });
+    }
     // Métadonnées : numéro de version (propriétaire), existence du lien (clé d'API).
     if (m && method === 'GET') {
       const f = this.files.get(m[1]);
@@ -299,7 +307,7 @@ test('relecture en ligne : publier, lire sans compte, commenter (connexion, sél
   const published = fake.snapshotText();
   expect(published).toContain('decoupage-studio-review');
   expect(published).toContain('valise cabossée');
-  for (const secret of ['12 rue Secrète', 'Alice Martin', 'Une gare, une valise, une décision', 'tok-author']) expect(published, secret).not.toContain(secret);
+  for (const secret of ['12 rue Secrète', 'Alice Martin', 'Une gare, une valise, une décision', 'tok-author', 'Léa arrive à la consigne avec une valise trop lourde']) expect(published, secret).not.toContain(secret);
   expect(fake.files.get(fake.snapshotId())!.perms).toEqual([{ id: 'anyoneWithLink', type: 'anyone', role: 'commenter' }]);
   await author.keyboard.press('Escape');
   await author.getByTestId('share-button').click();
@@ -582,7 +590,9 @@ test('relecteur : rien de la synchronisation privée, onglets publiés seulement
     localStorage.setItem('fake-granted', 'https://www.googleapis.com/auth/drive.appdata openid email profile'),
   );
   await expect(nina.getByTestId('comment-popover').getByTestId('comment')).toContainText('Nina Relectrice');
-  const stored = await nina.evaluate(() => ({ token: localStorage.getItem('ds-cloud-token') ?? '', flag: localStorage.getItem('ds-cloud-file'), user: localStorage.getItem('ds-cloud-user') }));
+  const stored = await nina.evaluate(() => ({ lasting: localStorage.getItem('ds-cloud-token'), token: sessionStorage.getItem('ds-cloud-token') ?? '', flag: localStorage.getItem('ds-cloud-file'), user: localStorage.getItem('ds-cloud-user') }));
+  // Le jeton du relecteur ne vit que le temps de l'onglet.
+  expect(stored.lasting).toBeNull();
   expect(stored.token).toContain('drive.file');
   expect(stored.token).not.toContain('drive.appdata');
   expect(stored.flag).toBeNull();
@@ -689,6 +699,215 @@ test('auteur : un retour retiré quitte Drive ; un renvoi n’écrase pas une pu
   await expect(nina.getByTestId('comment-popover').getByTestId('comment')).toHaveCount(0);
 });
 
+test('relecteur sans compte : son jeton meurt avec l’onglet ; le suivant, sur le même ordinateur, se connecte sous son nom', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { link } = await published(browser, fake);
+  const { ctx, page } = await person(browser, fake, 'tok-nina');
+  await page.goto(link);
+  await expect(page.getByTestId('export-table').first()).toBeVisible();
+  await page.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await page.getByTestId('comment-text').fill('Nina écrit');
+  await page.getByTestId('comment-send').click();
+  await expect(page.getByTestId('comment-popover').getByTestId('comment')).toContainText('Nina Relectrice');
+  // Rechargement : même onglet, le jeton reste (aucune nouvelle demande).
+  await page.reload();
+  await expect(page.getByTestId('export-table').first()).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __tokenRequests?: number }).__tokenRequests ?? 0)).toBe(0);
+  expect(await page.evaluate(() => !!sessionStorage.getItem('ds-cloud-token'))).toBe(true);
+  await page.close();
+  // Quelqu'un d'autre, même navigateur, autre compte Google, dans l'heure : il doit se connecter.
+  await ctx.addInitScript(() => void ((window as unknown as { __fakeToken: string }).__fakeToken = 'tok-paul'));
+  const paul = await ctx.newPage();
+  await paul.goto(link);
+  await expect(paul.getByTestId('export-table').first()).toBeVisible();
+  expect(await paul.evaluate(() => localStorage.getItem('ds-cloud-token'))).toBeNull();
+  await paul.locator('tr[data-shot] td[data-col="value"]').nth(1).click();
+  await paul.getByTestId('comment-text').fill('Paul écrit');
+  await paul.getByTestId('comment-send').click();
+  await expect(paul.getByTestId('comment-popover').getByTestId('comment')).toContainText('Paul Relecteur');
+  expect(await paul.evaluate(() => (window as unknown as { __tokenRequests?: number }).__tokenRequests ?? 0)).toBe(1);
+  const cmts = fake.comments.get(fake.snapshotId()) ?? [];
+  expect(cmts.map((c) => `${c.owner}:${c.content.split('\n')[0]}`)).toEqual(['tok-nina:Nina écrit', 'tok-paul:Paul écrit']);
+});
+
+test('auteur : un retrait annulé tient, même après son départ de Drive et le relevé suivant', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { author, link } = await published(browser, fake);
+  const nina = await reviewerComments(browser, fake, link, 'Retour précieux');
+  await expect(nina.getByTestId('comment-popover').getByTestId('comment')).toContainText('Nina Relectrice');
+  const cmts = () => fake.comments.get(fake.snapshotId()) ?? [];
+  await focus(author);
+  await author.getByTestId('version-switcher').click();
+  await author.getByTestId('version-comments').click();
+  const panel = author.getByTestId('comments-panel');
+  await expect(panel.getByTestId('comment')).toHaveCount(1);
+  await panel.getByTestId('comment-delete').click();
+  await expect(panel.getByTestId('comment')).toHaveCount(0);
+  await expect.poll(() => cmts()[0].deleted ?? false, { timeout: 30_000 }).toBe(true);
+  await panel.getByRole('button', { name: 'Fermer' }).click();
+  await author.locator('body').click({ position: { x: 5, y: 450 } });
+  await author.keyboard.press('Control+z');
+  // Relevé suivant (retour sur la page) : le commentaire reste, tel quel.
+  await focus(author);
+  await author.waitForTimeout(1500);
+  await focus(author);
+  await author.waitForTimeout(800);
+  await author.getByTestId('version-switcher').click();
+  await expect(author.getByTestId('version-comments')).toContainText('1');
+  await author.getByTestId('version-comments').click();
+  await expect(panel.getByTestId('comment')).toHaveCount(1);
+  await expect(panel.getByTestId('comment')).toContainText('Retour précieux');
+  await expect(panel.getByTestId('comment')).toContainText('Nina Relectrice');
+  // Il repart chez les relecteurs.
+  await expect.poll(() => fake.snapshotText(), { timeout: 40_000 }).toContain('Retour précieux');
+});
+
+test('auteur : supprimer le projet ferme le lien de relecture ; annuler le rouvre', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { author, link } = await published(browser, fake);
+  const perms = () => fake.files.get(fake.snapshotId())?.perms ?? [];
+  expect(perms()).toHaveLength(1);
+  await author.evaluate(() => void (location.hash = '#/home'));
+  await author.getByRole('button', { name: 'Supprimer La Consigne' }).click();
+  await expect(author.getByTestId('project-list')).toHaveCount(0);
+  expect(perms()).toEqual([]);
+  // Le fichier reste dans le Drive de l'auteur ; le lien ne mène plus à rien.
+  expect(fake.files.has(fake.snapshotId())).toBe(true);
+  const { page: nina } = await person(browser, fake, 'tok-nina');
+  await nina.goto(link);
+  await expect(nina.getByTestId('review-landing')).toContainText('n’existe plus');
+  // Annuler : le projet revient, et son lien avec lui.
+  await author.getByRole('button', { name: 'Annuler' }).click();
+  await expect(author.getByTestId('project-list').locator('li')).toHaveCount(1);
+  await expect.poll(perms).toHaveLength(1);
+  await nina.goto('about:blank');
+  await nina.goto(link);
+  await expect(nina.getByTestId('guest-banner')).toContainText('relecture');
+
+  // Google injoignable : le projet reste, l'erreur le dit.
+  await author.route('**/drive/v3/files/*/permissions?*', (r) => r.abort());
+  await author.getByRole('button', { name: 'Supprimer La Consigne' }).click();
+  await expect(author.getByText('Projet « La Consigne » gardé : Google Drive est injoignable.')).toBeVisible();
+  await expect(author.getByTestId('project-list').locator('li')).toHaveCount(1);
+  expect(perms()).toHaveLength(1);
+});
+
+test('relecteur : un envoi manqué survit au rechargement (texte et image), sans nouvelle copie de l’image à chaque essai ; retiré, l’image quitte Drive', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { link } = await published(browser, fake);
+  const { page: nina } = await person(browser, fake, 'tok-nina');
+  nina.on('dialog', (d) => void d.accept());
+  await nina.goto(link);
+  await expect(nina.getByTestId('export-table').first()).toBeVisible();
+  const refuse = (r: Route) => (r.request().method() === 'POST' ? r.fulfill({ status: 500, headers: CORS, body: '{}' }) : fake.handle(r));
+  await nina.route('**/drive/v3/files/*/comments?*', refuse);
+  await nina.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await nina.getByTestId('comment-text').fill('Gardé malgré tout');
+  await nina.getByTestId('comment-image').setInputFiles({ name: 'plan.png', mimeType: 'image/png', buffer: PNG });
+  await expect(nina.getByTestId('comment-popover').getByTestId('comment-attachments').locator('img')).toBeVisible();
+  await nina.getByTestId('comment-send').click();
+  const pop = nina.getByTestId('comment-popover');
+  await expect(pop.getByTestId('comment-unsent')).toBeVisible();
+  const images = () => [...fake.files.values()].filter((f) => f.name === 'Découpage Studio — image.jpg');
+  expect(images()).toHaveLength(1);
+  // Nouvel essai, toujours refusé : la même image (rien de plus dans Drive).
+  await pop.getByRole('button', { name: 'Réessayer' }).click();
+  await expect(pop.getByTestId('comment-unsent')).toBeVisible();
+  await nina.waitForTimeout(300);
+  expect(images()).toHaveLength(1);
+
+  // Rechargement : le commentaire est toujours là, « Non envoyé », avec son image.
+  await nina.reload();
+  await expect(nina.getByTestId('guest-banner')).toContainText('relecture');
+  await nina.locator('td[data-commented]').first().click();
+  const again = nina.getByTestId('comment-popover');
+  await expect(again.getByTestId('comment')).toContainText('Gardé malgré tout');
+  await expect(again.getByTestId('comment-unsent')).toBeVisible();
+  await expect(again.getByTestId('comment-attachments').locator('img')).toBeVisible();
+  await nina.unroute('**/drive/v3/files/*/comments?*', refuse);
+  await again.getByRole('button', { name: 'Réessayer' }).click();
+  await expect(again.getByTestId('comment')).toContainText('Nina Relectrice');
+  await expect(again.getByTestId('comment-unsent')).toHaveCount(0);
+  const cmts = () => fake.comments.get(fake.snapshotId()) ?? [];
+  expect(cmts()).toHaveLength(1);
+  expect(cmts()[0].content).toContain(images()[0].id);
+  expect(images()).toHaveLength(1);
+
+  // Retiré : le commentaire et son image quittent Drive.
+  await again.getByTestId('comment-delete').click();
+  await expect(again.getByTestId('comment')).toHaveCount(0);
+  await expect.poll(() => images().length).toBe(0);
+  expect(cmts()[0].deleted).toBe(true);
+});
+
+test('relecteur : image jamais partie (téléversement refusé) : gardée pour l’onglet, elle revient au rechargement', async ({ browser }) => {
+  test.setTimeout(60_000);
+  const fake = new FakeGoogle();
+  const { link } = await published(browser, fake);
+  const { page: nina } = await person(browser, fake, 'tok-nina');
+  nina.on('dialog', (d) => void d.accept());
+  await nina.goto(link);
+  await expect(nina.getByTestId('export-table').first()).toBeVisible();
+  const refuse = (r: Route) => (r.request().method() === 'POST' ? r.fulfill({ status: 500, headers: CORS, body: '{}' }) : fake.handle(r));
+  await nina.route('**/upload/drive/v3/files?*', refuse);
+  await nina.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await nina.getByTestId('comment-image').setInputFiles({ name: 'plan.png', mimeType: 'image/png', buffer: PNG });
+  await nina.getByTestId('comment-send').click();
+  await expect(nina.getByTestId('comment-popover').getByTestId('comment-unsent')).toBeVisible();
+  // Les images locales du relecteur ne sont pas gardées dans ce navigateur (ménage) : seule la copie de l'onglet compte.
+  await nina.evaluate(
+    () =>
+      new Promise<void>((ok) => {
+        const r = indexedDB.open('decoupage-studio');
+        r.onsuccess = () => {
+          const t = r.result.transaction('blobs', 'readwrite');
+          t.objectStore('blobs').clear();
+          t.oncomplete = () => ok();
+        };
+      }),
+  );
+  await nina.reload();
+  await expect(nina.getByTestId('guest-banner')).toContainText('relecture');
+  await nina.locator('td[data-commented]').first().click();
+  const pop = nina.getByTestId('comment-popover');
+  await expect(pop.getByTestId('comment-unsent')).toBeVisible();
+  await expect(pop.getByTestId('comment-attachments').locator('img')).toBeVisible();
+  await nina.unroute('**/upload/drive/v3/files?*', refuse);
+  await pop.getByRole('button', { name: 'Réessayer' }).click();
+  await expect(pop.getByTestId('comment')).toContainText('Nina Relectrice');
+  await expect(pop.getByTestId('comment-unsent')).toHaveCount(0);
+  expect([...fake.files.values()].filter((f) => f.name === 'Découpage Studio — image.jpg')).toHaveLength(1);
+  expect(fake.comments.get(fake.snapshotId()) ?? []).toHaveLength(1);
+});
+
+test('relecteur : Tableau et Storyboard restent à portée, sans moignon vide dans la barre', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const fake = new FakeGoogle();
+  const { link } = await published(browser, fake);
+  const dir = process.env.REVIEW_SHOTS;
+  for (const theme of ['papier', 'encre']) {
+    const { page } = await person(browser, fake, 'tok-nina', theme);
+    await page.goto(link);
+    await expect(page.getByTestId('export-table').first()).toBeVisible();
+    await expect(page.getByTestId('view-table')).toBeVisible();
+    await page.getByTestId('view-storyboard').click();
+    await expect(page).toHaveURL(/#\/storyboard/);
+    await expect(page.getByTestId('view-storyboard')).toHaveAttribute('aria-checked', 'true');
+    if (dir) await page.screenshot({ path: `${dir}/${theme}-8-relecteur-storyboard.png` });
+    await page.getByTestId('view-table').click();
+    await expect(page.getByTestId('export-table').first()).toBeVisible();
+    if (dir) await page.screenshot({ path: `${dir}/${theme}-9-relecteur-tableau.png` });
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.reload();
+    await expect(page.getByTestId('view-storyboard')).toBeVisible();
+    if (dir) await page.screenshot({ path: `${dir}/${theme}-9b-relecteur-telephone.png` });
+  }
+});
+
 test('sans réglage Google complet, la relecture en ligne n’apparaît pas', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('ds-google-config', JSON.stringify({ clientId: 'x.apps.googleusercontent.com' })));
   await page.goto('/#/grid?seed=fiction');
@@ -746,6 +965,16 @@ test('captures de la relecture en ligne', async ({ browser }) => {
     await author.getByTestId('version-comments').click();
     await expect(author.getByTestId('comments-panel')).toContainText('Nina Relectrice');
     await author.screenshot({ path: `${dir}/${theme}-6-auteur-retours.png` });
+    // Version publiée : on ne la supprime pas tant que la relecture existe.
+    await author.getByTestId('comments-panel').getByRole('button', { name: 'Fermer' }).click();
+    await author.getByTestId('version-switcher').click();
+    await author.getByTestId('version-new').click();
+    await author.getByTestId('version-switcher').click();
+    const delV1 = author.getByRole('button', { name: 'Supprimer V1' });
+    await expect(delV1).toBeDisabled();
+    await delV1.hover();
+    await author.screenshot({ path: `${dir}/${theme}-6b-auteur-version-publiee.png` });
+    await author.keyboard.press('Escape');
 
     const { page: lost } = await person(browser, fake, 'tok-nina', theme);
     await lost.goto('/#/review/inconnu123456');

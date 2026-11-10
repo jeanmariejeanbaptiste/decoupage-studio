@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { deleteProject, restoreProject, snapshotProject, type ProjectSnapshot } from './db';
-import { dropPendingSave } from './persistence';
+import { deleteProject, liveReviewOf, restoreProject, snapshotProject, type ProjectSnapshot } from './db';
+import { dropPendingSave, flushPendingSave } from './persistence';
+import { useUi } from './uiStore';
 
 /**
  * Historique de l'accueil : la suppression d'un projet s'annule (⌘Z) et se rétablit (⌘⇧Z),
@@ -15,12 +16,28 @@ interface HomeHistory {
 
 export const useHomeHistory = create<HomeHistory>(() => ({ past: [], future: [], rev: 0 }));
 
-/** Suites d'une suppression ou d'une restauration (synchronisation en ligne). */
-const hooks: { removed?: (id: string) => void; restored?: (id: string) => void } = {};
+/**
+ * Suites d'une suppression ou d'une restauration (synchronisation en ligne) ; lien de relecture en
+ * ligne fermé avant la suppression (elle n'a pas lieu s'il ne se ferme pas), rouvert à l'annulation.
+ */
+const hooks: {
+  removed?: (id: string) => void;
+  restored?: (id: string) => void;
+  closeLink?: (fileId: string) => Promise<void>;
+  reopenLink?: (projectId: string, fileId: string) => Promise<void>;
+} = {};
 export const setHomeHooks = (h: typeof hooks) => Object.assign(hooks, h);
 
-export async function removeProject(id: string): Promise<void> {
-  // Un enregistrement en attente ne doit pas faire revenir le projet supprimé.
+/**
+ * Supprime un projet. `liveReview` : fichier de sa relecture en ligne, lien encore ouvert ; il est
+ * fermé d'abord (à appeler depuis le geste : la connexion Google peut s'ouvrir). S'il ne se ferme
+ * pas, le projet reste et l'erreur remonte.
+ */
+export async function removeProject(id: string, liveReview?: string): Promise<void> {
+  if (liveReview && hooks.closeLink) await hooks.closeLink(liveReview);
+  // L'état en attente d'enregistrement est celui qu'« Annuler » doit rendre ; ensuite, plus rien
+  // ne doit faire revenir le projet supprimé.
+  await flushPendingSave(id);
   dropPendingSave(id);
   const snap = await snapshotProject(id);
   await deleteProject(id);
@@ -36,12 +53,23 @@ export async function undoHome(projectId?: string): Promise<void> {
   await restoreProject(snap);
   useHomeHistory.setState((s) => ({ past: s.past.filter((p) => p !== snap), future: [...s.future, snap], rev: s.rev + 1 }));
   hooks.restored?.(snap.project.id);
+  const live = liveReviewOf(snap.project.doc);
+  if (live && hooks.reopenLink) await hooks.reopenLink(snap.project.id, live);
 }
 
 export async function redoHome(): Promise<void> {
   const { future } = useHomeHistory.getState();
   const old = future[future.length - 1];
   if (!old) return;
+  const live = liveReviewOf(old.project.doc);
+  if (live && hooks.closeLink) {
+    try {
+      await hooks.closeLink(live);
+    } catch (e) {
+      useUi.getState().toast({ message: `Projet « ${old.project.title} » gardé : ${(e as Error).message}` });
+      return;
+    }
+  }
   // Le projet a pu changer depuis sa restauration : on garde son état actuel pour pouvoir annuler.
   const snap = (await snapshotProject(old.project.id)) ?? old;
   dropPendingSave(old.project.id);

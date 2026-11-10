@@ -86,6 +86,11 @@ export function dropPendingSave(projectId: string): void {
 let timer: ReturnType<typeof setTimeout> | undefined;
 let pending: ProjectDoc | null = null;
 
+/** Enregistrement en attente de ce projet : fait tout de suite (avant de le mettre de côté pour annuler). */
+export async function flushPendingSave(projectId: string): Promise<void> {
+  if (pending?.project.id === projectId) await flushSave();
+}
+
 export async function flushSave(): Promise<void> {
   clearTimeout(timer);
   const doc = pending ?? useProjectStore.getState().doc;
