@@ -6,6 +6,8 @@ import { recognizeCharacters, shotSubjectText } from './characters';
 import { blockDuration } from './timing';
 import { makeBlock, makeSequence, makeShot, newId } from './factory';
 import { planKeysOfSequence, unlinkShotFromPlans } from './floorplan';
+import { shiftCommentAnchors } from './comments';
+import { mapRange, sequenceScenes, setPhrase, type SourceEdit } from './outline';
 import type { ActionBlock, Character, ID, ProjectDoc, Sequence, Shot } from './types';
 
 function seqOf(doc: ProjectDoc, seqId: ID): Sequence {
@@ -506,4 +508,58 @@ export function checkInvariants(doc: ProjectDoc): string[] {
   const usedBlocks = new Set(Object.values(doc.shots).map((s) => s.actionBlockId));
   for (const id of Object.keys(doc.blocks)) if (!usedBlocks.has(id)) errors.push(`Bloc orphelin : ${id}`);
   return errors;
+}
+
+// --- Scénario et séquencier ---------------------------------------------------------------------
+
+/**
+ * Applique une modification du texte du scénario (séquencier, assistant) en une seule mutation, donc
+ * une seule annulation : pose `doc.scenario`, recale les ancres des actions, des séquences et des
+ * commentaires. Avec `reorderCut` (déplacement d'une séquence) : si les séquences rapprochées du texte
+ * se suivaient dans le découpage dans l'ordre du texte, elles reprennent le nouvel ordre sur les mêmes
+ * emplacements (les autres ne bougent pas) ; sinon le découpage n'est pas touché.
+ */
+export function applyScenarioEdit(doc: ProjectDoc, edit: SourceEdit, opts: { reorderCut?: boolean } = {}): void {
+  const before = doc.scenario ?? '';
+  if (edit.source === before) return;
+  let followed = false;
+  if (opts.reorderCut) {
+    const scenes = sequenceScenes(doc);
+    const ns = doc.project.sequenceIds.filter((id) => scenes.has(id)).map((id) => scenes.get(id)!);
+    followed = ns.length > 1 && ns.every((n, k) => k === 0 || n > ns[k - 1]);
+  }
+  doc.scenario = edit.source;
+  const move = (owner: { scenarioAnchor?: { start: number; end: number } }) => {
+    const a = owner.scenarioAnchor;
+    if (!a) return;
+    const [start, end] = mapRange(edit, a.start, a.end);
+    owner.scenarioAnchor = { start, end };
+  };
+  Object.values(doc.blocks).forEach(move);
+  Object.values(doc.sequences).forEach(move);
+  shiftCommentAnchors(doc, edit.map, (s, e) => mapRange(edit, s, e));
+  if (!followed) return;
+  const scenes = sequenceScenes(doc);
+  const ids = doc.project.sequenceIds;
+  const inText = ids.filter((id) => scenes.has(id)).sort((a, b) => scenes.get(a)! - scenes.get(b)!);
+  let q = 0;
+  doc.project.sequenceIds = ids.map((id) => (scenes.has(id) ? inText[q++] : id));
+}
+
+/**
+ * Écrit le résumé d'une séquence : la phrase du texte si elle est rapprochée d'une scène (et
+ * `seq.summary` est vidé, dans la même mutation : le texte est déplacé, rien n'est perdu) ; sinon
+ * (documentaire, interview) `seq.summary`.
+ */
+export function setSequenceSummary(doc: ProjectDoc, seqId: ID, text: string): void {
+  const seq = seqOf(doc, seqId);
+  const t = text.replace(/\s+/g, ' ').trim();
+  const n = sequenceScenes(doc).get(seqId);
+  if (n !== undefined && doc.scenario) {
+    applyScenarioEdit(doc, setPhrase(doc.scenario, n, t));
+    delete seq.summary;
+    return;
+  }
+  if (t) seq.summary = t;
+  else delete seq.summary;
 }

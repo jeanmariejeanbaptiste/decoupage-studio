@@ -5,6 +5,8 @@ import { breakdownDocument, callSheetDocument, equipmentDocument, floorPlansDocu
 import { addFloorItem } from './floorplan';
 import { addBanner, placeSequence, placeShot, stripsByTime, suggestSchedule, updateBanner, updateDay } from './schedule';
 import { callSheetCsv, scheduleCsv } from './exports';
+import { setSequenceSummary } from './ops';
+import { sceneOfSequence } from './outline';
 
 describe('documents imprimables', () => {
   const doc = produce(buildFiction(), (d) => {
@@ -29,6 +31,19 @@ describe('documents imprimables', () => {
     // Bande en partie placée : ses plans non placés s'enchaînent après le dernier créneau.
     expect(scheduleDocument(doc).html).toContain('14:00 – 16:00');
   });
+  it('le résumé d’une séquence est la phrase du séquencier quand elle existe (dépouillement, feuille de service)', () => {
+    const [s1] = doc.project.sequenceIds;
+    const withPhrase = produce(doc, (d) => {
+      d.sequences[s1].summary = 'Ancien résumé';
+      setSequenceSummary(d, s1, 'Léa dépose la valise.');
+    });
+    expect(sceneOfSequence(withPhrase, s1)).toBeDefined();
+    for (const html of [breakdownDocument(withPhrase).html, callSheetDocument(withPhrase, 1).html]) {
+      expect(html).toContain('Léa dépose la valise.');
+      expect(html).not.toContain('Ancien résumé');
+    }
+  });
+
   it('liste le matériel avec ou sans les plans, et échappe le texte', () => {
     expect(equipmentDocument(doc, true).html).toContain('Plans concernés');
     expect(equipmentDocument(doc, false).html).not.toContain('Plans concernés');

@@ -8,10 +8,13 @@
  * - scène disparue : sa séquence reste au découpage, détachée du texte, et elle est signalée ;
  * - scènes déplacées : les séquences reprennent l'ordre du scénario, sans bouger les autres.
  * Les passages liés aux plans sont retrouvés d'abord dans leur scène, puis dans tout le texte.
+ * Les phrases du séquencier (et leur note) suivent les scènes retrouvées (`carryOutline`) ; une scène
+ * disparue garde la sienne dans la version précédente.
  */
 import { relinkComments } from './comments';
 import { matchSequence } from './fountain';
 import { addSequence } from './ops';
+import { carryOutline } from './outline';
 import { setSequenceDecorByName } from './registry';
 import { alignScenes } from './sceneAlign';
 import { fold } from './text';
@@ -32,8 +35,10 @@ export interface RevisionReport {
   dropped: number;
 }
 
-export function reviseScenario(doc: ProjectDoc, after: string): RevisionReport {
+export function reviseScenario(doc: ProjectDoc, text: string): RevisionReport {
   const before = doc.scenario ?? '';
+  // Les phrases et notes du séquencier passent aux scènes retrouvées qui n'en ont pas.
+  const after = carryOutline(before, text);
   const al = alignScenes(before, after);
   // Séquence de chaque scène ancienne (ancre d'abord, sinon même lieu encore libre).
   const seqOfOld = new Map<number, ID>();
