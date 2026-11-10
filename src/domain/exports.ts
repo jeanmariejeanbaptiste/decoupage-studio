@@ -32,9 +32,10 @@ const esc = (v: string | number | undefined) => {
  * Noms de fichiers sans doublon dans une même archive : « Vue », « Vue (2) », « vue (3) »…
  * (la casse est ignorée, comme sur les disques de macOS et Windows).
  */
-export function uniqueNames(names: readonly string[]): string[] {
+export function uniqueNames(names: readonly string[], fallback = 'Sans titre'): string[] {
   const seen = new Set<string>();
-  return names.map((name) => {
+  return names.map((raw) => {
+    const name = raw.trim() || fallback;
     let out = name;
     for (let n = 2; seen.has(out.toLowerCase()); n++) out = `${name} (${n})`;
     seen.add(out.toLowerCase());

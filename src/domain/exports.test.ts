@@ -89,6 +89,7 @@ describe('dossier de production', () => {
   it('noms de fichiers sans doublon, casse ignorée', () => {
     expect(uniqueNames(['Vue', 'Vue', 'vue', 'Autre'])).toEqual(['Vue', 'Vue (2)', 'vue (3)', 'Autre']);
     expect(uniqueNames(['A', 'A (2)', 'A'])).toEqual(['A', 'A (2)', 'A (3)']);
+    expect(uniqueNames(['', ' '], 'Plan au sol')).toEqual(['Plan au sol', 'Plan au sol (2)']);
   });
 
   it('deux vues de même nom dans une séquence restent deux fichiers', () => {
