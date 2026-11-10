@@ -20,6 +20,8 @@ export interface Column<T> {
   };
   align?: 'left' | 'right' | 'center';
   width?: string;
+  /** Classe posée sur l'en-tête et les cellules de la colonne (masquer en fenêtre étroite, coller à droite…). */
+  className?: string;
 }
 
 interface Props<T> {
@@ -62,7 +64,7 @@ export function DataTable<T>({ rows, columns, rowKey, search = '', empty, rowPro
             {columns.map((c) => {
               const active = sort?.key === c.key;
               return (
-                <th key={c.key} style={{ width: c.width, textAlign: c.align }} aria-sort={active ? (sort?.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+                <th key={c.key} className={c.className} style={{ width: c.width, textAlign: c.align }} aria-sort={active ? (sort?.dir === 1 ? 'ascending' : 'descending') : 'none'}>
                   <button
                     type="button"
                     className={s.sortBtn}
@@ -95,7 +97,7 @@ export function DataTable<T>({ rows, columns, rowKey, search = '', empty, rowPro
                     <td
                       key={c.key}
                       style={{ textAlign: c.align }}
-                      className={c.edit ? s.editable : undefined}
+                      className={[c.edit ? s.editable : '', c.className ?? ''].join(' ').trim() || undefined}
                       onClick={() => c.edit && !isEditing && c.edit.type !== 'color' && setEditing({ row: id, col: c.key })}
                     >
                       {isEditing && c.edit ? (

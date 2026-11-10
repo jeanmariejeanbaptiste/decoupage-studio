@@ -11,7 +11,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  white-space: nowrap;
+  vertical-align: bottom;
 }
 .sortBtn { all: unset; display: inline-flex; gap: 4px; align-items: center; padding: 8px 10px; cursor: pointer; width: 100%; box-sizing: border-box; }
 .sortBtn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }

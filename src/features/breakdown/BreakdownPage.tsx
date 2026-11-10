@@ -24,7 +24,7 @@ import { breakdownCsv } from '../../domain/exports';
 import { breakdownDocument } from '../../domain/documents';
 import { paragraphsOf, SceneText, type Paragraph } from './SceneText';
 import { BreakdownReports } from './BreakdownReports';
-import { breakdownIndex, type BreakdownEntry } from '../../domain/breakdownReport';
+import { breakdownIndex, itemCountBySequence, type BreakdownEntry } from '../../domain/breakdownReport';
 import { entriesOf, entryLabel, entryName, entryNumbers, type Entry } from './entries';
 import { useRevisionMarks } from '../versions/useRevisionMarks';
 import s from './BreakdownPage.module.css';
@@ -92,6 +92,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const entries = useMemo(() => entriesOf(doc), [doc]);
   const numbers = useMemo(() => entryNumbers(doc, entries), [doc, entries]);
+  const counts = useMemo(() => itemCountBySequence(breakdownIndex(doc)), [doc]);
   const marks = useRevisionMarks(doc);
   const [view, setViewState] = useState<View>(readView);
   const [picked, setPicked] = useState<{ seqId?: ID; sceneStart?: number }>(() => ({ seqId: selectedSequence(doc) }));
@@ -219,7 +220,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
         <nav className={s.scenes} aria-label="Séquences" data-view>
           <ol>
             {entries.map((e) => {
-              const n = e.seqId ? Object.values(breakdownOf(doc, e.seqId)).reduce((k, l) => k + (l?.length ?? 0), 0) : 0;
+              const n = e.seqId ? (counts.get(e.seqId) ?? 0) : 0;
               const on = e.key === entry.key;
               return (
                 <li key={e.key}>
@@ -285,12 +286,12 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
   );
 }
 
-/** « Ajouter les N suggestions soulignées » : tout ce que le texte laisse repérer, d'un clic. */
+/** « Ajouter la suggestion soulignée » ou « les N suggestions soulignées » : tout ce que le texte laisse repérer, d'un clic. */
 function AddAll({ suggestions, onAdd }: { suggestions: Map<string, { cat: BreakdownCategory; item: string }>; onAdd: (items: Array<{ cat: BreakdownCategory; item: string }>) => void }) {
   if (!suggestions.size) return null;
   return (
     <button type="button" className={s.addAll} onClick={() => onAdd([...suggestions.values()])} data-testid="breakdown-add-all">
-      <Plus size={13} strokeWidth={1.5} /> Ajouter les {suggestions.size} suggestion{suggestions.size > 1 ? 's' : ''} soulignée{suggestions.size > 1 ? 's' : ''}
+      <Plus size={13} strokeWidth={1.5} /> {suggestions.size > 1 ? `Ajouter les ${suggestions.size} suggestions soulignées` : 'Ajouter la suggestion soulignée'}
     </button>
   );
 }

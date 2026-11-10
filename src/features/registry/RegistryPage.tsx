@@ -39,7 +39,7 @@ const STATUSES: ShotStatus[] = ['à tourner', 'tourné', 'abandonné'];
 const LOCATION_FIELDS: Array<[keyof FilmingLocation, string]> = [
   ['name', 'Lieu de tournage'],
   ['address', 'Adresse'],
-  ['access', 'Accès · stationnement'],
+  ['access', 'Accès'],
   ['contact', 'Contact'],
 ];
 
@@ -504,6 +504,7 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
       key: 'actions',
       label: '',
       width: '44px',
+      className: s.stickyEnd,
       render: (d) => (
         <Button
           variant="icon"

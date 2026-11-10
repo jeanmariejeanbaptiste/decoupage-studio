@@ -50,6 +50,17 @@ test.describe('registre', () => {
     await expect(page.getByRole('table', { name: 'Décors' }).locator('tbody tr').filter({ hasText: 'LOGE' })).toContainText('0:16');
   });
 
+  test('décors à 1280 px : le tableau tient dans la page, corbeille et durée en vue', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/#/registry?seed=rav3&tab=decors');
+    const table = page.getByRole('table', { name: 'Décors' });
+    const fits = await table.evaluate((t) => t.getBoundingClientRect().width <= (t.parentElement as HTMLElement).clientWidth + 1);
+    expect(fits).toBe(true);
+    const trash = table.getByRole('button', { name: 'Supprimer LOGE' });
+    await expect(trash).toBeInViewport();
+    await expect(table.locator('tbody tr').filter({ hasText: 'LOGE' }).locator('td').nth(-2)).toBeInViewport();
+  });
+
   test('décors : celui d’une autre version n’est pas « inutilisé », sa suppression le dit', async ({ page }) => {
     await page.goto('/#/grid?seed=fiction');
     await page.getByTestId('version-switcher').click();

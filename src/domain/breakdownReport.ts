@@ -72,6 +72,13 @@ export function breakdownIndex(doc: ProjectDoc, timing?: Timing): BreakdownEntry
   return entries.sort((a, b) => (rank.get(a.cat) ?? 99) - (rank.get(b.cat) ?? 99));
 }
 
+/** Nombre total d'éléments de chaque séquence, saisis ou déduits (liste du dépouillement, rapport par séquence). */
+export function itemCountBySequence(entries: readonly BreakdownEntry[]): Map<ID, number> {
+  const out = new Map<ID, number>();
+  for (const e of entries) for (const id of e.seqIds) out.set(id, (out.get(id) ?? 0) + 1);
+  return out;
+}
+
 /** Nombre d'éléments par catégorie dans une séquence (rapport par séquence). */
 export function sequenceCounts(entries: readonly BreakdownEntry[], seqId: ID): Map<BreakdownCategory, number> {
   const out = new Map<BreakdownCategory, number>();
