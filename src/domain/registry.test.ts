@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { deleteSequence, mergeCharacters } from './ops';
-import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, numberedCast, sequenceProgress, setSequenceDecorByName, usageDayLabel, usageInOtherVersions } from './registry';
+import { addDecor, characterNumbers, characterStats, characterUsage, decorStats, decorUsage, deleteCharacter, deleteDecor, numberedCast, sequenceProgress, setSequenceDecorByName, setSequenceEstimate, usageDayLabel, usageInOtherVersions } from './registry';
 import { createVersion, switchVersion } from './versions';
 import { assignShots, updateDay } from './schedule';
 import { computeTiming } from './timing';
@@ -31,6 +31,18 @@ describe('registre', () => {
     });
     expect(sequenceProgress(next, s1)).toEqual({ done: 1, total: 5 });
     expect(sequenceProgress(next, 'x')).toEqual({ done: 0, total: 0 });
+  });
+
+  it('durée estimée d’une séquence : saisie tolérante, vide la retire, invalide ne change rien', () => {
+    const s1 = doc.project.sequenceIds[0];
+    const ok = produce(doc, (d) => void expect(setSequenceEstimate(d, s1, '1:10')).toBe(true));
+    expect(ok.sequences[s1].estimatedSec).toBe(70);
+    expect(produce(doc, (d) => void setSequenceEstimate(d, s1, '90s')).sequences[s1].estimatedSec).toBe(90);
+    const cleared = produce(ok, (d) => void expect(setSequenceEstimate(d, s1, '  ')).toBe(true));
+    expect(cleared.sequences[s1]).not.toHaveProperty('estimatedSec');
+    const bad = produce(ok, (d) => void expect(setSequenceEstimate(d, s1, 'bientôt')).toBe(false));
+    expect(bad.sequences[s1].estimatedSec).toBe(70);
+    expect(produce(doc, (d) => void expect(setSequenceEstimate(d, 'x', '1:00')).toBe(false))).toBe(doc);
   });
 
   it('crée, rattache et supprime décors et personnages', () => {

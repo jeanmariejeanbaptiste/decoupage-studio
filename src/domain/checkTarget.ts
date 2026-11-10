@@ -1,19 +1,22 @@
+import { isEditable } from './cells';
 import { tcLast } from './columns';
 import { groupChecks, type CheckCode, type Issue } from './lint';
 import { sequenceNumber, shotCode } from './numbering';
+import { BEAT_COLUMNS } from './oneshot';
 import type { ColumnKey, ID, ProjectDoc } from './types';
 
 /**
  * Où mène un avertissement des vérifications : la page et l'endroit exact.
  * - `grid` : le découpage. Avec `shotId`, le plan (jusqu'à `lastShotId` pour une série) : les
  *   cellules de `cols` sont sélectionnées ; `cols` vide (colonne masquée) : la ligne entière. Sans
- *   plan : la séquence elle-même (séquence sans plan).
- * - `registry` : le registre des séquences, sur la cellule à corriger de la séquence.
+ *   plan : la séquence elle-même (séquence sans plan). `edit` : une seule cellule à remplir, ouverte
+ *   en saisie comme par un double-clic.
+ * - `seq-head` : l'en-tête de la séquence dans le découpage, sa durée estimée en saisie.
  * - `interview` : un plan d'interview (institutionnel) se règle dans sa fiche, sur sa caméra.
  */
 export type CheckTarget =
-  | { page: 'grid'; sequenceId: ID; shotId?: ID; lastShotId?: ID; cols: ColumnKey[] }
-  | { page: 'registry'; tab: 'sequences'; sequenceId: ID; col: 'est' }
+  | { page: 'grid'; sequenceId: ID; shotId?: ID; lastShotId?: ID; cols: ColumnKey[]; edit?: true }
+  | { page: 'seq-head'; sequenceId: ID; field: 'estimate' }
   | { page: 'interview'; sequenceId: ID; shotId: ID; subjectId: ID; setupId: ID; cameraId: ID; field?: InterviewField };
 
 /** Champ d'une caméra de la fiche d'interview. */
@@ -51,17 +54,10 @@ function targetShot(doc: ProjectDoc, issue: Issue): ID | undefined {
   return doc.sequences[issue.sequenceId]?.shotIds.filter((id) => doc.shots[id] && !doc.shots[id].interview).at(-1);
 }
 
-/**
- * Destination du registre, isolée : si le registre disparaît, seule cette fonction change (l'en-tête
- * de la séquence dans le découpage porte aussi la durée estimée).
- */
-function estimateTarget(sequenceId: ID): CheckTarget {
-  return { page: 'registry', tab: 'sequences', sequenceId, col: 'est' };
-}
-
 export function checkTarget(doc: ProjectDoc, issue: Issue): CheckTarget {
   const sequenceId = issue.sequenceId;
-  if (issue.code === 'estimate-gap') return estimateTarget(sequenceId);
+  // Écart de durée : l'en-tête de la séquence, où la durée estimée se corrige.
+  if (issue.code === 'estimate-gap') return { page: 'seq-head', sequenceId, field: 'estimate' };
   const shotId = issue.code === 'empty-sequence' ? undefined : targetShot(doc, issue);
   if (!shotId) return { page: 'grid', sequenceId, cols: [] };
   // Plan d'interview : il se règle dans sa fiche, pas dans la grille (qui y renvoie toute saisie).
@@ -75,7 +71,11 @@ export function checkTarget(doc: ProjectDoc, issue: Issue): CheckTarget {
   // Saute : les colonnes comparées dans l'ordre de la grille ; sinon la première visible. Aucune
   // visible (colonne masquée) : la ligne entière plutôt qu'une cellule sans rapport.
   const cols = issue.code === 'jump-cut' ? shown.filter((c) => wanted.includes(c)) : wanted.filter((c) => shown.includes(c)).slice(0, 1);
-  return { page: 'grid', sequenceId, shotId, cols };
+  // Une seule cellule à remplir : ouverte en saisie. Pas pour un rappel (rien n'y manque), ni pour une
+  // cellule qui ne s'écrit pas ici (temps d'un plan-séquence, réglés dans son éditeur).
+  const shot = doc.shots[shotId];
+  const edit = issue.level === 'warn' && cols.length === 1 && isEditable(cols[0]) && !(shot.oneShot && BEAT_COLUMNS.includes(cols[0]));
+  return { page: 'grid', sequenceId, shotId, cols, ...(edit ? { edit: true as const } : {}) };
 }
 
 /** Repère affiché sur la ligne : numéro du plan (« 2.3 ») ou de la séquence (« 2 »). */
@@ -125,7 +125,7 @@ export function checkRows(doc: ProjectDoc, issues: readonly Issue[]): CheckRow[]
     const r = run;
     run = null;
     const base = checkTarget(doc, r.issues[0]);
-    const target: CheckTarget = base.page === 'grid' ? { ...base, shotId: r.first, lastShotId: r.last } : base;
+    const target: CheckTarget = base.page === 'grid' ? { page: 'grid', sequenceId: base.sequenceId, shotId: r.first, lastShotId: r.last, cols: base.cols } : base;
     const n = r.issues.length + 1;
     rows.push({ key: r.issues[0].id, issues: r.issues, place: `${shotCode(doc, r.first)}\u2009–\u2009${shotCode(doc, r.last)}`, detail: `${n} plans`, target });
   };

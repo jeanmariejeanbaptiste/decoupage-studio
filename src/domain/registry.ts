@@ -1,5 +1,6 @@
 import { sequenceCharacterIds } from './characters';
 import { newId } from './factory';
+import { parseTc } from './timecode';
 import { remapCharacter, refreshRecognition } from './ops';
 import { scheduleDays, stripCharacterIds, stripsByDay, type Strip } from './schedule';
 import type { Timing } from './timing';
@@ -107,6 +108,24 @@ export function decorStats(doc: ProjectDoc, timing: Timing): Map<ID, { sequenceI
   return out;
 }
 
+/**
+ * Durée estimée d'une séquence, saisie librement (« 1:30 », « 90s », « 1m30 ») ; vide : retirée.
+ * Renvoie `false` si la saisie n'est pas une durée (rien n'est modifié).
+ */
+export function setSequenceEstimate(doc: ProjectDoc, seqId: ID, text: string): boolean {
+  const seq = doc.sequences[seqId];
+  if (!seq) return false;
+  if (!text.trim()) {
+    delete seq.estimatedSec;
+    return true;
+  }
+  const p = parseTc(text);
+  if (p?.kind !== 'sec') return false;
+  seq.estimatedSec = p.sec;
+  return true;
+}
+
+/** Plans tournés d'une séquence, sur ses plans à tourner (les abandonnés ne comptent pas). */
 export function sequenceProgress(doc: ProjectDoc, seqId: ID): { done: number; total: number } {
   const ids = (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id]?.status !== 'abandonné');
   return { done: ids.filter((id) => doc.shots[id]?.status === 'tourné').length, total: ids.length };
