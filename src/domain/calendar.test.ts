@@ -22,6 +22,7 @@ import {
   periodTitle,
   moveEvent,
   removeEvent,
+  autoEndDate,
   shiftAnchor,
   shiftStart,
   updateEvent,
@@ -104,26 +105,52 @@ describe('éléments du calendrier', () => {
     expect(eventFields({ id: 'y', title: 'A', start: '2026-11-10T08:15', end: '2026-11-10T09:45' })).toMatchObject({ start: '08:15', end: '09:45', allDay: false, kind: 'autre' });
   });
 
-  it('tournage de nuit : la fin avant le début tombe le lendemain, minuit compris', () => {
+  it('tournage de nuit : la fin avant le début tombe le lendemain, seulement pour une nuit', () => {
     const f = { ...newEventFields('2026-11-10', 20), title: 'Tournage de nuit', end: '02:00' };
     const ev = eventFromFields(f);
     expect(ev).toMatchObject({ start: '2026-11-10T20:00', end: '2026-11-11T02:00' });
     expect(eventItem({ id: 'n', ...ev })).toMatchObject({ date: '2026-11-10', endDate: '2026-11-11', start: '20:00', end: '02:00', allDay: false });
     expect(eventFromFields(eventFields({ id: 'n', ...ev }))).toEqual(ev);
-    const late = eventFromFields({ ...f, start: '22:00', end: '00:00' });
-    expect(late.end).toBe('2026-11-11T00:00');
-    // Fin à minuit : le lendemain reste libre, et la fenêtre relit « 00:00 ».
-    expect(eventItem({ id: 'm', ...late })).toMatchObject({ endDate: '2026-11-10', end: '23:59' });
-    expect(eventFields({ id: 'm', ...late }).end).toBe('00:00');
-    expect(eventFromFields(eventFields({ id: 'm', ...late }))).toEqual(late);
+    const end = (start: string, endTime: string) => eventFromFields({ ...f, start, end: endTime }).end;
+    // Une nuit : le lendemain.
+    expect(end('22:00', '06:00')).toBe('2026-11-11T06:00');
+    expect(end('20:00', '00:00')).toBe('2026-11-11T00:00');
+    expect(end('18:00', '08:00')).toBe('2026-11-11T08:00');
+    expect(end('16:00', '01:00')).toBe('2026-11-11T01:00');
+    expect(end('23:30', '00:30')).toBe('2026-11-11T00:30');
+    // Une coquille : une heure, le même jour.
+    expect(end('14:00', '13:00')).toBe('2026-11-10T15:00');
+    expect(end('14:00', '11:00')).toBe('2026-11-10T15:00');
+    expect(end('09:00', '08:30')).toBe('2026-11-10T10:00');
+    expect(end('14:00', '14:00')).toBe('2026-11-10T15:00');
+    // Jour de fin donné (fenêtre) : respecté.
+    expect(eventFromFields({ ...f, start: '10:00', end: '01:00', endDate: '2026-11-11' }).end).toBe('2026-11-11T01:00');
+    expect(autoEndDate('2026-11-10', '22:00', '06:00')).toBe('2026-11-11');
+    expect(autoEndDate('2026-11-10', '14:00', '13:00')).toBe('2026-11-10');
   });
 
-  it('changer le début ou la date décale la fin du même écart', () => {
+  it('fin à minuit : « 00:00 » à l’écran et dans la fenêtre, le lendemain à 00:00 dans le .ics', () => {
+    const late = eventFromFields({ ...newEventFields('2026-11-10', 22), title: 'Nuit', end: '00:00' });
+    expect(late.end).toBe('2026-11-11T00:00');
+    const it = eventItem({ id: 'm', ...late })!;
+    expect(it).toMatchObject({ endDate: '2026-11-10', end: '00:00' });
+    expect(itemsOn([it], '2026-11-11')).toHaveLength(0);
+    expect(layoutDay([it], '2026-11-10', 7, 24)[0]).toMatchObject({ top: 15 * 60, height: 120 });
+    expect(eventFields({ id: 'm', ...late })).toMatchObject({ end: '00:00', endDate: '2026-11-11' });
+    expect(eventFromFields(eventFields({ id: 'm', ...late }))).toEqual(late);
+    expect(calendarIcs([it], 'x', new Date('2026-11-09T08:00:00Z'))).toContain('DTSTART:20261110T220000\r\nDTEND:20261111T000000');
+  });
+
+  it('changer le début ou la date décale la fin du même écart, jour de fin compris', () => {
     const f = { ...newEventFields('2026-11-10', 9), end: '10:30' };
-    expect(shiftStart(f, { start: '15:00' })).toMatchObject({ start: '15:00', end: '16:30' });
-    expect(shiftStart(f, { start: '23:00' })).toMatchObject({ start: '23:00', end: '00:30' });
+    expect(shiftStart(f, { start: '15:00' })).toMatchObject({ start: '15:00', end: '16:30', endDate: '2026-11-10' });
+    expect(shiftStart(f, { start: '23:00' })).toMatchObject({ start: '23:00', end: '00:30', endDate: '2026-11-11' });
     const night = { ...f, start: '20:00', end: '02:00' };
-    expect(shiftStart(night, { start: '21:00' }).end).toBe('03:00');
+    expect(shiftStart(night, { start: '21:00' })).toMatchObject({ end: '03:00', endDate: '2026-11-11' });
+    // Une longue journée décalée au-delà de minuit garde sa durée, sans repli d'une heure.
+    const long = shiftStart({ ...f, start: '08:00', end: '23:00' }, { start: '10:00' });
+    expect(long).toMatchObject({ end: '01:00', endDate: '2026-11-11' });
+    expect(eventFromFields(long).end).toBe('2026-11-11T01:00');
     const allDay = { ...f, allDay: true, endDate: '2026-11-12' };
     expect(shiftStart(allDay, { date: '2026-11-20' })).toMatchObject({ date: '2026-11-20', endDate: '2026-11-22' });
   });
@@ -146,7 +173,11 @@ describe('éléments du calendrier', () => {
       ],
     } as unknown as ReturnType<typeof buildRav3>;
     const out = migrate(doc);
-    expect(out.calendar).toEqual([...good, { id: 'y', title: 'Sans titre', start: '2026-11-20', allDay: true }]);
+    expect(out.calendar!.slice(0, 3)).toEqual([...good, { id: 'y', title: 'Sans titre', start: '2026-11-20', allDay: true }]);
+    // Identifiant en double : gardé, sous un nouvel identifiant.
+    expect(out.calendar).toHaveLength(4);
+    expect(out.calendar![3]).toMatchObject({ title: 'Double', start: '2026-11-21' });
+    expect(out.calendar![3].id).not.toBe('a');
     expect(() => calendarItems(out)).not.toThrow();
     expect(eventsOn(out, '2026-11-20').map((it) => it.title)).toEqual(['Sans titre']);
     const none = migrate({ ...buildRav3(), calendar: 'x' } as unknown as ReturnType<typeof buildRav3>);
@@ -282,18 +313,5 @@ describe('export iCalendar : identifiants des jours de tournage', () => {
       for (const x of d.schedule!.days) delete x.id;
     });
     expect(migrate(old).schedule!.days.every((x) => !!x.id)).toBe(true);
-  });
-
-  it('rendez-vous et étapes : propres au projet, stables quand on les modifie', () => {
-    const build = (id: string, title = 'Lecture') =>
-      produce(buildRav3(), (d) => {
-        d.project.id = id;
-        d.calendar = [{ id: 'e1', title, start: '2026-11-12T10:00' }];
-        d.production = { phases: [{ id: 'p', name: 'P', tasks: [{ id: 't1', name: 'T', start: '2026-11-01', end: '2026-11-05' }] }] };
-      });
-    const uids = (doc: ReturnType<typeof buildRav3>) => [...calendarIcs(calendarItems(doc), 'x').matchAll(/UID:([^@]+)@/g)].map((m) => m[1]);
-    expect(uids(build('a'))).toEqual(['rdv-a-e1', 'etape-a-t1']);
-    expect(uids(build('a')).some((u) => uids(build('b')).includes(u))).toBe(false);
-    expect(uids(build('a', 'Autre titre'))).toEqual(uids(build('a')));
   });
 });

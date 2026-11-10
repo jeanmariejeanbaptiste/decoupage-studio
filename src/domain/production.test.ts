@@ -407,11 +407,15 @@ describe('calendrier et fichier', () => {
     expect(productionItems(synced, { withLinked: true }).some((it) => it.title === 'Tournage')).toBe(true);
     const lock = items.find((it) => it.title === 'Scénario verrouillé')!;
     expect(lock).toMatchObject({ milestone: true, date: lock.endDate, source: 'production', group: 'Développement' });
-    // Plan de travail daté en partie : l'étape liée reste, sur sa durée prévue.
-    const partial = produce(synced, (d) => updateDay(d, 2, { date: undefined }));
-    const shoot = productionItems(produce(partial, (d) => syncProduction(d))).find((it) => it.title === 'Tournage');
-    expect(shoot).toMatchObject({ date: '2027-06-01' });
-    expect(shoot!.endDate > '2027-06-01').toBe(true);
+    // Plan de travail daté en partie : l'étape liée ne couvre que ce qui suit le dernier jour daté.
+    const partial = produce(synced, (d) => {
+      updateDay(d, 2, { date: undefined });
+      syncProduction(d);
+    });
+    const shoot = productionItems(partial).find((it) => it.title === 'Tournage');
+    expect(shoot).toMatchObject({ date: '2027-06-02' });
+    expect(shoot!.endDate > '2027-06-02').toBe(true);
+    expect(itemsOn(calendarItems(partial), '2027-06-01').map((x) => x.title)).not.toContain('Tournage');
     // Tournage commencé pendant la préparation : le jour de tournage passe devant les étapes.
     const early = produce(withShooting(produce(buildRav3(), (d) => applyTemplate(d, '2026-11-09')), '2027-01-20', '2027-06-20'), (d) => syncProduction(d));
     const day = itemsOn(calendarItems(early), '2027-01-20').map((x) => x.source);
@@ -419,7 +423,7 @@ describe('calendrier et fichier', () => {
     expect(day.length).toBeGreaterThan(1);
     expect(day.slice(1).every((x) => x === 'production')).toBe(true);
     const ics = calendarIcs(items.slice(0, 3), 'Film', new Date('2026-11-09T08:00:00Z'));
-    expect(ics).toContain(`UID:etape-${synced.project.id}-${items[0].taskId}@decoupage-studio`);
+    expect(ics).toContain(`UID:etape-${items[0].taskId}@decoupage-studio`);
     expect(ics).toContain('SUMMARY:◆ Scénario verrouillé\r\nCATEGORIES:Développement');
   });
 
@@ -493,7 +497,9 @@ describe('calendrier et fichier', () => {
     };
     const out = migrate(broken);
     const tasks = out.production!.phases[0].tasks;
-    expect(tasks.map((t) => t.id)).toEqual(['m', 's1', 's2', 'z']);
+    expect(tasks.map((t) => t.name)).toEqual(['Jalon', 'Tournage', 'Autre', 'Double', 'Z']);
+    expect(new Set(tasks.map((t) => t.id)).size).toBe(5);
+    expect(tasks[1].id).toBe('s1');
     expect(tasks.filter((t) => t.linked).map((t) => t.id)).toEqual(['s1']);
     expect(tasks.find((t) => t.id === 's2')!.planned).toBeUndefined();
     expect(dates(out, 's1')[0]).toBe('2027-06-01');

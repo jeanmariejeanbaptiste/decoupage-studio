@@ -339,7 +339,7 @@ function MonthView({ anchor, today, items, onCreate, onOpen, onDay, onMove }: Vi
           </span>
         ))}
       </div>
-      <div ref={ref} className={s.monthBody} style={{ '--rows': weeks.length } as CSSProperties} onPointerMove={moveTo} onPointerUp={drop} onPointerCancel={() => update(null)}>
+      <div ref={ref} className={s.monthBody} style={{ '--rows': weeks.length } as CSSProperties} onPointerMove={moveTo} onPointerUp={drop} onPointerCancel={() => update(null)} onLostPointerCapture={() => dragRef.current && update(null)}>
         {weeks.flatMap((w) =>
           w.days.map((date) => {
             const list = itemsOn(items, date);
