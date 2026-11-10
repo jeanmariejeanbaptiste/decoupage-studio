@@ -435,9 +435,9 @@ export function productionWordDocument(doc: ProjectDoc): DocPage {
     ];
   });
   const body = rows.length
-    ? `<table><thead><tr><th>Étape</th><th style="width:16%">Début</th><th style="width:16%">Fin</th><th style="width:10%;text-align:right">Jours</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
+    ? `<table width="100%" style="width:100%"><thead><tr><th>Étape</th><th style="width:3cm">Début</th><th style="width:3cm">Fin</th><th style="width:2cm;text-align:right">Jours</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
     : '<p class="muted">Aucune étape.</p>';
   const page = shell(doc, '', 'Calendrier de production', body, true);
   // Word ne connaît pas « Inter Variable » : Inter est déclarée d'abord, sinon il retombe sur Times.
-  return { ...page, html: page.html.replace(/'Inter Variable'/g, "Inter, 'Inter Variable'") };
+  return { ...page, html: page.html.replace(/'Inter Variable'/g, "Inter, 'Inter Variable'").replace('</style>', 'td + td { white-space: nowrap; }</style>') };
 }
