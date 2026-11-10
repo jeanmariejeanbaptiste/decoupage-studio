@@ -466,25 +466,16 @@ describe('plan de travail : bandes, bilan et emploi du temps', async () => {
     expect(S.timelineRange(late, 1)).toEqual({ start: 5 * 60, end: 23 * 60 });
   });
 
-  it('ajouter un jour : daté au lendemain du dernier jour daté', () => {
+  it('ajouter un jour : sans date posée d’office ; une date compte comme une donnée', () => {
     const doc = buildRav3();
-    const dated = produce(doc, (d) => {
+    const next = produce(doc, (d) => {
       S.addDay(d);
       S.updateDay(d, 1, { date: '2026-10-24' });
       S.addDay(d);
     });
-    expect(S.scheduleDays(dated)[1].date).toBe('2026-10-25');
-    const undated = produce(doc, (d) => {
-      S.addDay(d);
-      S.addDay(d);
-    });
-    expect(S.scheduleDays(undated)[1].date).toBeUndefined();
-    expect(S.nextDate('2026-12-31')).toBe('2027-01-01');
-    expect(S.nextDate('16/11/2026')).toBeUndefined();
-    // Date posée d'office : suppression sans confirmation ; date saisie à la main : confirmation.
-    expect(S.dayHasData(dated, 2)).toBe(false);
-    expect(S.dayHasData(produce(dated, (d) => S.updateDay(d, 2, { date: '2026-10-28' })), 2)).toBe(true);
-    expect(S.dayHasData(dated, 1)).toBe(true);
+    expect(S.scheduleDays(next)[1].date).toBeUndefined();
+    expect(S.dayHasData(next, 2)).toBe(false);
+    expect(S.dayHasData(next, 1)).toBe(true);
   });
 
   it('jours en double (même numéro) : le dernier l’emporte, comme dans scheduleDays', () => {

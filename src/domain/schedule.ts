@@ -141,21 +141,9 @@ export function ensureSchedule(doc: ProjectDoc): Schedule & { order?: ID[] } {
 
 export function addDay(doc: ProjectDoc): number {
   const sch = ensureSchedule(doc);
-  const all = scheduleDays(doc);
-  const n = Math.max(0, ...all.map((d) => d.n)) + 1;
-  // Dernier jour daté : le nouveau jour prend le lendemain (sans saut de week-end implicite).
-  const date = nextDate(all.at(-1)?.date);
-  sch.days.push({ n, id: newId(), ...(date ? { date } : {}) });
+  const n = Math.max(0, ...scheduleDays(doc).map((d) => d.n)) + 1;
+  sch.days.push({ n, id: newId() });
   return n;
-}
-
-/** Lendemain d'une date « AAAA-MM-JJ » (calcul en UTC à midi : pas de décalage d'heure d'été) ; vide si invalide. */
-export function nextDate(date?: string): string | undefined {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return undefined;
-  const t = new Date(`${date}T12:00:00Z`);
-  if (Number.isNaN(t.getTime())) return undefined;
-  t.setUTCDate(t.getUTCDate() + 1);
-  return t.toISOString().slice(0, 10);
 }
 
 export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay>): void {
@@ -173,11 +161,7 @@ export function dayHasData(doc: ProjectDoc, n: number): boolean {
   const d = doc.schedule?.days.find((x) => x.n === n);
   // Enregistrements vides (convocation effacée, détail sans heure) : rien à perdre.
   const filled = (v: unknown): boolean => v !== undefined && v !== null && v !== '' && (typeof v !== 'object' || Object.values(v).some(filled));
-  // Date posée d'office par « Ajouter un jour » (lendemain du jour précédent) : pas de confirmation ;
-  // une date saisie à la main compte.
-  const prev = scheduleDays(doc).filter((x) => x.n < n).at(-1);
-  const autoDate = !!d?.date && !!prev && d.date === nextDate(prev.date);
-  if (d && Object.entries(d).some(([k, v]) => k !== 'n' && k !== 'id' && !(k === 'date' && autoDate) && filled(v))) return true;
+  if (d && Object.entries(d).some(([k, v]) => k !== 'n' && k !== 'id' && filled(v))) return true;
   return [doc.shots, ...(doc.versions ?? []).map((v) => v.slice?.shots ?? {})].some((m) => Object.values(m).some((s) => s.shootingDay === n));
 }
 
