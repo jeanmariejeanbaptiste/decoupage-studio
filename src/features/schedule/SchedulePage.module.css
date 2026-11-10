@@ -6,9 +6,12 @@
 .band { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); padding: 10px 12px; transition: box-shadow var(--t-fast) var(--ease); }
 .unplanned { background: transparent; border-style: dashed; }
 .over { box-shadow: inset 0 0 0 2px var(--rust); }
-.dayHead { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; margin-bottom: 8px; }
-/* Outils du jour : un seul groupe calé à droite, à la même place d'un jour à l'autre. */
-.dayTools { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+/* En-tête du jour en deux colonnes : titre, date et RDV à gauche (ils passent à la ligne entre eux),
+   outils à droite sur la première ligne, quelle que soit la longueur de la date ; bilan et rendez-vous dessous. */
+.dayHead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; margin-bottom: 8px; }
+.dayTitle { grid-column: 1; grid-row: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+.dayTools { grid-column: 2; grid-row: 1; display: inline-flex; align-items: center; gap: 8px; }
+.dayHead > .stats, .dayHead > .events { grid-column: 1 / -1; }
 .dayHead strong { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
 .dayHead input { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
 .of { font-size: 14px; font-weight: 400; color: var(--ink-soft); }
@@ -18,7 +21,7 @@
 .date input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; border: 0; }
 .date:focus-within { outline: 1px solid var(--focus); outline-offset: 1px; }
 .dateEmpty { color: var(--ink-soft); }
-.stats { flex-basis: 100%; font-size: 12.5px; color: var(--ink-soft); }
+.stats { font-size: 12.5px; color: var(--ink-soft); }
 .strips { display: flex; flex-direction: column; gap: 3px; min-height: 30px; }
 .empty { margin: 4px 0; font-style: italic; color: var(--ink-soft); font-size: 13px; }
 .strip { position: relative; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 2px; }
@@ -70,7 +73,6 @@
 /* Réserve « Non planifié » : liste discrète d'étiquettes, l'emploi du temps reste l'outil principal. */
 .unplanned { padding: 6px 8px; opacity: 0.85; }
 .unplannedHead { margin: 0 0 4px; font-size: 12px; color: var(--ink-soft); }
-.unplannedHead span { font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .unplanned .strips { flex-direction: row; flex-wrap: wrap; gap: 4px; min-height: 0; }
 .unplanned .strip { background: var(--paper-card) !important; border-color: var(--rule); border-radius: 10px; }
 .unplanned .stripMain { display: flex; gap: 6px; padding: 1px 24px 1px 8px; font-size: 11.5px; }
@@ -99,10 +101,12 @@
 .planned input { width: 64px; font: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper-card); color: var(--ink); text-align: right; }
 
 /* Rendez-vous du calendrier ce jour-là : une ligne discrète sous l'en-tête du jour. */
-.events { flex-basis: 100%; display: flex; align-items: center; gap: 4px 14px; margin: -2px 0 0; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12.5px; color: var(--ink-soft); }
+.events { display: flex; align-items: center; gap: 4px 14px; margin: -2px 0 0; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12.5px; color: var(--ink-soft); }
 .events > svg { flex: none; }
-.event { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+/* Titres courts entiers ; seul un titre long cède la place (points de suspension). */
+.event { display: block; flex: 0 0 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .event:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.eventLong { flex: 0 1 auto; min-width: 6em; }
 .eventTime { margin-right: 6px; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 /* Carte des lieux : colonne de droite, collante, quand la place le permet ; bandeau au-dessus sinon. */

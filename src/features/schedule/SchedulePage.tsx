@@ -117,6 +117,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
             return (
               <Band key={d.n} day={d.n} doc={doc} strips={stripsByTime(doc, d.n)} items={dayAgenda(doc, d.n)} days={days.map((x) => x.n)} nums={nums} extra={openDays.includes(d.n) ? <DayTimeline doc={doc} day={d.n} /> : null}>
                 <div className={s.dayHead}>
+                  <div className={s.dayTitle}>
                   <strong>
                     Jour {d.n} <span className={s.of}>sur {days.length}</span>
                   </strong>
@@ -135,6 +136,7 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     RDV
                     <input type="time" value={d.callTime ?? ''} onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { callTime: e.target.value || undefined }))} aria-label={`Rendez-vous du jour ${d.n}`} />
                   </label>
+                  </div>
                   {/* Outils du jour groupés, toujours au même endroit ; le bilan du jour passe dessous. */}
                   <span className={s.dayTools}>
                     <select
@@ -180,10 +182,11 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
             );
           })}
           <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)} nums={nums}>
-            <p className={s.unplannedHead}>
-              Non planifié · {(strips.get(0) ?? []).reduce((n, x) => n + x.shotIds.length, 0)} plans
-              <span> — piochez-les plutôt depuis l’emploi du temps d’un jour</span>
-            </p>
+            {total > planned && (
+              <p className={s.unplannedHead}>
+                Non planifié · {total - planned} plan{total - planned > 1 ? 's' : ''}
+              </p>
+            )}
           </Band>
         </div>
       </DndContext>
@@ -192,6 +195,9 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
     </div>
   );
 }
+
+/** Au-delà, un titre de rendez-vous peut être raccourci ; en deçà, il reste entier. */
+const LONG_EVENT = 24;
 
 /** Rendez-vous du calendrier ce jour-là : une ligne discrète, un clic ouvre le jour dans le calendrier. */
 function DayEvents({ doc, date }: { doc: ProjectDoc; date?: string }) {
@@ -204,7 +210,7 @@ function DayEvents({ doc, date }: { doc: ProjectDoc; date?: string }) {
       {items.map((it) => {
         const time = timeOn(it, date);
         return (
-          <button key={it.key} type="button" className={s.event} onClick={open} title="Ouvrir ce jour dans le calendrier" data-testid="day-event">
+          <button key={it.key} type="button" className={[s.event, it.title.length > LONG_EVENT ? s.eventLong : ''].join(' ')} onClick={open} title="Ouvrir ce jour dans le calendrier" data-testid="day-event">
             {time && <span className={s.eventTime}>{time}</span>}
             {it.title}
           </button>
