@@ -11,7 +11,7 @@ import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc, ShotStatus } from '../../domain/types';
 import { computeTiming } from '../../domain/timing';
 import { isZoom } from '../../domain/vocabulary';
-import { putBlob } from '../../store/db';
+import { storeImage } from '../storyboard/storeImage';
 import { cropStyle, removeFrame, setFrame } from '../../domain/keyframes';
 import { aspectRatio } from '../../domain/aspect';
 import { mutateDoc } from '../../store/projectStore';
@@ -58,7 +58,8 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
 
   const dropImage = async (file: File | undefined) => {
     if (!file || !file.type.startsWith('image/')) return;
-    const key = await putBlob(doc.project.id, file.name, file);
+    const key = await storeImage(doc.project.id, file);
+    if (!key) return;
     update((d) => setFrame(d, shot.id, 0, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined, baseCrop: undefined, baseFit: undefined, sketchAspect: undefined }));
   };
 
@@ -116,7 +117,8 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
               const f = e.target.files?.[0];
               e.target.value = '';
               if (!f?.type.startsWith('image/')) return;
-              const key = await putBlob(doc.project.id, f.name, f);
+              const key = await storeImage(doc.project.id, f);
+              if (!key) return;
               update((d) => {
                 if (!d.shots[shot.id].storyboard) d.shots[shot.id].storyboard = { blobKey: key };
                 else (d.shots[shot.id].keyframes ??= []).push({ id: newId(), blobKey: key });

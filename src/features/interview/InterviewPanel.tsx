@@ -3,7 +3,8 @@ import { ANGLES, SHOT_VALUES } from '../../domain/vocabulary';
 import { interviewDocument } from '../../domain/documents';
 import { ArrowDown, ArrowUp, Check, ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
-import { getBlob, putBlob } from '../../store/db';
+import { getBlob } from '../../store/db';
+import { storeImage } from '../storyboard/storeImage';
 import { newId } from '../../domain/factory';
 import { addInterviewee, addSetup, cameraFrameKey, cameraShotId, ensureInterview, moveQuestion, maxSetupNumber, nextCameraName, placeSetup, questionsFor, setCameraFrame, setSetupNumber, setupNumber, setupRef, removeInterviewee, removeSetup, setupShotIds, type Interviewee, type InterviewSetup } from '../../domain/interview';
 import { shotCode } from '../../domain/numbering';
@@ -461,7 +462,8 @@ function CameraFrame({ projectId, blobKey, readOnly, label, onChange }: { projec
   const input = useRef<HTMLInputElement>(null);
   const take = async (file: File | undefined) => {
     if (!file || !file.type.startsWith('image/')) return;
-    onChange(await putBlob(projectId, file.name, file));
+    const key = await storeImage(projectId, file);
+    if (key) onChange(key);
   };
   return (
     <div className={s.frame}>

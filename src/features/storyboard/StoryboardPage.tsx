@@ -17,7 +17,7 @@ import { computeTiming, type Timing } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
 import type { ID, ProjectDoc, Shot } from '../../domain/types';
 import { isZoom, valueLabel } from '../../domain/vocabulary';
-import { putBlob } from '../../store/db';
+import { storeImage } from './storeImage';
 import { mutateDoc } from '../../store/projectStore';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { usePrintMedia } from '../../ui/usePrintMedia';
@@ -366,7 +366,8 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
   const label = `${shotCode(doc, shot.id)}${count > 1 ? ` · K${index + 1}` : ''}`;
   const importImage = async (f: File | undefined) => {
     if (!f?.type.startsWith('image/')) return;
-    const key = await putBlob(doc.project.id, f.name, f);
+    const key = await storeImage(doc.project.id, f);
+    if (!key) return;
     mutateDoc((d) => setFrame(d, shot.id, index, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined }));
   };
   const shown: Frame = crop ? { ...frame, crop: crop.c, fit: crop.fit } : frame;

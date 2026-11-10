@@ -79,3 +79,14 @@ export function removeFrame(doc: ProjectDoc, shotId: string, index: number): voi
 
 /** Nombre d'images effectivement présentes (pour attendre leur chargement à l'export). */
 export const imageCount = (shot: Shot) => framesOf(shot).filter((f) => f.blobKey).length;
+
+/** Plus grand côté gardé pour une image importée (storyboard, vignettes) : au-delà, elle est réduite. */
+export const IMAGE_MAX_SIDE = 2400;
+
+/** Taille réduite d'une image trop grande (proportions gardées), ou `null` si elle tient déjà. */
+export function downscaleSize(width: number, height: number, max = IMAGE_MAX_SIDE): { width: number; height: number } | null {
+  if (!(width > 0 && height > 0)) return null;
+  const k = max / Math.max(width, height);
+  if (k >= 1) return null;
+  return { width: Math.max(1, Math.round(width * k)), height: Math.max(1, Math.round(height * k)) };
+}
