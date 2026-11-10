@@ -131,3 +131,93 @@ describe('détection : faux positifs écartés', () => {
     expect(detectInText('Il pose un livre sur le lit, prend le train.')).toEqual({ accessoires: ['Livre', 'Lit'], vehicules: ['Train'] });
   });
 });
+
+describe('dépouillement : orthographe, casse et rangement', async () => {
+  const { addCustomCategory, moveBreakdownItem, renameBreakdownItem, renameCustomCategory } = await import('./breakdown');
+  const { breakdownCsv } = await import('./exports');
+  const base = buildFiction();
+  const [s1, s2, s3] = base.project.sequenceIds;
+
+  it('retire un élément quelle que soit sa casse ou ses accents', () => {
+    const doc = produce(base, (d) => {
+      addBreakdownItems(d, s1, 'accessoires', ['valise', 'Écharpe']);
+      removeBreakdownItem(d, s1, 'accessoires', 'Valise');
+      removeBreakdownItem(d, s1, 'accessoires', 'echarpe');
+    });
+    expect(breakdownOf(doc, s1).accessoires).toEqual([]);
+  });
+
+  it('reprend la graphie déjà saisie dans une autre séquence', () => {
+    const doc = produce(base, (d) => {
+      addBreakdownItems(d, s1, 'accessoires', ['Valise']);
+      addBreakdownItems(d, s2, 'accessoires', ['valise', 'Ticket']);
+      addBreakdownItems(d, s2, 'costumes', ['valise']);
+    });
+    expect(breakdownOf(doc, s2).accessoires).toEqual(['Valise', 'Ticket']);
+    // Une autre catégorie garde sa propre saisie.
+    expect(breakdownOf(doc, s2).costumes).toEqual(['valise']);
+  });
+
+  it('change un élément de catégorie, sans doublon ; pas les personnages', () => {
+    const doc = produce(base, (d) => {
+      addBreakdownItems(d, s1, 'accessoires', ['Lunettes']);
+      addBreakdownItems(d, s1, 'costumes', ['lunettes']);
+      moveBreakdownItem(d, s1, 'accessoires', 'costumes', 'Lunettes');
+      addBreakdownItems(d, s2, 'accessoires', ['Chapeau', 'Ticket']);
+      moveBreakdownItem(d, s2, 'accessoires', 'costumes', 'chapeau');
+      moveBreakdownItem(d, s2, 'accessoires', 'personnages', 'Ticket');
+      moveBreakdownItem(d, s2, 'personnages', 'accessoires', 'Léa');
+    });
+    expect(breakdownOf(doc, s1)).toEqual({ accessoires: [], costumes: ['lunettes'] });
+    expect(breakdownOf(doc, s2)).toEqual({ accessoires: ['Ticket'], costumes: ['Chapeau'] });
+  });
+
+  it('renomme un élément dans tout le film, en fusionnant avec un élément existant', () => {
+    const doc = produce(base, (d) => {
+      addBreakdownItems(d, s1, 'accessoires', ['Valize', 'Ticket']);
+      addBreakdownItems(d, s2, 'accessoires', ['valize']);
+      addBreakdownItems(d, s3, 'accessoires', ['Valise cabossée', 'Valize']);
+      addBreakdownItems(d, s3, 'costumes', ['Valize']);
+    });
+    const next = produce(doc, (d) => void expect(renameBreakdownItem(d, 'accessoires', 'Valize', 'Valise cabossée')).toBe(3));
+    expect(breakdownOf(next, s1).accessoires).toEqual(['Valise cabossée', 'Ticket']);
+    expect(breakdownOf(next, s2).accessoires).toEqual(['Valise cabossée']);
+    expect(breakdownOf(next, s3).accessoires).toEqual(['Valise cabossée']);
+    expect(breakdownOf(next, s3).costumes).toEqual(['Valize']);
+    expect(breakdownIndex(next).filter((e) => e.cat === 'accessoires' && e.item === 'Valise cabossée')[0].seqIds).toHaveLength(3);
+    expect(produce(doc, (d) => void renameBreakdownItem(d, 'personnages', 'Léa', 'Lea'))).toBe(doc);
+    expect(produce(doc, (d) => void renameBreakdownItem(d, 'accessoires', 'Valize', '  '))).toBe(doc);
+  });
+
+  it('une catégorie ajoutée ne double pas une catégorie existante', () => {
+    const doc = produce(base, (d) => {
+      expect(addCustomCategory(d, 'Son')).toBe('son');
+      expect(addCustomCategory(d, 'décor')).toBe('perso:décor');
+      expect(addCustomCategory(d, ' Décor ')).toBe('perso:décor');
+      expect(addCustomCategory(d, 'maquillage, COIFFURE')).toBe('maquillage');
+      expect(addCustomCategory(d, '')).toBeUndefined();
+    });
+    expect(doc.breakdownExtra).toEqual(['décor']);
+  });
+
+  it('renomme une catégorie ajoutée en gardant ses éléments, ou la fond dans une autre', () => {
+    const doc = produce(base, (d) => {
+      d.breakdownExtra = ['Animeaux', 'Bêtes'];
+      addBreakdownItems(d, s1, 'perso:Animeaux', ['Chien']);
+      addBreakdownItems(d, s2, 'perso:Animeaux', ['Chat']);
+      addBreakdownItems(d, s2, 'perso:Bêtes', ['chat', 'Cheval']);
+    });
+    const renamed = produce(doc, (d) => void expect(renameCustomCategory(d, 'Animeaux', 'Animaux')).toBe('perso:Animaux'));
+    expect(renamed.breakdownExtra).toEqual(['Animaux', 'Bêtes']);
+    expect(breakdownOf(renamed, s1)).toEqual({ 'perso:Animaux': ['Chien'] });
+    expect(breakdownOf(renamed, s2)['perso:Animeaux']).toBeUndefined();
+    expect(breakdownCsv(renamed).split('\n')[0]).toContain('Animaux');
+    const merged = produce(doc, (d) => void expect(renameCustomCategory(d, 'Animeaux', 'bêtes')).toBe('perso:Bêtes'));
+    expect(merged.breakdownExtra).toEqual(['Bêtes']);
+    expect(breakdownOf(merged, s2)['perso:Bêtes']).toEqual(['chat', 'Cheval']);
+    expect(breakdownOf(merged, s1)['perso:Bêtes']).toEqual(['Chien']);
+    // Vers une catégorie de base : refusé.
+    expect(produce(doc, (d) => void expect(renameCustomCategory(d, 'Animeaux', 'Son')).toBeUndefined())).toBe(doc);
+    expect(produce(doc, (d) => void renameCustomCategory(d, 'Animeaux', 'animeaux')).breakdownExtra).toEqual(['animeaux', 'Bêtes']);
+  });
+});
