@@ -299,7 +299,14 @@ export function moveCurrentShot(delta: -1 | 1): void {
   const own = interviewGroupOf(d, cur).filter((id) => seq.shotIds.includes(id));
   const i = seq.shotIds.indexOf(delta < 0 ? own[0] : own[own.length - 1]);
   let j = i + delta;
-  if (j < 0 || j >= seq.shotIds.length) return;
+  if (j < 0 || j >= seq.shotIds.length) {
+    // Au bord de la séquence : le plan passe dans la voisine (même garde-fou qu'au glisser-déposer).
+    const order = d.project.sequenceIds;
+    const nextSeq = order[order.indexOf(seq.id) + delta];
+    if (!nextSeq || !d.sequences[nextSeq]) return;
+    void dropShot(cur, nextSeq, delta < 0 ? d.sequences[nextSeq].shotIds.length : 0);
+    return;
+  }
   const near = interviewGroupOf(d, seq.shotIds[j]).filter((id) => seq.shotIds.includes(id));
   if (own.length === 1 && near.length > 1) j = seq.shotIds.indexOf(delta < 0 ? near[0] : near[near.length - 1]);
   const splits = mutateDoc((x) => moveShot(x, cur, seq.id, j)) ?? 0;
