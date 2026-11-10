@@ -69,7 +69,7 @@ function context(doc: ProjectDoc): string {
   const route = window.location.hash.replace(/^#\/?/, '').split('?')[0];
   const parts = [`page : ${ROUTE_LABEL[route] ?? route ?? 'accueil'}`];
   const sel = useUi.getState().selection;
-  if (sel && route === 'grid') {
+  if (sel && !sel.auto && route === 'grid') {
     const rows = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
     const shotId = rows[sel.focus.row];
     if (shotId && doc.shots[shotId]) parts.push(`plan sélectionné : ${shotCode(doc, shotId)} (${sequenceHeading(doc, doc.shots[shotId].sequenceId)})`);

@@ -49,24 +49,38 @@ export function Grid({ doc, model, animate = false }: Props) {
   useFlip(wrapRef, 'tr[data-shot]', 'data-shot', animate);
   const columns = model.columns;
 
-  // Sélection posée d'office (aucune choisie) : elle ne fait pas défiler la grille, qui reste en haut.
-  const autoSelection = useRef<CellPos | null>(null);
-  // Garde la sélection dans les bornes après suppression / changement de projet.
+  // Garde la sélection dans les bornes après suppression / changement de projet. Sans sélection, une
+  // est posée d'office (`auto`) : elle ne fait pas défiler la grille, qui reste en haut, à chaque visite.
   useEffect(() => {
     if (!selection) {
-      if (!model.rows.length) return;
-      autoSelection.current = { row: 0, col: columns.includes('subject') ? 'subject' : columns[0] };
-      setSelection(autoSelection.current);
+      if (model.rows.length) setSelection({ row: 0, col: columns.includes('subject') ? 'subject' : columns[0] }, undefined, { auto: true });
       return;
     }
     const max = model.rows.length - 1;
     const fix = (p: CellPos): CellPos => ({ row: Math.max(0, Math.min(p.row, max)), col: columns.includes(p.col) ? p.col : columns[0] });
     if (max < 0) setSelection(null);
     else if (selection.focus.row > max || selection.anchor.row > max || !columns.includes(selection.focus.col))
-      setSelection(fix(selection.anchor), fix(selection.focus));
+      setSelection(fix(selection.anchor), fix(selection.focus), { auto: selection.auto });
   }, [model.rows.length, columns, selection, setSelection]);
 
   const focusGrid = useCallback(() => wrapRef.current?.focus({ preventScroll: true }), []);
+
+  // Séquences sans plan : leur ligne (aperçu, « depuis le texte ») ne dépasse pas la partie visible
+  // de la grille, même étroite (1280 px, panneau Scénario ou Inspecteur ouvert).
+  const hasEmpty = model.seqs.some((q) => !q.rows.length);
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !hasEmpty) return;
+    const measure = () => {
+      const cell = wrap.querySelector<HTMLElement>('[data-empty-cell]');
+      if (cell) wrap.style.setProperty('--empty-w', `${Math.max(240, wrap.clientWidth - cell.offsetLeft)}px`);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap);
+    if (tableRef.current) ro.observe(tableRef.current);
+    return () => ro.disconnect();
+  }, [hasEmpty, columns]);
 
   // Safari n'envoie « copier » et « coller » à un élément non modifiable que si ces événements
   // préalables sont interceptés : ⌘C / ⌘V fonctionnent alors comme dans Chrome.
@@ -84,10 +98,26 @@ export function Grid({ doc, model, animate = false }: Props) {
 
   // Fait défiler la cellule active dans la vue.
   useEffect(() => {
-    if (!selection || selection.focus === autoSelection.current) return;
+    if (!selection || selection.auto) return;
     const el = wrapRef.current?.querySelector<HTMLElement>(`[data-cell="${selection.focus.row}:${selection.focus.col}"]`);
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [selection]);
+
+  // Séquence demandée (vérification, registre…) : amenée en haut, juste sous l'en-tête collant ; sans
+  // plan, son « + » prend le focus (Entrée crée le premier plan).
+  const focusSeq = useUi((u) => u.focusSeq);
+  useEffect(() => {
+    if (!focusSeq) return;
+    const wrap = wrapRef.current;
+    const body = wrap?.querySelector<HTMLElement>(`tbody[data-seq="${focusSeq}"]`);
+    useUi.getState().set({ focusSeq: null });
+    if (!wrap || !body) return;
+    const head = wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+    wrap.scrollTop += body.getBoundingClientRect().top - wrap.getBoundingClientRect().top - head;
+    const add = body.querySelector<HTMLElement>('[data-testid="add-first-shot"]');
+    if (add) add.focus({ preventScroll: true });
+    else focusGrid();
+  }, [focusSeq, model]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startEdit = (pos: CellPos, initial?: string) => {
     if (!isEditable(pos.col) || !model.rows[pos.row]) return;
@@ -129,6 +159,17 @@ export function Grid({ doc, model, animate = false }: Props) {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (editing) return;
+    // Touche venue d'une commande de la grille joignable au clavier (le « + » d'une séquence vide,
+    // « depuis le texte »…) : elle lui revient — Tab sort, Suppr n'efface aucun plan caché. Seuls
+    // annuler et rétablir restent ceux de la grille.
+    const from = e.target as HTMLElement;
+    if (
+      from !== e.currentTarget &&
+      from.closest('input, select, textarea, [contenteditable], a[href], button:not([tabindex="-1"])') &&
+      !isShortcut(e, 'undo') &&
+      !isShortcut(e, 'redo')
+    )
+      return;
     const mod = e.metaKey || e.ctrlKey;
     const sel = useUi.getState().selection;
     const k = e.key;

@@ -6,6 +6,7 @@ import { Fragment, type CSSProperties, type KeyboardEvent, type MouseEvent, type
 import { displayLines, displaySpan } from '../../domain/merge';
 import {
   addFirstShot,
+  deleteEmptySequence,
   deleteSequenceOf,
   deleteShotById,
   insertSequenceAt,
@@ -130,12 +131,16 @@ export function SequenceBody({
     // le « + » à la place du N° et l'aperçu du texte ; « depuis le texte » au survol, à droite.
     const passages = seq.empty?.passages ?? 0;
     const excerpt = seq.empty?.excerpt ?? '';
-    // Entrée / Espace activent le bouton, pas les raccourcis de la grille.
-    const keep = (e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && e.stopPropagation();
+    // Suppr / Retour arrière sur le « + » : la séquence vide s'en va (annulable).
+    const onAddKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      e.preventDefault();
+      void deleteEmptySequence(seq.seqId);
+    };
     return (
       <DroppableBody seqId={seq.seqId} className={[s.seq, s.emptyBody].join(' ')} style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}>
         <tr className={s.emptyRow} data-testid="empty-sequence">
-          <td className={[s.cell, s.c_sequence].join(' ')}>
+          <td className={[s.cell, s.c_sequence].join(' ')} title={sequence?.label ? `${seqNumber}, ${sequence.label.toUpperCase()}` : undefined}>
             <div className={s.seqCell}>
               <SeqHandle seqId={seq.seqId} label={`${seqNumber}`} />
               <button
@@ -156,13 +161,13 @@ export function SequenceBody({
             </div>
           </td>
           <td className={s.gutter} aria-hidden="true" />
-          <td className={s.emptyCell} colSpan={columns.length - 1}>
+          <td className={s.emptyCell} colSpan={columns.length - 1} data-empty-cell>
             <div className={s.emptyLine}>
               <button
                 type="button"
                 className={s.emptyAdd}
                 onClick={() => addFirstShot(seq.seqId)}
-                onKeyDown={keep}
+                onKeyDown={onAddKey}
                 aria-label={`Ajouter un plan à la séquence ${seqNumber}`}
                 data-testid="add-first-shot"
               >
@@ -172,7 +177,7 @@ export function SequenceBody({
                 {excerpt && <span className={s.excerpt}>{excerpt}</span>}
               </button>
               {passages > 0 && (
-                <button type="button" className={s.fromText} onClick={() => shotsFromText(seq.seqId)} onKeyDown={keep} data-testid="shots-from-text">
+                <button type="button" className={s.fromText} onClick={() => shotsFromText(seq.seqId)} data-testid="shots-from-text">
                   {passages} plan{passages > 1 ? 's' : ''} depuis le texte
                 </button>
               )}

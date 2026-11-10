@@ -52,7 +52,8 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     }
   };
   const rightPanel = useUi((u) => u.rightPanel);
-  const focusRow = useUi((u) => u.selection?.focus.row);
+  // Sélection posée d'office : l'inspecteur n'y voit aucun plan choisi.
+  const focusRow = useUi((u) => (u.selection?.auto ? undefined : u.selection?.focus.row));
   const selectedShot = focusRow !== undefined ? model.rows[focusRow]?.shotId : undefined;
   const setUi = useUi((u) => u.set);
   const nSeq = doc.project.sequenceIds.length;

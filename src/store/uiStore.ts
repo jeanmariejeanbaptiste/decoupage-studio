@@ -23,7 +23,10 @@ export interface MenuItem {
 
 export interface UiState {
   menu: { x: number; y: number; items: MenuItem[] } | null;
-  selection: { anchor: CellPos; focus: CellPos } | null;
+  /** `auto` : posée d'office à l'arrivée (aucun choix de l'utilisateur) ; elle ne fait pas défiler la grille. */
+  selection: { anchor: CellPos; focus: CellPos; auto?: boolean } | null;
+  /** Séquence à montrer à l'arrivée sur la grille (lien d'une vérification, du registre…). */
+  focusSeq: ID | null;
   editing: { pos: CellPos; initial?: string } | null;
   toasts: Toast[];
   theme: 'papier' | 'encre';
@@ -42,7 +45,7 @@ export interface UiState {
   saveStatus: 'saved' | 'saving' | 'dirty' | 'error' | 'idle';
   skipCrossSequenceConfirm: boolean;
   highlightShotId: ID | null;
-  setSelection: (anchor: CellPos | null, focus?: CellPos) => void;
+  setSelection: (anchor: CellPos | null, focus?: CellPos, opts?: { auto?: boolean }) => void;
   setEditing: (e: UiState['editing']) => void;
   toast: (t: Omit<Toast, 'id'>) => void;
   dismissToast: (id: number) => void;
@@ -62,6 +65,7 @@ function initialTheme(): 'papier' | 'encre' {
 export const useUi = create<UiState>()((set) => ({
   menu: null,
   selection: null,
+  focusSeq: null,
   editing: null,
   toasts: [],
   theme: initialTheme(),
@@ -90,7 +94,7 @@ export const useUi = create<UiState>()((set) => ({
   saveStatus: 'idle',
   skipCrossSequenceConfirm: false,
   highlightShotId: null,
-  setSelection: (anchor, focus) => set({ selection: anchor ? { anchor, focus: focus ?? anchor } : null }),
+  setSelection: (anchor, focus, opts) => set({ selection: anchor ? { anchor, focus: focus ?? anchor, ...(opts?.auto ? { auto: true } : {}) } : null }),
   setEditing: (editing) => set({ editing }),
   toast: (t) => {
     const id = ++toastSeq;
