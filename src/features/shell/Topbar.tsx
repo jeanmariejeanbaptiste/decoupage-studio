@@ -63,7 +63,7 @@ export function Topbar(p: Props) {
         {!p.readOnly && (
           <div className={s.group}>
             <Button variant="icon" aria-label={`Annuler (${k.undo})`} title={`Annuler (${k.undo})`} disabled={!p.canUndo} onClick={p.onUndo} icon={<Undo2 {...IC} />} />
-            <Button variant="icon" className={s.secondary} aria-label={`Rétablir (${k.redo})`} title={`Rétablir (${k.redo})`} disabled={!p.canRedo} onClick={p.onRedo} icon={<Redo2 {...IC} />} />
+            <Button variant="icon" aria-label={`Rétablir (${k.redo})`} title={`Rétablir (${k.redo})`} disabled={!p.canRedo} onClick={p.onRedo} icon={<Redo2 {...IC} />} />
             {p.onSave && (
               <Button variant="icon" className={s.secondary} aria-label={`Enregistrer le fichier (${k.save})`} title={`Enregistrer le fichier .decoupage (${k.save})`} onClick={p.onSave} icon={<Save {...IC} />} />
             )}
