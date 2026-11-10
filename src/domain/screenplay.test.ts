@@ -111,8 +111,10 @@ describe('scénario en blocs', () => {
     d = setBlockText(e.doc, e.caret.id, 'INT. CAFÉ - NUIT');
     e = splitBlock(d, { id: e.caret.id, offset: 16 });
     expect(e.doc.blocks.map((b) => b.type)).toEqual(['action', 'heading', 'action']);
-    // Entrée dans l'action vide : rien ne change.
-    expect(splitBlock(e.doc, e.caret).doc).toBe(e.doc);
+    // Entrée dans l'action vide : elle devient un en-tête de séquence (puis on la rend à l'action).
+    const asHeading = splitBlock(e.doc, e.caret);
+    expect(asHeading.doc.blocks.map((b) => b.type)).toEqual(['action', 'heading', 'heading']);
+    expect(asHeading.caret).toEqual(e.caret);
     // Un nom inconnu reste une action ; Tab en fait un personnage.
     d = setBlockText(e.doc, e.caret.id, 'NINA');
     expect(splitBlock(d, { id: e.caret.id, offset: 4 }).doc.blocks.map((b) => b.type)).toEqual(['action', 'heading', 'action', 'action']);

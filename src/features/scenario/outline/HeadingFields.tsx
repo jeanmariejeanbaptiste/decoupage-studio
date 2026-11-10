@@ -7,7 +7,7 @@ import { useSuggest } from '../../../ui/useSuggest';
 import { pickChoices } from './outlineModel';
 import s from './HeadingFields.module.css';
 
-export const INT_EXT = ['INT.', 'EXT.', 'INT./EXT.'] as const;
+export const INT_EXT = ['INT.', 'EXT.'] as const;
 
 export interface HeadingDraft {
   intExt: string;

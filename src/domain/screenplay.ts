@@ -403,8 +403,11 @@ export function splitBlock(doc: ScriptDoc, c: Caret): Edit {
     const { doc: d2 } = setBlockType(doc, b.id, 'action');
     return { doc: setBlockText(d2, b.id, ''), caret: { id: b.id, offset: 0 } };
   }
-  // Entrée dans une action vide : rien (l'espacement des blocs est automatique).
-  if (isEmptyBlock(b)) return { doc, caret: c };
+  // Entrée dans une action vide : elle devient un en-tête de séquence (seconde Entrée après une action).
+  if (isEmptyBlock(b)) {
+    const { doc: d2 } = setBlockType(doc, b.id, 'heading');
+    return { doc: setBlockText(d2, b.id, ''), caret: { id: b.id, offset: 0 } };
+  }
   // Ligne validée : en-tête, personnage ou transition reconnus d'après le texte.
   if (c.offset >= b.text.length) {
     const cues = new Set(doc.blocks.filter((x) => x.type === 'character' && x.id !== b.id).map((x) => upper(x.text.replace(/\(.*?\)/g, '').replace(/\^$/, '').trim())));
@@ -573,7 +576,7 @@ export function locationsOf(blocks: readonly SBlock[]): string[] {
 }
 
 export const EFFECT_WORDS = ['JOUR', 'NUIT', 'AUBE', 'CRÉPUSCULE', 'MATIN', 'SOIR'] as const;
-export const HEADING_PREFIXES = ['INT. ', 'EXT. ', 'INT./EXT. '] as const;
+export const HEADING_PREFIXES = ['INT. ', 'EXT. '] as const;
 
 export interface ScriptStats {
   scenes: number;
