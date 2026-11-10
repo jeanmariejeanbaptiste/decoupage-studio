@@ -43,6 +43,15 @@ describe('raccourcis', () => {
     expect(conflictOf(m, 'duplicate', 'Mod+J')).toBeUndefined();
   });
 
+  it('le Séquencier et le Découpage partagent leurs touches, pas celles de Général', () => {
+    expect(DEFAULT_SHORTCUTS.outlineMoveUp).toBe('Alt+ArrowUp');
+    expect(conflictOf(DEFAULT_SHORTCUTS, 'outlineMoveUp', 'Alt+ArrowUp')).toBeUndefined();
+    expect(conflictOf(DEFAULT_SHORTCUTS, 'outlineWrite', 'Mod+Enter')).toBeUndefined();
+    expect(conflictOf(DEFAULT_SHORTCUTS, 'outlineWrite', 'Mod+S')?.id).toBe('save');
+    expect(conflictOf(DEFAULT_SHORTCUTS, 'outlineWrite', 'Alt+ArrowDown')?.id).toBe('outlineMoveDown');
+    expect(conflictOf(DEFAULT_SHORTCUTS, 'save', 'Alt+ArrowUp')?.id).toBeDefined();
+  });
+
   it('réserve les touches de saisie', () => {
     expect(isReserved('ArrowUp')).toBe(true);
     expect(isReserved('A')).toBe(true);

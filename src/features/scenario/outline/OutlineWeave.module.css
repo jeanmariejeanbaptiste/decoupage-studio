@@ -1,0 +1,59 @@
+/* Tissage : défilement horizontal interne, N° et Séquence figés, du texte sans cartes. */
+.scroller { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.table { width: 100%; }
+.row {
+  position: relative;
+  display: grid; grid-template-columns: var(--cols); align-items: stretch;
+  --row-bg: transparent;
+  background: var(--row-bg); outline: none;
+}
+.row:not(.head):hover { --row-bg: var(--hover); }
+.row.rowOn, .row.rowOn:hover { --row-bg: var(--selected); }
+.row[data-flash] { --row-bg: var(--flash); }
+.row:not(.head) { border-radius: 6px; }
+.row + .row:not(.head) { margin-top: 4px; }
+.dim { opacity: 0.35; }
+
+/* Cellules figées : fond de page sous la teinte de la ligne. */
+.fixed { position: sticky; z-index: 1; }
+.row:not(.head) > .fixed { background: linear-gradient(var(--row-bg), var(--row-bg)), var(--paper); }
+.row:not(.head) > .handle { border-radius: 6px 0 0 6px; }
+.row:not(.head) > .num:first-child { border-radius: 6px 0 0 6px; }
+.head > .fixed { background: var(--paper); }
+.handle { left: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 17px; color: var(--ink-soft); cursor: grab; opacity: 0; touch-action: none; }
+.row:hover .handle, .rowOn .handle { opacity: 1; }
+.num { left: var(--fixed2); padding: 14px 0; }
+.seq {
+  left: calc(var(--fixed2) + 40px); padding: 14px 24px 14px 0; min-width: 0;
+  font-size: 12.5px; line-height: 20px; font-weight: 500; letter-spacing: 0.01em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.col { min-width: 0; padding: 14px 20px; }
+.head .col { padding-top: 0; padding-bottom: 12px; display: flex; flex-direction: column; gap: 2px; }
+.head { border-bottom: 1px solid var(--rule); margin-bottom: 8px; }
+.head > .num, .head > .seq { padding-top: 0; padding-bottom: 12px; }
+.headLabel { font-size: 12.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.head > .num.headLabel, .head > .seq.headLabel { color: var(--ink-soft); line-height: 18px; }
+.headMeta { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+.cell { min-width: 0; }
+.cellBtn {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0; margin: 0; border: 0; background: none;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.phrase { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+.step { font-size: 12.5px; line-height: 18px; color: var(--ink-soft); }
+.cellBtn:hover .phrase { text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+
+/* Partie : bandeau pleine largeur entre les rangées. */
+.part { position: relative; margin: 24px 0 8px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.partTitle {
+  position: sticky; left: 0; padding-left: calc(var(--fixed2) + 40px);
+  font-size: 12.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft);
+}
+
+.row[data-drop]::after, .part[data-drop]::after { content: ''; position: absolute; left: 0; right: 0; height: 1px; background: var(--ink); pointer-events: none; z-index: 2; }
+.row[data-drop='before']::after { top: -3px; }
+.row[data-drop='after']::after { bottom: -3px; }
+.part[data-drop]::after { bottom: -5px; }

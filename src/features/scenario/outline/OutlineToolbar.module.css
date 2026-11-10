@@ -1,0 +1,36 @@
+.bar { display: inline-flex; align-items: center; gap: 24px; }
+.menuBtn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; margin: 0 -10px;
+  border: 0; border-radius: 6px; background: none; color: var(--ink-soft);
+  font: inherit; font-size: 13.5px; cursor: pointer; white-space: nowrap;
+}
+.menuBtn:hover, .menuBtn[aria-expanded='true'] { background: var(--hover); color: var(--ink); }
+/* Un filtre actif se lit au libellé : en encre plutôt qu'en gris. */
+.menuBtnOn { color: var(--ink); font-weight: 500; }
+.menuBtn svg { color: var(--ink-soft); }
+
+.line { display: flex; align-items: center; gap: 4px; min-height: 32px; border-radius: 5px; }
+.line:hover { background: var(--hover); }
+.check {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px;
+  border: 0; border-radius: 5px; background: none; color: var(--ink); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.check:focus-visible { background: var(--selected); outline: none; }
+.box {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+  border: 1px solid var(--ink-soft); border-radius: 3px; color: var(--ink);
+}
+.check[aria-checked='true'] .box { border-color: var(--ink); }
+.letter { flex: none; width: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rename {
+  flex: 1; min-width: 0; height: 28px; padding: 0 8px; margin-left: -6px; border: 0; border-radius: 5px;
+  background: var(--selected); color: var(--ink); font: inherit; font-size: 13.5px; outline: none;
+}
+.tool {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 0; border-radius: 5px; background: none; color: var(--ink-soft); cursor: pointer; opacity: 0;
+}
+.line:hover .tool, .line:focus-within .tool { opacity: 1; }
+.tool:hover { background: var(--selected); color: var(--ink); }
+.count { flex: none; width: 28px; text-align: center; font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
