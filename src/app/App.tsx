@@ -187,7 +187,9 @@ export function App() {
     if (!drawerOpen) return;
     document.querySelector<HTMLElement>('aside [aria-current="page"]')?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
+      // Échap déjà traitée (menu, champ…) ou destinée à une fenêtre ouverte par-dessus : pas pour le tiroir.
       if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (useUi.getState().paletteOpen || useUi.getState().helpOpen || document.querySelector('[aria-modal="true"], [role="alertdialog"]')) return;
       toggleSidebar(false);
       document.querySelector<HTMLElement>('[data-testid="toggle-sidebar"]')?.focus({ preventScroll: true });
     };
@@ -216,7 +218,12 @@ export function App() {
         setUi({ paletteOpen: !useUi.getState().paletteOpen, helpOpen: false });
         return;
       }
-      if (e.key === 'Escape' && useUi.getState().helpOpen) setUi({ helpOpen: false });
+      if (e.key === 'Escape' && useUi.getState().helpOpen) {
+        // Échap consommée par l'aide : le tiroir du téléphone reste ouvert.
+        e.preventDefault();
+        setUi({ helpOpen: false });
+        return;
+      }
       if (e.defaultPrevented || isTextTarget(e.target)) return;
       if (isShortcut(e, 'help')) {
         e.preventDefault();
@@ -228,7 +235,7 @@ export function App() {
       if (isUndo || isRedo) {
         e.preventDefault();
         // Rien ne s'annule derrière une fenêtre ouverte, où l'on ne verrait pas le changement.
-        if (useUi.getState().paletteOpen || useUi.getState().helpOpen) return;
+        if (useUi.getState().paletteOpen || useUi.getState().helpOpen || document.querySelector('[data-testid="wizard"]')) return;
         // À l'accueil, annuler / rétablir portent sur la suppression des projets.
         if (window.location.hash.replace(/^#\/?/, '').split('?')[0] === '' || window.location.hash.startsWith('#/home')) {
           if (isRedo) void redoHome();

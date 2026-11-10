@@ -55,7 +55,7 @@ function PaletteBody() {
   const run = (i: number) => {
     const c = items[i];
     if (!c) return;
-    keepFocus.current = false;
+    keepFocus.active = false;
     close();
     c.run();
   };
