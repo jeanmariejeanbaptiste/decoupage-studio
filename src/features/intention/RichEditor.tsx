@@ -112,6 +112,8 @@ function selectedBlocks(root: HTMLElement): HTMLElement[] {
  */
 export function RichEditor({ html, projectId, readOnly = false, onChange, onLayout, editorRef, trail }: Props) {
   const root = useRef<HTMLDivElement | null>(null);
+  // Dernier élément éditable, jamais remis à null : le démontage peut encore enregistrer la frappe.
+  const lastEl = useRef<HTMLDivElement | null>(null);
   const styleEl = useRef<HTMLStyleElement>(null);
   const emitted = useRef(html);
   const undo = useRef<Snapshot[]>([]);
@@ -235,14 +237,19 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   const commit = useCallback(() => {
     if (commitTimer.current) window.clearTimeout(commitTimer.current);
     commitTimer.current = null;
-    const el = root.current;
+    const el = root.current ?? lastEl.current;
     if (!el) return;
     const clean = sanitizeRich(el.innerHTML);
     if (clean === emitted.current) return;
     emitted.current = clean;
     onChange(clean);
   }, [onChange]);
-  useEffect(() => () => commit(), [commit]);
+  // Page quittée sans perte du focus (retour arrière, changement d'adresse) : la frappe en attente part aussi.
+  // Seulement s'il y a une frappe en attente : une simple visite n'écrit rien dans le projet.
+  const commitPending = useCallback(() => {
+    if (commitTimer.current !== null) commit();
+  }, [commit]);
+  useEffect(() => () => commitPending(), [commitPending]);
   // ⌘S, fermeture de l'onglet : la frappe encore en attente part avec le projet.
   useEffect(() => registerFlush(commit), [commit]);
   const scheduleCommit = () => {
@@ -562,6 +569,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
           <div
             ref={(el) => {
               root.current = el;
+              if (el) lastEl.current = el;
               if (editorRef) editorRef.current = el;
             }}
             className={s.editor}
