@@ -216,10 +216,26 @@ export function duplicateCurrent(): void {
   select(mutateDoc((x) => duplicateShot(x, cur)));
 }
 
-export function deleteCurrentShots(): void {
+export async function deleteCurrentShots(): Promise<void> {
   const d = doc();
   const ids = selectedShotIds();
   if (!d || ids.length === 0) return;
+  // Une grande sélection demande la même confirmation qu'une grosse séquence (caméras d'interview comprises).
+  const n = new Set(ids.flatMap((id) => interviewGroupOf(d, id))).size;
+  if (n >= BIG_SEQUENCE) {
+    const res = await ask({
+      title: `Supprimer ${n} plans ?`,
+      body: 'L’opération reste annulable (⌘Z).',
+      confirmLabel: 'Supprimer les plans',
+      danger: true,
+      checkbox: `Oui, je supprime ces ${n} plans`,
+    });
+    if (!res.ok) return;
+    if (!res.checked) {
+      ui().toast({ message: 'Suppression annulée : cochez la case pour confirmer.', tone: 'warn' });
+      return;
+    }
+  }
   const row = ui().selection?.focus.row ?? 0;
   mutateDoc((x) => ids.forEach((id) => deleteShot(x, id)));
   const after = doc();
