@@ -47,9 +47,9 @@ describe('contrôles de la scripte (§9)', () => {
     const doc = docWith([{ init: { subject: 'a', value: 'Taille' }, action: { text: 'x', overrideSec: 60 } }]);
     doc.sequences[doc.project.sequenceIds[0]].estimatedSec = 30;
     expect(codes(doc)).toContain('estimate-gap');
-    // Le lien ne répète pas le titre de la carte ; « % » ne passe pas seul à la ligne.
+    // L'écart propre à la séquence est donné à part ; « % » ne passe pas seul à la ligne.
     const gap = check(doc).find((i) => i.code === 'estimate-gap')!;
-    expect(gap.where).toBe('Séquence');
+    expect(gap.detail).toBe('+0:30 (+100\u202f%)');
     expect(gap.message).toMatch(/\d\u202f% entre/);
     expect(CHECK_LABELS['estimate-gap']).toContain('25\u202f%');
   });

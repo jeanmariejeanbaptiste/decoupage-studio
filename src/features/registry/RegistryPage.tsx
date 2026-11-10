@@ -293,7 +293,7 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
       },
     },
   ];
-  return <DataTable label="Séquences" rows={rows} columns={columns} rowKey={(q) => q.id} search={search} empty="Aucune séquence." />;
+  return <DataTable label="Séquences" rows={rows} columns={columns} rowKey={(q) => q.id} rowProps={(q) => ({ 'data-seq-row': q.id })} search={search} empty="Aucune séquence." />;
 }
 
 function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {

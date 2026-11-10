@@ -1,6 +1,6 @@
 import { shotCode } from './numbering';
 import { fold, mergeKey } from './text';
-import type { Timing } from './timing';
+import { formatGap, type Timing } from './timing';
 import { tokensKey } from './tokens';
 import type { ID, ProjectDoc } from './types';
 import { isZoom, matchVocab, MOVEMENTS, valueRank, WIDE_VALUE_KEYS, SHOT_VALUES } from './vocabulary';
@@ -24,8 +24,9 @@ export interface Issue {
   level: 'warn' | 'info';
   sequenceId: ID;
   shotId?: ID;
-  where: string;
   message: string;
+  /** Ce qui distingue cet avertissement des autres du même type (écart, plan voisin) ; absent sinon. */
+  detail?: string;
 }
 
 export const CHECK_LABELS: Readonly<Record<CheckCode, string>> = {
@@ -41,9 +42,34 @@ export const CHECK_LABELS: Readonly<Record<CheckCode, string>> = {
   'stabilizer-safety': 'Rappel sécurité machiniste',
 };
 
-const DRONE_MSG =
-  'Drone : catégorie ouverte, 120 m maximum au-dessus du sol, distances de sécurité avec les personnes, formation A1/A3 selon la classe ; vérifier les zones sur Géoportail.';
+const DRONE_NOTE =
+  'Catégorie ouverte, 120 m maximum au-dessus du sol, distances de sécurité avec les personnes, formation A1/A3 selon la classe ; vérifier les zones sur Géoportail.';
+const DRONE_MSG = `Drone : ${DRONE_NOTE.charAt(0).toLowerCase()}${DRONE_NOTE.slice(1)}`;
 const SAFETY_MSG = 'Épaule ou steadicam : prévoir un machiniste de sécurité pour guider l’opérateur.';
+
+/**
+ * Rappels : même texte pour chaque plan concerné, montré une fois en tête du groupe plutôt qu'à
+ * chaque ligne.
+ */
+export const CHECK_NOTES: Readonly<Partial<Record<CheckCode, string>>> = { drone: DRONE_NOTE, 'stabilizer-safety': SAFETY_MSG };
+
+export interface CheckGroup {
+  code: CheckCode;
+  level: Issue['level'];
+  issues: Issue[];
+}
+
+/**
+ * Regroupe les avertissements par type de contrôle : les avertissements d'abord, puis les rappels,
+ * chacun dans l'ordre des contrôles ; à l'intérieur, l'ordre du découpage.
+ */
+export function groupChecks(issues: readonly Issue[]): CheckGroup[] {
+  const order = Object.keys(CHECK_LABELS) as CheckCode[];
+  const by = new Map<CheckCode, Issue[]>();
+  for (const i of issues) by.set(i.code, [...(by.get(i.code) ?? []), i]);
+  const groups = order.filter((c) => by.has(c)).map((code) => ({ code, level: by.get(code)![0].level, issues: by.get(code)! }));
+  return [...groups.filter((g) => g.level === 'warn'), ...groups.filter((g) => g.level !== 'warn')];
+}
 
 function isWide(value: string): boolean {
   const rank = valueRank(value);
@@ -62,32 +88,28 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
   for (const seqId of doc.project.sequenceIds) {
     const seq = doc.sequences[seqId];
     if (!seq) continue;
-    // La carte porte déjà le titre de la séquence : le lien dit seulement où il mène.
-    const where = 'Séquence';
-    const at = (shotId?: ID) => (shotId ? `Plan ${shotCode(doc, shotId)}` : where);
     if (seq.shotIds.length === 0) {
-      push({ code: 'empty-sequence', level: 'warn', sequenceId: seqId, where, message: 'Cette séquence ne contient aucun plan.' });
+      push({ code: 'empty-sequence', level: 'warn', sequenceId: seqId, message: 'Cette séquence ne contient aucun plan.' });
     } else if (doc.project.format === 'institutionnel') {
       // Les plans d'interview ne comptent pas : la règle vaut pour les illustrations.
       const broll = seq.shotIds.filter((id) => doc.shots[id] && !doc.shots[id].interview);
       const first = doc.shots[broll[0]];
       const last = doc.shots[broll[broll.length - 1]];
       if (first && !isWide(first.value))
-        push({ code: 'doc-open-wide', level: 'warn', sequenceId: seqId, shotId: first.id, where: at(first.id), message: 'La séquence ne s’ouvre pas sur un plan large (général, ensemble ou moyen).' });
+        push({ code: 'doc-open-wide', level: 'warn', sequenceId: seqId, shotId: first.id, message: 'La séquence ne s’ouvre pas sur un plan large (général, ensemble ou moyen).' });
       if (last && !isWide(last.value))
-        push({ code: 'doc-close-wide', level: 'warn', sequenceId: seqId, shotId: last.id === first?.id ? undefined : last.id, where: at(last.id === first?.id ? undefined : last.id), message: 'La séquence ne se ferme pas sur un plan large (général, ensemble ou moyen).' });
+        push({ code: 'doc-close-wide', level: 'warn', sequenceId: seqId, shotId: last.id === first?.id ? undefined : last.id, message: 'La séquence ne se ferme pas sur un plan large (général, ensemble ou moyen).' });
     }
 
     const gap = timing.sequences.get(seqId)?.gap;
     if (gap && Math.abs(gap.pct) > 25) {
-      push({ code: 'estimate-gap', level: 'warn', sequenceId: seqId, where, message: `Écart de ${Math.round(gap.pct)}\u202f% entre durée estimée et durée calculée.` });
+      push({ code: 'estimate-gap', level: 'warn', sequenceId: seqId, message: `Écart de ${Math.round(gap.pct)}\u202f% entre durée estimée et durée calculée.`, detail: formatGap(gap).replace(' %', '\u202f%') });
     }
 
     seq.shotIds.forEach((shotId, i) => {
       const shot = doc.shots[shotId];
       if (!shot) return;
-      const at = shotCode(doc, shotId);
-      const base = { sequenceId: seqId, shotId, where: `Plan ${at}` };
+      const base = { sequenceId: seqId, shotId };
       if (isZoom(shot.movement) && (shot.focal.from === undefined || shot.focal.to === undefined))
         push({ ...base, code: 'zoom-focal', level: 'warn', message: 'Zoom présent dans le mouvement : renseigner la focale de départ et d’arrivée.' });
       if (!shot.value.trim()) push({ ...base, code: 'missing-value', level: 'warn', message: 'Valeur de cadre manquante.' });
@@ -101,7 +123,7 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
         mergeKey(prev.subject) === mergeKey(shot.subject) &&
         tokensKey(prev.movement) === tokensKey(shot.movement)
       ) {
-        push({ ...base, code: 'jump-cut', level: 'warn', message: `Identique au plan précédent en valeur, angle et sujet : risque de saute.` });
+        push({ ...base, code: 'jump-cut', level: 'warn', message: `Identique au plan précédent en valeur, angle et sujet : risque de saute.`, detail: `Identique au plan ${shotCode(doc, prev.id)}` });
       }
       const moves = shot.movement.map((m) => matchVocab(m, MOVEMENTS)?.key ?? fold(m));
       if (moves.some((m) => m.includes('drone'))) push({ ...base, code: 'drone', level: 'info', message: DRONE_MSG });

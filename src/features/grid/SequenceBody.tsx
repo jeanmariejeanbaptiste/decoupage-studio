@@ -128,7 +128,7 @@ export function SequenceBody({
     return (
       <DroppableBody seqId={seq.seqId} className={s.seq}>
         <tr>
-          <td className={s.emptySeq} colSpan={columns.length + 1}>
+          <td className={s.emptySeq} colSpan={columns.length + 1} data-empty-seq={seq.seqId}>
             <strong>
               {sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase()}
             </strong>{' '}
