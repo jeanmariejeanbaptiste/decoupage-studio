@@ -4,6 +4,7 @@ import { useCanCopy, useDriveReview, useReadOnly, useShare } from '../store/shar
 import { closeReviewLink, forgetReviewSession, reopenReviewLink, resumeReview, startReviewSync } from '../store/review';
 import { ReviewPage } from '../features/review/Review';
 import { REVIEWED } from '../features/shell/steps';
+import { documentTitle } from './documentTitle';
 import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useMemo, useState } from 'react';
@@ -176,6 +177,11 @@ export function App() {
       /* stockage indisponible */
     }
   }, [theme]);
+
+  const projectTitle = doc?.project.title;
+  useEffect(() => {
+    document.title = documentTitle(route, projectTitle);
+  }, [route, projectTitle]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
