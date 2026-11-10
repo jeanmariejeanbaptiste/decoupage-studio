@@ -71,6 +71,30 @@ describe('synchronisation Google Drive', () => {
     expect(cloud.useCloud.getState().error).toContain('Abîmé');
   });
 
+  it('original supprimé : les images que sa copie utilise restent dans le Drive', async () => {
+    await db.projects.clear();
+    await db.blobs.clear();
+    files.clear();
+    useProjectStore.getState().loadDoc(null);
+    const orig = buildFiction();
+    orig.shots[Object.keys(orig.shots)[0]].storyboard = { blobKey: `${orig.project.id}:commune` };
+    const copy = projectCopy(orig, 'duplique');
+    await saveProject(orig);
+    await saveProject(copy);
+    await db.blobs.put({ key: `${orig.project.id}:commune`, projectId: orig.project.id, name: 'a.png', blob: new Blob(['png'], { type: 'image/png' }) });
+    await cloud.syncAll();
+    // Suppression de l'original ici (la copie reste), reportée dans le Drive.
+    await db.projects.delete(orig.project.id);
+    await cloud.cloudForget(orig.project.id);
+    expect([...files.values()].some((f) => f.appProperties.kind === 'blob' && f.appProperties.key === `${orig.project.id}:commune`)).toBe(true);
+    // Un appareil neuf récupère la copie avec son image.
+    await db.projects.clear();
+    await db.blobs.clear();
+    await cloud.syncAll();
+    expect(await loadProject('duplique')).toBeDefined();
+    expect(await db.blobs.get(`${orig.project.id}:commune`)).toBeDefined();
+  });
+
   it('les images d’une copie partent avec elle, même rangées sous l’original', async () => {
     await db.projects.clear();
     await db.blobs.clear();
