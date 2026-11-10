@@ -155,8 +155,8 @@ test('plan de travail : la carte reste sous les fenêtres et les panneaux ; outi
   await page.setViewportSize({ width: 1180, height: 800 });
   await page.goto('/#/schedule?seed=rav3');
   await page.getByTestId('suggest-schedule').click();
-  // Tout est planifié : la réserve le dit, sans en-tête ni indication.
-  await expect(page.getByTestId('band-0')).toHaveText('Tout est planifié.');
+  // Tout est planifié : la réserve vide disparaît.
+  await expect(page.getByTestId('band-0')).toHaveCount(0);
   await page.getByRole('button', { name: 'Feuille de service' }).click();
   await page.getByTestId('stop-address').first().fill('3 quai Voltaire, Paris');
   await page.getByRole('button', { name: 'Plan de travail' }).click();
