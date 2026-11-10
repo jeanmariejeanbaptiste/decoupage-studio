@@ -122,6 +122,17 @@ export function toggleSidebar(open = !useUi.getState().sidebarOpen): void {
   }
 }
 
+/** Thème et menu réduit changés dans un autre onglet : suivis ici. */
+export function startUiSync(): () => void {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === 'ds-theme' && (e.newValue === 'encre' || e.newValue === 'papier')) useUi.getState().set({ theme: e.newValue });
+    // Le tiroir du téléphone reste à part : il se referme à chaque page.
+    else if (e.key === 'ds-sidebar' && !window.matchMedia?.('(max-width: 700px)').matches) useUi.getState().set({ sidebarOpen: e.newValue !== '0' });
+  };
+  window.addEventListener('storage', onStorage);
+  return () => window.removeEventListener('storage', onStorage);
+}
+
 /** Ouvre la fiche d'interview du découpage sur cet intervenant et ce cadre. */
 export function openInterviewFiche(subjectId: ID, setupId: ID): void {
   useUi.getState().set({ itwTab: 'itw', printView: false, editing: null, itwFocus: { subjectId, setupId } });
