@@ -1,0 +1,57 @@
+/* Vue d'ensemble : le titre du film, puis séquences et plans, une ligne chacun. */
+.overview { position: relative; padding-bottom: 40px; }
+.btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--m-ink); }
+.ohead { padding: 18px 12px 0 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+.ohead h1 { margin: 0; font-size: 32px; font-weight: 400; letter-spacing: -0.035em; line-height: 1.1; }
+.ohead p { margin: 6px 0 0; font-size: 13px; color: var(--m-faint); font-variant-numeric: tabular-nums; }
+.ohead .btn { margin-top: -4px; }
+.first { display: flex; align-items: center; gap: 8px; margin: 28px 24px 0; height: 48px; padding: 0 18px; border: 1px solid var(--m-ink); border-radius: 24px; font-size: 15px; }
+.list { padding: 6px 0 0; }
+
+.lseq { display: flex; align-items: baseline; margin: 0 24px 4px; padding: 24px 0 10px; border-bottom: 1px solid var(--m-rule); font-size: 12px; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; white-space: nowrap; }
+.lseq b { font-weight: 500; }
+.lseq .d { color: var(--m-faint); padding: 0 8px; }
+.lseq .label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lseq em { margin-left: auto; padding-left: 12px; font-style: normal; letter-spacing: 0.06em; color: var(--m-faint); }
+.lseq.target { border-bottom-color: var(--m-ink); }
+
+.lrow { position: relative; display: grid; grid-template-columns: 1fr 44px; align-items: center; height: 36px; padding: 0 0 0 24px; background: var(--m-bg); }
+.main { display: grid; grid-template-columns: 44px 1fr; align-items: center; height: 100%; min-width: 0; white-space: nowrap; }
+.n { font-size: 13px; color: var(--m-faint); font-variant-numeric: tabular-nums; }
+.t { font-size: 15.5px; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; }
+.t i { font-style: normal; color: var(--m-faint); }
+.t span { color: var(--m-faint); margin-left: 8px; }
+.on .n, .on .t { color: var(--m-ink); font-weight: 500; }
+.on .t i, .on .t span { font-weight: 400; }
+.g { display: grid; place-items: center; height: 100%; color: var(--m-ghost); touch-action: manipulation; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.g svg { fill: currentColor; }
+.dragging .g { cursor: grabbing; }
+
+/* La rangée soulevée suit le doigt ; le creux montre où elle tombera. */
+.lifted { position: fixed; left: 14px; right: 10px; z-index: 50; height: 46px; padding-left: 14px; grid-template-columns: 1fr 34px; border-radius: 10px; background: var(--m-sheet); box-shadow: var(--m-lift); transform: rotate(-0.6deg); pointer-events: none; }
+.lifted .main { grid-template-columns: 40px 1fr; }
+.lifted .n { color: var(--m-ink); font-weight: 500; }
+.lifted .t { font-size: 16px; }
+.lifted .g { color: var(--m-ink); }
+.hole { height: 40px; margin: 0 24px; border-radius: 6px; border: 1px dashed var(--m-ghost); }
+.dragging .lrow:not(.lifted) .t, .dragging .lrow:not(.lifted) .n { opacity: 0.55; }
+.dragging { user-select: none; -webkit-user-select: none; }
+
+/* Séquence sans plan : son texte, le « + » à la place du numéro. */
+.lempty { display: grid; grid-template-columns: 44px 1fr; align-items: start; width: 100%; padding: 8px 24px 4px; text-align: left; }
+.lempty .n { color: var(--m-ink); padding-top: 1px; margin-left: -2px; }
+.lempty .p { font-size: 15px; line-height: 1.45; color: var(--m-soft); letter-spacing: -0.005em; }
+
+/* Insérer : l'espace touché s'ouvre. */
+.gap { position: relative; height: 0; z-index: 2; }
+.gap button { position: absolute; left: 24px; right: 44px; top: -6px; height: 12px; }
+.slot { position: relative; height: 60px; margin: 2px 0; display: flex; align-items: center; gap: 10px; padding: 0 24px; animation: open 160ms ease-out; }
+.slot::before { content: ''; position: absolute; left: 24px; right: 24px; top: 50%; height: 1px; background: var(--m-ink); }
+.pill { position: relative; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 10px; border: 1px solid var(--m-ink); border-radius: 18px; background: var(--m-bg); font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
+.pill b { font-weight: 400; color: var(--m-faint); font-variant-numeric: tabular-nums; margin-left: 2px; }
+@keyframes open { from { height: 0; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .slot { animation: none; } }
+
+/* Outils du découpage (vue, aperçu, colonnes, version, export), en bas de la liste. */
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 36px 24px 0; padding-top: 20px; border-top: 1px solid var(--m-rule); }
+.tools [role='menu'] { top: auto; bottom: calc(100% + 4px); left: 0; right: auto; }

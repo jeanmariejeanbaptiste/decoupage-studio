@@ -82,8 +82,8 @@ describe('focales', () => {
     expect(setCellText(doc, id, 'focal', focalText({ from: 50, to: 85 }))).toBe(true);
     expect(doc.shots[id].focal).toEqual({ from: 50, to: 85 });
     expect(focalText({})).toBe('');
-    expect(focalLabel({ from: 35 })).toBe('35 mm');
-    expect(focalLabel({ from: 50, to: 85 })).toBe('50 → 85 mm');
+    expect(focalLabel({ from: 35 })).toBe('35\u00a0mm');
+    expect(focalLabel({ from: 50, to: 85 })).toBe('50\u202f→\u202f85\u00a0mm');
   });
 });
 

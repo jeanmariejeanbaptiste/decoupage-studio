@@ -1,6 +1,7 @@
 import { InterviewExport, InterviewPanel, InterviewPreview } from '../interview/InterviewPanel';
-import { MobileCut, useIsMobile } from './MobileCut';
-import { useReadOnly } from '../../store/share';
+import { MobileCut } from './mobile/MobileCut';
+import { useIsMobile } from '../../ui/useIsMobile';
+import { useReadOnly, useReviewing } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -35,6 +36,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   // Lecture seule : toujours l'aperçu, la grille d'édition n'a pas lieu d'être.
   const readOnly = useReadOnly();
   const isMobile = useIsMobile();
+  const reviewing = useReviewing();
   const printViewRaw = useUi((u) => u.printView) || readOnly;
   // Institutionnel : deux volets, l'interview (A-roll) et les illustrations (B-roll, la grille).
   const institutional = storeDoc.project.format === 'institutionnel';
@@ -221,8 +223,30 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     );
   }
 
+  // Téléphone : un plan à la fois ; ses outils (vue, aperçu, colonnes, version, export) vont au bas
+  // de la vue d'ensemble. L'invité en lecture seule y lit aussi le découpage (le relecteur garde
+  // l'aperçu, où il commente).
+  const phoneCut = isMobile && !itwSelected && nSeq > 0 && (!printView || (readOnly && !reviewing));
   // Tableau : la page tient dans la fenêtre, la grille défile seule et le pied reste en bas, entier.
   const fill = !itwSelected && !printView && !isMobile && nSeq > 0;
+  if (phoneCut)
+    return (
+      <div className="page page--wide">
+        <OneShotStudio doc={storeDoc} />
+        <MobileCut
+          doc={storeDoc}
+          tools={
+            <>
+              {views}
+              {previewToggle}
+              {!readOnly && <ColumnsMenu doc={doc} />}
+              <VersionSwitcher doc={storeDoc} />
+              <CutExport doc={storeDoc} defaultContent="grid" />
+            </>
+          }
+        />
+      </div>
+    );
   return (
     <div className={['page page--wide', fill ? s.fill : ''].join(' ')}>
       <header className="page-head">
@@ -302,9 +326,6 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
             <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} keepEmpty={keepEmpty} />
           </CutComments>
         </div>
-      ) : isMobile ? (
-        // Téléphone : mêmes outils (colonnes, aperçu, export, lier), mais un plan à la fois.
-        <MobileCut doc={storeDoc} />
       ) : (
         <>
           {doc.project.settings.tcMode === 'piste' && <TrackBar doc={storeDoc} />}
