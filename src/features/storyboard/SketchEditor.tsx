@@ -8,6 +8,7 @@ import { ARROW3D_PRESETS, SKETCH_W, arrow3dFaces, arrowHead, shadeColor, type Sk
 import type { ID, ProjectDoc } from '../../domain/types';
 import { getBlob, putBlob } from '../../store/db';
 import { mutateDoc } from '../../store/projectStore';
+import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ask } from '../../ui/dialogStore';
 import { useBlobUrl } from '../../ui/useBlobUrl';
@@ -213,6 +214,14 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
   };
 
   const save = async () => {
+    // Rien de changé : on referme sans réécrire l'image.
+    if (!dirty.current) return onClose();
+    // Tous les traits effacés : l'image d'origine revient telle quelle, ou la case redevient vide.
+    if (!items.length) {
+      const none = { baseKey: undefined, sketch: undefined, sketchAspect: undefined, baseCrop: undefined, baseFit: undefined };
+      mutateDoc((d) => setFrame(d, shotId, frame, baseKey ? { ...none, blobKey: baseKey, crop: baseCrop, fit: sb?.sketch ? sb.baseFit : sb?.fit } : { ...none, blobKey: undefined, crop: undefined, fit: undefined }));
+      return onClose();
+    }
     setSaving(true);
     try {
       const W2 = SKETCH_W * 2;
@@ -264,6 +273,8 @@ export function SketchEditor({ doc, shotId, frame = 0, onClose }: { doc: Project
       // Le dessin enregistré intègre déjà le cadrage : la carte l'affiche tel quel.
       mutateDoc((d) => setFrame(d, shotId, frame, { blobKey: key, baseKey, sketch: items, baseCrop, baseFit, sketchAspect: aspect, crop: undefined, fit: undefined }));
       onClose();
+    } catch {
+      useUi.getState().toast({ message: 'Dessin non enregistré.', tone: 'warn' });
     } finally {
       setSaving(false);
     }
