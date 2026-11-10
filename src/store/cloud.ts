@@ -525,13 +525,13 @@ function agree(id: string, at: string): void {
   setAgreements({ ...agreements(), [id]: at });
 }
 
-/** Garde une version qui allait être écrasée, en copie datée ; renvoie son titre. */
-async function keepConflictCopy(doc: ProjectDoc): Promise<string> {
+/** Garde une version qui allait être écrasée, en copie datée. */
+async function keepConflictCopy(doc: ProjectDoc): Promise<ProjectDoc> {
   const when = new Date(doc.project.updatedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(' ', ' à ');
   const copy = projectCopy(doc, newId());
   copy.project.title = `${doc.project.title} (conflit du ${when})`;
   await saveProject(copy);
-  return copy.project.title;
+  return copy;
 }
 
 /** Rapproche le navigateur et le Drive : le plus récent l'emporte, projet par projet. */
@@ -590,7 +590,12 @@ export async function syncAll(): Promise<void> {
           const open = useProjectStore.getState().doc;
           if (id === openId && (hasPendingSave(id) || (open && open.project.id === id && open.project.updatedAt > doc.project.updatedAt))) continue;
           const mine = both ? await loadProject(id) : undefined;
-          if (mine) conflicts.push(await keepConflictCopy(mine));
+          if (mine) {
+            conflicts.push((await keepConflictCopy(mine)).project.title);
+            // Version d'ici gardée : l'accord est noté aussitôt, pour qu'un échec plus loin ne refasse pas la copie.
+            agreed[id] = mine.project.updatedAt;
+            setAgreements(agreed);
+          }
           await saveProject(doc);
           await pullBlobs(doc, files);
           agreed[id] = doc.project.updatedAt;
@@ -598,7 +603,14 @@ export async function syncAll(): Promise<void> {
         } else if (l && (!r || l.updatedAt > rAt)) {
           const doc = await loadProject(id);
           if (!doc) continue;
-          if (both) conflicts.push(await keepConflictCopy(parseProjectFile(await (await download(r!.id)).text())));
+          if (both) {
+            // Version du Drive gardée en copie, avec ses images ; accord noté aussitôt (une seule copie).
+            const copy = await keepConflictCopy(parseProjectFile(await (await download(r!.id)).text()));
+            conflicts.push(copy.project.title);
+            agreed[id] = rAt;
+            setAgreements(agreed);
+            await pullBlobs(copy, files);
+          }
           await pushProject(doc, files);
           agreed[id] = doc.project.updatedAt;
         } else if (r) {
@@ -611,6 +623,8 @@ export async function syncAll(): Promise<void> {
         failed.push(l?.title ?? r?.appProperties?.title ?? id);
       }
     }
+    // Projets disparus des deux côtés : leur accord n'a plus d'objet.
+    for (const id of Object.keys(agreed)) if (!ids.has(id)) delete agreed[id];
     setAgreements(agreed);
     if (conflicts.length)
       useUi.getState().toast({
