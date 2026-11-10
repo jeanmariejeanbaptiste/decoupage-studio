@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { breakdownCategories, breakdownLabel, type BreakdownCategory } from '../../domain/breakdown';
 import { breakdownIndex, sequenceCounts, type BreakdownEntry } from '../../domain/breakdownReport';
+import { esc } from '../../domain/documents';
 import { mmss } from '../../domain/chronometry';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -12,6 +13,39 @@ import { exportBase } from '../../domain/serialize';
 
 type Report = 'items' | 'sequences';
 type ItemSort = 'film' | 'often' | 'long' | 'alpha';
+
+const REPORT_KEY = 'ds-breakdown-report';
+const SORTS: readonly ItemSort[] = ['film', 'often', 'long', 'alpha'];
+
+/** Rapport, catégorie et tri retenus d'une visite à l'autre (une valeur inconnue revient au défaut). */
+export function readReportPrefs(raw: string | null, cats: readonly BreakdownCategory[]): { report: Report; cat: BreakdownCategory | ''; sort: ItemSort } {
+  let v: { report?: unknown; cat?: unknown; sort?: unknown } = {};
+  try {
+    v = raw ? (JSON.parse(raw) ?? {}) : {};
+  } catch {
+    v = {};
+  }
+  return {
+    report: v.report === 'sequences' ? 'sequences' : 'items',
+    cat: typeof v.cat === 'string' && cats.includes(v.cat) ? v.cat : '',
+    sort: SORTS.includes(v.sort as ItemSort) ? (v.sort as ItemSort) : 'film',
+  };
+}
+
+const loadPrefs = (cats: readonly BreakdownCategory[]) => {
+  try {
+    return readReportPrefs(localStorage.getItem(REPORT_KEY), cats);
+  } catch {
+    return readReportPrefs(null, cats);
+  }
+};
+
+/** Page imprimable d'un rapport : titre échappé, filtre de catégorie nommé ; les réglages (data-print-hide) ne s'impriment pas. */
+export function reportPrintHtml(project: string, title: string, catLabel: string | undefined, body: string): string {
+  const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd;vertical-align:top} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} button{border:0;background:none;padding:0;font:inherit;color:inherit} select,[data-print-hide]{display:none} .pad{height:13mm}`;
+  const h1 = `${esc(project)} — Dépouillement, ${esc(title.toLowerCase())}${catLabel ? ` — ${esc(catLabel)}` : ''}`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${h1}</h1>${body}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
+}
 
 /** Numéros et libellés du dépouillement (ceux du découpage), par séquence. */
 interface Numbering {
@@ -35,18 +69,27 @@ export function BreakdownReports({ doc, entries: scenes, onGo }: { doc: ProjectD
       },
     };
   }, [doc, scenes]);
-  const [report, setReport] = useState<Report>('items');
-  const [cat, setCat] = useState<BreakdownCategory | ''>('');
-  const [sort, setSort] = useState<ItemSort>('film');
+  const [prefs] = useState(() => loadPrefs(breakdownCategories(doc)));
+  const [report, setReport] = useState<Report>(prefs.report);
+  const [rawCat, setCat] = useState<BreakdownCategory | ''>(prefs.cat);
+  const [sort, setSort] = useState<ItemSort>(prefs.sort);
   const box = useRef<HTMLDivElement>(null);
   const used = breakdownCategories(doc).filter((c) => entries.some((e) => e.cat === c));
+  // Une catégorie retenue qui n'a plus rien (ou supprimée) : toutes.
+  const cat = rawCat && used.includes(rawCat) ? rawCat : '';
+  useEffect(() => {
+    try {
+      localStorage.setItem(REPORT_KEY, JSON.stringify({ report, cat: rawCat, sort }));
+    } catch {
+      /* préférence non retenue */
+    }
+  }, [report, rawCat, sort]);
   const bare = scenes.filter((sc) => !sc.seqId || !entries.some((e) => e.seqIds.includes(sc.seqId!))).length;
   const title = report === 'items' ? 'Éléments' : 'Séquences';
 
   const print = async () => {
     const { exportDocumentPages } = await import('../export/imageExport');
-    const css = `body{font-family:Inter,sans-serif;font-size:9.5pt;color:#111318} h1{font-size:15pt;margin:0 0 4pt} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:3pt 4pt;border-bottom:.5pt solid #d6d8dd;vertical-align:top} th{font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#6b7079} button{border:0;background:none;padding:0;font:inherit;color:inherit} select{display:none} .pad{height:13mm}`;
-    const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>${css}</style></head><body><table class="sheet"><thead><tr><td><div class="pad"></div></td></tr></thead><tbody><tr><td style="padding:0 13mm"><h1>${doc.project.title} — Dépouillement, ${title.toLowerCase()}</h1>${box.current?.innerHTML ?? ''}</td></tr></tbody><tfoot><tr><td><div class="pad"></div></td></tr></tfoot></table></body></html>`;
+    const html = reportPrintHtml(doc.project.title, title, report === 'items' && cat ? breakdownLabel(cat) : undefined, box.current?.innerHTML ?? '');
     await exportDocumentPages(html, `${exportBase(doc)}-depouillement-${title}`, { format: 'pdf', orientation: report === 'sequences' ? 'landscape' : 'portrait', numbers: true });
   };
 
@@ -122,7 +165,7 @@ function ItemsReport({
   const grouped = sort === 'film' && !cat;
   return (
     <>
-      <div className={r.opts} data-view>
+      <div className={r.opts} data-view data-print-hide>
         <label className={r.sort}>
           <span>Catégorie</span>
           <select value={cat} onChange={(e) => setCat(e.target.value)} data-testid="breakdown-report-cat">
