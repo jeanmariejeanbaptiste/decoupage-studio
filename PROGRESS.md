@@ -276,6 +276,6 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 ## Carte des lieux — 2026-11-09
 - Plan de travail : carte Leaflet masquable (réglage retenu), tuiles OpenStreetMap en gris, repères numérotés par jour, jour choisi en avant, infobulle décor et adresse, liste avec état de la recherche et lien d'itinéraire ; rendez-vous du calendrier sous chaque jour daté.
 - Géocodage Nominatim : une requête par seconde au plus, seulement carte affichée et en ligne, résultat gardé dans le projet (hors annulation), délai, nouvel essai et pause après refus.
-- Feuille de service : carte réduite des lieux du jour à l'écran ; export avec lien d'itinéraire par lieu, cliquable dans le PDF et le Word.
+- Feuille de service : carte réduite des lieux du jour à l'écran et dans l'export (image composée des tuiles en gris, repères numérotés, légende, attribution), lien d'itinéraire par lieu, cliquable dans le PDF et le Word.
+- Relecture : carte isolée sous les fenêtres et panneaux ; hôpital sans nom jamais replié sur la ville ; aucune requête après une carte masquée pendant la pause d'un refus 429 ; outils du jour en colonne fixe ; rendez-vous courts entiers ; réserve sans indication superflue ; légende entière.
 - Tests : 498 unitaires, 131 parcours de bout en bout (1 capture sur demande ignorée).
-- Proposé : carte imprimée dans l'export de la feuille de service (image composée des tuiles).
