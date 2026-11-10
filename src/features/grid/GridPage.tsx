@@ -199,8 +199,10 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     );
   }
 
+  // Tableau : la page tient dans la fenêtre, la grille défile seule et le pied reste en bas, entier.
+  const fill = !itwSelected && !printView && !isMobile && nSeq > 0;
   return (
-    <div className="page page--wide">
+    <div className={['page page--wide', fill ? s.fill : ''].join(' ')}>
       <header className="page-head">
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
           {/* Gauche : ce qu'on regarde (tableau, storyboard ou aperçu), puis l'action liée à la sélection. */}
