@@ -6,7 +6,8 @@ import { displaySpan, type MergeMap, type MergeRow } from '../../domain/merge';
 import { cleanCuts, paginate, sliceMerges, type PageSlice } from '../../domain/pagination';
 import { sequenceMerges } from '../../domain/rows';
 import { computeTiming } from '../../domain/timing';
-import type { ColumnKey, ExportTheme, ProjectDoc } from '../../domain/types';
+import type { ColumnKey, ExportTheme, ID, ProjectDoc } from '../../domain/types';
+import { sequenceNumber } from '../../domain/numbering';
 import s from './ExportTable.module.css';
 
 interface Props {
@@ -20,6 +21,8 @@ interface Props {
   orientation?: 'landscape' | 'portrait';
   /** Marge de sécurité en bas de page (mm) : utile à l'impression Safari, nulle pour les images. */
   safety?: number;
+  /** Séquences sans plan gardées quand même (aperçu : celles qui portent un commentaire). */
+  keepEmpty?: ReadonlySet<ID>;
 }
 
 const PAPER = { A4: [297, 210], A3: [420, 297] } as const;
@@ -27,15 +30,19 @@ const PAD_Y = 9; // marge haute et basse de chaque page, en mm
 const PX_PER_MM = 96 / 25.4;
 
 /** Rendu fusionné, identique à l'export (§8.2). Lecture seule. */
-export function ExportTable({ doc, columns, theme, showTitle = true, paper, footer, orientation = 'landscape', safety = 12 }: Props) {
+export function ExportTable({ doc, columns, theme, showTitle = true, paper, footer, orientation = 'landscape', safety = 12, keepEmpty }: Props) {
   const cols = useMemo(() => tcLast(columns ?? doc.project.settings.exportColumns), [columns, doc.project.settings.exportColumns]);
   // Un seul style d'export : blanc, noir, bleu. Le paramètre `theme` n'est plus utilisé.
   void theme;
   const th = 'sobre';
   const timing = useMemo(() => computeTiming(doc), [doc]);
+  // Une séquence sans plan n'a rien à montrer : elle ne s'exporte pas (ses voisines gardent leur numéro).
   const sequences = useMemo(
-    () => doc.project.sequenceIds.map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols, !!doc.project.settings.exportNoMerge, true) })),
-    [doc, timing, cols],
+    () =>
+      doc.project.sequenceIds
+        .filter((id) => doc.sequences[id]?.shotIds.length || keepEmpty?.has(id))
+        .map((id) => ({ id, ...sequenceMerges(doc, timing, id, cols, !!doc.project.settings.exportNoMerge, true) })),
+    [doc, timing, cols, keepEmpty],
   );
   const measure = useRef<HTMLDivElement>(null);
   const paged = useRef<HTMLDivElement>(null);
@@ -191,7 +198,7 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
         })}
         {seq.rows.length === 0 && (
           <tr>
-            <td className={s.c_sequence} data-col="sequence">{`${seqIdx + 1}, ${doc.sequences[seq.id]?.label.toUpperCase() ?? ''}`}</td>
+            <td className={s.c_sequence} data-col="sequence">{`${sequenceNumber(doc, seq.id)}, ${doc.sequences[seq.id]?.label.toUpperCase() ?? ''}`}</td>
             {cs.slice(1).map((c) => (
               <Fragment key={c}>
                 <td />
@@ -224,7 +231,8 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   if (paper && pages)
     return (
       <div ref={paged} className={sheetClass} data-theme-export={th}>
-        {pages.map((page, p) => {
+        {/* Aucun plan : une page, son titre et ses intitulés. */}
+        {(pages.length ? pages : [[]]).map((page, p) => {
           const cs = smart ? pageColumns(page) : cols;
           return (
             <div key={p} className={s.page} style={{ width: `${paperW}mm`, height: `${pageH}mm`, padding: `${PAD_Y}mm 12mm` }} data-testid="print-page" data-columns={cs.join(',')}>

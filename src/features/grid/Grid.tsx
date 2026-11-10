@@ -49,10 +49,14 @@ export function Grid({ doc, model, animate = false }: Props) {
   useFlip(wrapRef, 'tr[data-shot]', 'data-shot', animate);
   const columns = model.columns;
 
+  // Sélection posée d'office (aucune choisie) : elle ne fait pas défiler la grille, qui reste en haut.
+  const autoSelection = useRef<CellPos | null>(null);
   // Garde la sélection dans les bornes après suppression / changement de projet.
   useEffect(() => {
     if (!selection) {
-      if (model.rows.length) setSelection({ row: 0, col: columns.includes('subject') ? 'subject' : columns[0] });
+      if (!model.rows.length) return;
+      autoSelection.current = { row: 0, col: columns.includes('subject') ? 'subject' : columns[0] };
+      setSelection(autoSelection.current);
       return;
     }
     const max = model.rows.length - 1;
@@ -80,7 +84,7 @@ export function Grid({ doc, model, animate = false }: Props) {
 
   // Fait défiler la cellule active dans la vue.
   useEffect(() => {
-    if (!selection) return;
+    if (!selection || selection.focus === autoSelection.current) return;
     const el = wrapRef.current?.querySelector<HTMLElement>(`[data-cell="${selection.focus.row}:${selection.focus.col}"]`);
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [selection]);

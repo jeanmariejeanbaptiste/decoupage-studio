@@ -58,3 +58,6 @@
 .chips button { height: 32px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper-card); font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
 .chips button:active { background: var(--ink); color: var(--paper-card); }
 .field:has(.chips) { grid-column: 1 / -1; }
+/* Séquence sans plan : ligne fantôme, le « + » au trait à la place du numéro. */
+.listSeq .listGhost { background: transparent; border: 1px dashed var(--rule); color: var(--ink-soft); }
+.listGhost .listNum { background: none; border: 1px solid var(--rule); color: var(--ink-soft); }

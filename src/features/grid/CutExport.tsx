@@ -25,7 +25,6 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
   useEffect(() => setContent(defaultContent), [defaultContent]);
   const [cutImaging, setCutImaging] = useState<PageExportOptions | null>(null);
   const [sbImaging, setSbImaging] = useState<PageExportOptions | null>(null);
-  const nSeq = doc.project.sequenceIds.length;
   const nShots = doc.project.sequenceIds.reduce((n, id) => n + (doc.sequences[id]?.shotIds.length ?? 0), 0);
   const base = exportBase(doc);
 
@@ -67,7 +66,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
               ? [{ key: 'annex', label: 'Annexe plans-séquences', hint: 'PDF A4 : une page par plan-séquence (frise des temps, tableau, transitions en clair, plan au sol dédié).' }]
               : []),
           ]}
-          disabled={nSeq === 0 || busy}
+          disabled={nShots === 0 || busy}
           options={(format) =>
             format !== 'annex' && (
               <label className={x.check} title="Chaque cellule répétée en entier (utile pour retraiter le tableau)">

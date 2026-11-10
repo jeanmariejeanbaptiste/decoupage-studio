@@ -91,16 +91,8 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
   for (const seqId of doc.project.sequenceIds) {
     const noMerge = !!doc.project.settings.exportNoMerge;
     const { rows, merges } = sequenceMerges(doc, timing, seqId, columns, noMerge, true);
-    if (!rows.length) {
-      // Séquence sans plan : elle figure quand même, avec son libellé.
-      const row = ws.addRow(columns.map((c) => (c === 'sequence' ? `${doc.project.sequenceIds.indexOf(seqId) + 1}, ${(doc.sequences[seqId]?.label ?? '').toUpperCase()}` : '')));
-      row.height = 24;
-      columns.forEach((_, i) => {
-        row.getCell(i + 1).border = border;
-        row.getCell(i + 1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-        row.getCell(i + 1).font = { name: FONT, size: 9, bold: true };
-      });
-    }
+    // Séquence sans plan : rien à découper, elle ne figure qu'au Registre (ses voisines gardent leur numéro).
+    if (!rows.length) continue;
     const firstBeat = BEAT_COLUMNS.find((c) => columns.includes(c));
     // Ligne Excel de départ de chaque plan : un plan-séquence occupe une ligne par temps et par liaison.
     const starts: number[] = [];

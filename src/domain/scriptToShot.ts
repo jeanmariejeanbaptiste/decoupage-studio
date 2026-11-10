@@ -5,6 +5,7 @@
 import { characterName, displayName, matchSequence, parseFountain, sceneAt, scenesOf, type Scene, type ScriptElement } from './fountain';
 import { addCharacter, addSequence, addShot, refreshRecognition } from './ops';
 import { setSequenceDecorByName } from './registry';
+import { parseEmphasis } from './scriptLayout';
 import { fold } from './text';
 import type { ID, ProjectDoc } from './types';
 
@@ -273,4 +274,81 @@ export function createShotsFromSelection(
     return id ? [id] : [];
   }
   return parts.map((p) => createShotFromPassage(doc, source, p.start, p.end, { dialogueShown: opts.dialogueShown })).filter((id): id is ID => !!id);
+}
+
+/**
+ * Passages du texte d'une séquence (sa scène dans le scénario), pour un premier découpage : un par
+ * paragraphe d'action, un par réplique (nom, didascalie et texte). Vide sans scène liée.
+ */
+export function sequencePassages(doc: ProjectDoc, seqId: ID, elements?: readonly ScriptElement[]): Sentence[] {
+  const source = doc.scenario ?? '';
+  const a = doc.sequences[seqId]?.scenarioAnchor;
+  if (!a || a.end <= a.start || a.end > source.length) return [];
+  const out: Sentence[] = [];
+  let reply: Sentence | null = null;
+  for (const el of elements ?? parseFountain(source)) {
+    if (el.start < a.start || el.start >= a.end) continue;
+    if (el.type === 'character') {
+      reply = { start: el.start, end: el.end, kind: 'dialogue' };
+      out.push(reply);
+      continue;
+    }
+    if ((el.type === 'dialogue' || el.type === 'parenthetical') && reply) {
+      reply.end = Math.min(el.end, a.end);
+      continue;
+    }
+    reply = null;
+    if ((el.type === 'action' || el.type === 'centered') && /[\p{L}\p{N}]/u.test(el.text)) out.push({ start: el.start, end: Math.min(el.end, a.end), kind: 'action' });
+  }
+  return out;
+}
+
+/** Texte imprimé d'un passage : sans marques d'emphase, notes ni surlignages, sur une seule ligne. */
+const printed = (text: string) =>
+  parseEmphasis(text)
+    .map((r) => r.text)
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * Aperçu d'une séquence sans plan : son résumé s'il est écrit, sinon l'action de sa scène (à défaut,
+ * sa première réplique). Coupé à `max` caractères, au mot près.
+ */
+export function sequenceExcerpt(doc: ProjectDoc, seqId: ID, elements?: readonly ScriptElement[], max = 280): string {
+  const seq = doc.sequences[seqId];
+  if (!seq) return '';
+  let text = printed(seq.summary ?? '');
+  if (!text) {
+    const source = doc.scenario ?? '';
+    const els = elements ?? parseFountain(source);
+    const passages = sequencePassages(doc, seqId, els);
+    text = passages
+      .filter((p) => p.kind === 'action')
+      .map((p) => printed(source.slice(p.start, p.end)))
+      .join(' ');
+    const first = passages.find((p) => p.kind === 'dialogue');
+    if (!text && first) {
+      const lines = els.filter((el) => el.start >= first.start && el.start < first.end);
+      const name = lines.find((el) => el.type === 'character');
+      const said = printed(lines.filter((el) => el.type === 'dialogue').map((el) => el.text).join(' '));
+      if (name && said) text = `${characterName(name.text).toLocaleUpperCase('fr')} : ${said}`;
+    }
+  }
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, '')}…`;
+}
+
+/**
+ * Premier découpage d'une séquence depuis son texte : un plan par passage (`sequencePassages`), dans
+ * l'ordre du scénario, action, répliques et sujet remplis, chacun lié à son passage. Renvoie les plans créés.
+ */
+export function shotsFromSequenceText(doc: ProjectDoc, seqId: ID, opts: { dialogueShown: boolean }): ID[] {
+  const source = doc.scenario ?? '';
+  const elements = parseFountain(source);
+  return sequencePassages(doc, seqId, elements)
+    .map((p) => createShotFromPassage(doc, source, p.start, p.end, { seqId, dialogueShown: opts.dialogueShown }))
+    .filter((id): id is ID => !!id);
 }

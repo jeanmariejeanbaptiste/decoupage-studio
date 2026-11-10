@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../../seed/rav3';
 import { buildWorkbook } from './xlsx';
+import { addSequence } from '../../domain/ops';
 
 describe('export Excel', () => {
   it('reproduit les fusions verticales, couleurs et le registre', async () => {
@@ -24,5 +25,21 @@ describe('export Excel', () => {
     expect(reg.getCell('G8').value).toBe(15);
     const buf = await wb.xlsx.writeBuffer();
     expect(buf.byteLength).toBeGreaterThan(5000);
+  });
+
+  it('une séquence sans plan ne s’exporte pas ; la suivante garde son numéro, le registre la garde', async () => {
+    const doc = buildRav3();
+    const first = doc.project.sequenceIds[0];
+    addSequence(doc, 1, { label: 'Couloir' }, false);
+    const wb = await buildWorkbook(doc);
+    const ws = wb.getWorksheet('Découpage')!;
+    const labels: string[] = [];
+    ws.eachRow((row) => {
+      const v = String(row.getCell(1).value ?? '');
+      if (/^\d+, /.test(v) && !labels.includes(v)) labels.push(v);
+    });
+    expect(labels.slice(0, 2)).toEqual([`1, ${doc.sequences[first].label.toUpperCase()}`, '3, PARC DES COQUELICOTS']);
+    expect(labels.some((l) => l.includes('COULOIR'))).toBe(false);
+    expect(wb.getWorksheet('Registre')!.getCell('B3').value).toBe('Couloir');
   });
 });

@@ -123,6 +123,79 @@ LÉA traverse la rue.
   });
 });
 
+describe('séquences importées sans plan', () => {
+  const SCENES = `INT. ENTREPRISE / ACCUEIL - JOUR
+
+Flora entre. Elle **hésite** [[note de mise en scène]] devant le comptoir.
+
+MARC
+(sans lever les yeux)
+Vous êtes en avance.
+
+FLORA
+Comme toujours.
+
+EXT. RUE - NUIT
+
+LÉA
+On y va ?
+
+INT. COULOIR - JOUR
+`;
+  const setup = async () => {
+    const { importScenes } = await import('./fountain');
+    const doc = createProjectDoc({ title: 'T', format: 'fiction' });
+    importScenes(doc, SCENES);
+    return doc;
+  };
+
+  it('un passage par paragraphe d’action et par réplique, sans l’en-tête', async () => {
+    const { sequencePassages } = await import('./scriptToShot');
+    const doc = await setup();
+    const [acc, rue, couloir] = doc.project.sequenceIds;
+    const parts = sequencePassages(doc, acc).map((p) => [p.kind, SCENES.slice(p.start, p.end)]);
+    expect(parts).toEqual([
+      ['action', 'Flora entre. Elle **hésite** [[note de mise en scène]] devant le comptoir.'],
+      ['dialogue', 'MARC\n(sans lever les yeux)\nVous êtes en avance.'],
+      ['dialogue', 'FLORA\nComme toujours.'],
+    ]);
+    expect(sequencePassages(doc, rue)).toHaveLength(1);
+    expect(sequencePassages(doc, couloir)).toEqual([]);
+  });
+
+  it('aperçu : résumé écrit, sinon le texte imprimé de l’action, sinon la première réplique', async () => {
+    const { sequenceExcerpt } = await import('./scriptToShot');
+    const doc = await setup();
+    const [acc, rue, couloir] = doc.project.sequenceIds;
+    expect(sequenceExcerpt(doc, acc)).toBe('Flora entre. Elle hésite devant le comptoir.');
+    expect(sequenceExcerpt(doc, rue)).toBe('LÉA : On y va ?');
+    expect(sequenceExcerpt(doc, couloir)).toBe('');
+    doc.sequences[couloir].summary = '  Flora   attend. ';
+    expect(sequenceExcerpt(doc, couloir)).toBe('Flora attend.');
+    expect(sequenceExcerpt(doc, acc, undefined, 20)).toBe('Flora entre. Elle…');
+  });
+
+  it('crée les plans d’un coup, dans l’ordre du texte, liés à leur passage', async () => {
+    const { shotsFromSequenceText } = await import('./scriptToShot');
+    const { checkInvariants } = await import('./ops');
+    const doc = await setup();
+    const acc = doc.project.sequenceIds[0];
+    const ids = shotsFromSequenceText(doc, acc, { dialogueShown: true });
+    expect(ids).toHaveLength(3);
+    expect(doc.sequences[acc].shotIds).toEqual(ids);
+    const blocks = ids.map((id) => doc.blocks[doc.shots[id].actionBlockId]);
+    expect(blocks[0].text).toContain('Flora entre.');
+    expect(blocks[1].dialogue).toBe('MARC : Vous êtes en avance.');
+    expect(doc.shots[ids[2]].subject).toBe('Flora');
+    expect(blocks.every((b) => b.scenarioAnchor)).toBe(true);
+    expect(checkInvariants(doc)).toEqual([]);
+    // Sans scène liée (ou sans texte) : rien n'est créé.
+    expect(shotsFromSequenceText(doc, doc.project.sequenceIds[2], { dialogueShown: true })).toEqual([]);
+    delete doc.sequences[doc.project.sequenceIds[1]].scenarioAnchor;
+    expect(shotsFromSequenceText(doc, doc.project.sequenceIds[1], { dialogueShown: true })).toEqual([]);
+  });
+});
+
 describe('minutage', () => {
   it('ne compte pas les repères de réplique', async () => {
     const { countWords } = await import('./text');
