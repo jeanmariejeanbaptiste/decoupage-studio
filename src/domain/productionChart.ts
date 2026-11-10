@@ -163,6 +163,9 @@ export function dependencyLinks(rows: readonly GanttRow[], scale: Pick<TimeScale
 export const PRINT_SHADES = ['#4a4e55', '#8c9097', '#26292e', '#b0b3b9', '#6c7077'];
 export const phaseShade = (index: number) => PRINT_SHADES[index % PRINT_SHADES.length];
 
+/** Nom rogné à `max` caractères (points de suspension compris), pour tenir avant la colonne Début. */
+export const clip = (name: string, max: number) => (name.length > max ? `${name.slice(0, max - 1).trimEnd()}…` : name);
+
 /**
  * Frise imprimable en pages (A4 paysage) : tableau à gauche (étape, début, fin, durée), barres à
  * droite, échelle mois / semaines en tête de chaque page. Une page ne coupe jamais une ligne.
@@ -213,7 +216,7 @@ export function productionSvgPages(plan: Production, today: string, opts: { widt
       const shade = phaseShade(r.index);
       if (r.type === 'phase') {
         const sp = phaseSpan(r.phase);
-        out.push(`<text x="${col.name}" y="${cy}" fill="#111318" font-weight="600">${esc(r.phase.name)}</text>`);
+        out.push(`<text x="${col.name}" y="${cy}" fill="#111318" font-weight="600">${esc(clip(r.phase.name, 42))}</text>`);
         if (sp) {
           out.push(`<text x="${col.start}" y="${cy}" fill="#111318" font-weight="600">${formatFrDate(sp.start)}</text>`);
           out.push(`<text x="${col.end}" y="${cy}" fill="#111318" font-weight="600">${formatFrDate(sp.end)}</text>`);
@@ -229,7 +232,7 @@ export function productionSvgPages(plan: Production, today: string, opts: { widt
       }
       const t = r.task;
       const name = t.name;
-      out.push(`<text x="${col.name + 10}" y="${cy}" fill="${t.done ? '#6b7079' : '#111318'}"${t.done ? ' text-decoration="line-through"' : ''}>${esc(name.length > 46 ? `${name.slice(0, 45)}…` : name)}</text>`);
+      out.push(`<text x="${col.name + 10}" y="${cy}" fill="${t.done ? '#6b7079' : '#111318'}"${t.done ? ' text-decoration="line-through"' : ''}>${esc(clip(name, 46))}</text>`);
       out.push(`<text x="${col.start}" y="${cy}" fill="#111318">${formatFrDate(t.start)}</text>`);
       if (!t.milestone) {
         out.push(`<text x="${col.end}" y="${cy}" fill="#111318">${formatFrDate(t.end)}</text>`);

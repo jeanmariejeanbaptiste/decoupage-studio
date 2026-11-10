@@ -175,11 +175,14 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
   await page.getByTestId('production-template').click();
 
-  // L'étape Tournage suit le jour daté : dates en lecture seule, marquée comme liée.
+  // L'étape Tournage suit le jour daté : début en lecture seule, marquée comme liée ; tant que tout
+  // le plan de travail n'est pas daté, elle garde sa durée prévue et sa fin reste réglable.
   const shoot = row(page, 'Tournage');
   await expect(shoot.getByTestId('linked-mark')).toBeVisible();
+  await expect(shoot.getByTestId('linked-mark')).toHaveAttribute('title', /^Suit le plan de travail \(1 jour sur \d+ datés\)$/);
   await expect(shoot).toContainText(fr(first));
   await expect(field(page, 'Début : Tournage')).toHaveCount(0);
+  await expect(field(page, 'Durée en jours : Tournage')).toHaveValue('25');
   // La préparation se cale juste avant.
   await expect(field(page, 'Fin : Costumes')).toHaveValue(fr(plusDays(first, -1)));
 
@@ -190,15 +193,38 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
   const days = page.locator('input[aria-label^="Date du jour"]');
   await days.last().fill(iso(last));
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
-  await expect(row(page, 'Tournage')).toContainText(fr(last));
+  await expect(field(page, 'Fin : Tournage')).toHaveValue(fr(last));
   await expect(field(page, 'Début : Montage image')).toHaveValue(fr(plusDays(last, 1)));
+  const dcp = await field(page, 'Date : Copie de diffusion').inputValue();
+
+  // Une date erronée, puis corrigée, dans le plan de travail : la postproduction revient avec le tournage.
+  await page.getByRole('button', { name: 'Plan de travail' }).click();
+  const wrong = new Date(last.getFullYear() + 46, last.getMonth(), last.getDate());
+  await days.last().fill(iso(wrong));
+  await page.getByRole('button', { name: 'Calendrier de production' }).click();
+  await expect(field(page, 'Début : Montage image')).toHaveValue(fr(plusDays(wrong, 1)));
+  await page.getByRole('button', { name: 'Plan de travail' }).click();
+  await days.last().fill(iso(last));
+  await page.getByRole('button', { name: 'Calendrier de production' }).click();
+  await expect(field(page, 'Début : Montage image')).toHaveValue(fr(plusDays(last, 1)));
+  await expect(field(page, 'Date : Copie de diffusion')).toHaveValue(dcp);
 
   // Délier : les dates redeviennent modifiables.
   await row(page, 'Tournage').hover();
-  await row(page, 'Tournage').getByTestId('row-menu').click();
+  const trigger = row(page, 'Tournage').getByTestId('row-menu');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
   await expect(page.getByTestId('menu-link')).toHaveText('Délier du plan de travail');
   await page.getByTestId('menu-link').click();
   await expect(field(page, 'Début : Tournage')).toHaveValue(fr(first));
+  await expect(trigger).toBeFocused();
+  await row(page, 'Repérages').hover();
+  await row(page, 'Repérages').getByTestId('row-menu').click();
+  await expect(page.getByTestId('menu-link')).toHaveText('Lier au plan de travail');
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Repérages').getByTestId('row-menu')).toBeFocused();
   await page.keyboard.press('ControlOrMeta+z');
   await expect(row(page, 'Tournage').getByTestId('linked-mark')).toBeVisible();
 
@@ -251,10 +277,12 @@ test('calendrier de production : rendez-vous du calendrier sur la frise, lien ve
   // Et l'inverse : du calendrier de production au calendrier, sur la période des étapes.
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
   await page.getByTestId('production-to-calendar').click();
-  await expect(page).toHaveURL(/#\/calendar\?date=\d{4}-\d{2}-\d{2}/);
+  await expect(page).toHaveURL(/#\/calendar\?date=\d{4}-\d{2}-\d{2}&view=month/);
+  await expect(page.getByRole('tab', { name: 'Mois' })).toHaveAttribute('aria-selected', 'true');
   // Le modèle se retire d'un coup, après confirmation, et ⌘Z le rend.
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
   await page.getByTestId('production-clear').click();
+  await expect(page.getByRole('alertdialog')).not.toContainText('⌘');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Effacer' }).click();
   await expect(page.getByTestId('production-template')).toBeVisible();
   await page.keyboard.press('Control+z');

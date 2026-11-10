@@ -4,7 +4,7 @@ import { produce } from 'immer';
 import { CalendarDays, Check, ChevronDown, ChevronRight, GripVertical, Link2, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { addDays, calendarIcs, calendarItems, isWeekend, productionItems, timeOn, todayIso } from '../../domain/calendar';
-import { productionDocument } from '../../domain/documents';
+import { productionDocument, productionWordDocument } from '../../domain/documents';
 import {
   addDependency,
   addPhase,
@@ -17,6 +17,7 @@ import {
   ensureProduction,
   findTask,
   formatFrDate,
+  isHeld,
   isPinned,
   moveTask,
   parseFrDate,
@@ -33,6 +34,7 @@ import {
   setDuration,
   setLinked,
   setTaskDates,
+  shootingRange,
   type Production,
   type ProductionTask,
 } from '../../domain/production';
@@ -93,6 +95,8 @@ interface Menu {
   x: number;
   y: number;
   deps?: boolean;
+  /** Bouton « … » qui l'a ouvert : il reste visible et reprend le focus à la fermeture. */
+  button?: HTMLElement;
 }
 
 /** Calendrier de production : tableau des étapes à gauche, frise (Gantt) à droite. */
@@ -231,7 +235,8 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
   // --- Glisser une barre ------------------------------------------------------------------------
 
   const startBarDrag = (e: ReactPointerEvent, t: ProductionTask, mode: BarDrag['mode']) => {
-    if (readOnly || e.button !== 0 || isPinned(doc, t)) return;
+    // Étape liée au plan de travail : figée s'il est tout daté, sinon seule sa fin se tire.
+    if (readOnly || e.button !== 0 || isPinned(doc, t) || (isHeld(doc, t) && mode !== 'end')) return;
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -301,7 +306,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
   // Rendez-vous du calendrier, repérés sur la frise (un clic ouvre leur jour dans le calendrier).
   const appointments = calendarItems(doc).filter((it) => it.source === 'project' && it.date >= scale.from && it.date <= scale.to);
   const clearAll = async () => {
-    const r = await ask({ title: 'Effacer le calendrier de production ?', body: 'Toutes les phases, étapes et jalons. ⌘Z les rétablit.', confirmLabel: 'Effacer', danger: true });
+    const r = await ask({ title: 'Effacer le calendrier de production ?', body: 'Toutes les phases, étapes et jalons.', confirmLabel: 'Effacer', danger: true });
     if (r.ok) mutateDoc((d) => void delete d.production);
   };
   const width = scale.width;
@@ -313,8 +318,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
     <div className={s.page} data-testid="production">
       <header className={s.bar}>
         <div className={s.barStart}>
-          <Button variant="icon" aria-label="Nouvelle phase" title="Nouvelle phase" icon={<Plus {...ICON} />} onClick={() => addPhaseAfter()} data-edit data-testid="phase-add" />
-          <Button variant="icon" aria-label="Voir dans le calendrier" title="Voir dans le calendrier" icon={<CalendarDays {...ICON} />} onClick={() => navigate('calendar', { date: planSpan(plan)?.start ?? today })} data-view data-testid="production-to-calendar" />
+          <Button variant="icon" aria-label="Voir dans le calendrier" title="Voir dans le calendrier" icon={<CalendarDays {...ICON} />} onClick={() => navigate('calendar', { date: planSpan(plan)?.start ?? today, view: 'month' })} data-view data-testid="production-to-calendar" />
           {!readOnly && <Button variant="icon" aria-label="Effacer le calendrier de production" title="Effacer le calendrier de production" icon={<Trash2 {...ICON} />} onClick={() => void clearAll()} data-edit data-testid="production-clear" />}
         </div>
         <div className={s.barEnd} data-view>
@@ -332,6 +336,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
             id="production"
             orientation="landscape"
             doc={() => productionDocument(useProjectStore.getState().doc ?? doc)}
+            word={() => productionWordDocument(useProjectStore.getState().doc ?? doc)}
             fileBase={`${title}-calendrier-de-production`}
             file={{
               label: 'iCalendar',
@@ -382,7 +387,8 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                   onStartRename={() => !readOnly && setRenaming(id)}
                   onCancelRename={() => setRenaming(null)}
                   onGrip={(e) => startRowDrag(e, row)}
-                  onMenu={(x, y) => setMenu({ row, x, y })}
+                  menuOpen={!!menu && (menu.row.type === 'task' ? menu.row.task.id : menu.row.phase.id) === id}
+                  onMenu={(x, y, button) => setMenu({ row, x, y, button })}
                 />
               );
             })}
@@ -470,6 +476,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                 const t = r.task;
                 const g = barGeometry(scale, t);
                 const pinned = isPinned(doc, t);
+                const held = isHeld(doc, t);
                 const tip = t.milestone ? `${t.name} · ${formatFrDate(t.start)}` : `${t.name} · ${formatFrDate(t.start)} – ${formatFrDate(t.end)} · ${durationDays(t)} j`;
                 return (
                   <div key={id} className={rowCls} style={{ top }} onPointerEnter={() => setHover(id)}>
@@ -484,7 +491,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                       />
                     ) : (
                       <span
-                        className={[s.taskBar, t.done ? s.done : '', pinned ? s.pinned : '', readOnly || pinned ? '' : s.movable, bar?.id === t.id ? s.active : ''].join(' ')}
+                        className={[s.taskBar, t.done ? s.done : '', pinned ? s.pinned : '', readOnly || held ? '' : s.movable, bar?.id === t.id ? s.active : ''].join(' ')}
                         style={{ left: g.x, width: g.w, background: shade(r.index) }}
                         title={tip}
                         onPointerDown={(e) => startBarDrag(e, t, 'move')}
@@ -493,7 +500,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                       >
                         {!readOnly && !pinned && (
                           <>
-                            <i className={[s.handle, s.handleStart].join(' ')} onPointerDown={(e) => startBarDrag(e, t, 'start')} />
+                            {!held && <i className={[s.handle, s.handleStart].join(' ')} onPointerDown={(e) => startBarDrag(e, t, 'start')} />}
                             <i className={[s.handle, s.handleEnd].join(' ')} onPointerDown={(e) => startBarDrag(e, t, 'end')} />
                           </>
                         )}
@@ -514,7 +521,10 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
         <RowMenu
           menu={menu}
           doc={doc}
-          onClose={() => setMenu(null)}
+          onClose={(restore) => {
+            setMenu(null);
+            if (restore) menu.button?.focus();
+          }}
           onDeps={() => setMenu({ ...menu, deps: true })}
           onAdd={(m) => add(menu.row, m)}
           onAddPhase={() => addPhaseAfter(menu.row.phase.id)}
@@ -573,16 +583,17 @@ interface RowProps {
   hover: boolean;
   focus: boolean;
   dragged: boolean;
+  menuOpen: boolean;
   onHover: () => void;
   onToggle: () => void;
   onRename: (name: string) => void;
   onStartRename: () => void;
   onCancelRename: () => void;
   onGrip: (e: ReactPointerEvent) => void;
-  onMenu: (x: number, y: number) => void;
+  onMenu: (x: number, y: number, button: HTMLElement) => void;
 }
 
-function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragged, onHover, onToggle, onRename, onStartRename, onCancelRename, onGrip, onMenu }: RowProps) {
+function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragged, menuOpen, onHover, onToggle, onRename, onStartRename, onCancelRename, onGrip, onMenu }: RowProps) {
   const isPhase = row.type === 'phase';
   const name = isPhase ? row.phase.name : row.task.name;
   const id = isPhase ? row.phase.id : row.task.id;
@@ -592,10 +603,12 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
       type="button"
       className={s.menuBtn}
       aria-label={`Actions : ${name}`}
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
       title="Actions"
       onClick={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
-        onMenu(r.right, r.bottom + 2);
+        onMenu(r.right, r.bottom + 2, e.currentTarget);
       }}
       data-testid="row-menu"
     >
@@ -643,6 +656,10 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
   const t = row.task;
   const pinned = isPinned(doc, t);
   const locked = readOnly || pinned;
+  // Plan de travail daté en partie : le début le suit, la fin reste réglable.
+  const startLocked = locked || isHeld(doc, t);
+  const range = t.linked ? shootingRange(doc) : undefined;
+  const linkTip = range && range.dated < range.total ? `Suit le plan de travail (${range.dated} ${range.dated > 1 ? 'jours' : 'jour'} sur ${range.total} datés)` : 'Suit le plan de travail';
   return (
     <div className={[cls, t.done ? s.isDone : ''].join(' ')} role="row" onPointerEnter={onHover} data-row={id} data-testid="task-row">
       <span className={s.cName} role="cell">
@@ -656,13 +673,13 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
         {t.milestone && <span className={s.diamond} aria-label="Jalon" />}
         {label}
         {t.linked && (
-          <span className={s.linked} title="Suit le plan de travail" aria-label="Suit le plan de travail" data-testid="linked-mark">
+          <span className={s.linked} title={linkTip} aria-label={linkTip} data-testid="linked-mark">
             <Link2 {...SMALL} />
           </span>
         )}
       </span>
       <span className={s.cDate} role="cell">
-        <DateField value={t.start} locked={locked} label={t.milestone ? `Date : ${t.name}` : `Début : ${t.name}`} onCommit={(v) => mutateDoc((d) => setTaskDates(d, t.id, v, t.milestone ? v : addDays(v, daysBetween(t.start, t.end))))} />
+        <DateField value={t.start} locked={startLocked} label={t.milestone ? `Date : ${t.name}` : `Début : ${t.name}`} onCommit={(v) => mutateDoc((d) => setTaskDates(d, t.id, v, t.milestone ? v : addDays(v, daysBetween(t.start, t.end))))} />
       </span>
       <span className={s.cDate} role="cell">
         {!t.milestone && <DateField value={t.end} locked={locked} label={`Fin : ${t.name}`} onCommit={(v) => mutateDoc((d) => setTaskDates(d, t.id, t.start, v))} />}
@@ -768,7 +785,8 @@ function NumberField({ value, locked, label, onCommit }: { value: number; locked
 interface MenuProps {
   menu: Menu;
   doc: ProjectDoc;
-  onClose: () => void;
+  /** `restore` : le focus revient au bouton « … » (Échap, commande choisie). */
+  onClose: (restore?: boolean) => void;
   onDeps: () => void;
   onAdd: (milestone: boolean) => void;
   onAddPhase: () => void;
@@ -789,7 +807,7 @@ function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRemove }: Me
     const close = (e: Event) => {
       if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
       if (e.type === 'mousedown' && ref.current?.contains(e.target as Node)) return;
-      onClose();
+      onClose(e.type === 'keydown');
     };
     window.addEventListener('mousedown', close);
     window.addEventListener('keydown', close);
@@ -799,7 +817,7 @@ function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRemove }: Me
     };
   }, [onClose, menu.deps]);
   const act = (fn: () => void) => () => {
-    onClose();
+    onClose(true);
     fn();
   };
   const row = menu.row;
@@ -863,7 +881,7 @@ function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRemove }: Me
             </button>
             {!row.task.milestone && (
               <button type="button" role="menuitem" onClick={act(() => mutateDoc((d) => setLinked(d, row.task.id, !row.task.linked)))} data-testid="menu-link">
-                {row.task.linked ? 'Délier du plan de travail' : 'Lier le plan de travail'}
+                {row.task.linked ? 'Délier du plan de travail' : 'Lier au plan de travail'}
               </button>
             )}
           </>

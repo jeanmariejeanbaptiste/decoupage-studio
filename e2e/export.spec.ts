@@ -59,7 +59,11 @@ test('import CSV avec correspondance des colonnes', async ({ page }) => {
 });
 
 test('dossier de production complet (.zip)', async ({ page }) => {
-  await page.goto('/#/export?seed=fiction');
+  // Calendrier de production rempli : ses fichiers rejoignent le dossier.
+  await page.goto('/#/production?seed=fiction');
+  await page.getByTestId('production-template').click();
+  await expect(page.getByTestId('task-row')).toHaveCount(17);
+  await page.evaluate(() => void (window.location.hash = '#/export'));
   const dl = page.waitForEvent('download');
   await page.getByTestId('export-zip').click();
   const d = await dl;
@@ -69,6 +73,11 @@ test('dossier de production complet (.zip)', async ({ page }) => {
   const names = Object.keys(zip.files).join('\n');
   for (const part of ['00 Projet/la-consigne-v1.decoupage', '02 Scénario/Scénario.fountain', '04 Découpage/Découpage technique.xlsx', '10 Registre/Plans.csv', 'LISEZ-MOI.txt'])
     expect(names).toContain(part);
+  for (const part of ['11 Calendriers/Calendrier.ics', '11 Calendriers/Calendrier de production.ics', '11 Calendriers/Calendrier de production.svg']) expect(names).toContain(part);
+  const readme = await zip.file(/LISEZ-MOI\.txt$/)[0].async('string');
+  expect(readme).toContain('11 Calendriers');
+  const ics = await zip.file(/Calendrier de production\.ics$/)[0].async('string');
+  expect(ics).toContain('SUMMARY:◆ Scénario verrouillé');
 });
 
 test('exports individuels par onglet', async ({ page }) => {

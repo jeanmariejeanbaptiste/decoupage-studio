@@ -21,6 +21,7 @@ import type { ProjectDoc } from './types';
 import { isZoom, valueRank } from './vocabulary';
 import { cameraFrameKey, questionsFor, setupRef, setupShotIds, type InterviewQuestion } from './interview';
 import { productionSvgPages } from './productionChart';
+import { durationDays, formatFrDate, phaseDays, phaseSpan } from './production';
 import { todayIso } from './calendar';
 
 export const esc = (s: string | number | undefined | null) =>
@@ -435,4 +436,29 @@ export function productionDocument(doc: ProjectDoc, today = todayIso()): DocPage
   const pages = doc.production ? productionSvgPages(doc.production, today) : [];
   const body = pages.length ? pages.map((svg) => `<div class="plan gantt">${svg}</div>`).join('') : '<p class="muted">Aucune étape.</p>';
   return shell(doc, '', 'Calendrier de production', body, true);
+}
+
+/**
+ * Calendrier de production pour Word : un tableau Étape / Début / Fin / Jours (les traitements de
+ * texte ne rendent pas la frise en SVG). Phases en gras, jalons marqués, étapes faites barrées.
+ */
+export function productionWordDocument(doc: ProjectDoc): DocPage {
+  const cell = (v: string | number, done = false) => (done ? `<s>${esc(v)}</s>` : esc(v));
+  const rows = (doc.production?.phases ?? []).flatMap((phase) => {
+    const sp = phaseSpan(phase);
+    const head = `<tr><td><b>${esc(phase.name)}</b></td><td><b>${formatFrDate(sp?.start)}</b></td><td><b>${formatFrDate(sp?.end)}</b></td><td style="text-align:right"><b>${phaseDays(phase) || ''}</b></td></tr>`;
+    return [
+      head,
+      ...phase.tasks.map(
+        (t) =>
+          `<tr><td style="padding-left:14pt">${cell(t.name, t.done)}</td><td>${formatFrDate(t.start)}</td><td>${t.milestone ? '' : formatFrDate(t.end)}</td><td style="text-align:right">${t.milestone ? 'jalon' : durationDays(t)}</td></tr>`,
+      ),
+    ];
+  });
+  const body = rows.length
+    ? `<table width="100%" style="width:100%"><thead><tr><th>Étape</th><th style="width:3cm">Début</th><th style="width:3cm">Fin</th><th style="width:2cm;text-align:right">Jours</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
+    : '<p class="muted">Aucune étape.</p>';
+  const page = shell(doc, '', 'Calendrier de production', body, true);
+  // Word ne connaît pas « Inter Variable » : Inter est déclarée d'abord, sinon il retombe sur Times.
+  return { ...page, html: page.html.replace(/'Inter Variable'/g, "Inter, 'Inter Variable'").replace('</style>', 'td + td { white-space: nowrap; }</style>') };
 }

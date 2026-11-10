@@ -8,6 +8,8 @@ import { exportDocumentPages } from './imageExport';
 interface Props {
   /** Document mis en page : PDF et images A4 (générés par l'outil), Word. */
   doc: () => DocPage | Promise<DocPage>;
+  /** Version pour Word, quand le document mis en page ne s'y lit pas (frise en SVG…). */
+  word?: () => DocPage | Promise<DocPage>;
   fileBase?: string;
   /** Données brutes (CSV, texte…), secondaires. */
   file?: { label: string; name: string; content: () => string | Promise<Blob>; type?: string; hint?: string };
@@ -18,7 +20,7 @@ interface Props {
 }
 
 /** Menu d'export d'un onglet : PDF, images A4, Word et données brutes, sans l'impression du navigateur. */
-export function TabExport({ doc, fileBase = 'document', file, id = 'tab', orientation = 'portrait' }: Props) {
+export function TabExport({ doc, word, fileBase = 'document', file, id = 'tab', orientation = 'portrait' }: Props) {
   const project = useDoc();
   if (!project) return null;
   const extra = [{ key: 'word', label: 'Word', hint: 'Document Word (.doc) modifiable.' }];
@@ -33,7 +35,7 @@ export function TabExport({ doc, fileBase = 'document', file, id = 'tab', orient
         defaultOrientation={orientation}
         extra={extra}
         onExport={async ({ format, orientation, numbers }) => {
-          if (format === 'word') return downloadWord(await doc(), fileBase, orientation);
+          if (format === 'word') return downloadWord(await (word ?? doc)(), fileBase, orientation);
           if (format === 'file' && file) {
             const c = await file.content();
             return downloadBlob(typeof c === 'string' ? new Blob([c], { type: file.type ?? 'text/csv;charset=utf-8' }) : c, file.name);

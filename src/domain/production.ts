@@ -26,6 +26,11 @@ export interface ProductionTask {
   after?: ID[];
   /** Suit le premier et le dernier jour de tournage datés du plan de travail. */
   linked?: 'schedule';
+  /**
+   * Étape liée : durée prévue en jours, gardée tant que le plan de travail n'est pas tout daté. Elle
+   * ne suit pas les dates du plan de travail, si bien qu'une date erronée puis corrigée ne laisse rien.
+   */
+  planned?: number;
 }
 
 export interface ProductionPhase {
@@ -166,18 +171,42 @@ function shift(t: ProductionTask, days: number): void {
   t.end = addDays(t.end, days);
 }
 
+/** Jours de tournage du plan de travail : premier et dernier datés, nombre de jours datés et en tout. */
+export interface ShootingRange extends Span {
+  dated: number;
+  total: number;
+}
+
 /** Premier et dernier jour de tournage datés du plan de travail. */
-export function shootingRange(doc: ProjectDoc): Span | undefined {
-  const dates = scheduleDays(doc)
+export function shootingRange(doc: ProjectDoc): ShootingRange | undefined {
+  const days = scheduleDays(doc);
+  const dates = days
     .map((d) => d.date)
     .filter((d): d is string => isValidDate(d))
     .map((d) => d.slice(0, 10))
     .sort();
-  return dates.length ? { start: dates[0], end: dates[dates.length - 1] } : undefined;
+  return dates.length ? { start: dates[0], end: dates[dates.length - 1], dated: dates.length, total: days.length } : undefined;
 }
 
-/** Étape dont les dates sont tenues par le plan de travail (liée, et des jours y sont datés). */
-export const isPinned = (doc: ProjectDoc, t: ProductionTask) => !!t.linked && !!shootingRange(doc);
+/**
+ * Dates de l'étape liée. Tous les jours datés : du premier au dernier. Sinon le début suit le premier
+ * jour daté, et la fin couvre les jours datés, le nombre de jours du plan de travail et la durée
+ * prévue (`days`), la plus tardive des trois.
+ */
+export function linkedSpan(range: ShootingRange, days: number): Span {
+  if (range.dated >= range.total) return { start: range.start, end: range.end };
+  const end = [range.end, addDays(range.start, range.total - 1), addDays(range.start, Math.max(1, days) - 1)].reduce(maxDate);
+  return { start: range.start, end };
+}
+
+/** Étape dont les dates sont tenues par le plan de travail (liée, et tous ses jours y sont datés). */
+export function isPinned(doc: ProjectDoc, t: ProductionTask): boolean {
+  const r = t.linked && shootingRange(doc);
+  return !!r && r.dated >= r.total;
+}
+
+/** Étape liée dont le début est tenu par le plan de travail (au moins un jour daté) ; la fin reste libre tant que tout n'est pas daté. */
+export const isHeld = (doc: ProjectDoc, t: ProductionTask) => !!t.linked && !!shootingRange(doc);
 
 /**
  * Pousse les successeurs de `ids` qui commenceraient avant la fin de leurs prédécesseurs, et ainsi de
@@ -210,10 +239,19 @@ export function setTaskDates(doc: ProjectDoc, id: ID, start: string, end: string
   const plan = doc.production;
   const t = findTask(plan, id)?.task;
   if (!plan || !t || isPinned(doc, t) || !isValidDate(start) || !isValidDate(end)) return;
-  t.start = start;
-  t.end = t.milestone || end < start ? start : end;
-  const need = earliestBound(plan, t);
-  if (need && startBound(t) < need) shift(t, daysBetween(startBound(t), need));
+  const range = isHeld(doc, t) ? shootingRange(doc) : undefined;
+  if (range) {
+    // Étape liée, plan de travail daté en partie : seule la fin se règle (durée prévue), sans couvrir moins que lui.
+    t.planned = Math.max(1, daysBetween(range.start, end) + 1);
+    t.end = linkedSpan(range, t.planned).end;
+    t.start = range.start;
+  } else {
+    t.start = start;
+    t.end = t.milestone || end < start ? start : end;
+    const need = earliestBound(plan, t);
+    if (need && startBound(t) < need) shift(t, daysBetween(startBound(t), need));
+    if (t.linked) t.planned = durationDays(t);
+  }
   cascade(doc, [id]);
 }
 
@@ -343,21 +381,69 @@ export function setLinked(doc: ProjectDoc, id: ID, on: boolean): void {
   const plan = doc.production;
   const t = findTask(plan, id)?.task;
   if (!plan || !t || t.milestone) return;
-  for (const r of allTasks(plan)) delete r.task.linked;
-  if (on) t.linked = 'schedule';
+  for (const r of allTasks(plan)) {
+    delete r.task.linked;
+    delete r.task.planned;
+  }
+  if (on) {
+    t.linked = 'schedule';
+    t.planned = durationDays(t);
+  }
   syncProduction(doc);
 }
 
-/** L'étape liée suit les jours de tournage datés ; ses successeurs sont poussés s'il le faut. */
+/**
+ * Éléments qui suivent `id` sans écart (début collé à la fin de leur prédécesseur), de proche en
+ * proche : ils forment un bloc avec lui.
+ */
+function gluedChain(plan: Production, id: ID): ProductionTask[] {
+  const out: ProductionTask[] = [];
+  const seen = new Set<ID>([id]);
+  const queue = [id];
+  while (queue.length) {
+    const pred = findTask(plan, queue.shift()!)?.task;
+    if (!pred) continue;
+    for (const { task } of successors(plan, pred.id)) {
+      if (seen.has(task.id) || task.linked || startBound(task) !== finishBound(pred)) continue;
+      seen.add(task.id);
+      out.push(task);
+      queue.push(task.id);
+    }
+  }
+  return out;
+}
+
+/**
+ * L'étape liée suit les jours de tournage datés. Les éléments collés à sa suite gardent leur écart
+ * avec elle, dans les deux sens (une date erronée puis corrigée ne laisse rien derrière), sans jamais
+ * passer avant un autre prédécesseur ; les autres successeurs sont poussés s'il le faut.
+ */
 export function syncProduction(doc: ProjectDoc): void {
   const plan = doc.production;
   if (!plan) return;
   const linked = allTasks(plan).find((r) => r.task.linked)?.task;
   const range = linked && shootingRange(doc);
-  if (!linked || !range || (linked.start === range.start && linked.end === range.end)) return;
-  linked.start = range.start;
-  linked.end = range.end;
-  cascade(doc, [linked.id]);
+  if (!linked || !range) return;
+  linked.planned ??= durationDays(linked);
+  const next = linkedSpan(range, linked.planned);
+  if (linked.start === next.start && linked.end === next.end) return;
+  const delta = daysBetween(linked.end, next.end);
+  const glued = delta ? gluedChain(plan, linked.id) : [];
+  linked.start = next.start;
+  linked.end = next.end;
+  for (const t of glued) shift(t, delta);
+  // Ramenés trop tôt : chacun reste après tous ses prédécesseurs.
+  for (let changed = true, guard = 0; changed && guard < 10_000; guard++) {
+    changed = false;
+    for (const t of glued) {
+      const need = earliestBound(plan, t);
+      if (need && startBound(t) < need) {
+        shift(t, daysBetween(startBound(t), need));
+        changed = true;
+      }
+    }
+  }
+  cascade(doc, [linked.id, ...glued.map((t) => t.id)]);
 }
 
 // --- Modèle -------------------------------------------------------------------------------------
@@ -413,7 +499,8 @@ const TEMPLATE: ReadonlyArray<{ name: string; tasks: TemplateTask[] }> = [
 
 /**
  * Calendrier type, enchaîné à partir de `today`. Le tournage est lié au plan de travail ; s'il y est
- * déjà daté plus tard, développement et préparation se calent juste avant lui.
+ * déjà daté, développement et préparation se calent juste avant lui (au besoin dans le passé) et la
+ * postproduction s'enchaîne après lui.
  */
 export function productionTemplate(doc: ProjectDoc, today = todayIso()): Production {
   const ids = new Map<string, ID>();
@@ -430,17 +517,27 @@ export function productionTemplate(doc: ProjectDoc, today = todayIso()): Product
         ? { id, name: tt.name, start: bound, end: addDays(bound, tt.days - 1) }
         : { id, name: tt.name, start: maxDate(addDays(bound, -1), today), end: maxDate(addDays(bound, -1), today), milestone: true };
       if (tt.after?.length) task.after = tt.after.map((k) => ids.get(k)!);
-      if (tt.linked) task.linked = 'schedule';
+      if (tt.linked) {
+        task.linked = 'schedule';
+        task.planned = tt.days;
+      }
       byKey.set(tt.key, task);
       phase.tasks.push(task);
     }
     plan.phases.push(phase);
   }
   const range = shootingRange(doc);
-  const shoot = byKey.get('shoot')!;
-  if (range && range.start > shoot.start) {
-    const gap = daysBetween(shoot.start, range.start);
-    for (const ph of plan.phases.slice(0, 2)) for (const t of ph.tasks) shift(t, gap);
+  if (range) {
+    // Tournage déjà daté : le calendrier se construit autour de lui, en amont comme en aval.
+    const shoot = byKey.get('shoot')!;
+    const span = linkedSpan(range, shoot.planned ?? durationDays(shoot));
+    const before = daysBetween(shoot.start, span.start);
+    const after = daysBetween(shoot.end, span.end);
+    plan.phases.forEach((ph, i) => {
+      if (i !== 2) for (const t of ph.tasks) shift(t, i < 2 ? before : after);
+    });
+    shoot.start = span.start;
+    shoot.end = span.end;
   }
   return plan;
 }
@@ -469,6 +566,7 @@ export function normalizeProduction(doc: ProjectDoc): void {
     for (const t of p.tasks) {
       if (typeof t.name !== 'string') t.name = '';
       if (t.milestone || !isValidDate(t.end) || t.end < t.start) t.end = t.start;
+      if (!t.linked || !Number.isInteger(t.planned) || t.planned! < 1) delete t.planned;
     }
   }
   const known = new Set(allTasks(plan).map((r) => r.task.id));

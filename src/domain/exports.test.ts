@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { addFloorItem, addPlan, updateFloorItem, type FloorItem } from './floorplan';
-import { allFloorPlans, breakdownCsv, callSheetCsv, charactersCsv, csv, decorsCsv, equipmentCsv, scheduleCsv, sequencesCsv, shotsCsv } from './exports';
-import { suggestSchedule } from './schedule';
+import { allFloorPlans, breakdownCsv, calendarFiles, callSheetCsv, charactersCsv, csv, decorsCsv, equipmentCsv, scheduleCsv, sequencesCsv, shotsCsv } from './exports';
+import { suggestSchedule, updateDay } from './schedule';
+import { applyTemplate } from './production';
 
 describe('exports par onglet', () => {
   it('CSV échappés avec BOM', () => {
@@ -60,5 +61,24 @@ describe('exports par onglet', () => {
       expect(p.y).toBeGreaterThan(titleBottom);
       expect(p.y).toBeLessThanOrEqual(y0 + h);
     }
+  });
+});
+
+describe('calendriers du dossier de production', () => {
+  it('rien sans calendrier ; sinon .ics du calendrier et des étapes, et la frise en SVG', () => {
+    expect(calendarFiles(buildFiction(), '2026-11-09')).toEqual([]);
+    const doc = produce(buildFiction(), (d) => {
+      suggestSchedule(d, 20);
+      updateDay(d, 1, { date: '2027-03-01' });
+      applyTemplate(d, '2026-11-09');
+    });
+    const files = calendarFiles(doc, '2026-11-09');
+    expect(files.map((f) => f.name)).toEqual(['Calendrier.ics', 'Calendrier de production.ics', 'Calendrier de production.svg']);
+    expect(files[0].content).toContain('SUMMARY:Jour 1');
+    expect(files[0].content).toContain('SUMMARY:Repérages');
+    // L'étape liée figure dans les étapes du film.
+    expect(files[1].content).toContain('SUMMARY:Tournage');
+    expect(files[1].content).not.toContain('Jour 1');
+    expect(files[2].content.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true);
   });
 });

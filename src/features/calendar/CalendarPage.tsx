@@ -83,15 +83,19 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const now = useNow();
   const today = todayIso(now);
-  // Venu du plan de travail (« ?date=AAAA-MM-JJ ») : ce jour-là, en vue Jour (sans changer la vue retenue).
-  const focus = useLocation().params.get('date') ?? undefined;
-  const [view, setViewState] = useState<CalendarView>(() => (isValidDate(focus) ? 'day' : storedView()));
+  // Venu d'une autre page (« ?date=AAAA-MM-JJ ») : ce jour-là, en vue Jour, ou dans la vue demandée
+  // (« &view=month »), sans changer la vue retenue.
+  const params = useLocation().params;
+  const focus = params.get('date') ?? undefined;
+  const asked = params.get('view');
+  const focusView: CalendarView = VIEWS.some((x) => x.view === asked) ? (asked as CalendarView) : 'day';
+  const [view, setViewState] = useState<CalendarView>(() => (isValidDate(focus) ? focusView : storedView()));
   const [anchor, setAnchor] = useState(() => (isValidDate(focus) ? focus : today));
   useEffect(() => {
     if (!isValidDate(focus)) return;
     setAnchor(focus);
-    setViewState('day');
-  }, [focus]);
+    setViewState(focusView);
+  }, [focus, focusView]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const items = useMemo(() => calendarItems(doc), [doc]);
 
