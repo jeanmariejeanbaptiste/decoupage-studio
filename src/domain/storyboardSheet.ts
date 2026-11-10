@@ -18,6 +18,8 @@ export const PER_SHEET = [1, 2, 3, 4, 6, 9] as const;
 const A4 = { long: 297, short: 210 };
 const PAD_X = 10;
 const PAD_Y = 6;
+/** Bande du pied de page (titre, version, date) sous les cases, qu'il soit affiché ou non. */
+const FOOT = 3.5;
 /** En-tête (titre, planche n / N) et son espacement. */
 const HEAD = 6.5 + 4;
 /** Espace entre deux cases. */
@@ -55,7 +57,7 @@ export interface SheetLayout {
 /** Zone utile de la feuille, sous l'en-tête (mm). */
 export function sheetArea(o: SheetOrientation): { w: number; h: number } {
   const [w, h] = o === 'portrait' ? [A4.short, A4.long] : [A4.long, A4.short];
-  return { w: w - 2 * PAD_X, h: h - 2 * PAD_Y - HEAD };
+  return { w: w - 2 * PAD_X, h: h - 2 * PAD_Y - HEAD - FOOT };
 }
 
 function shape(n: number, cols: number, ratio: number, o: SheetOrientation): SheetLayout {
