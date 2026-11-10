@@ -1,6 +1,7 @@
 import { sequenceCharacterIds } from './characters';
 import { newId } from './factory';
 import { parseTc } from './timecode';
+import { fold } from './text';
 import { remapCharacter, refreshRecognition } from './ops';
 import { scheduleDays, stripCharacterIds, stripsByDay, type Strip } from './schedule';
 import type { Timing } from './timing';
@@ -181,6 +182,22 @@ export function usageInOtherVersions(doc: ProjectDoc, kind: 'decor' | 'character
   return out;
 }
 
+/**
+ * Clé de comparaison d'un nom de décor : sans casse, sans accents, tirets et ponctuation comptés
+ * comme des espaces (« Gare – hall » = « GARE — HALL »).
+ */
+export function decorKey(name: string): string {
+  return fold(name.replace(/[\p{Pd}\p{P}]+/gu, ' '));
+}
+
+/** Décor d'un nom : par son nom, sinon par un ancien nom (décor renommé dans une autre version). */
+export function findDecorByName(doc: ProjectDoc, name: string): Decor | undefined {
+  const k = decorKey(name);
+  if (!k) return undefined;
+  const all = Object.values(doc.decors);
+  return all.find((d) => decorKey(d.name) === k) ?? all.find((d) => (d.aliases ?? []).some((a) => decorKey(a) === k));
+}
+
 /** Décor d'une séquence : rattache à un décor existant de même nom, sinon le crée. */
 export function setSequenceDecorByName(doc: ProjectDoc, seqId: ID, name: string): void {
   const seq = doc.sequences[seqId];
@@ -190,8 +207,20 @@ export function setSequenceDecorByName(doc: ProjectDoc, seqId: ID, name: string)
     seq.decorId = undefined;
     return;
   }
-  const same = (x: string) => x.toLowerCase() === n.toLowerCase();
-  // Par son nom, sinon par un ancien nom (décor renommé dans une autre version).
-  const existing = Object.values(doc.decors).find((d) => same(d.name)) ?? Object.values(doc.decors).find((d) => (d.aliases ?? []).some(same));
-  seq.decorId = existing?.id ?? addDecor(doc, { name: n, intExt: seq.intExt });
+  seq.decorId = findDecorByName(doc, n)?.id ?? addDecor(doc, { name: n, intExt: seq.intExt });
+}
+
+/**
+ * Renomme une fiche (personnage ou décor) sans toucher au texte : l'ancien nom reste en alias, pour
+ * que les plans et les versions qui le citent la retrouvent.
+ */
+export function renameFiche(doc: ProjectDoc, kind: 'character' | 'decor', id: ID, name: string): void {
+  const f = kind === 'character' ? doc.characters[id] : doc.decors[id];
+  const next = name.trim();
+  if (!f || !next || next === f.name) return;
+  const old = f.name;
+  f.name = next;
+  f.aliases = [...new Set([...(f.aliases ?? []), old])].filter((a) => fold(a) !== fold(next));
+  if (!f.aliases.length) delete f.aliases;
+  if (kind === 'character') refreshRecognition(doc);
 }
