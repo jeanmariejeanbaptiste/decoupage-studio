@@ -2,7 +2,8 @@
  * Dépouillement depuis le texte : passage du scénario propre à une séquence, repérage des éléments
  * déjà dépouillés dans ce texte (sans accents ni casse), nettoyage d'une sélection avant ajout.
  */
-import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown, detectInText, type BreakdownCategory } from './breakdown';
+import { addedCharacters, breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown, detectInText, type BreakdownCategory } from './breakdown';
+import { fold } from './text';
 import { matchSequence, scenesOf } from './fountain';
 import type { ID, ProjectDoc } from './types';
 
@@ -73,24 +74,49 @@ export interface TagMark {
   item: string;
   /** Repéré dans le texte mais pas encore ajouté (suggestion). */
   suggested?: boolean;
+  /** Déduit du découpage (plans, matériel) : ne se retire pas d'ici. */
+  derived?: boolean;
+}
+
+/** Ce que le texte d'une séquence peut repérer, calculé une fois pour tous ses paragraphes. */
+export interface TagContext {
+  /** Termes connus, les plus longs d'abord (« rouge à lèvres » avant « rouge »). */
+  known: Array<{ cat: BreakdownCategory; item: string; derived: boolean }>;
+  /** Termes connus repliés (sans casse ni accents). */
+  have: Set<string>;
+}
+
+export function tagContext(doc: ProjectDoc, seqId: ID): TagContext {
+  const manual = breakdownOf(doc, seqId);
+  const derived = derivedBreakdown(doc, seqId);
+  // Personnages ajoutés à la séquence (pas nommés par ses plans) : saisis ici, donc retirables.
+  const added = addedCharacters(doc, seqId);
+  const known: TagContext['known'] = [];
+  for (const cat of breakdownCategories(doc)) {
+    for (const item of manual[cat] ?? []) known.push({ cat, item, derived: false });
+    const mine = new Set((manual[cat] ?? []).map(fold));
+    const free = new Set((added[cat] ?? []).map(fold));
+    for (const item of derived[cat] ?? []) if (!mine.has(fold(item))) known.push({ cat, item, derived: !free.has(fold(item)) });
+  }
+  known.sort((x, y) => y.item.length - x.item.length);
+  return { known, have: new Set(known.map((k) => foldKeepLength(k.item))) };
+}
+
+/** Repères d'un texte d'après le contexte de sa séquence. */
+export function marksWith(ctx: TagContext, text: string): TagMark[] {
+  const marks: TagMark[] = [];
+  const taken = (a: number, b: number) => marks.some((m) => a < m.end && b > m.start);
+  const add = (cat: BreakdownCategory, item: string, extra: Partial<TagMark>) => {
+    for (const [a, b] of findTerm(text, item)) if (!taken(a, b)) marks.push({ start: a, end: b, cat, item, ...extra });
+  };
+  for (const k of ctx.known) add(k.cat, k.item, k.derived ? { derived: true } : {});
+  for (const [cat, items] of Object.entries(detectInText(text)) as Array<[BreakdownCategory, string[]]>) for (const item of items) if (!ctx.have.has(foldKeepLength(item))) add(cat, item, { suggested: true });
+  return marks.sort((x, y) => x.start - y.start);
 }
 
 /** Repères d'un texte : éléments déjà dépouillés (et déduits), puis suggestions du lexique. */
 export function marksIn(doc: ProjectDoc, seqId: ID, text: string): TagMark[] {
-  const manual = breakdownOf(doc, seqId);
-  const derived = derivedBreakdown(doc, seqId);
-  const marks: TagMark[] = [];
-  const taken = (a: number, b: number) => marks.some((m) => a < m.end && b > m.start);
-  const add = (cat: BreakdownCategory, item: string, suggested = false) => {
-    for (const [a, b] of findTerm(text, item)) if (!taken(a, b)) marks.push({ start: a, end: b, cat, item, suggested });
-  };
-  // Les termes les plus longs d'abord (« rouge à lèvres » avant « rouge »).
-  const known: Array<[BreakdownCategory, string]> = [];
-  for (const cat of breakdownCategories(doc)) for (const item of [...(manual[cat] ?? []), ...(derived[cat] ?? [])]) known.push([cat, item]);
-  known.sort((x, y) => y[1].length - x[1].length).forEach(([c, i]) => add(c, i));
-  const have = new Set(known.map(([, i]) => foldKeepLength(i)));
-  for (const [cat, items] of Object.entries(detectInText(text)) as Array<[BreakdownCategory, string[]]>) for (const item of items) if (!have.has(foldKeepLength(item))) add(cat, item, true);
-  return marks.sort((x, y) => x.start - y.start);
+  return marksWith(tagContext(doc, seqId), text);
 }
 
 /** Sélection → élément : sans ponctuation autour, espaces réduits, majuscule initiale. */
