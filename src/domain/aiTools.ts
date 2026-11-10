@@ -9,7 +9,7 @@ import { applyFormat } from './factory';
 import { scenesOf, shiftAnchors } from './fountain';
 import { formatFocal } from './focal';
 import { addCharacter, addSequence, addShot, applyScenarioEdit, deleteShot, linkAction, setSequenceSummary } from './ops';
-import { carryOutline, insertEntry, moveEntry, outlineMeasures, outlineOf, plotName, plotsOf, sequenceSummary, setHeading, setOutlineTag, setPhrase, type OutlineSequence } from './outline';
+import { carryOutline, insertEntry, moveEntry, outlineMeasures, outlineOf, outlineSequences, plotName, plotsOf, sequenceSummary, setHeading, setOutlineTag, setPhrase, type OutlineSequence, type SourceEdit } from './outline';
 import { mmss } from './chronometry';
 import { stepLabel } from './truby';
 import { setSequenceDecorByName } from './registry';
@@ -362,7 +362,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const src = doc.scenario ?? '';
         const n = asInt(input.scene);
         if (n === undefined) return { result: src || '(scénario vide)' };
-        const sc = scenesOf(src)[n - 1];
+        const sc = outlineSequences(src)[n - 1];
         if (!sc) return { result: `Séquence ${n} introuvable.`, isError: true };
         return { result: src.slice(sc.start, sc.end) };
       }
@@ -481,31 +481,35 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         };
       }
       case 'set_outline_entry': {
+        // Tout est lu et préparé d'abord : une entrée refusée n'écrit rien.
         const n = outlineN(doc, input.n);
-        const changed: string[] = [];
+        const tag = outlineTag(input);
         const ie = asStr(input.int_ext);
         const location = asStr(input.location);
         const effect = asStr(input.effect);
+        const phrase = asStr(input.phrase);
+        const edits: SourceEdit[] = [];
+        const changed: string[] = [];
+        let src = doc.scenario ?? '';
+        const push = (e: SourceEdit, what: string) => {
+          edits.push(e);
+          src = e.source;
+          changed.push(what);
+        };
         if (ie !== undefined || location || effect !== undefined) {
           const h: { intExt?: string; location?: string; effect?: string } = {};
           if (ie !== undefined) h.intExt = ie;
           if (location) h.location = location;
           if (effect !== undefined) h.effect = effect;
-          applyScenarioEdit(doc, setHeading(doc.scenario ?? '', n, h));
-          changed.push('en-tête');
+          push(setHeading(src, n, h), 'en-tête');
         }
-        const phrase = asStr(input.phrase);
-        if (phrase !== undefined) {
-          applyScenarioEdit(doc, setPhrase(doc.scenario ?? '', n, phrase));
-          changed.push('phrase');
-        }
-        const tag = outlineTag(input);
+        if (phrase !== undefined) push(setPhrase(src, n, phrase), 'phrase');
         if (Object.keys(tag).length) {
-          applyScenarioEdit(doc, setOutlineTag(doc.scenario ?? '', n, tag));
-          if ('step' in tag) changed.push('étape');
-          if ('plot' in tag) changed.push(`intrigue (${plotName(doc, tag.plot ?? 'A')})`);
+          const what = [...('step' in tag ? ['étape'] : []), ...('plot' in tag ? [`intrigue (${plotName(doc, tag.plot ?? 'A')})`] : [])].join(', ');
+          push(setOutlineTag(src, n, tag), what);
         }
         if (!changed.length) throw new Error('Rien à modifier.');
+        for (const e of edits) applyScenarioEdit(doc, e);
         return { result: 'ok', change: `Séquencier, séquence ${n} : ${changed.join(', ')}` };
       }
       case 'add_outline_entry': {
@@ -537,9 +541,11 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const src = doc.scenario ?? '';
         const n = asInt(input.replace_scene);
         if (n !== undefined) {
-          const sc = scenesOf(src)[n - 1];
+          // Numéros du séquencier (en-têtes vides ignorés) ; la scène entière, ligne d'en-tête comprise (« .CUISINE »).
+          const sc = outlineSequences(src)[n - 1];
           if (!sc) throw new Error(`Séquence ${n} introuvable.`);
-          const next = carryOutline(src, src.slice(0, sc.start) + text.replace(/\n*$/, '\n\n') + src.slice(sc.end).replace(/^\n+/, ''));
+          const rest = src.slice(sc.end).replace(/^\n+/, '');
+          const next = carryOutline(src, src.slice(0, sc.start) + text.replace(/\n*$/, rest ? '\n\n' : '\n') + rest);
           shiftAnchors(doc, src, next);
           doc.scenario = next;
           return { result: 'ok', change: `Séquence ${n} du scénario réécrite` };
