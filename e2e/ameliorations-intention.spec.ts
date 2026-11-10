@@ -211,3 +211,38 @@ test('note : écran étroit, les groupes du ruban restent d’un seul tenant', a
   expect(await top('note-left')).toBe(await top('note-line'));
   expect(await top('note-bullets')).toBe(await top('note-indent'));
 });
+
+test('note : largeur d’une image depuis le ruban, annulable, gardée à l’export Word', async ({ page }) => {
+  await page.goto('/#/intention?seed=fiction');
+  const ed = await newParagraph(page);
+  const b64 = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 800;
+    c.height = 400;
+    c.getContext('2d')!.fillRect(0, 0, 800, 400);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByTestId('note-image-input').setInputFiles({ name: 'ref.png', mimeType: 'image/png', buffer: Buffer.from(b64, 'base64') });
+  const img = ed.locator('img[data-blob]');
+  await expect(img).toHaveCount(1);
+  await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(800);
+  await img.click();
+  const size = page.getByTestId('note-size');
+  await expect(size).toHaveAttribute('aria-label', 'Largeur de l’image');
+  await expect(size).toHaveValue('100');
+  await size.selectOption('50');
+  await expect(img).toHaveAttribute('style', /width: 50%/);
+  await ed.press('ControlOrMeta+z');
+  await expect(img).toHaveAttribute('style', /width: 100%/);
+  await img.click();
+  await page.getByTestId('note-size').selectOption('50');
+  // Ailleurs dans le texte, le menu redevient celui du corps.
+  await ed.locator('h1').click();
+  await expect(page.getByTestId('note-size')).toHaveAttribute('aria-label', 'Corps');
+  const dl = page.waitForEvent('download');
+  await page.getByTestId('tab-export').click();
+  await page.getByText('Word', { exact: true }).click();
+  await page.getByTestId('tab-export-go').click();
+  const content = readFileSync(await (await dl).path(), 'utf8');
+  expect(content.replace(/src="[^"]*"/g, 'src')).toMatch(/<img [^>]*width="303" height="151"/);
+});

@@ -104,6 +104,17 @@ function highlighted(node: HTMLElement, root: HTMLElement): boolean {
   return false;
 }
 
+/** Largeurs proposées pour une image, en % de la zone de texte. */
+const IMAGE_WIDTHS = [25, 33, 50, 75, 100] as const;
+
+/** Image sélectionnée seule (après un clic dessus), sinon null. */
+function pickedImage(sel: Selection | null): HTMLImageElement | null {
+  if (!sel?.rangeCount) return null;
+  const r = sel.getRangeAt(0);
+  const n = r.startContainer.childNodes[r.startOffset];
+  return n?.nodeName === 'IMG' && r.endContainer === r.startContainer && r.endOffset === r.startOffset + 1 ? (n as HTMLImageElement) : null;
+}
+
 /** Blocs touchés par la sélection (paragraphes, titres, citations, éléments de liste). */
 function selectedBlocks(root: HTMLElement): HTMLElement[] {
   const sel = window.getSelection();
@@ -148,7 +159,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   // Zoom jamais choisi : la page s'ajuste à la largeur disponible (écran étroit).
   const zoomChosen = useRef(storedZoom() > 0);
   const scroller = useRef<HTMLDivElement>(null);
-  const [state, setState] = useState({ style: 'p' as ParagraphStyle, font: 'Inter Variable', size: '11', align: 'left', line: '', marks: {} as Record<string, boolean> });
+  const [state, setState] = useState({ style: 'p' as ParagraphStyle, font: 'Inter Variable', size: '11', align: 'left', line: '', marks: {} as Record<string, boolean>, image: '' });
 
   // --- Pagination : chaque bloc qui déborderait passe en haut de la page suivante ---
   const relayout = useCallback(() => {
@@ -387,7 +398,10 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     const tag = (block?.tagName.toLowerCase() ?? 'p') as ParagraphStyle | 'li';
     const bcs = block ? getComputedStyle(block) : null;
     const lh = block?.style.lineHeight ?? '';
-    setState({ style: tag === 'li' ? 'p' : tag, font, size: String(pt), align: bcs?.textAlign === 'start' ? 'left' : (bcs?.textAlign ?? 'left'), line: lh, marks });
+    // Image sélectionnée (clic) : le menu Corps propose sa largeur.
+    const img = pickedImage(sel);
+    const image = img ? String(Math.round(parseFloat(img.style.width) || 100)) : '';
+    setState({ style: tag === 'li' ? 'p' : tag, font, size: String(pt), align: bcs?.textAlign === 'start' ? 'left' : (bcs?.textAlign ?? 'left'), line: lh, marks, image });
     // Page du curseur.
     relayout();
   }, [relayout]);
@@ -451,6 +465,12 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   const setSize = (pt: string) => {
     restoreRange();
     snapshot(true);
+    const img = pickedImage(window.getSelection());
+    if (img) {
+      img.style.width = `${pt}%`;
+      afterChange();
+      return;
+    }
     // Curseur seul : la frappe suivante prend le corps choisi (le navigateur, lui, poserait son plus grand corps).
     const sel = window.getSelection();
     if (sel?.rangeCount && sel.isCollapsed && root.current?.contains(sel.anchorNode)) {
@@ -652,16 +672,29 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
                 </option>
               ))}
             </select>
-            <select value={RICH_SIZES.map(String).includes(state.size) ? state.size : ''} onChange={(e) => setSize(e.target.value)} aria-label="Corps" title="Taille des caractères" className={s.selSize} {...rove('size')} data-testid="note-size">
-              <option value="" disabled hidden>
-                {state.size ? state.size.replace('.', ',') : 'Corps'}
-              </option>
-              {RICH_SIZES.map((z) => (
-                <option key={z} value={String(z)}>
-                  {String(z).replace('.', ',')}
+            {state.image ? (
+              <select value={IMAGE_WIDTHS.map(String).includes(state.image) ? state.image : ''} onChange={(e) => setSize(e.target.value)} aria-label="Largeur de l’image" title="Largeur de l’image" className={s.selSize} {...rove('size')} data-testid="note-size">
+                <option value="" disabled hidden>
+                  {state.image} %
                 </option>
-              ))}
-            </select>
+                {IMAGE_WIDTHS.map((w) => (
+                  <option key={w} value={String(w)}>
+                    {w} %
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select value={RICH_SIZES.map(String).includes(state.size) ? state.size : ''} onChange={(e) => setSize(e.target.value)} aria-label="Corps" title="Taille des caractères" className={s.selSize} {...rove('size')} data-testid="note-size">
+                <option value="" disabled hidden>
+                  {state.size ? state.size.replace('.', ',') : 'Corps'}
+                </option>
+                {RICH_SIZES.map((z) => (
+                  <option key={z} value={String(z)}>
+                    {String(z).replace('.', ',')}
+                  </option>
+                ))}
+              </select>
+            )}
             <span className={s.sep} />
           </span>
           <span className={s.group}>
@@ -752,6 +785,15 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
             onInput={afterChange}
             onKeyDown={readOnly ? undefined : onKeyDown}
             onBlur={commit}
+            onClick={(e) => {
+              // Clic sur une image : elle est sélectionnée seule (largeur réglable depuis le ruban).
+              if ((e.target as HTMLElement).tagName !== 'IMG' || readOnly) return;
+              const r = document.createRange();
+              r.selectNode(e.target as HTMLElement);
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(r);
+            }}
             onPaste={(e) => {
               if (readOnly) return;
               // Collage : images (capture d'écran), texte mis en forme nettoyé (aucun style étranger), ou texte brut.
