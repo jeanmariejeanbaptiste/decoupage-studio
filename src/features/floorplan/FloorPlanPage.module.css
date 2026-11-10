@@ -54,6 +54,8 @@
 .reflectorEdge { stroke: #1f1d1a; stroke-width: calc(7px * var(--fp-k, 1)); stroke-linecap: round; filter: drop-shadow(3px 4px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.3)); }
 .diffuser { stroke: #d6d8dd; stroke-width: calc(5px * var(--fp-k, 1)); stroke-dasharray: 1 1.5; stroke-linecap: butt; filter: drop-shadow(0 0 1px #8b9099); }
 .flag { stroke: #0d0d0d; stroke-width: calc(4.5px * var(--fp-k, 1)); stroke-linecap: square; }
+/* Thème encre : la toile noire garde un liseré clair pour rester lisible sur le fond sombre. */
+:root[data-theme='encre'] .flag { filter: drop-shadow(0 0 1px var(--ink-soft)) drop-shadow(0 0 0.5px var(--ink-soft)); }
 .shadow { fill: #1d1b18; fill-opacity: 0.2; pointer-events: none; }
 .sel .reflectorEdge { stroke: var(--rust); }
 .beamGroup { pointer-events: none; mix-blend-mode: multiply; }
@@ -65,15 +67,22 @@
 .quick { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
 .quick button { border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 1px 9px; font-size: 12.5px; }
 .quick .quickOn { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
+.field .quick .quickOther { width: auto; max-width: 100%; padding: 1px 6px; font-size: 12.5px; border-radius: 10px; color: var(--ink-soft); }
+.field .quick .quickOther.quickOn { color: var(--on-navy); }
 
 .exports { display: flex; gap: 8px; align-items: center; }
 
 /* Plan-séquence : temps et trajectoires. */
-.beats { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 8px; font-size: 12.5px; }
+.beats {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 3;
+  display: flex; flex-wrap: nowrap; gap: 4px; align-items: center; max-width: calc(100% - 120px); overflow-x: auto; scrollbar-width: none;
+  padding: 4px 6px 4px 12px; font-size: 12.5px;
+  background: var(--paper-card); border: 1px solid var(--rule); border-radius: 18px; box-shadow: 0 2px 10px rgba(17, 19, 24, 0.08);
+}
+.beats > * { flex: none; }
 .beats > span { color: var(--rust); font-weight: 600; margin-right: 4px; }
 .beats button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: 10px; padding: 1px 9px; font-size: 12px; cursor: pointer; }
 .beats button.on { background: var(--rust); color: var(--paper); border-color: var(--rust); }
-.beats em { color: var(--ink-soft); font-size: 11.5px; margin-left: 6px; }
 .camPath { fill: none; stroke: var(--rust); stroke-width: 1.4; stroke-dasharray: 8 5; pointer-events: none; }
 .actorPath { fill: none; stroke: var(--navy); stroke-width: 1.2; stroke-dasharray: 2 4; pointer-events: none; }
 .beatTag { font-size: 13px; font-weight: 700; fill: var(--rust); pointer-events: none; }
@@ -124,18 +133,23 @@
 .page { padding-top: 12px; }
 .toolbar {
   position: sticky; top: 0; z-index: 8;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: nowrap;
   margin: -12px -24px 12px; padding: 8px 24px;
   background: var(--paper); border-bottom: 1px solid var(--rule);
 }
-.tbLeft, .tbRight { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-.seqSelect { max-width: 260px; height: 32px; font-size: 13px; padding: 0 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); }
-.toolbar .plans { margin: 0; align-items: center; gap: 2px; }
-.toolbar .plans button[role='tab'] { border: 1px solid transparent; border-radius: var(--radius); padding: 5px 10px; background: none; color: var(--ink-soft); }
+/* Une seule ligne : les onglets défilent, zoom, « Plan des locaux » et « Exporter » restent à droite. */
+.tbLeft, .tbRight { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: nowrap; }
+.tbLeft { flex: 1 1 auto; }
+.tbRight { flex: none; }
+.seqSelect { flex: 0 1 auto; min-width: 110px; max-width: 260px; height: 32px; font-size: 13px; padding: 0 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); text-overflow: ellipsis; }
+.toolbar .plans { flex: 0 1 auto; min-width: 0; margin: 0; padding: 2px 0; align-items: center; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.toolbar .plans::-webkit-scrollbar { display: none; }
+.toolbar .plans > * { flex: none; }
+.toolbar .plans button[role='tab'] { border: 1px solid transparent; border-radius: var(--radius); padding: 5px 10px; background: none; color: var(--ink-soft); white-space: nowrap; }
 .toolbar .plans button[role='tab']:hover { color: var(--ink); background: var(--hover); }
 .toolbar .plans .planOn { background: var(--selected) !important; color: var(--ink) !important; font-weight: 600; border-color: transparent !important; }
 .toolbar .psTab { border-style: dashed !important; border-color: var(--rule) !important; }
-.planActions { display: inline-flex; align-items: center; margin-left: 4px; padding-left: 6px; border-left: 1px solid var(--rule); }
+.planActions { display: inline-flex; align-items: center; margin-left: 4px; padding-left: 6px; border-left: 1px solid var(--rule); flex: none; }
 .renameField { width: 120px; height: 28px; font-size: 13px; padding: 0 8px; border: 1px solid var(--ink-soft); border-radius: var(--radius); background: var(--paper); }
 .zoomGroup { display: inline-flex; align-items: center; padding: 0 4px; border-right: 1px solid var(--rule); }
 
@@ -167,7 +181,7 @@
 .paletteTool.on { background: var(--ink); color: var(--paper); }
 .bgBar {
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 3;
-  display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 12px;
+  display: flex; align-items: center; gap: 6px; padding: 5px 6px;
   background: var(--ink); color: var(--paper); border-radius: 18px; font-size: 12.5px;
   box-shadow: 0 4px 16px rgba(17, 19, 24, 0.2);
 }
@@ -178,7 +192,8 @@
 .h2 { font-size: 15px; font-weight: 600; }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
-  .toolbar { margin: -12px -16px 12px; padding: 8px 16px; }
+  .toolbar { margin: -12px -16px 12px; padding: 8px 16px; flex-wrap: wrap; }
+  .tbLeft { flex-basis: 100%; }
   .palette { top: 6px; left: 6px; }
   .paletteTool { width: 30px; height: 30px; }
 }

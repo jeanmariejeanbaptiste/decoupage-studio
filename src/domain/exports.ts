@@ -235,13 +235,20 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         break;
     }
   }
-  // Cadre : la zone par défaut, élargie à tout ce qui a été placé (fond à l'échelle réelle compris).
-  const xs = [0, PLAN_W, ...items.flatMap((i) => ('x2' in i ? [i.x, i.x2] : [i.x]))];
-  const ys = [0, PLAN_H, ...items.flatMap((i) => ('y2' in i ? [i.y, i.y2] : [i.y]))];
-  const x0 = Math.min(...xs) - 30;
-  const y0 = Math.min(...ys) - 70;
-  const w = Math.max(...xs) + 30 - x0;
-  const h = Math.max(...ys) + 30 - y0;
+  // Cadre : la zone par défaut, élargie à tout ce qui est dessiné (éléments, cônes des caméras,
+  // faisceaux, déplacements), avec une marge pour les étiquettes et une bande pour le titre au-dessus.
+  // Le fond (plan des locaux) n'est pas exporté.
+  const drawn = [
+    ...items.flatMap((i) => [{ x: i.x, y: i.y }, ...('x2' in i ? [{ x: i.x2, y: i.y2 }] : []), ...(i.kind === 'actor' && i.to ? [i.to] : [])]),
+    ...items.flatMap((i) => (i.kind === 'camera' ? cameraCone(doc, i).points : [])),
+    ...beams.flatMap((b) => b.points),
+  ];
+  const xs = [0, PLAN_W, ...drawn.map((q) => q.x)];
+  const ys = [0, PLAN_H, ...drawn.map((q) => q.y)];
+  const x0 = Math.min(...xs) - 40;
+  const y0 = Math.min(...ys) - 80;
+  const w = Math.max(...xs) + 40 - x0;
+  const h = Math.max(...ys) + 50 - y0;
   // Largeur et hauteur explicites : Safari ne sait pas dessiner un SVG qui n'a qu'une viewBox.
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w)}" height="${Math.round(h)}" viewBox="${x0} ${y0} ${w} ${h}" font-family="Inter, 'Helvetica Neue', Arial, sans-serif"><rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="#fff"/><text x="${x0 + 40}" y="${y0 + 26}" font-size="18" fill="#111318">${xml(title)}</text>${out.join('')}</svg>`;
 }

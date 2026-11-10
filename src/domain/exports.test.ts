@@ -38,4 +38,27 @@ describe('exports par onglet', () => {
     expect(plans[0].svg).toMatch(/^<svg xmlns/);
     expect(plans[0].svg).toContain('CAM A · 16mm');
   });
+  it('le cadre du plan exporté contient cônes et faisceaux, sous le titre', async () => {
+    const { cameraCone, computeLighting, planOf } = await import('./floorplan');
+    const { floorPlanSvg } = await import('./exports');
+    const doc = buildRav3();
+    const seqId = doc.project.sequenceIds[0];
+    const next = produce(doc, (d) => {
+      addFloorItem(d, seqId, 'camera', { x: 300, y: 100 }); // orientée vers le haut : le cône sort du cadre par défaut
+      const l = addFloorItem(d, seqId, 'light', { x: 980, y: 300 });
+      updateFloorItem(d, seqId, l, { rot: 0 } as Partial<FloorItem>);
+    });
+    const svg = floorPlanSvg(next, seqId, 'Test');
+    const [x0, y0, w, h] = svg.match(/viewBox="([^"]+)"/)![1].split(' ').map(Number);
+    const items = planOf(next, seqId).items;
+    const cam = items.find((i) => i.kind === 'camera')!;
+    const pts = [...cameraCone(next, cam as Extract<FloorItem, { kind: 'camera' }>).points, ...computeLighting(items).beams.flatMap((b) => b.points)];
+    const titleBottom = y0 + 30;
+    for (const p of pts) {
+      expect(p.x).toBeGreaterThanOrEqual(x0);
+      expect(p.x).toBeLessThanOrEqual(x0 + w);
+      expect(p.y).toBeGreaterThan(titleBottom);
+      expect(p.y).toBeLessThanOrEqual(y0 + h);
+    }
+  });
 });

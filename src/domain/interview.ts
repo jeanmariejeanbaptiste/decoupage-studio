@@ -6,6 +6,7 @@
 import { newId } from './factory';
 import { recognizeCharacters } from './characters';
 import { removeFrame, setFrame } from './keyframes';
+import { unlinkShotFromPlans } from './floorplan';
 import { formatShotCode, sequenceNumber, shotNumber } from './numbering';
 import { addSequence, addShot, moveShotTo, normalizeBlocks, removeShot } from './ops';
 import type { ID, ProjectDoc, Shot } from './types';
@@ -431,6 +432,7 @@ export function syncInterviewShots(doc: ProjectDoc): void {
           if (from) from.shotIds = from.shotIds.filter((x) => x !== id);
           touched.add(sh.sequenceId);
           sh.sequenceId = seqId;
+          unlinkShotFromPlans(doc, id, false);
         }
         if (sh.actionBlockId !== blockId) {
           sh.actionBlockId = blockId;

@@ -234,8 +234,8 @@ function moveGroup(doc: ProjectDoc, group: ID[], toSeqId: ID, toIndex: number): 
     if (sh.sequenceId !== toSeqId) {
       touched.add(sh.sequenceId);
       sh.mergeBreak = undefined;
-      unlinkShotFromPlans(doc, id, false);
       sh.sequenceId = toSeqId;
+      unlinkShotFromPlans(doc, id, false);
     }
     sh.actionBlockId = first.actionBlockId;
   }

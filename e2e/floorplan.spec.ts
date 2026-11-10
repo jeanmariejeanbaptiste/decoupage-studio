@@ -34,7 +34,9 @@ test('plan au sol : caméra liée à un plan, comédien, mur', async ({ page }) 
   await page.mouse.click(p.x, p.y);
   // Nommage automatique : le premier personnage de la séquence est attribué.
   await expect(page.getByTestId('fp-actor')).toContainText('Admiratrice');
-  await props.getByLabel('Personnage').selectOption({ label: 'Admiratrice' });
+  // Une seule commande pour le personnage : puces de la séquence, sans liste en double.
+  await expect(props.getByRole('button', { name: 'Admiratrice' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(props.getByRole('option', { name: 'Admiratrice' })).toHaveCount(0);
   await props.getByRole('button', { name: 'Ajouter un déplacement' }).click();
   await expect(page.getByTestId('fp-actor')).toContainText('Admiratrice');
   await expect(page.getByTestId('fp-actor').locator('line')).toHaveCount(1);
@@ -43,7 +45,8 @@ test('plan au sol : caméra liée à un plan, comédien, mur', async ({ page }) 
   p = await at(page, 0.7, 0.4);
   await page.mouse.click(p.x, p.y);
   await expect(page.getByTestId('fp-actor')).toHaveCount(2);
-  await props.getByRole('button', { name: 'Vedette' }).click();
+  // Un personnage hors de la séquence se choisit dans « Autre… ».
+  await props.getByLabel('Autre personnage').selectOption({ label: 'Vedette' });
   await expect(page.getByTestId('fp-actor').nth(1)).toContainText('Vedette');
   await page.getByTestId('tool-select').click();
   // Déplacer la caméra par glisser puis la retirer au clavier.

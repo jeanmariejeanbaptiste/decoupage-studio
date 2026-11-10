@@ -24,6 +24,7 @@ import {
   addFloorItem,
   addPlan,
   choreography,
+  nextLabel,
   oneShotPlansOf,
   cameraCone,
   decorSummary,
@@ -245,6 +246,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const psView = psPlans.find((p) => p.key === planKey);
   // Retrouve le cadrage de cette vue tel qu'on l'a laissé, et le mémorise à chaque changement.
   const viewFor = useRef<string | null>(null);
+  // Onglets sur une ligne qui défile : la vue active reste visible.
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [planKey]);
   useEffect(() => {
     memory.seq = seqId;
     memory.pick = planPick;
@@ -264,6 +270,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const bgUrl = useBlobUrl(bg?.blobKey);
   const nat = useImageSize(bgUrl);
   const bgRatio = nat ? nat.h / nat.w : 0.7;
+  // Réglage du fond : seulement tant que la vue a un fond (retiré ou annulé, le mode s'arrête).
+  const editingBg = bgEdit && !!bg;
   // Aperçu de l'import : murs placés sur le fond (ou la vue), puis ajustés à la main avant validation.
   const placed = useMemo(() => {
     if (!mdImport) return null;
@@ -284,7 +292,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   ghostOnRef.current = !!placed;
   const scaleGhostRef = useRef((f: number) => setGhost((g) => ({ ...g, k: Math.max(0.05, Math.min(40, g.k * f)) })));
   const bgEditRef = useRef(bgEdit);
-  bgEditRef.current = bgEdit;
+  bgEditRef.current = editingBg;
   /** Met le fond à l'échelle autour d'un point (repère du plan). */
   const scaleBg = (f: number, at?: Point) =>
     mutateDoc((d) => {
@@ -430,7 +438,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       setDrag({ mode: 'ghost', from: p, to: p });
       return;
     }
-    if (bgEdit && bg) {
+    if (editingBg) {
       svgRef.current?.setPointerCapture(e.pointerId);
       const p = toSvg(e);
       setDrag({ mode: 'bg', from: p, to: p });
@@ -459,8 +467,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     const id = mutateDoc((d) => {
       const nid = addFloorItem(d, planKey, tool === 'practical' ? 'light' : tool, p);
       if (tool === 'practical') {
-        const n = planOf(d, planKey).items.filter((i) => i.kind === 'light' && i.practical).length + 1;
-        updateFloorItem(d, planKey, nid, { practical: true, spread: 360, range: 170, power: 0.6, label: `P${n}` } as Partial<FloorItem>);
+        const label = nextLabel(planOf(d, planKey).items, (n) => `P${n}`);
+        updateFloorItem(d, planKey, nid, { practical: true, spread: 360, range: 170, power: 0.6, label } as Partial<FloorItem>);
       }
       if (tool === 'actor') {
         // Nommage rapide : le premier personnage de la séquence pas encore placé.
@@ -474,7 +482,12 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
         const patch: Record<string, unknown> = { beat };
         // Le comédien du temps précédent est repris ; la caméra couvre le plan-séquence.
         if (tool === 'actor' && prev?.kind === 'actor') Object.assign(patch, { characterId: prev.characterId, label: prev.label });
-        if (tool === 'camera' && psShots.length === 1) patch.shotIds = [psShots[0]];
+        if (tool === 'camera' && psShots.length === 1) {
+          patch.shotIds = [psShots[0]];
+          // Une seule caméra d'un temps à l'autre : elle garde son repère, même si un temps manque.
+          const same = planOf(d, planKey).items.find((i) => i.kind === 'camera' && i.id !== nid && i.shotIds.includes(psShots[0]));
+          if (same?.kind === 'camera' && same.label) patch.label = same.label;
+        }
         if (it) updateFloorItem(d, planKey, nid, patch as Partial<FloorItem>);
       }
       return nid;
@@ -485,7 +498,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // Quel que soit l'outil actif, cliquer sur un élément existant le sélectionne et le déplace
   // (sans en créer un nouveau) ; l'outil reste actif pour le placement suivant.
   const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' | 'end1' | 'end2' = 'move') => {
-    if (bgEdit || e.button !== 0) return;
+    if (editingBg || e.button !== 0) return;
     e.stopPropagation();
     svgRef.current?.focus({ preventScroll: true });
     if (e.shiftKey && mode === 'move') {
@@ -694,6 +707,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     setPlanPick(key);
     setSelected(null);
     setMulti([]);
+    // Réglage du fond et aperçu d'import appartiennent à la vue quittée.
+    setBgEdit(false);
+    setMdImport(null);
   };
   const stroke = planOf(doc, planKey).stroke ?? 1;
   const inventory = planInventory(doc, items);
@@ -719,7 +735,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               </option>
             ))}
           </select>
-          <div className={s.plans} role="tablist" aria-label="Vues du plan au sol">
+          <div className={s.plans} role="tablist" aria-label="Vues du plan au sol" ref={tabsRef}>
             {plans.map((p) =>
               renaming === p.key ? (
                 <RenameField
@@ -762,49 +778,49 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 {p.name}
               </button>
             ))}
-            <span className={s.planActions} data-edit>
-              <Button
-                variant="icon"
-                size="sm"
-                icon={<Plus size={14} strokeWidth={1.4} />}
-                aria-label="Nouvelle vue"
-                title="Nouvelle vue"
-                onClick={() => {
-                  const key = mutateDoc((d) => addPlan(d, seqId));
-                  if (key) pickView(key);
-                }}
-                data-testid="add-plan"
-              />
-              <Button
-                variant="icon"
-                size="sm"
-                icon={<Copy size={13} strokeWidth={1.4} />}
-                aria-label="Dupliquer la vue"
-                title="Dupliquer la vue"
-                onClick={() => {
-                  const key = mutateDoc((d) => duplicatePlan(d, seqId, planKey));
-                  if (key) pickView(key);
-                }}
-              />
-              <Button
-                variant="icon"
-                size="sm"
-                icon={<Trash2 size={13} strokeWidth={1.4} />}
-                aria-label={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue'}
-                title={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue (une séquence garde toujours une vue)'}
-                data-testid="delete-plan"
-                onClick={async () => {
-                  const name = [...plans, ...psPlans].find((p) => p.key === planKey)?.name ?? 'cette vue';
-                  if (planOf(doc, planKey).items.length) {
-                    const r = await ask({ title: plans.length > 1 && !psView ? `Supprimer « ${name} » ?` : `Vider « ${name} » ?`, body: 'Son contenu disparaît (annulable avec ⌘Z).', confirmLabel: plans.length > 1 && !psView ? 'Supprimer' : 'Vider', danger: true });
-                    if (!r.ok) return;
-                  }
-                  mutateDoc((d) => deletePlan(d, planKey));
-                  pickView(undefined);
-                }}
-              />
-            </span>
           </div>
+          <span className={s.planActions} data-edit>
+            <Button
+              variant="icon"
+              size="sm"
+              icon={<Plus size={14} strokeWidth={1.4} />}
+              aria-label="Nouvelle vue"
+              title="Nouvelle vue"
+              onClick={() => {
+                const key = mutateDoc((d) => addPlan(d, seqId));
+                if (key) pickView(key);
+              }}
+              data-testid="add-plan"
+            />
+            <Button
+              variant="icon"
+              size="sm"
+              icon={<Copy size={13} strokeWidth={1.4} />}
+              aria-label="Dupliquer la vue"
+              title="Dupliquer la vue"
+              onClick={() => {
+                const key = mutateDoc((d) => duplicatePlan(d, seqId, planKey));
+                if (key) pickView(key);
+              }}
+            />
+            <Button
+              variant="icon"
+              size="sm"
+              icon={<Trash2 size={13} strokeWidth={1.4} />}
+              aria-label={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue'}
+              title={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue (une séquence garde toujours une vue)'}
+              data-testid="delete-plan"
+              onClick={async () => {
+                const name = [...plans, ...psPlans].find((p) => p.key === planKey)?.name ?? 'cette vue';
+                if (planOf(doc, planKey).items.length) {
+                  const r = await ask({ title: plans.length > 1 && !psView ? `Supprimer « ${name} » ?` : `Vider « ${name} » ?`, body: 'Son contenu disparaît (annulable avec ⌘Z).', confirmLabel: plans.length > 1 && !psView ? 'Supprimer' : 'Vider', danger: true });
+                  if (!r.ok) return;
+                }
+                mutateDoc((d) => deletePlan(d, planKey));
+                pickView(undefined);
+              }}
+            />
+          </span>
         </div>
         <div className={s.tbRight}>
           <div className={s.zoomGroup} data-view>
@@ -827,10 +843,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                     <>
                       <Button
                         size="sm"
-                        variant={bgEdit ? 'primary' : 'ghost'}
-                        aria-pressed={bgEdit}
+                        variant={editingBg ? 'primary' : 'ghost'}
+                        aria-pressed={editingBg}
                         onClick={() => {
-                          setBgEdit(!bgEdit);
+                          setBgEdit(!editingBg);
                           setPlanMenu(false);
                         }}
                         title="Glisser pour déplacer l’image, molette ou pincement pour l’agrandir"
@@ -838,7 +854,14 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                       >
                         Ajuster
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => mutateDoc((d) => void delete d.floorPlans![planKey].bg)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setBgEdit(false);
+                          mutateDoc((d) => void delete d.floorPlans![planKey].bg);
+                        }}
+                      >
                         Retirer
                       </Button>
                     </>
@@ -918,11 +941,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                       const text = aiPlanInstructions(bg && nat ? { ratio: nat.h / nat.w, pixels: nat } : {});
                       await navigator.clipboard.writeText(text).catch(() => undefined);
                       setPlanMenu(false);
-                      useUi.getState().toast({
-                        message: bg
-                          ? 'Consignes copiées pour cette image : donnez-les à votre IA avec la même image, demandez un fichier plan.md, puis importez-le ici.'
-                          : 'Consignes copiées : donnez-les à votre IA avec l’image du plan, demandez un fichier plan.md, puis importez-le ici. Posez d’abord l’image en fond pour un calage exact.',
-                      });
+                      useUi.getState().toast({ message: 'Consignes copiées' });
                     }}
                     data-testid="fp-ai-copy"
                   >
@@ -1049,21 +1068,20 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               </div>
             </div>
           )}
-          {psShots.length > 0 && (
-            <div className={s.beats} role="radiogroup" aria-label="Temps du plan-séquence" data-testid="fp-beats">
-              <span>Plan-séquence {psShots.map((id) => shotCode(doc, id)).join(', ')} · temps</span>
-              <button type="button" role="radio" aria-checked={beat === null} className={beat === null ? s.on : ''} onClick={() => setBeat(null)}>
-                Tous
-              </button>
-              {Array.from({ length: nBeats }, (_, i) => i + 1).map((n) => (
-                <button key={n} type="button" role="radio" aria-checked={beat === n} className={beat === n ? s.on : ''} onClick={() => setBeat(n)} data-testid={`fp-beat-${n}`}>
-                  T{n}
-                </button>
-              ))}
-              <em>{beat ? `les caméras et comédiens placés maintenant sont au temps T${beat}` : 'choisissez un temps pour placer caméra et comédiens à chaque étape'}</em>
-            </div>
-          )}
           <div className={s.stage}>
+            {psShots.length > 0 && (
+              <div className={s.beats} role="radiogroup" aria-label="Temps du plan-séquence" data-testid="fp-beats">
+                <span>Temps</span>
+                <button type="button" role="radio" aria-checked={beat === null} className={beat === null ? s.on : ''} onClick={() => setBeat(null)}>
+                  Tous
+                </button>
+                {Array.from({ length: nBeats }, (_, i) => i + 1).map((n) => (
+                  <button key={n} type="button" role="radio" aria-checked={beat === n} className={beat === n ? s.on : ''} onClick={() => setBeat(n)} data-testid={`fp-beat-${n}`}>
+                    T{n}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className={s.palette} role="toolbar" aria-label="Outils du plan au sol" aria-orientation="vertical" data-edit>
               {TOOL_GROUPS.map((g) => (
                 <div key={g.label} className={s.paletteGroup} role="group" aria-label={g.label}>
@@ -1087,9 +1105,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 </div>
               ))}
             </div>
-            {bgEdit && bg && (
+            {editingBg && (
               <div className={s.bgBar} data-edit>
-                <span>Fond : glisser pour le déplacer, molette pour l’agrandir</span>
                 <button type="button" onClick={() => scaleBg(1 / 1.15)} aria-label="Réduire le fond">
                   −
                 </button>
@@ -1141,7 +1158,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               return (
                 <>
                   <image href={bgUrl} x={bg.x + off.x} y={bg.y + off.y} width={bg.w} height={bg.w * bgRatio} preserveAspectRatio="none" opacity={bg.opacity} pointerEvents="none" data-testid="fp-background" />
-                  {bgEdit && <rect x={bg.x + off.x} y={bg.y + off.y} width={bg.w} height={bg.w * bgRatio} className={s.bgFrame} pointerEvents="none" />}
+                  {editingBg && <rect x={bg.x + off.x} y={bg.y + off.y} width={bg.w} height={bg.w * bgRatio} className={s.bgFrame} pointerEvents="none" />}
                 </>
               );
             })()}
@@ -1263,6 +1280,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             <ul className={s.shotList}>
               {seq.shotIds.map((id) => {
                 const cams = shotCameras(doc, id);
+                // Plan-séquence : une même caméra posée à plusieurs temps n'a qu'une puce.
+                const same = (a: (typeof cams)[number], b: (typeof cams)[number]) => a.planKey === b.planKey && a.label === b.label;
+                const chips = cams.filter((c, k) => cams.findIndex((x) => same(x, c)) === k);
                 const sh = doc.shots[id];
                 const code = shotCode(doc, id);
                 const meta = [sh.value, formatFocal(sh.focal, isZoom(sh.movement))].filter(Boolean).join(' · ');
@@ -1290,11 +1310,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                       {meta && <small>{meta}</small>}
                     </span>
                     <span className={s.shotCams}>
-                      {cams.map((c) => (
+                      {chips.map((c) => (
                         <button
                           key={c.id}
                           type="button"
-                          className={[s.camChip, c.id === selected ? s.camChipOn : ''].join(' ')}
+                          className={[s.camChip, cams.some((x) => same(x, c) && x.id === selected) ? s.camChipOn : ''].join(' ')}
                           onClick={() => {
                             if (c.planKey !== planKey) pickView(c.planKey === seqId ? undefined : c.planKey);
                             setMulti([]);
@@ -1735,41 +1755,44 @@ function Properties({
           </p>
         </>
       )}
+      {item.kind === 'actor' &&
+        (() => {
+          // Personnages de la séquence en puces (un clic, un second clic retire) ; les autres dans « Autre… ».
+          const inSeq = sequenceCharacterIds(doc, seqId).filter((id) => doc.characters[id]);
+          const others = sortedCharacters(doc).filter((c) => !inSeq.includes(c.id));
+          const setCharacter = (id: ID | undefined) => update({ characterId: id } as Partial<FloorItem>);
+          return (
+            (inSeq.length > 0 || others.length > 0) && (
+              <div className={s.field} role="group" aria-label="Personnage">
+                <span>Personnage</span>
+                <div className={s.quick}>
+                  {inSeq.map((id) => (
+                    <button key={id} type="button" aria-pressed={item.characterId === id} className={item.characterId === id ? s.quickOn : ''} onClick={() => setCharacter(item.characterId === id ? undefined : id)}>
+                      {doc.characters[id]?.name}
+                    </button>
+                  ))}
+                  {others.length > 0 && (
+                    <select
+                      className={[s.quickOther, others.some((c) => c.id === item.characterId) ? s.quickOn : ''].join(' ')}
+                      value={others.some((c) => c.id === item.characterId) ? item.characterId : ''}
+                      onChange={(e) => setCharacter(e.target.value || undefined)}
+                      aria-label="Autre personnage"
+                    >
+                      <option value="">{inSeq.length ? 'Autre…' : '—'}</option>
+                      {others.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            )
+          );
+        })()}
       {item.kind === 'actor' && (
         <>
-          <label className={s.field}>
-            <span>Personnage</span>
-            <select
-              value={item.characterId ?? ''}
-              onChange={(e) => update({ characterId: e.target.value || undefined } as Partial<FloorItem>)}
-            >
-              <option value="">—</option>
-              {sortedCharacters(doc).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={s.quick} aria-label="Nommer rapidement">
-            {sequenceCharacterIds(doc, seqId)
-              .concat(
-                sortedCharacters(doc)
-                  .map((c) => c.id)
-                  .filter((id) => !sequenceCharacterIds(doc, seqId).includes(id)),
-              )
-              .slice(0, 12)
-              .map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={item.characterId === id ? s.quickOn : ''}
-                  onClick={() => update({ characterId: id } as Partial<FloorItem>)}
-                >
-                  {doc.characters[id]?.name}
-                </button>
-              ))}
-          </div>
           <Button
             variant="outline"
             size="sm"
@@ -1859,8 +1882,18 @@ function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | unde
   const [w, setW] = useState(room?.w ? String(room.w) : '');
   const [l, setL] = useState(room?.l ? String(room.l) : '');
   const [h, setH] = useState(room?.h ? String(room.h) : '');
+  // Annulation, « Vider » : les champs suivent la pièce enregistrée.
+  useEffect(() => {
+    setW(room?.w ? String(room.w) : '');
+    setL(room?.l ? String(room.l) : '');
+    setH(room?.h ? String(room.h) : '');
+  }, [room?.w, room?.l, room?.h]);
   const draft = parseNum(w) && parseNum(l) ? { w: parseNum(w)!, l: parseNum(l)!, ...(parseNum(h) ? { h: parseNum(h) } : {}) } : undefined;
   const size = draft ? roomSize(draft) : undefined;
+  // Valide seulement un vrai changement : un passage dans un champ ne redessine pas les murs.
+  const commitDraft = () => {
+    if (draft && (draft.w !== room?.w || draft.l !== room?.l || draft.h !== room?.h)) onCommit(draft);
+  };
   const apply = (r: Room | undefined) => {
     setW(r ? String(r.w) : '');
     setL(r ? String(r.l) : '');
@@ -1870,7 +1903,7 @@ function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | unde
   const field = (label: string, value: string, set: (v: string) => void) => (
     <label className={s.roomField}>
       <span>{label}</span>
-      <input value={value} inputMode="decimal" onChange={(e) => set(e.target.value)} onBlur={() => draft && onCommit(draft)} onKeyDown={(e) => e.key === 'Enter' && draft && onCommit(draft)} aria-label={`${label} de la pièce (m)`} />
+      <input value={value} inputMode="decimal" onChange={(e) => set(e.target.value)} onBlur={commitDraft} onKeyDown={(e) => e.key === 'Enter' && commitDraft()} aria-label={`${label} de la pièce (m)`} />
       <em>m</em>
     </label>
   );
@@ -1907,7 +1940,15 @@ function LightSpecsFields({ item, onCommit }: { item: { model?: string; watts?: 
   const [model, setModel] = useState(item.model ?? '');
   const [watts, setWatts] = useState(item.watts ? String(item.watts) : '');
   const [kelvin, setKelvin] = useState(item.kelvin ? String(item.kelvin) : '');
-  const commit = (m = model, w = watts, k = kelvin) => onCommit({ model: m.trim() || undefined, watts: parseNum(w), kelvin: parseNum(k) });
+  useEffect(() => {
+    setModel(item.model ?? '');
+    setWatts(item.watts ? String(item.watts) : '');
+    setKelvin(item.kelvin ? String(item.kelvin) : '');
+  }, [item.model, item.watts, item.kelvin]);
+  const commit = (m = model, w = watts, k = kelvin) => {
+    const next = { model: m.trim() || undefined, watts: parseNum(w), kelvin: parseNum(k) };
+    if (next.model !== item.model || next.watts !== item.watts || next.kelvin !== item.kelvin) onCommit(next);
+  };
   return (
     <>
       <label className={s.field}>

@@ -92,6 +92,12 @@ export function roomSize(r: Room): { area: number; volume?: number } {
 export function setRoom(doc: ProjectDoc, planKey: string, room: Room | undefined): void {
   if (!room && !doc.floorPlans?.[planKey]) return;
   const plan = ensure(doc, planKey);
+  // La hauteur seule ne change pas le tracé : les murs (et leurs retouches) restent.
+  if (room && plan.room && room.w === plan.room.w && room.l === plan.room.l) {
+    plan.room = { ...plan.room, h: room.h };
+    if (plan.room.h === undefined) delete plan.room.h;
+    return;
+  }
   plan.items = plan.items.filter((i) => !(i.kind === 'wall' && i.room));
   plan.room = room && room.w > 0 && room.l > 0 ? room : undefined;
   if (!plan.room) return;
@@ -150,23 +156,38 @@ export function oneShotPlansOf(doc: ProjectDoc, seqId: ID): Array<PlanRef & { sh
     .map((id) => ({ key: oneShotPlanKey(id), shotId: id, name: `Plan-séquence ${shotCode(doc, id)}` }));
 }
 
+/** Premier nom libre de la série : `make(1)`, `make(2)`… parmi les noms donnés. */
+function firstFreeName(taken: readonly string[], make: (n: number) => string): string {
+  const set = new Set(taken);
+  let n = 1;
+  while (set.has(make(n))) n++;
+  return make(n);
+}
+
 export function addPlan(doc: ProjectDoc, seqId: ID): string {
+  const taken = plansOf(doc, seqId).map((p) => p.name);
   const key = newId();
   doc.floorPlans ??= {};
-  doc.floorPlans[key] = { items: [], seqId, name: `Vue ${plansOf(doc, seqId).length + 1}` };
+  doc.floorPlans[key] = { items: [], seqId, name: firstFreeName(taken, (n) => `Vue ${n}`) };
   return key;
 }
 
-/** Copie d'une vue : mêmes éléments (avec leurs propres identifiants), même fond et même épaisseur de traits. */
+/** Copie d'une vue : mêmes éléments (avec leurs propres identifiants), même fond, pièce et épaisseur de traits. */
 export function duplicatePlan(doc: ProjectDoc, seqId: ID, key: string): string {
   const src = planOf(doc, key);
+  const name = src.name ?? plansOf(doc, seqId).find((p) => p.key === key)?.name;
   const k = addPlan(doc, seqId);
   const copy = doc.floorPlans![k];
   copy.items = src.items.map((i) => ({ ...JSON.parse(JSON.stringify(i)), id: newId() }) as FloorItem);
   if (src.bg) copy.bg = { ...src.bg };
+  if (src.room) copy.room = { ...src.room };
   if (src.stroke !== undefined) copy.stroke = src.stroke;
-  const name = src.name ?? plansOf(doc, seqId).find((p) => p.key === key)?.name;
-  if (name) copy.name = `${name} (copie)`;
+  if (name) {
+    // « Vue 1 (copie) », puis « Vue 1 (copie 2) »… : jamais de suffixes empilés.
+    const base = name.replace(/\s+\(copie(?: \d+)?\)$/, '');
+    const taken = plansOf(doc, seqId).filter((p) => p.key !== k).map((p) => p.name);
+    copy.name = firstFreeName(taken, (n) => `${base} (copie${n > 1 ? ` ${n}` : ''})`);
+  }
   return k;
 }
 
@@ -187,8 +208,10 @@ export function deletePlan(doc: ProjectDoc, key: string): void {
   const next = Object.entries(plans).find(([k, x]) => x.seqId === key && k !== key && !x.oneShotId);
   if (!next) {
     if (p) {
+      // Le fond (plan des locaux) reste ; la pièce part avec ses murs.
       p.items = [];
       p.name = undefined;
+      p.room = undefined;
     }
     return;
   }
@@ -219,19 +242,25 @@ function ensure(doc: ProjectDoc, seqId: ID): FloorPlan {
   return doc.floorPlans[seqId];
 }
 
+/** Premier repère libre de la vue (« CAM A », « L1 », « P1 »…), même après une suppression. */
+export function nextLabel(items: readonly FloorItem[], make: (n: number) => string): string {
+  const taken = items.map((i) => ('label' in i ? i.label : undefined)).filter((x): x is string => !!x);
+  return firstFreeName(taken, make);
+}
+
 /** Crée un élément à la position donnée et renvoie son identifiant. */
 export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Point, end?: Point): ID {
   const plan = ensure(doc, seqId);
   const p = clampPoint({ x: snap(at.x), y: snap(at.y) });
   const id = newId();
-  const n = plan.items.filter((i) => i.kind === kind).length + 1;
+  const label = (make: (n: number) => string) => nextLabel(plan.items, make);
   switch (kind) {
     case 'camera':
-      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: `CAM ${String.fromCharCode(64 + n)}` });
+      plan.items.push({ id, kind, ...p, rot: -90, shotIds: [], label: label((n) => `CAM ${String.fromCharCode(64 + n)}`) });
       break;
     case 'actor':
       // Orientation : 90° = regarde vers le bas du plan.
-      plan.items.push({ id, kind, ...p, label: String(n), rot: 90 });
+      plan.items.push({ id, kind, ...p, label: label(String), rot: 90 });
       break;
     case 'wall':
     case 'rail':
@@ -241,7 +270,7 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
       const e = clampPoint(end ? { x: snap(end.x), y: snap(end.y) } : { x: p.x + 160, y: p.y });
       plan.items.push(
         kind === 'reflector' || kind === 'diffuser' || kind === 'flag'
-          ? { id, kind, ...p, x2: e.x, y2: e.y, label: `${kind === 'reflector' ? 'R' : kind === 'diffuser' ? 'D' : 'N'}${n}` }
+          ? { id, kind, ...p, x2: e.x, y2: e.y, label: label((n) => `${kind === 'reflector' ? 'R' : kind === 'diffuser' ? 'D' : 'N'}${n}`) }
           : { id, kind, ...p, x2: e.x, y2: e.y },
       );
       break;
@@ -256,7 +285,7 @@ export function addFloorItem(doc: ProjectDoc, seqId: ID, kind: FloorKind, at: Po
         kind,
         ...p,
         rot: 90,
-        label: `L${n}`,
+        label: label((n) => `L${n}`),
         spread: DEFAULT_SPREAD,
         range: DEFAULT_RANGE,
       });
@@ -306,26 +335,37 @@ export function cameraFocal(
   return undefined;
 }
 
+/**
+ * Séquence propriétaire d'une vue : celle de son plan-séquence (calculée, car le plan peut changer
+ * de séquence), sinon la séquence enregistrée, sinon la clé (vue principale).
+ */
+export function planOwner(doc: ProjectDoc, key: string, plan: FloorPlan): ID | undefined {
+  return plan.oneShotId ? doc.shots[plan.oneShotId]?.sequenceId : (plan.seqId ?? key);
+}
+
 /** Clés de tous les plans au sol rattachés à une séquence (vues, plans-séquences). */
 export function planKeysOfSequence(doc: ProjectDoc, seqId: ID): string[] {
   const shotKeys = new Set((doc.sequences[seqId]?.shotIds ?? []).map(oneShotPlanKey));
   return Object.entries(doc.floorPlans ?? {})
-    .filter(([key, p]) => key === seqId || p.seqId === seqId || shotKeys.has(key))
+    .filter(([key, p]) => key === seqId || (p.seqId === seqId && !p.oneShotId) || shotKeys.has(key))
     .map(([key]) => key);
 }
 
 /**
- * Un plan quitte sa séquence (déplacé ou supprimé) : les caméras des autres séquences ne le
- * couvrent plus, et sa vue de plan-séquence disparaît s'il est supprimé.
+ * Un plan quitte sa séquence (déplacé ou supprimé ; à appeler une fois `sequenceId` mis à jour) :
+ * les caméras des autres séquences ne le couvrent plus ; sa vue de plan-séquence le suit, ou
+ * disparaît s'il est supprimé.
  */
 export function unlinkShotFromPlans(doc: ProjectDoc, shotId: ID, deleted: boolean): void {
   const seqId = doc.shots[shotId]?.sequenceId;
   for (const [key, plan] of Object.entries(doc.floorPlans ?? {})) {
-    const owner = plan.seqId ?? (plan.oneShotId ? doc.shots[plan.oneShotId]?.sequenceId : key);
+    const owner = planOwner(doc, key, plan);
     if (!deleted && owner === seqId) continue;
     for (const it of plan.items) if (it.kind === 'camera' && it.shotIds.includes(shotId)) it.shotIds = it.shotIds.filter((x) => x !== shotId);
   }
+  const own = doc.floorPlans?.[oneShotPlanKey(shotId)];
   if (deleted && doc.floorPlans) delete doc.floorPlans[oneShotPlanKey(shotId)];
+  else if (own && seqId) own.seqId = seqId;
 }
 
 /** Polygone du cône de champ (vue de dessus) : sommet, puis arc échantillonné. */
@@ -358,7 +398,7 @@ export function cameraCone(
 
 /** Caméras des plans au sol liées à un plan. */
 export function camerasForShot(doc: ProjectDoc, shotId: ID): string[] {
-  return shotCameras(doc, shotId).map((c) => c.label);
+  return [...new Set(shotCameras(doc, shotId).map((c) => c.label))];
 }
 
 /** Caméras liées à un plan du découpage, avec la vue où elles sont posées. */

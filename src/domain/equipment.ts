@@ -1,4 +1,5 @@
 import { isZoom, matchVocab, MOVEMENTS, ANGLES } from './vocabulary';
+import { planOwner } from './floorplan';
 import { fold } from './text';
 import type { EquipmentCategory, ID, ProjectDoc, Shot } from './types';
 
@@ -120,8 +121,8 @@ export function aggregateEquipment(doc: ProjectDoc): Record<EquipmentCategory, E
   }
   // Projecteurs posés sur les plans au sol avec leur modèle : ils rejoignent la liste Lumière.
   for (const [key, plan] of Object.entries(doc.floorPlans ?? {})) {
-    const seqId = plan.seqId ?? key;
-    const seq = doc.sequences[seqId];
+    const seqId = planOwner(doc, key, plan);
+    const seq = seqId ? doc.sequences[seqId] : undefined;
     if (!seq) continue;
     const counts = new Map<string, { label: string; n: number }>();
     for (const it of plan.items) {
