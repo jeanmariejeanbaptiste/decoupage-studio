@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { cutComments, type CommentAnchor } from '../../domain/comments';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
-import { useCanComment } from '../../store/share';
+import { useShare } from '../../store/share';
 import { MarkLayer } from './MarkLayer';
 import { clearFocus, openComment, sameAnchor, useCommentsUi } from './commentsUi';
 
@@ -25,12 +25,14 @@ function cellOf(root: HTMLElement, a: CommentAnchor): HTMLElement | null {
 }
 
 /**
- * Relecture de l'aperçu du découpage : les cellules commentées portent une marque ; un clic sur une
- * cellule ouvre sa bulle (lire, répondre, commenter) ; les tracés des commentaires s'y superposent.
+ * Relecture de l'aperçu du découpage : les cellules commentées portent une marque ; un clic sur l'une
+ * d'elles ouvre sa bulle (lire, répondre). Un relecteur invité commente aussi une cellule d'un clic ;
+ * pour l'auteur, l'aperçu reste un aperçu. Les tracés des commentaires s'y superposent.
  */
 export function CutComments({ doc, children }: { doc: ProjectDoc; children: ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
-  const canComment = useCanComment();
+  // Seul un relecteur invité ouvre un commentaire d'un clic ; l'auteur lit et répond aux cellules déjà commentées.
+  const canStart = useShare((x) => x.role === 'guest' && x.mode !== 'read');
   const focus = useCommentsUi((u) => u.focus);
   const marks = cutComments(doc);
 
@@ -89,7 +91,7 @@ export function CutComments({ doc, children }: { doc: ProjectDoc; children: Reac
         const hit = anchorAt(e.target as Element);
         if (!hit) return;
         const commented = [...marks.values()].some((l) => sameAnchor(l[0].anchor, hit.anchor));
-        if (!commented && !canComment) return;
+        if (!commented && !canStart) return;
         if (useCommentsUi.getState().drawing) return;
         const r = hit.cell.getBoundingClientRect();
         openComment(hit.anchor, r.left, r.bottom);
