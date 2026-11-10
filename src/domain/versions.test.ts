@@ -5,7 +5,7 @@ import { addBreakdownItems, breakdownOf } from './breakdown';
 import { alignScenes } from './sceneAlign';
 import { reviseScenario, revisionSummary } from './revision';
 import { addComment, commentsOf, replyComment, shownComments } from './comments';
-import { clearScenario, clearedOf, restoreScenario, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion, versionSequences } from './versions';
+import { clearScenario, clearedOf, comparableVersions, comparisonPair, restoreScenario, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion, versionSequences, versionText } from './versions';
 
 const V1 = `INT. GARE — HALL - JOUR
 
@@ -234,5 +234,45 @@ describe('versions', () => {
     for (const v of doc.versions!) expect(versionSequences(doc, v)).toBe(n);
     const cleared = produce(doc, (d) => clearScenario(d, 'all'));
     for (const v of cleared.versions!) expect(versionSequences(cleared, v)).toBe(n);
+  });
+});
+
+describe('comparaison de versions', () => {
+  it('la courante avec celle dont elle est partie ; l’adresse choisit sinon', () => {
+    const d = buildFiction();
+    d.scenario = 'INT. GARE - JOUR\n\nV1.';
+    expect(comparisonPair(d)).toBeNull();
+    const v1 = ensureVersions(d)[0].id;
+    const v2 = createVersion(d);
+    d.scenario = 'INT. GARE - JOUR\n\nV2.';
+    const v3 = createVersion(d);
+    expect(comparisonPair(d)).toEqual({ a: v3, b: v2 });
+    expect(comparisonPair(d, `${v1}~${v3}`)).toEqual({ a: v1, b: v3 });
+    // Adresse fausse, ou version comparée à elle-même : la paire par défaut.
+    expect(comparisonPair(d, `${v1}~${v1}`)).toEqual({ a: v3, b: v2 });
+    expect(comparisonPair(d, 'x~y')).toEqual({ a: v3, b: v2 });
+    expect(versionText(d, v1)).toBe('INT. GARE - JOUR\n\nV1.');
+    expect(versionText(d, v3)).toBe('INT. GARE - JOUR\n\nV2.');
+    expect(versionText(d, 'x')).toBeNull();
+    // Version d'origine supprimée : sa voisine.
+    switchVersion(d, v1);
+    expect(comparisonPair(d)).toEqual({ a: v1, b: v2 });
+    deleteVersion(d, v2);
+    expect(comparisonPair(d)).toEqual({ a: v1, b: v3 });
+  });
+
+  it('invité ou relecteur : les versions publiées seulement (une version plus récente reste privée)', () => {
+    const d = buildFiction();
+    d.scenario = 'INT. GARE - JOUR\n\nV1.';
+    const v1 = ensureVersions(d)[0].id;
+    const v2 = createVersion(d);
+    const v3 = createVersion(d);
+    switchVersion(d, v2);
+    expect(comparableVersions(d).map((v) => v.id)).toEqual([v1, v2, v3]);
+    expect(comparableVersions(d, true).map((v) => v.id)).toEqual([v1, v2]);
+    expect(comparisonPair(d, `${v3}~${v1}`, true)).toEqual({ a: v2, b: v1 });
+    expect(comparisonPair(d, `${v3}~${v1}`)).toEqual({ a: v3, b: v1 });
+    switchVersion(d, v1);
+    expect(comparisonPair(d, null, true)).toBeNull();
   });
 });

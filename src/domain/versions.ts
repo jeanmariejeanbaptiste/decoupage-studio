@@ -254,3 +254,37 @@ export function restoreScenario(doc: ProjectDoc): boolean {
   doc.clearedScenarios = doc.clearedScenarios!.filter((x) => x !== c);
   return true;
 }
+
+/** Texte du scénario d'une version (la courante vit dans le projet) ; `null` si elle n'existe pas. */
+export function versionText(doc: ProjectDoc, id: ID): string | null {
+  const v = doc.versions?.find((x) => x.id === id);
+  if (!v) return null;
+  return (v.id === doc.activeVersionId ? doc.scenario : v.slice?.scenario) ?? '';
+}
+
+/** Versions publiées : la courante et les précédentes ; une version plus récente reste privée. */
+export function publishedVersions(doc: ProjectDoc): ProjectVersion[] {
+  const list = doc.versions ?? [];
+  const at = list.findIndex((v) => v.id === doc.activeVersionId);
+  return at < 0 ? [] : list.slice(0, at + 1);
+}
+
+/** Versions qu'on peut comparer : toutes pour l'auteur ; pour un invité ou un relecteur, les publiées seulement. */
+export const comparableVersions = (doc: ProjectDoc, guest = false): ProjectVersion[] => (guest ? publishedVersions(doc) : (doc.versions ?? []));
+
+/**
+ * Versions à comparer : celles de l'adresse (« idA~idB » : A lue, B la référence) si elles existent,
+ * sinon la courante avec celle dont elle est partie (à défaut, sa voisine). `null` sans deux versions.
+ * `guest` : invité ou relecteur, limité aux versions publiées.
+ */
+export function comparisonPair(doc: ProjectDoc, spec?: string | null, guest = false): { a: ID; b: ID } | null {
+  const list = comparableVersions(doc, guest);
+  if (list.length < 2) return null;
+  const has = (id?: string) => !!id && list.some((v) => v.id === id);
+  const [a, b] = (spec ?? '').split('~');
+  if (has(a) && has(b) && a !== b) return { a, b };
+  const cur = list.find((v) => v.id === doc.activeVersionId) ?? list[list.length - 1];
+  const k = list.indexOf(cur);
+  const from = cur.from && cur.from !== cur.id && has(cur.from) ? cur.from : (list[k - 1] ?? list[k + 1]).id;
+  return { a: cur.id, b: from };
+}

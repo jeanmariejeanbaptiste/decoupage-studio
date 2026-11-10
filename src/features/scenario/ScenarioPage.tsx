@@ -28,6 +28,8 @@ import { importScenes, matchSequence, parseDialogue, scenesOf } from '../../doma
 import { reviseScenario, revisionSummary, type RevisionReport } from '../../domain/revision';
 import { createVersion, ensureVersions, nextVersionName } from '../../domain/versions';
 import { VersionSwitcher } from '../versions/VersionSwitcher';
+import { ComparePage } from '../versions/ComparePage';
+import { useLocation } from '../../app/router';
 import { useRevisionMarks } from '../versions/useRevisionMarks';
 import { sequenceHeading, shotCode, shotNumberLabel } from '../../domain/numbering';
 import {
@@ -85,8 +87,15 @@ const savedTab = (): Tab => {
   return TABS.some(([k]) => k === t) ? (t as Tab) : 'scenes';
 };
 
-/** Scénario : écrit sur des pages A4, comme dans un logiciel d'écriture, et relié au découpage. */
+/** Scénario, ou sa sous-page de comparaison des versions (#/scenario?compare=A~B). */
 export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
+  const { params } = useLocation();
+  if (params.has('compare')) return <ComparePage doc={doc} />;
+  return <ScenarioMain doc={doc} seq={Number(params.get('seq')) || undefined} />;
+}
+
+/** Scénario : écrit sur des pages A4, comme dans un logiciel d'écriture, et relié au découpage. */
+function ScenarioMain({ doc, seq }: { doc: ProjectDoc; seq?: number }) {
   const readOnly = useReadOnly();
   const phone = useIsMobile();
   const [view, setView] = useState<View>('script');
@@ -306,6 +315,22 @@ export function ScenarioPage({ doc }: { doc: ProjectDoc }) {
     };
     if (n !== undefined) setTimeout(() => tryGo(0), 50);
   };
+  // Séquence demandée par l'adresse (depuis la comparaison des versions) : l'éditeur s'y place, puis l'adresse redevient simple.
+  useEffect(() => {
+    if (!seq) return;
+    let k = 0;
+    let timer = 0;
+    const tryGo = () => {
+      const o = useScriptUi.getState().outline.find((x) => x.n === seq);
+      if (o && api.current && document.querySelector(`[data-bid="${o.id}"]`)) {
+        api.current.scrollTo(o.id);
+        window.history.replaceState(null, '', '#/scenario');
+      } else if (k++ < 40) timer = window.setTimeout(tryGo, 50);
+    };
+    setView('script');
+    timer = window.setTimeout(tryGo, 50);
+    return () => window.clearTimeout(timer);
+  }, [seq]);
   // Statistiques : calculées sur le texte enregistré (pages et numéros de l'impression).
   const statsBlocks = savedBlocks ?? [];
   return (

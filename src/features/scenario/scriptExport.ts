@@ -10,13 +10,13 @@ import boldItalicUrl from '../../assets/fonts/courier-prime/CourierPrime-BoldIta
 import { blocksFromSource, headingNumbers, isEmptyBlock, parseTitlePage, type BlockType, type SBlock } from '../../domain/screenplay';
 import { NOT_PRINTED, SCRIPT_COLUMNS, SCRIPT_PAGE, blankLinesBefore, layoutScript, parseEmphasis, printLines, printable, titlePageLines, titlePrintLines, type PrintLine, type Run } from '../../domain/scriptLayout';
 
-type Face = 'regular' | 'bold' | 'italic' | 'boldItalic';
+export type Face = 'regular' | 'bold' | 'italic' | 'boldItalic';
 const URLS: Record<Face, string> = { regular: regularUrl, bold: boldUrl, italic: italicUrl, boldItalic: boldItalicUrl };
 const faceOf = (r: Run): Face => (r.bold && r.italic ? 'boldItalic' : r.bold ? 'bold' : r.italic ? 'italic' : 'regular');
 
 let fontBytes: Promise<Record<Face, ArrayBuffer>> | null = null;
 /** Fichiers de la police (servis avec l'application, chargés une fois). */
-function loadFontBytes(): Promise<Record<Face, ArrayBuffer>> {
+export function loadFontBytes(): Promise<Record<Face, ArrayBuffer>> {
   fontBytes ??= Promise.all(
     (Object.keys(URLS) as Face[]).map(async (k) => {
       const res = await fetch(URLS[k]);

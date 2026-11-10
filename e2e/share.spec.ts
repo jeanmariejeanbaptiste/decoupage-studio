@@ -146,6 +146,84 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await expect(guest.getByTestId('project-list').locator('li')).toHaveCount(0);
 });
 
+test('invité en lecture seule : il compare les versions, sans rien pouvoir modifier', async ({ browser }) => {
+  const host = await participant(browser);
+  await host.goto('/#/scenario?seed=fiction');
+  await host.getByTestId('version-switcher').click();
+  await host.getByTestId('version-new').click();
+  await host.getByTestId('script-editor').locator('[data-bid]').last().click();
+  await host.keyboard.press('Control+End');
+  await host.keyboard.type('\nEXT. QUAI - NUIT\nUn train passe sans s’arrêter.');
+  await expect(host.getByTestId('scenario-outline')).toContainText('QUAI');
+  await host.getByTestId('share-button').click();
+  await host.getByText('Lire seulement').click();
+  await host.getByTestId('share-start').click();
+  const link = await host.getByTestId('share-link').textContent();
+  const password = await host.getByTestId('share-password').textContent();
+  const guest = await participant(browser);
+  await guest.goto(link!);
+  await guest.getByLabel('Votre nom').fill('Léo');
+  await guest.getByLabel('Mot de passe').fill(password!);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('guest-banner')).toContainText('lecture seule');
+  await guest.evaluate(() => void (window.location.hash = '#/scenario'));
+  // Pas de menu des versions : un bouton pour comparer, à côté du nom.
+  await expect(guest.getByTestId('version-switcher')).toHaveText('V2');
+  await guest.getByTestId('version-compare').click();
+  await expect(guest.getByTestId('compare-summary')).toContainText('1 ajoutée');
+  await expect(guest.getByTestId('compare-scene').filter({ hasText: 'QUAI' })).toHaveAttribute('data-status', 'added');
+  // Consulter : listes, seulement les changements, flèches ; sans droit de copie, pas d'export.
+  await guest.getByTestId('compare-only').click();
+  await expect(guest.getByTestId('compare-fold')).toHaveText('Séquences 1 à 3 : identiques');
+  await guest.getByTestId('compare-next').click();
+  await expect(guest.getByTestId('compare-sheet').locator('[data-current]')).toContainText('QUAI');
+  await expect(guest.getByTestId('compare-export')).toHaveCount(0);
+  await expect(guest.locator('[contenteditable="true"]')).toHaveCount(0);
+  // La séquence s'ouvre dans le scénario, en lecture seule.
+  await guest.getByTestId('compare-sheet').getByRole('button', { name: /QUAI/ }).click();
+  await expect(guest.getByTestId('script-editor')).toBeVisible();
+  await expect(guest.getByTestId('script-editor')).not.toHaveAttribute('contenteditable', 'true');
+  const hostScenario = () => host.evaluate(() => (window as unknown as { __ds: { doc: () => { scenario: string } } }).__ds.doc().scenario);
+  expect(await hostScenario()).toContain('EXT. QUAI - NUIT');
+  await host.getByTestId('share-stop').click();
+});
+
+test('invité : une version plus récente que celle partagée reste privée, même à la comparaison', async ({ browser }) => {
+  const host = await participant(browser);
+  await host.goto('/#/scenario?seed=fiction');
+  await host.getByTestId('version-switcher').click();
+  await host.getByTestId('version-new').click();
+  await host.getByTestId('script-editor').locator('[data-bid]').last().click();
+  await host.keyboard.press('Control+End');
+  await host.keyboard.type('\nEXT. QUAI SECRET - NUIT\nUn train passe sans s’arrêter.');
+  await expect(host.getByTestId('scenario-outline')).toContainText('QUAI SECRET');
+  // L'hôte revient sur la V1 et la partage : la V2 existe, mais n'est pas publiée.
+  await host.getByTestId('version-switcher').click();
+  await host.getByTestId('version-item').filter({ hasText: 'V1' }).locator('button').first().click();
+  await expect(host.getByTestId('version-switcher')).toHaveText('V1');
+  const ids = await host.evaluate(() => (window as unknown as { __ds: { doc: () => { versions: Array<{ id: string }> } } }).__ds.doc().versions.map((v) => v.id));
+  await host.getByTestId('share-button').click();
+  await host.getByText('Lire seulement').click();
+  await host.getByTestId('share-start').click();
+  const link = await host.getByTestId('share-link').textContent();
+  const password = await host.getByTestId('share-password').textContent();
+  const guest = await participant(browser);
+  await guest.goto(link!);
+  await guest.getByLabel('Votre nom').fill('Léo');
+  await guest.getByLabel('Mot de passe').fill(password!);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('guest-banner')).toContainText('lecture seule');
+  await guest.evaluate(() => void (window.location.hash = '#/scenario'));
+  await expect(guest.getByTestId('version-switcher')).toHaveText('V1');
+  // Une seule version publiée : pas de comparaison, même par l'adresse.
+  await expect(guest.getByTestId('version-compare')).toHaveCount(0);
+  await guest.evaluate((h) => void (window.location.hash = h), `#/scenario?compare=${ids[1]}~${ids[0]}`);
+  await expect(guest.getByTestId('compare-page')).toContainText('Une seule version : rien à comparer.');
+  await expect(guest.getByTestId('compare-page')).not.toContainText('QUAI SECRET');
+  await expect(guest.getByTestId('compare-a')).toHaveCount(0);
+  await host.getByTestId('share-stop').click();
+});
+
 test('QR code du partage en plein écran : lien et mot de passe en grand, Échap referme', async ({ browser }) => {
   const host = await participant(browser);
   await host.goto('/#/grid?seed=rav3');
