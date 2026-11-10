@@ -95,12 +95,15 @@ describe('CSV', () => {
   it('ne propose pas les colonnes abandonnées', () => {
     expect(CSV_COLUMNS.filter((c) => RETIRED_COLUMNS.includes(c))).toEqual([]);
     expect(ALL_COLUMNS.every((c) => CSV_COLUMNS.includes(c))).toBe(true);
+    expect(guessMapping(['Lumière', 'Éclairage', 'Sujet'])).toEqual([null, null, 'subject']);
   });
 
   it('décode un CSV Windows-1252 comme un CSV UTF-8', () => {
     expect(decodeText(Uint8Array.from([0x53, 0xe9, 0x71]))).toBe('Séq');
     const utf8 = new TextEncoder().encode('\uFEFFSéquence;Léa');
     expect(decodeText(utf8)).toBe('Séquence;Léa');
+    expect(decodeText(Uint8Array.from([0xff, 0xfe, 0x53, 0, 0xe9, 0, 0x71, 0]))).toBe('Séq');
+    expect(decodeText(Uint8Array.from([0xfe, 0xff, 0, 0x53, 0, 0xe9, 0, 0x71]))).toBe('Séq');
   });
 
   it('reconnaît une colonne TC en plages de piste', () => {
