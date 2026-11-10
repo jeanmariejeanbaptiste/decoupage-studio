@@ -1,6 +1,6 @@
 .backdrop {
   position: fixed; inset: 0; z-index: 200;
-  background: rgba(42, 40, 36, 0.28);
+  background: rgba(17, 19, 24, 0.28);
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 16vh;
   animation: fade var(--t-med) var(--ease);
@@ -10,7 +10,7 @@
   background: var(--paper-card);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
-  box-shadow: 0 18px 50px rgba(42, 40, 36, 0.18);
+  box-shadow: 0 18px 50px rgba(17, 19, 24, 0.18);
   padding: 22px 24px 18px;
 }
 .title { font-family: var(--font-display); font-weight: 500; font-size: 24px; margin: 0 0 8px; line-height: 1.15; }

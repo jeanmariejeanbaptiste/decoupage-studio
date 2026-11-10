@@ -7,7 +7,7 @@
   color: var(--paper);
   border-radius: var(--radius);
   font-size: 13.5px;
-  box-shadow: 0 8px 22px rgba(42, 40, 36, 0.2);
+  box-shadow: 0 8px 22px rgba(17, 19, 24, 0.2);
   animation: rise var(--t-med) var(--ease);
 }
 .warn { border-left: 3px solid var(--ochre); }
