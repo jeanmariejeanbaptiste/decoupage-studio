@@ -8,6 +8,8 @@ import { DRIVE_API, DRIVE_UPLOAD, SCOPE_APPDATA } from './googleUrls';
 /** Dossier de l'application dans un Drive simulé : identifiant → propriétés et contenu. */
 const files = new Map<string, { name: string; appProperties: Record<string, string>; body: string }>();
 let seq = 0;
+/** Envois de projet refusés (coupure) avant le retour à la normale. */
+let failProjectUploads = 0;
 
 async function fakeDrive(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const url = String(input);
@@ -22,6 +24,10 @@ async function fakeDrive(input: RequestInfo | URL, init: RequestInit = {}): Prom
     const boundary = text.slice(2, text.indexOf('\r\n'));
     const [, metaPart, bodyPart] = text.split(`--${boundary}`);
     const meta = JSON.parse(metaPart.slice(metaPart.indexOf('\r\n\r\n') + 4).trim()) as { name: string; appProperties: Record<string, string> };
+    if (meta.appProperties.kind === 'project' && failProjectUploads > 0) {
+      failProjectUploads -= 1;
+      return new Response('', { status: 500 });
+    }
     const body = bodyPart.slice(bodyPart.indexOf('\r\n\r\n') + 4).replace(/\r\n$/, '');
     const id = method === 'PATCH' ? url.slice(`${DRIVE_UPLOAD}/files/`.length).split('?')[0] : `f${++seq}`;
     files.set(id, { name: meta.name, appProperties: meta.appProperties, body });
@@ -131,5 +137,38 @@ describe('synchronisation Google Drive', () => {
     // Sans modification des deux côtés, aucune copie de plus.
     await cloud.syncAll();
     expect(await db.projects.count()).toBe(2);
+  });
+
+  it('conflit dans l’autre sens, envoi coupé : une seule copie, avec ses images', async () => {
+    await db.projects.clear();
+    await db.blobs.clear();
+    files.clear();
+    useProjectStore.getState().loadDoc(null);
+    const base = buildFiction();
+    base.project.id = 'conflit-2';
+    base.project.updatedAt = '2026-11-10T09:00:00.000Z';
+    await saveProject(base);
+    await cloud.syncAll();
+    // Là-bas, une image ajoutée (rangée dans le Drive) ; ici, une modification plus récente.
+    const there = structuredClone(base);
+    there.shots[Object.keys(there.shots)[0]].storyboard = { blobKey: 'conflit-2:image' };
+    there.project.updatedAt = '2026-11-10T10:00:00.000Z';
+    const [fileId] = [...files].find(([, f]) => f.appProperties.kind === 'project')!;
+    files.set(fileId, { ...files.get(fileId)!, appProperties: { kind: 'project', projectId: 'conflit-2', updatedAt: there.project.updatedAt, title: 'x' }, body: serializeDoc(there) });
+    files.set('img', { name: 'blob', appProperties: { kind: 'blob', key: 'conflit-2:image', projectId: 'conflit-2' }, body: 'png' });
+    const here = structuredClone(base);
+    here.project.director = 'Modifié ici';
+    here.project.updatedAt = '2026-11-10T11:00:00.000Z';
+    await saveProject(here);
+    failProjectUploads = 1;
+    await cloud.syncAll();
+    expect(cloud.useCloud.getState().status).toBe('error');
+    await cloud.syncAll();
+    expect(cloud.useCloud.getState().status).toBe('idle');
+    const copies = (await db.projects.toArray()).filter((p) => p.id !== 'conflit-2');
+    expect(copies).toHaveLength(1);
+    expect(copies[0].title).toMatch(/\(conflit du /);
+    expect(await db.blobs.get('conflit-2:image')).toBeDefined();
+    expect(files.get(fileId)!.appProperties.updatedAt).toBe(here.project.updatedAt);
   });
 });
