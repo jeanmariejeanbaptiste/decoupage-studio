@@ -1,7 +1,7 @@
 import { toCsv } from '../../domain/csv';
 import { scriptToFdx } from '../../domain/fdx';
 import { blocksFromSource } from '../../domain/screenplay';
-import { allFloorPlans, breakdownCsv, callSheetCsv, charactersCsv, decorsCsv, equipmentCsv, scheduleCsv, sequencesCsv, shotsCsv } from '../../domain/exports';
+import { allFloorPlans, breakdownCsv, calendarFiles, callSheetCsv, charactersCsv, decorsCsv, equipmentCsv, scheduleCsv, sequencesCsv, shotsCsv } from '../../domain/exports';
 import { shotCode } from '../../domain/numbering';
 import { scheduleDays } from '../../domain/schedule';
 import { fileNameFor, serializeDoc } from '../../domain/serialize';
@@ -23,6 +23,7 @@ Exporté le ${new Date().toLocaleString('fr-FR')}.
 08 Plan de travail jours, séquences et durées
 09 Feuilles        une feuille de service par jour
 10 Registre        séquences, personnages, décors, plans
+11 Calendriers     calendrier et étapes du film (.ics, pour un agenda), frise du calendrier de production (SVG)
 
 Les PDF mis en page s'obtiennent depuis chaque onglet de l'application (bouton PDF).
 `;
@@ -64,5 +65,6 @@ export async function buildProductionZip(doc: ProjectDoc): Promise<Blob> {
   root.file('10 Registre/Personnages.csv', charactersCsv(doc));
   root.file('10 Registre/Décors.csv', decorsCsv(doc));
   root.file('10 Registre/Plans.csv', shotsCsv(doc));
+  for (const f of calendarFiles(doc)) root.file(`11 Calendriers/${f.name}`, f.content);
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
 }

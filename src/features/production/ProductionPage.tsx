@@ -4,7 +4,7 @@ import { produce } from 'immer';
 import { CalendarDays, Check, ChevronDown, ChevronRight, GripVertical, Link2, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { addDays, calendarIcs, calendarItems, isWeekend, productionItems, timeOn, todayIso } from '../../domain/calendar';
-import { productionDocument } from '../../domain/documents';
+import { productionDocument, productionWordDocument } from '../../domain/documents';
 import {
   addDependency,
   addPhase,
@@ -335,6 +335,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
             id="production"
             orientation="landscape"
             doc={() => productionDocument(useProjectStore.getState().doc ?? doc)}
+            word={() => productionWordDocument(useProjectStore.getState().doc ?? doc)}
             fileBase={`${title}-calendrier-de-production`}
             file={{
               label: 'iCalendar',

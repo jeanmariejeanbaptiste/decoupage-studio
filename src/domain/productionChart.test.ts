@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { barGeometry, chartRange, dependencyLinks, ganttRows, monthLabel, nextZoom, productionSvgPages, timeScale } from './productionChart';
+import { barGeometry, chartRange, clip, dependencyLinks, ganttRows, monthLabel, nextZoom, productionSvgPages, timeScale } from './productionChart';
 import type { Production } from './production';
 
 const plan: Production = {
@@ -71,5 +71,14 @@ describe('frise du calendrier de production', () => {
     expect(pages[1]).toContain('text-decoration="line-through"');
     for (const svg of pages) for (const c of svg.match(/#[0-9a-f]{6}/gi) ?? []) expect(c.slice(1, 3) === c.slice(3, 5) || Math.abs(parseInt(c.slice(1, 3), 16) - parseInt(c.slice(5, 7), 16)) < 20).toBe(true);
     expect(productionSvgPages({ phases: [] }, '2027-01-10')).toEqual([]);
+  });
+
+  it('rogne les noms longs avant la colonne Début, phases comprises', () => {
+    expect(clip('Court', 42)).toBe('Court');
+    const long = 'Préparation des équipes techniques et artistiques du film';
+    expect(clip(long, 42)).toHaveLength(42);
+    const [svg] = productionSvgPages({ phases: [{ ...plan.phases[0], name: long }] }, '2027-01-10');
+    expect(svg).not.toContain(long);
+    expect(svg).toContain(`>${clip(long, 42)}</text>`);
   });
 });

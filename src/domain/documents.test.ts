@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
-import { breakdownDocument, callSheetDocument, equipmentDocument, floorPlansDocument, intentionDocument, registryDocument, scheduleDocument } from './documents';
+import { breakdownDocument, callSheetDocument, equipmentDocument, floorPlansDocument, intentionDocument, productionWordDocument, registryDocument, scheduleDocument } from './documents';
 import { addFloorItem } from './floorplan';
 import { addBanner, placeSequence, placeShot, stripsByTime, suggestSchedule, updateBanner, updateDay } from './schedule';
 import { callSheetCsv, scheduleCsv } from './exports';
@@ -65,5 +65,31 @@ describe('documents imprimables', () => {
     expect(sheet).toContain('<th>Fin prévue</th><td class="time">15:30</td>');
     expect(scheduleCsv(next)).toContain('Repas · cantine');
     expect(callSheetCsv(next, 1)).toContain('60 min');
+  });
+});
+
+describe('calendrier de production pour Word', () => {
+  it('donne un tableau lisible, sans SVG, en Inter', () => {
+    const doc = produce(buildFiction(), (d) => {
+      d.production = {
+        phases: [
+          {
+            id: 'p',
+            name: 'Préparation',
+            tasks: [
+              { id: 'a', name: 'Repérages', start: '2027-01-04', end: '2027-01-08', done: true },
+              { id: 'm', name: 'Fin des repérages', start: '2027-01-08', end: '2027-01-08', milestone: true, after: ['a'] },
+            ],
+          },
+        ],
+      };
+    });
+    const { html } = productionWordDocument(doc);
+    expect(html).not.toContain('<svg');
+    expect(html).toContain('<th>Étape</th>');
+    expect(html).toContain('<tr><td><b>Préparation</b></td><td><b>04/01/2027</b></td><td><b>08/01/2027</b></td><td style="text-align:right"><b>5</b></td></tr>');
+    expect(html).toContain('<s>Repérages</s></td><td>04/01/2027</td><td>08/01/2027</td><td style="text-align:right">5</td>');
+    expect(html).toContain('Fin des repérages</td><td>08/01/2027</td><td></td><td style="text-align:right">jalon</td>');
+    expect(html).toMatch(/h1 \{ font-family: Inter, 'Inter Variable'/);
   });
 });

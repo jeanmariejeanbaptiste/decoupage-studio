@@ -17,6 +17,8 @@ import { renderTokens } from './tokens';
 import { safeCell } from './csv';
 import type { ID, ProjectDoc } from './types';
 import { isZoom } from './vocabulary';
+import { calendarIcs, calendarItems, productionItems, todayIso } from './calendar';
+import { productionSvgPages } from './productionChart';
 
 const esc = (v: string | number | undefined) => {
   const s = v === undefined ? '' : typeof v === 'number' ? String(v) : safeCell(v);
@@ -253,4 +255,22 @@ export function allFloorPlans(doc: ProjectDoc): Array<{ name: string; svg: strin
       .filter((p) => planOf(doc, p.key).items.length > 0)
       .map((p) => ({ seqId, name: `Séquence ${i + 1} — ${p.name}`, svg: floorPlanSvg(doc, p.key, `${sequenceHeading(doc, seqId)} — ${p.name}`) })),
   );
+}
+
+/**
+ * Calendriers du dossier de production : tout le calendrier (rendez-vous, tournage, étapes) et les
+ * étapes du film seules, en .ics, puis la frise du calendrier de production (un SVG par page).
+ */
+export function calendarFiles(doc: ProjectDoc, today = todayIso()): Array<{ name: string; content: string }> {
+  const title = doc.project.title || 'Projet';
+  const out: Array<{ name: string; content: string }> = [];
+  const items = calendarItems(doc);
+  if (items.length) out.push({ name: 'Calendrier.ics', content: calendarIcs(items, title) });
+  const plan = doc.production;
+  if (plan?.phases.some((p) => p.tasks.length)) {
+    out.push({ name: 'Calendrier de production.ics', content: calendarIcs(productionItems(doc, { withLinked: true }), `${title} · production`) });
+    const pages = productionSvgPages(plan, today);
+    pages.forEach((svg, i) => out.push({ name: `Calendrier de production${pages.length > 1 ? ` ${i + 1}` : ''}.svg`, content: svg }));
+  }
+  return out;
 }
