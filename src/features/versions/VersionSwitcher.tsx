@@ -4,7 +4,7 @@ import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
 import { openCommentsPanel } from '../comments/commentsUi';
-import { activeVersion, clearScenario, clearedOf, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
+import { activeVersion, clearScenario, comparableVersions, clearedOf, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionScenes } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
 import { mutateDoc, undo } from '../../store/projectStore';
@@ -40,10 +40,10 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
     };
   }, [open]);
 
-  // Comparer : deux versions au moins (invités et relecteurs compris : on consulte, rien ne change).
-  const comparable = (doc.versions?.length ?? 0) > 1;
+  // Comparer : deux versions au moins (invités et relecteurs compris, parmi les versions publiées : on consulte, rien ne change).
+  const comparable = comparableVersions(doc, readOnly).length > 1;
   const compareIcon = comparable ? (
-    <button type="button" className={s.compare} onClick={() => openCompare(doc)} aria-label="Comparer les versions" title="Comparer les versions" data-view data-testid="version-compare">
+    <button type="button" className={s.compare} onClick={() => openCompare(doc, readOnly)} aria-label="Comparer les versions" title="Comparer les versions" data-view data-testid="version-compare">
       <GitCompare size={14} strokeWidth={1.4} aria-hidden="true" />
     </button>
   ) : null;
@@ -182,7 +182,7 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
               className={s.add}
               onClick={() => {
                 setOpen(false);
-                openCompare(doc);
+                openCompare(doc, readOnly);
               }}
               data-testid="version-compare"
             >

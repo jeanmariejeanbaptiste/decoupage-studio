@@ -90,7 +90,18 @@ test('comparer : changer de versions, retour à la page d’origine, export PDF,
   const pdf = readFileSync(await file.path());
   expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
   expect(pdf.length).toBeGreaterThan(2000);
-  // Flèche de retour : la page d'où l'on venait.
+  // Flèche de retour : la page d'où l'on venait, sans laisser la comparaison dans l'historique.
+  await page.getByTestId('compare-back').click();
+  await expect(page).toHaveURL(/#\/grid/);
+  await page.goBack();
+  await expect(page.getByTestId('compare-page')).toHaveCount(0);
+  // Après un rechargement, la flèche ramène encore à la page d'origine.
+  await page.goto('/#/grid');
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-compare').click();
+  await expect(page.getByTestId('compare-page')).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('compare-page')).toBeVisible();
   await page.getByTestId('compare-back').click();
   await expect(page).toHaveURL(/#\/grid/);
   const after = await page.evaluate(() => JSON.stringify((window as unknown as { __ds: { doc: () => unknown } }).__ds.doc()));

@@ -4,7 +4,7 @@ import { buildFiction } from '../../seed/fiction';
 import { addBreakdownItems, breakdownOf } from './breakdown';
 import { alignScenes } from './sceneAlign';
 import { reviseScenario, revisionSummary } from './revision';
-import { clearScenario, clearedOf, comparisonPair, restoreScenario, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion, versionText } from './versions';
+import { clearScenario, clearedOf, comparableVersions, comparisonPair, restoreScenario, compareVersions, createVersion, deleteVersion, ensureVersions, nextVersionName, revisedScenes, switchVersion, versionText } from './versions';
 
 const V1 = `INT. GARE — HALL - JOUR
 
@@ -198,5 +198,20 @@ describe('comparaison de versions', () => {
     expect(comparisonPair(d)).toEqual({ a: v1, b: v2 });
     deleteVersion(d, v2);
     expect(comparisonPair(d)).toEqual({ a: v1, b: v3 });
+  });
+
+  it('invité ou relecteur : les versions publiées seulement (une version plus récente reste privée)', () => {
+    const d = buildFiction();
+    d.scenario = 'INT. GARE - JOUR\n\nV1.';
+    const v1 = ensureVersions(d)[0].id;
+    const v2 = createVersion(d);
+    const v3 = createVersion(d);
+    switchVersion(d, v2);
+    expect(comparableVersions(d).map((v) => v.id)).toEqual([v1, v2, v3]);
+    expect(comparableVersions(d, true).map((v) => v.id)).toEqual([v1, v2]);
+    expect(comparisonPair(d, `${v3}~${v1}`, true)).toEqual({ a: v2, b: v1 });
+    expect(comparisonPair(d, `${v3}~${v1}`)).toEqual({ a: v3, b: v1 });
+    switchVersion(d, v1);
+    expect(comparisonPair(d, null, true)).toBeNull();
   });
 });

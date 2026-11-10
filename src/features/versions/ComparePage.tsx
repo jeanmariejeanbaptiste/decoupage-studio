@@ -5,6 +5,7 @@ import { mmss } from '../../domain/chronometry';
 import {
   diffItems,
   diffScripts,
+  readable,
   type BlockDiff,
   type DiffStats,
   type SceneDiff,
@@ -14,13 +15,13 @@ import { foldLabel, movedLabel, summaryLines } from '../../domain/scriptDiffLayo
 import { SCRIPT_PAGE, blankLinesBefore } from '../../domain/scriptLayout';
 import type { BlockType } from '../../domain/screenplay';
 import type { ProjectDoc } from '../../domain/types';
-import { comparisonPair, versionText } from '../../domain/versions';
+import { comparableVersions, comparisonPair, versionText } from '../../domain/versions';
 import { downloadBlob } from '../../store/persistence';
-import { useCanCopy } from '../../store/share';
+import { useCanCopy, useReadOnly } from '../../store/share';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { PAGE } from '../scenario/ScriptEditor';
-import { leaveCompare, openSequenceInEditor, setCompared } from './compareUi';
+import { compareClosed, leaveCompare, openSequenceInEditor, setCompared } from './compareUi';
 import s from './ComparePage.module.css';
 
 const LINE = 16;
@@ -69,7 +70,7 @@ const SceneView = memo(function SceneView({ sc, index, stops, prev, onOpen }: Sc
         const stop = stops?.get(bi);
         const body =
           b.op === 'mod'
-            ? b.segs.map((x, k) => <SegView key={k} seg={x} />)
+            ? readable(b.segs).map((x, k) => <SegView key={k} seg={x} />)
             : b.segs.map((x) => x.text).join('');
         return (
           <div
@@ -150,7 +151,9 @@ function Summary({ st }: { st: DiffStats }) {
  */
 export function ComparePage({ doc }: { doc: ProjectDoc }) {
   const { params } = useLocation();
-  const pair = comparisonPair(doc, params.get('compare'));
+  // Invité ou relecteur : les versions publiées seulement (une version plus récente reste privée).
+  const guest = useReadOnly();
+  const pair = comparisonPair(doc, params.get('compare'), guest);
   const canCopy = useCanCopy();
   const [only, setOnlyState] = useState(savedOnly);
   const [unfolded, setUnfolded] = useState<ReadonlySet<number>>(new Set());
@@ -186,7 +189,7 @@ export function ComparePage({ doc }: { doc: ProjectDoc }) {
     return out;
   }, [diff]);
 
-  const versions = doc.versions ?? [];
+  const versions = comparableVersions(doc, guest);
   const nameOf = (id: string) => versions.find((v) => v.id === id)?.name ?? '';
   const editable = !!pair && pair.a === doc.activeVersionId;
 
@@ -228,7 +231,10 @@ export function ComparePage({ doc }: { doc: ProjectDoc }) {
       e.preventDefault();
     };
     window.addEventListener('keydown', on);
-    return () => window.removeEventListener('keydown', on);
+    return () => {
+      window.removeEventListener('keydown', on);
+      compareClosed();
+    };
   }, []);
 
   const exportPdf = async () => {

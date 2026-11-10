@@ -10,7 +10,7 @@ import { defaultSettings } from './factory';
 import type { Interview } from './interview';
 import { migrate, ProjectFileError, type MediaEntry } from './serialize';
 import { SCHEMA_VERSION, type Character, type ColumnKey, type Decor, type ID, type ProjectDoc, type ProjectSettings, type Sequence, type Shot } from './types';
-import type { ProjectVersion } from './versions';
+import { publishedVersions, type ProjectVersion } from './versions';
 
 export const REVIEW_FORMAT = 'decoupage-studio-review';
 export const REVIEW_SCHEMA = 1;
@@ -131,12 +131,7 @@ function reviewInterview(itw: Interview | undefined): Interview | undefined {
   };
 }
 
-/** Versions publiées : la courante et les précédentes ; une version plus récente reste privée. */
-export function publishedVersions(doc: ProjectDoc): ProjectVersion[] {
-  const list = doc.versions ?? [];
-  const at = list.findIndex((v) => v.id === doc.activeVersionId);
-  return at < 0 ? [] : list.slice(0, at + 1);
-}
+export { publishedVersions };
 
 /** Version d'un commentaire (ceux d'avant les versions comptent pour la première). */
 const versionOfComment = (doc: ProjectDoc, c: { versionId?: ID }) => c.versionId ?? doc.versions?.[0]?.id;

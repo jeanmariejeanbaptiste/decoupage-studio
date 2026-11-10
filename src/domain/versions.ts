@@ -229,12 +229,23 @@ export function versionText(doc: ProjectDoc, id: ID): string | null {
   return (v.id === doc.activeVersionId ? doc.scenario : v.slice?.scenario) ?? '';
 }
 
+/** Versions publiées : la courante et les précédentes ; une version plus récente reste privée. */
+export function publishedVersions(doc: ProjectDoc): ProjectVersion[] {
+  const list = doc.versions ?? [];
+  const at = list.findIndex((v) => v.id === doc.activeVersionId);
+  return at < 0 ? [] : list.slice(0, at + 1);
+}
+
+/** Versions qu'on peut comparer : toutes pour l'auteur ; pour un invité ou un relecteur, les publiées seulement. */
+export const comparableVersions = (doc: ProjectDoc, guest = false): ProjectVersion[] => (guest ? publishedVersions(doc) : (doc.versions ?? []));
+
 /**
  * Versions à comparer : celles de l'adresse (« idA~idB » : A lue, B la référence) si elles existent,
  * sinon la courante avec celle dont elle est partie (à défaut, sa voisine). `null` sans deux versions.
+ * `guest` : invité ou relecteur, limité aux versions publiées.
  */
-export function comparisonPair(doc: ProjectDoc, spec?: string | null): { a: ID; b: ID } | null {
-  const list = doc.versions ?? [];
+export function comparisonPair(doc: ProjectDoc, spec?: string | null, guest = false): { a: ID; b: ID } | null {
+  const list = comparableVersions(doc, guest);
   if (list.length < 2) return null;
   const has = (id?: string) => !!id && list.some((v) => v.id === id);
   const [a, b] = (spec ?? '').split('~');
