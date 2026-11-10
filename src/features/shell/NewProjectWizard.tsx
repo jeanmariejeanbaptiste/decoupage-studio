@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { navigate } from '../../app/router';
 import { applyFormat, createProjectDoc } from '../../domain/factory';
 import type { ProjectFormat } from '../../domain/types';
@@ -10,11 +10,23 @@ import s from './NewProjectWizard.module.css';
 export function NewProjectWizard({ onCancel }: { onCancel: () => void }) {
   const [title, setTitle] = useState('');
   const [format, setFormat] = useState<ProjectFormat>('fiction');
+  // Une seule création, même sur un double-clic ou deux Entrée rapides.
+  const busy = useRef(false);
+  const [creating, setCreating] = useState(false);
   const create = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setCreating(true);
     const doc = createProjectDoc({ title: title.trim() || 'Projet sans titre', format });
     applyFormat(doc, format);
-    await openDoc(doc);
-    navigate('grid');
+    try {
+      await openDoc(doc);
+      navigate('grid');
+    } catch (e) {
+      busy.current = false;
+      setCreating(false);
+      throw e;
+    }
   };
   return (
     <form
@@ -24,6 +36,8 @@ export function NewProjectWizard({ onCancel }: { onCancel: () => void }) {
         e.preventDefault();
         void create();
       }}
+      role="dialog"
+      aria-modal="true"
       aria-label="Nouveau projet"
       data-testid="wizard"
     >
@@ -46,7 +60,7 @@ export function NewProjectWizard({ onCancel }: { onCancel: () => void }) {
       </div>
       <div className={s.actions}>
         <Button onClick={onCancel}>Annuler</Button>
-        <Button type="submit" variant="primary" data-testid="wizard-next">
+        <Button type="submit" variant="primary" data-testid="wizard-next" disabled={creating}>
           Créer le projet
         </Button>
       </div>
