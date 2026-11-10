@@ -116,7 +116,7 @@ describe('dossier de production', () => {
     const doc = produce(buildRav3(), (d) => {
       const s1 = d.sequences[d.project.sequenceIds[0]];
       d.shots[s1.shotIds[0]].storyboard = { blobKey: 'a' };
-      d.shots[s1.shotIds[0]].keyframes = [{ blobKey: 'b' }];
+      d.shots[s1.shotIds[0]].keyframes = [{ id: 'k', blobKey: 'b' }];
       d.shots[s1.shotIds[1]].storyboard = { blobKey: 'c' };
     });
     const s1 = doc.sequences[doc.project.sequenceIds[0]];
