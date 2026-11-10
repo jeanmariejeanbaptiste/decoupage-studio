@@ -739,6 +739,8 @@ function DateField({ value, locked, label, onCommit }: { value: string; locked: 
     <input
       className={s.cellInput}
       value={draft ?? shown}
+      // Date encore vide : un tiret discret montre qu'on peut la poser.
+      placeholder="—"
       inputMode="numeric"
       aria-label={label}
       onFocus={(e) => e.currentTarget.select()}
