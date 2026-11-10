@@ -38,11 +38,11 @@ test('vérifications : liste cliquable, ignorer ici, rétablir', async ({ page }
   expect(n).toBeGreaterThan(3);
   // Un sujet qui n'est pas un personnage (« Affiche », insert) ne déclenche plus d'alerte.
   await expect(issues.filter({ hasText: 'Affiche' })).toHaveCount(0);
-  await issues.first().getByRole('button', { name: 'ignorer ici' }).click();
+  await issues.first().getByRole('button', { name: 'Ignorer ici' }).click();
   await expect(issues).toHaveCount(n - 1);
-  await page.getByRole('button', { name: /Rétablir les 1 contrôle/ }).click();
+  await page.getByRole('button', { name: 'Rétablir le contrôle ignoré' }).click();
   await expect(issues).toHaveCount(n);
-  await issues.filter({ hasText: 'risque de saute' }).first().getByRole('button').first().click();
+  await page.getByTestId('check-group-jump-cut').getByTestId('issue').first().getByRole('button', { name: /^Ouvrir le plan/ }).click();
   await expect(page.locator('[aria-selected="true"][data-cell$=":subject"]')).toHaveCount(1);
   await expect(page.getByTestId('issue-dot').first()).toBeVisible();
 });
