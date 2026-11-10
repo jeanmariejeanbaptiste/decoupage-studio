@@ -3,6 +3,7 @@ import { useShortcuts } from '../../store/shortcuts';
 import { navigate } from '../../app/router';
 import { useUi } from '../../store/uiStore';
 import { Hand } from '../../ui/Hand';
+import { useReturnFocus } from './useReturnFocus';
 import s from './CommandPalette.module.css';
 
 // Touches de saisie, fixes ; les raccourcis d'action viennent des Paramètres.
@@ -21,9 +22,13 @@ const FIXED: Array<[string, string]> = [
 
 export function HelpDialog() {
   const open = useUi((u) => u.helpOpen);
+  return open ? <HelpBody /> : null;
+}
+
+function HelpBody() {
   const map = useShortcuts((x) => x.map);
   const set = useUi((u) => u.set);
-  if (!open) return null;
+  const keepFocus = useReturnFocus();
   const close = () => set({ helpOpen: false });
   return (
     <div className={s.backdrop} onMouseDown={close} onKeyDown={(e) => e.key === 'Escape' && close()}>
@@ -40,7 +45,7 @@ export function HelpDialog() {
             </div>
           ))}
         </dl>
-        <button type="button" className={s.helpLink} onClick={() => { close(); navigate('settings', { section: 'raccourcis' }); }}>
+        <button type="button" className={s.helpLink} onClick={() => { keepFocus.current = false; close(); navigate('settings', { section: 'raccourcis' }); }}>
           Modifier les raccourcis
         </button>
         <button type="button" autoFocus className="visually-hidden" onClick={close}>

@@ -195,20 +195,23 @@ export function App() {
       }
       if (isShortcut(e, 'palette')) {
         e.preventDefault();
-        setUi({ paletteOpen: !useUi.getState().paletteOpen });
+        // Une seule fenêtre à la fois : la palette remplace l'aide.
+        setUi({ paletteOpen: !useUi.getState().paletteOpen, helpOpen: false });
         return;
       }
       if (e.key === 'Escape' && useUi.getState().helpOpen) setUi({ helpOpen: false });
       if (e.defaultPrevented || isTextTarget(e.target)) return;
       if (isShortcut(e, 'help')) {
         e.preventDefault();
-        setUi({ helpOpen: true });
+        setUi({ helpOpen: true, paletteOpen: false });
         return;
       }
       const isUndo = isShortcut(e, 'undo');
       const isRedo = isShortcut(e, 'redo') || (mod && !e.shiftKey && (e.key === 'y' || e.key === 'Y'));
       if (isUndo || isRedo) {
         e.preventDefault();
+        // Rien ne s'annule derrière une fenêtre ouverte, où l'on ne verrait pas le changement.
+        if (useUi.getState().paletteOpen || useUi.getState().helpOpen) return;
         // À l'accueil, annuler / rétablir portent sur la suppression des projets.
         if (window.location.hash.replace(/^#\/?/, '').split('?')[0] === '' || window.location.hash.startsWith('#/home')) {
           if (isRedo) void redoHome();
