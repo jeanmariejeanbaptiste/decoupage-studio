@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { CALENDAR_KINDS, shiftStart, type CalendarKind, type EventFields } from '../../domain/calendar';
+import { autoEndDate, CALENDAR_KINDS, shiftStart, type CalendarKind, type EventFields } from '../../domain/calendar';
+import { daysBetween } from '../../domain/production';
 import { Button } from '../../ui/Button';
 import m from '../../ui/Modal.module.css';
 import s from './CalendarPage.module.css';
@@ -83,7 +84,7 @@ export function EventDialog({ initial, existing, onSave, onDelete, onClose, read
             <span>Date</span>
             <input type="date" value={f.date} required aria-label="Date" onChange={(e) => e.target.value && setF((x) => shiftStart(x, { date: e.target.value }))} data-testid="event-date" />
             <label className={s.dCheck}>
-              <input type="checkbox" checked={f.allDay} onChange={(e) => set({ allDay: e.target.checked })} data-testid="event-allday" />
+              <input type="checkbox" checked={f.allDay} onChange={(e) => set({ allDay: e.target.checked, endDate: e.target.checked ? f.date : autoEndDate(f.date, f.start, f.end) })} data-testid="event-allday" />
               Journée entière
             </label>
           </div>
@@ -98,7 +99,12 @@ export function EventDialog({ initial, existing, onSave, onDelete, onClose, read
                 <span>Horaire</span>
                 <input type="time" value={f.start} aria-label="Début" required onChange={(e) => e.target.value && setF((x) => shiftStart(x, { start: e.target.value }))} data-testid="event-start" />
                 <span className={s.dDash}>–</span>
-                <input type="time" value={f.end} aria-label="Fin" required onChange={(e) => set({ end: e.target.value })} data-testid="event-end" />
+                <input type="time" value={f.end} aria-label="Fin" required onChange={(e) => set({ end: e.target.value, endDate: autoEndDate(f.date, f.start, e.target.value) })} data-testid="event-end" />
+                {f.endDate > f.date && (
+                  <span className={s.dDash} data-testid="event-next-day">
+                    +{daysBetween(f.date, f.endDate)} j
+                  </span>
+                )}
               </>
             )}
           </div>

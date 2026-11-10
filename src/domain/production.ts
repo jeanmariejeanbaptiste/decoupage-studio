@@ -571,7 +571,7 @@ export function applyTemplate(doc: ProjectDoc, today = todayIso()): void {
 // --- Fichier ------------------------------------------------------------------------------------
 
 /**
- * Données relues d'un fichier : éléments sans date valide écartés, identifiants en double retirés,
+ * Données relues d'un fichier : éléments sans date valide écartés, identifiants en double renouvelés,
  * dépendances orphelines ou en boucle retirées, une seule étape liée (jamais un jalon).
  */
 export function normalizeProduction(doc: ProjectDoc): void {
@@ -586,8 +586,11 @@ export function normalizeProduction(doc: ProjectDoc): void {
   let linkedSeen = false;
   for (const p of plan.phases) {
     if (typeof p.name !== 'string') p.name = '';
-    p.tasks = (Array.isArray(p.tasks) ? p.tasks : []).filter((t) => t && typeof t.id === 'string' && isValidDate(t.start) && !ids.has(t.id) && !!ids.add(t.id));
+    p.tasks = (Array.isArray(p.tasks) ? p.tasks : []).filter((t) => t && typeof t.id === 'string' && isValidDate(t.start));
     for (const t of p.tasks) {
+      // Identifiant en double : le premier le garde (les dépendances le visent), le second est renommé.
+      if (ids.has(t.id)) t.id = newId();
+      ids.add(t.id);
       if (typeof t.name !== 'string') t.name = '';
       // « 2027-01-01T10:00 » passe pour une date valide : ramenée au jour.
       t.start = t.start.slice(0, 10);

@@ -30,7 +30,9 @@ test('rendez-vous : tournage de nuit sur deux jours, la fin suit le début', asy
   await expect(dlg.getByTestId('event-end')).toHaveValue('16:00');
   await dlg.getByTestId('event-start').fill('20:00');
   await expect(dlg.getByTestId('event-end')).toHaveValue('21:00');
+  await expect(dlg.getByTestId('event-next-day')).toHaveCount(0);
   await dlg.getByTestId('event-end').fill('02:00');
+  await expect(dlg.getByTestId('event-next-day')).toHaveText('+1 j');
   await dlg.getByTestId('event-save').click();
   await expect(dlg).toBeHidden();
   await expect(page.getByTestId('day-2027-03-10').getByTestId('calendar-item')).toContainText('Tournage de nuit');
@@ -41,6 +43,11 @@ test('rendez-vous : tournage de nuit sur deux jours, la fin suit le début', asy
   await page.getByTestId('calendar-week').getByTestId('calendar-item').first().click();
   await expect(dlg.getByTestId('event-start')).toHaveValue('20:00');
   await expect(dlg.getByTestId('event-end')).toHaveValue('02:00');
+  await expect(dlg.getByTestId('event-next-day')).toHaveText('+1 j');
+  // Une coquille (fin avant le début, en journée) n'est pas une nuit.
+  await dlg.getByTestId('event-start').fill('14:00');
+  await dlg.getByTestId('event-end').fill('13:00');
+  await expect(dlg.getByTestId('event-next-day')).toHaveCount(0);
 });
 
 test('rendez-vous sur plusieurs jours : nommé le premier jour, suite sans titre répété', async ({ page }) => {

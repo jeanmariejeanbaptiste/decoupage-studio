@@ -176,10 +176,10 @@ export interface CalendarItem {
 }
 
 /** Rendez-vous du projet mis à plat ; dates invalides écartées, fin manquante ou antérieure corrigée. */
-export function eventItem(e: CalendarEvent, projectId?: ID): CalendarItem | undefined {
+export function eventItem(e: CalendarEvent): CalendarItem | undefined {
   const date = e.start.slice(0, 10);
   if (!isValidDate(date)) return undefined;
-  const base = { key: `e:${e.id}`, title: e.title, date, kind: e.kind, note: e.note, source: 'project' as const, eventId: e.id, ...(projectId ? { uid: `rdv-${projectId}-${e.id}` } : {}) };
+  const base = { key: `e:${e.id}`, title: e.title, date, kind: e.kind, note: e.note, source: 'project' as const, eventId: e.id };
   if (e.allDay || e.start.length <= 10) {
     const last = isValidDate(e.end) ? e.end.slice(0, 10) : date;
     return { ...base, endDate: last < date ? date : last, allDay: true };
@@ -191,8 +191,8 @@ export function eventItem(e: CalendarEvent, projectId?: ID): CalendarItem | unde
   if (end === undefined || endDate < date || (endDate === date && end <= start)) {
     return { ...base, endDate: date, start: fromMinutes(start), end: fromMinutes(Math.min(start + 60, 24 * 60 - 1)), allDay: false };
   }
-  // Fin à minuit pile : la journée s'achève, le lendemain n'est pas occupé.
-  if (end === 0 && endDate === addDays(date, 1)) return { ...base, endDate: date, start: fromMinutes(start), end: '23:59', allDay: false };
+  // Fin à minuit pile : « 00:00 » sur le dernier jour occupé, le lendemain reste libre.
+  if (end === 0) return { ...base, endDate: addDays(endDate, -1), start: fromMinutes(start), end: '00:00', allDay: false };
   return { ...base, endDate, start: fromMinutes(start), end: fromMinutes(end), allDay: false };
 }
 
@@ -228,19 +228,27 @@ export function shootingItems(doc: ProjectDoc): CalendarItem[] {
 
 /**
  * Étapes et jalons du calendrier de production, en journées entières. L'étape liée au plan de travail
- * n'y figure pas quand tous les jours de tournage sont datés : ils sont déjà dans le calendrier, un
- * par un. Datés en partie, elle reste, sur sa durée prévue.
+ * ne double pas les jours de tournage datés, déjà dans le calendrier un par un : tous datés, elle n'y
+ * figure pas ; datés en partie, elle ne couvre que ce qui suit le dernier jour daté (durée prévue).
  */
 export function productionItems(doc: ProjectDoc, opts: { withLinked?: boolean } = {}): CalendarItem[] {
   const plan = doc.production;
   const days = scheduleDays(doc);
-  const dated = days.length > 0 && days.every((d) => isValidDate(d.date));
+  const dates = days.map((d) => d.date).filter((d): d is string => isValidDate(d)).map((d) => d.slice(0, 10)).sort();
+  const lastDated = dates[dates.length - 1];
+  const allDated = days.length > 0 && dates.length === days.length;
   const out: CalendarItem[] = [];
   for (const phase of plan?.phases ?? [])
     for (const t of phase.tasks) {
-      if (!isValidDate(t.start) || (t.linked && dated && !opts.withLinked)) continue;
+      if (!isValidDate(t.start)) continue;
       const end = t.milestone || !isValidDate(t.end) || t.end < t.start ? t.start : t.end;
-      out.push({ key: `p:${t.id}`, title: t.name, date: t.start, endDate: end, allDay: true, source: 'production', taskId: t.id, milestone: t.milestone || undefined, group: phase.name, uid: `etape-${doc.project.id}-${t.id}` });
+      let start = t.start;
+      if (t.linked && !opts.withLinked && lastDated) {
+        if (allDated) continue;
+        if (lastDated >= start) start = addDays(lastDated, 1);
+        if (start > end) continue;
+      }
+      out.push({ key: `p:${t.id}`, title: t.name, date: start, endDate: end, allDay: true, source: 'production', taskId: t.id, milestone: t.milestone || undefined, group: phase.name });
     }
   return out;
 }
@@ -258,7 +266,7 @@ const order = (a: CalendarItem, b: CalendarItem) =>
 
 /** Tout le calendrier du projet, trié. */
 export function calendarItems(doc: ProjectDoc): CalendarItem[] {
-  const own = (doc.calendar ?? []).map((e) => eventItem(e, doc.project.id)).filter((x): x is CalendarItem => !!x);
+  const own = (doc.calendar ?? []).map(eventItem).filter((x): x is CalendarItem => !!x);
   return [...shootingItems(doc), ...own, ...productionItems(doc)].sort(order);
 }
 
@@ -275,11 +283,14 @@ export function itemsOn(items: readonly CalendarItem[], date: string): CalendarI
  */
 export function eventsOn(doc: ProjectDoc, date: string | undefined): CalendarItem[] {
   if (!isValidDate(date)) return [];
-  const own = (doc.calendar ?? []).map((e) => eventItem(e, doc.project.id)).filter((x): x is CalendarItem => !!x);
+  const own = (doc.calendar ?? []).map(eventItem).filter((x): x is CalendarItem => !!x);
   // Commencé la veille : en tête des éléments minutés.
   const from = (it: CalendarItem) => (it.date < date ? '' : (it.start ?? ''));
   return itemsOn(own, date).sort((a, b) => Number(b.allDay) - Number(a.allDay) || from(a).localeCompare(from(b)));
 }
+
+/** Fin d'un élément minuté sur son dernier jour, en minutes ; « 00:00 » = minuit, fin de la journée. */
+const endMinutes = (it: CalendarItem) => toMinutes(it.end) || 24 * 60;
 
 /** Heure d'un élément un jour donné : début ce jour-là, « jusqu'à » s'il a commencé avant ; rien pour une journée entière. */
 export function timeOn(it: CalendarItem, date: string): string {
@@ -307,7 +318,7 @@ export function hourRange(items: readonly CalendarItem[], dates: readonly string
     for (const it of itemsOn(items, date)) {
       if (it.allDay) continue;
       const s = it.date < date ? 0 : toMinutes(it.start)!;
-      const e = it.endDate > date ? 24 * 60 : toMinutes(it.end)!;
+      const e = it.endDate > date ? 24 * 60 : endMinutes(it);
       a = Math.min(a, Math.floor(s / 60));
       b = Math.max(b, Math.ceil(e / 60));
     }
@@ -335,7 +346,7 @@ export function layoutDay(items: readonly CalendarItem[], date: string, from = 7
     .filter((it) => !it.allDay)
     .map((item) => {
       const a0 = item.date < date ? 0 : toMinutes(item.start)!;
-      const b0 = item.endDate > date ? 24 * 60 : toMinutes(item.end)!;
+      const b0 = item.endDate > date ? 24 * 60 : endMinutes(item);
       const a = Math.max(lo, Math.min(a0, hi - 15));
       return { item, a, b: Math.min(hi, Math.max(b0, a + 15)) };
     })
@@ -417,31 +428,47 @@ export function newEventFields(date: string, hour?: number, allDay = false): Eve
 export function eventFields(e: CalendarEvent): EventFields {
   const it = eventItem(e);
   const date = it?.date ?? todayIso();
-  // Fin à minuit le lendemain : relue telle quelle, un nouvel enregistrement la garde.
-  const midnight = !it?.allDay && e.end === `${addDays(date, 1)}T00:00`;
   return {
     title: e.title,
     date,
     allDay: it?.allDay ?? true,
     start: it?.allDay ? '09:00' : (it?.start ?? '09:00'),
-    end: it?.allDay ? '10:00' : midnight ? '00:00' : (it?.end ?? '10:00'),
-    endDate: it?.endDate ?? date,
+    end: it?.allDay ? '10:00' : (it?.end ?? '10:00'),
+    // Rendez-vous minuté : jour de la fin (minuit = le lendemain).
+    endDate: it && !it.allDay && it.end === '00:00' ? addDays(it.endDate, 1) : (it?.endDate ?? date),
     kind: e.kind ?? 'autre',
     note: e.note ?? '',
   };
 }
 
 /**
- * Rendez-vous tiré du formulaire. Fin avant le début : elle tombe le lendemain (tournage de nuit,
- * fin à minuit) ; fin égale au début : une heure.
+ * Fin avant le début : le lendemain seulement pour une nuit (début à midi ou après, fin à midi ou
+ * avant, seize heures au plus : 22:00 – 06:00, 20:00 – 00:00) ; ailleurs c'est une coquille.
+ */
+export function overnight(a: number, b: number): boolean {
+  return b < a && a >= 12 * 60 && b <= 12 * 60 && b + 24 * 60 - a <= 16 * 60;
+}
+
+/** Jour de la fin d'un rendez-vous minuté d'après ses heures : le lendemain pour une nuit. */
+export function autoEndDate(date: string, start: string, end: string): string {
+  const a = toMinutes(start);
+  const b = toMinutes(end);
+  return a !== undefined && b !== undefined && overnight(a, b) ? addDays(date, 1) : date;
+}
+
+/**
+ * Rendez-vous tiré du formulaire. Minuté : la fin tombe le jour `endDate` quand il suit la date ;
+ * sinon le lendemain pour une nuit, et une heure après le début si la fin n'est pas après lui.
  */
 export function eventFromFields(f: EventFields): Omit<CalendarEvent, 'id'> {
   const base = { title: f.title.trim() || 'Sans titre', kind: f.kind, note: f.note.trim() || undefined };
   if (f.allDay) return { ...base, start: f.date, end: f.endDate > f.date ? f.endDate : undefined, allDay: true };
   const a = toMinutes(f.start) ?? 9 * 60;
   let b = toMinutes(f.end) ?? a + 60;
-  if (b === a) b = Math.min(a + 60, 24 * 60 - 1);
-  const endDate = b < a ? addDays(f.date, 1) : f.date;
+  let endDate = f.date;
+  if (isValidDate(f.endDate) && f.endDate > f.date) endDate = f.endDate;
+  else if (overnight(a, b)) endDate = addDays(f.date, 1);
+  else if (b <= a) b = Math.min(a + 60, 24 * 60 - 1);
   return { ...base, start: `${f.date}T${fromMinutes(a)}`, end: `${endDate}T${fromMinutes(b)}` };
 }
 
@@ -462,8 +489,14 @@ export function shiftStart(f: EventFields, patch: { date?: string; start?: strin
     out.start = patch.start;
     const b0 = toMinutes(f.end);
     if (a0 !== undefined && a1 !== undefined && b0 !== undefined) {
-      const dur = (b0 - a0 + 24 * 60) % (24 * 60) || 60;
-      out.end = fromMinutes((a1 + dur) % (24 * 60));
+      // Durée en minutes, jours compris ; le jour de la fin suit (minuit franchi ou non).
+      let offset = daysFrom(f.date, f.endDate);
+      if (f.allDay || offset < 0 || (offset === 0 && b0 <= a0)) offset = overnight(a0, b0) ? 1 : 0;
+      let dur = offset * 24 * 60 + b0 - a0;
+      if (dur <= 0) dur = 60;
+      const end = a1 + dur;
+      out.end = fromMinutes(end % (24 * 60));
+      if (!f.allDay) out.endDate = addDays(out.date, Math.floor(end / (24 * 60)));
     }
   }
   return out;
@@ -473,7 +506,8 @@ export function shiftStart(f: EventFields, patch: { date?: string; start?: strin
 const daysFrom = (a: string, b: string) => Math.round((toUtc(b).getTime() - toUtc(a).getTime()) / 86_400_000);
 
 /**
- * Rendez-vous relus d'un fichier : seuls restent ceux qui ont un identifiant et une date valide. Titre,
+ * Rendez-vous relus d'un fichier : seuls restent ceux qui ont un identifiant et une date valide (un
+ * identifiant en double est renouvelé). Titre,
  * type, note et fin abîmés sont corrigés ou retirés ; une heure impossible les passe en journée entière.
  */
 export function normalizeCalendar(doc: ProjectDoc): void {
@@ -484,9 +518,11 @@ export function normalizeCalendar(doc: ProjectDoc): void {
   for (const x of Array.isArray(raw) ? (raw as unknown[]) : []) {
     if (!x || typeof x !== 'object') continue;
     const e = x as Record<string, unknown>;
-    if (typeof e.id !== 'string' || !e.id || ids.has(e.id) || typeof e.start !== 'string' || !isValidDate(e.start.slice(0, 10))) continue;
-    ids.add(e.id);
-    const ev: CalendarEvent = { id: e.id, title: typeof e.title === 'string' && e.title.trim() ? e.title : 'Sans titre', start: e.start };
+    if (typeof e.id !== 'string' || !e.id || typeof e.start !== 'string' || !isValidDate(e.start.slice(0, 10))) continue;
+    // Identifiant en double (fusion, copie) : le second en reçoit un nouveau.
+    const id = ids.has(e.id) ? newId() : e.id;
+    ids.add(id);
+    const ev: CalendarEvent = { id, title: typeof e.title === 'string' && e.title.trim() ? e.title : 'Sans titre', start: e.start };
     if (typeof e.end === 'string' && isValidDate(e.end.slice(0, 10))) ev.end = e.end;
     if (typeof e.note === 'string' && e.note) ev.note = e.note;
     if (CALENDAR_KINDS.some((k) => k.kind === e.kind)) ev.kind = e.kind as CalendarKind;
@@ -537,8 +573,7 @@ function fold(line: string): string {
   return parts.join('\r\n ');
 }
 
-/** Identifiant .ics : propre au projet (une copie du projet n'écrase pas l'original dans un agenda). */
-const uid = (it: CalendarItem) => it.uid ?? (it.source === 'shooting' ? `jour-${it.day}` : it.source === 'production' ? `etape-${it.taskId}` : it.eventId);
+const uid = (it: CalendarItem) => (it.source === 'shooting' ? (it.uid ?? `jour-${it.day}`) : it.source === 'production' ? `etape-${it.taskId}` : it.eventId);
 
 /** Fichier .ics : rendez-vous du projet, jours de tournage et étapes de production, heures locales « flottantes ». */
 export function calendarIcs(items: readonly CalendarItem[], name: string, now = new Date()): string {
@@ -548,7 +583,8 @@ export function calendarIcs(items: readonly CalendarItem[], name: string, now = 
   for (const it of items) {
     lines.push('BEGIN:VEVENT', `UID:${uid(it)}@decoupage-studio`, `DTSTAMP:${stamp}`);
     if (it.allDay) lines.push(`DTSTART;VALUE=DATE:${icsDate(it.date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(it.endDate, 1))}`);
-    else lines.push(`DTSTART:${icsDateTime(it.date, it.start!)}`, `DTEND:${icsDateTime(it.endDate, it.end!)}`);
+    // Fin à minuit : le lendemain à 00:00.
+    else lines.push(`DTSTART:${icsDateTime(it.date, it.start!)}`, `DTEND:${it.end === '00:00' ? icsDateTime(addDays(it.endDate, 1), '00:00') : icsDateTime(it.endDate, it.end!)}`);
     const summary = it.milestone ? `◆ ${it.title}` : it.allDay && it.start ? `${it.title} · RDV ${it.start}` : it.title;
     lines.push(`SUMMARY:${icsText(summary)}`);
     if (it.note?.trim()) lines.push(`DESCRIPTION:${icsText(it.note.trim())}`);
