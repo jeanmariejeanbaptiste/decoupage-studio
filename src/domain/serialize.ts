@@ -187,6 +187,24 @@ function repairSections(doc: ProjectDoc): void {
  * version) : entrées nulles retirées, chaque plan dans une seule séquence, chaque action contiguë
  * dans la séquence de ses plans, références pendantes oubliées. Ne change rien à un projet sain.
  */
+/**
+ * Versions rangées : chacune doit pouvoir redevenir la courante, donc tenir les mêmes règles. Une
+ * version sans contenu lisible n'est pas gardée (elle ferait planter le changement de version).
+ */
+function repairVersionSlices(doc: ProjectDoc): void {
+  if (!doc.versions) return;
+  doc.versions = doc.versions.filter((v) => isText(v.id) && (v.slice === undefined || (isObject(v.slice) && isObject(v.slice.sequences) && isObject(v.slice.shots) && isObject(v.slice.blocks))));
+  for (const v of doc.versions) {
+    if (!isText(v.name)) v.name = '';
+    const s = v.slice;
+    if (!s) continue;
+    if (s.scenario !== undefined && !isText(s.scenario)) delete s.scenario;
+    const view = { ...doc, project: { ...doc.project, sequenceIds: list<string>(s.sequenceIds) }, sequences: s.sequences, shots: s.shots, blocks: s.blocks };
+    repairStructure(view);
+    s.sequenceIds = view.project.sequenceIds;
+  }
+}
+
 function repairStructure(doc: ProjectDoc): void {
   const p = doc.project;
   for (const key of ['sequences', 'shots', 'blocks', 'characters', 'decors'] as const) dropBroken(doc[key] as Record<string, unknown>);
@@ -271,6 +289,7 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   // réparées plutôt que de faire planter l'affichage.
   repairSections(doc);
   repairStructure(doc);
+  repairVersionSlices(doc);
   normalizeTiming(doc);
   upgradeInterview(doc);
   if (p.format === 'institutionnel') ensureInterview(doc);

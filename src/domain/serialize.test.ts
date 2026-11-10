@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { checkInvariants } from './ops';
+import { createVersion } from './versions';
 import { exportBase, fileNameFor, mediaKeys, migrate, parseProjectFile, ProjectFileError, projectCopy, serializeDoc, sharedMediaOwners } from './serialize';
 
 describe('fichier .decoupage', () => {
@@ -143,6 +144,24 @@ describe('projet abîmé relu (fichier ou base)', () => {
       }
     }
     expect(failures).toEqual([]);
+  });
+
+  it('versions rangées : saines, inchangées ; abîmées, réparées comme la courante', () => {
+    const doc = buildFiction();
+    createVersion(doc, 'V2');
+    expect(parseProjectFile(serializeDoc(doc))).toEqual(doc);
+    const old = doc.versions!.find((v) => v.slice)!;
+    const s = old.slice!;
+    const [s1, s2] = s.sequenceIds;
+    s.sequences[s2].shotIds.push(s.sequences[s1].shotIds[0]);
+    (s.shots as Record<string, unknown>)[s.sequences[s1].shotIds[1]] = null;
+    const raw = doc as unknown as { versions: unknown[] };
+    raw.versions.push({ id: 'cassee', name: 'V0', createdAt: '', slice: { sequenceIds: [] } });
+    const back = migrate(doc);
+    expect(back.versions!.map((v) => v.name)).toEqual(['V1', 'V2']);
+    const bs = back.versions!.find((v) => v.slice)!.slice!;
+    const asDoc = { ...back, project: { ...back.project, sequenceIds: bs.sequenceIds }, sequences: bs.sequences, shots: bs.shots, blocks: bs.blocks };
+    expect(checkInvariants(asDoc)).toEqual([]);
   });
 
   it('réparer deux fois ne change plus rien', () => {
