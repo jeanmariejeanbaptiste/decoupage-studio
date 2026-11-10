@@ -33,6 +33,8 @@ import {
   shootingRange,
   syncProduction,
   type Production,
+  setPhaseDates,
+  setPhaseDays,
 } from './production';
 import { assignShots, updateDay } from './schedule';
 import { migrate } from './serialize';
@@ -427,5 +429,33 @@ describe('calendrier et fichier', () => {
     const gone = { ...doc, production: { phases: 'x' } as unknown as Production };
     normalizeProduction(gone);
     expect(gone.production).toBeUndefined();
+  });
+});
+
+describe('dates réglées sur la ligne d’une phase', () => {
+  it('phase sans étape : ses dates propres ; la première étape les reprend', () => {
+    const doc = createProjectDoc({ title: 't', format: 'fiction' });
+    doc.production = { phases: [] };
+    const id = addPhase(doc.production);
+    setPhaseDates(doc, id, '2026-12-01', '2026-12-10');
+    expect(phaseSpan(doc.production.phases[0])).toEqual({ start: '2026-12-01', end: '2026-12-10' });
+    expect(phaseDays(doc.production.phases[0])).toBe(10);
+    addTask(doc.production, id);
+    expect(doc.production.phases[0].tasks[0]).toMatchObject({ start: '2026-12-01', end: '2026-12-10' });
+  });
+  it('phase avec étapes : le début déplace tout, la fin règle la dernière étape, la durée suit', () => {
+    const doc = createProjectDoc({ title: 't', format: 'fiction' });
+    doc.production = { phases: [] };
+    const id = addPhase(doc.production);
+    addTask(doc.production, id, { today: '2026-12-01' });
+    addTask(doc.production, id);
+    const [a, b] = doc.production.phases[0].tasks;
+    expect([a.start, b.end]).toEqual(['2026-12-01', '2026-12-10']);
+    setPhaseDates(doc, id, '2026-12-08', '2026-12-10');
+    expect([a.start, a.end, b.start, b.end]).toEqual(['2026-12-08', '2026-12-12', '2026-12-13', '2026-12-17']);
+    setPhaseDates(doc, id, '2026-12-08', '2026-12-20');
+    expect(b.end).toBe('2026-12-20');
+    setPhaseDays(doc, id, 5);
+    expect(phaseSpan(doc.production.phases[0])).toEqual({ start: '2026-12-08', end: '2026-12-13' });
   });
 });

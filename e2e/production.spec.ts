@@ -305,3 +305,24 @@ test('calendrier de production : rendez-vous du calendrier sur la frise, lien ve
   await page.keyboard.press('Control+z');
   await expect(page.getByTestId('task-row')).toHaveCount(17);
 });
+
+test('production : vue vierge, « + Phase », nom renommé d’un clic, dates de la phase réglées sur sa ligne', async ({ page }) => {
+  await page.goto('/#/production?seed=fiction');
+  await page.getByTestId('production-add-phase').click();
+  const phase = page.getByTestId('phase-row').first();
+  // Nouvelle phase : son nom s'écrit tout de suite ; plus tard, un clic suffit pour le changer.
+  await page.keyboard.type('Écriture');
+  await page.keyboard.press('Enter');
+  await expect(phase).toContainText('Écriture');
+  await phase.getByText('Écriture').click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('Développement');
+  await page.keyboard.press('Enter');
+  await expect(phase).toContainText('Développement');
+  // Début et fin en un clic, la durée suit.
+  await phase.getByLabel('Début de la phase : Développement').fill('01/12/2026');
+  await phase.getByLabel('Début de la phase : Développement').press('Enter');
+  await phase.getByLabel('Fin de la phase : Développement').fill('10/12/2026');
+  await phase.getByLabel('Fin de la phase : Développement').press('Enter');
+  await expect(phase.getByLabel('Durée de la phase en jours : Développement')).toHaveValue('10');
+});

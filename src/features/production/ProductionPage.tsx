@@ -30,6 +30,8 @@ import {
   renameTask,
   setDone,
   setDuration,
+  setPhaseDates,
+  setPhaseDays,
   setLinked,
   setTaskDates,
   shootingRange,
@@ -622,7 +624,8 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
   const label = renaming ? (
     <NameInput initial={name} onDone={onRename} onCancel={onCancelRename} />
   ) : (
-    <span className={s.name} onDoubleClick={onStartRename} title={name}>
+    // Un clic suffit pour renommer (un invité ne fait que lire).
+    <span className={s.name} onClick={onStartRename} title={name}>
       {name}
     </span>
   );
@@ -638,14 +641,16 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
           </button>
           {label}
         </span>
+        {/* Dates de la phase réglables sur sa ligne : sans étape, les siennes ; avec, le début déplace
+            toute la phase et la fin règle sa dernière étape. */}
         <span className={s.cDate} role="cell">
-          {formatFrDate(sp?.start)}
+          <DateField value={sp?.start ?? ''} locked={readOnly} label={`Début de la phase : ${name}`} onCommit={(v) => mutateDoc((d) => setPhaseDates(d, id, v, sp ? (sp.end < v ? v : sp.end) : addDays(v, 4)))} />
         </span>
         <span className={s.cDate} role="cell">
-          {formatFrDate(sp?.end)}
+          <DateField value={sp?.end ?? ''} locked={readOnly} label={`Fin de la phase : ${name}`} onCommit={(v) => mutateDoc((d) => setPhaseDates(d, id, sp?.start && sp.start <= v ? sp.start : v, v))} />
         </span>
         <span className={s.cDur} role="cell">
-          {phaseDays(row.phase) || ''}
+          {sp ? <NumberField value={phaseDays(row.phase) ?? 0} locked={readOnly} label={`Durée de la phase en jours : ${name}`} onCommit={(n) => mutateDoc((d) => setPhaseDays(d, id, n))} /> : ''}
         </span>
         <span className={s.cMenu}>{!readOnly && menuBtn}</span>
       </div>

@@ -37,6 +37,9 @@ export interface ProductionPhase {
   id: ID;
   name: string;
   tasks: ProductionTask[];
+  /** Dates propres d'une phase encore sans étape (réglées sur sa ligne) ; ensuite, ses étapes font foi. */
+  start?: string;
+  end?: string;
 }
 
 export interface Production {
@@ -101,7 +104,7 @@ export interface Span {
 
 /** Étendue d'une phase : du premier début à la dernière fin de ses éléments. */
 export function phaseSpan(phase: ProductionPhase): Span | undefined {
-  if (!phase.tasks.length) return undefined;
+  if (!phase.tasks.length) return phase.start && phase.end ? { start: phase.start, end: phase.end } : undefined;
   let start = phase.tasks[0].start;
   let end = phase.tasks[0].end;
   for (const t of phase.tasks) {
@@ -115,7 +118,7 @@ export function phaseSpan(phase: ProductionPhase): Span | undefined {
 export function phaseDays(phase: ProductionPhase): number | undefined {
   const sp = phaseSpan(phase);
   if (!sp) return undefined;
-  return phase.tasks.every((t) => t.milestone) ? 0 : daysBetween(sp.start, sp.end) + 1;
+  return phase.tasks.length && phase.tasks.every((t) => t.milestone) ? 0 : daysBetween(sp.start, sp.end) + 1;
 }
 
 /** Étendue de tout le calendrier. */
@@ -262,6 +265,40 @@ export function moveTask(doc: ProjectDoc, id: ID, days: number): void {
 }
 
 /** Durée saisie (jours, au moins 1) : la fin suit. */
+/**
+ * Début, fin ou durée réglés sur la ligne d'une phase. Sans étape : ses dates propres. Avec des étapes :
+ * un nouveau début déplace toute la phase d'un bloc (dépendances et étapes liées au plan de travail
+ * respectées) ; une nouvelle fin allonge ou raccourcit l'étape qui finit le plus tard.
+ */
+export function setPhaseDates(doc: ProjectDoc, phaseId: ID, start: string, end: string): void {
+  const plan = doc.production;
+  const phase = plan?.phases.find((p) => p.id === phaseId);
+  if (!plan || !phase || !isValidDate(start) || !isValidDate(end)) return;
+  if (!phase.tasks.length) {
+    phase.start = start;
+    phase.end = end < start ? start : end;
+    return;
+  }
+  const sp = phaseSpan(phase)!;
+  if (start !== sp.start) {
+    const delta = daysBetween(sp.start, start);
+    for (const t of phase.tasks) if (!isPinned(doc, t) && !isHeld(doc, t)) setTaskDates(doc, t.id, addDays(t.start, delta), addDays(t.end, delta));
+    return;
+  }
+  if (end !== sp.end) {
+    const last = phase.tasks.filter((t) => !t.milestone && !isPinned(doc, t)).reduce<ProductionTask | undefined>((a, t) => (!a || t.end > a.end ? t : a), undefined);
+    if (last) setTaskDates(doc, last.id, last.start, end < last.start ? last.start : end);
+  }
+}
+
+/** Durée d'une phase réglée sur sa ligne : sa fin suit. */
+export function setPhaseDays(doc: ProjectDoc, phaseId: ID, days: number): void {
+  const phase = doc.production?.phases.find((p) => p.id === phaseId);
+  const sp = phase && phaseSpan(phase);
+  if (!sp || !Number.isFinite(days)) return;
+  setPhaseDates(doc, phaseId, sp.start, addDays(sp.start, Math.max(1, Math.round(days)) - 1));
+}
+
 export function setDuration(doc: ProjectDoc, id: ID, days: number): void {
   const t = findTask(doc.production, id)?.task;
   if (!t || t.milestone || !Number.isFinite(days)) return;
@@ -309,16 +346,22 @@ export function addTask(plan: Production, phaseId: ID, opts: { milestone?: boole
   const phase = plan.phases.find((p) => p.id === phaseId);
   if (!phase) return undefined;
   const ref = opts.afterId ? phase.tasks.find((t) => t.id === opts.afterId) : undefined;
-  const anchor = ref ? ref.end : phaseSpan(phase)?.end;
+  // Première étape d'une phase datée : elle en reprend le début (et la fin).
+  const own = !phase.tasks.length && phase.start && phase.end ? { start: phase.start, end: phase.end } : undefined;
+  const anchor = ref ? ref.end : own ? undefined : phaseSpan(phase)?.end;
   const id = newId();
   const task: ProductionTask = { id, name: opts.name ?? (opts.milestone ? 'Nouveau jalon' : 'Nouvelle étape'), start: '', end: '' };
   if (opts.milestone) {
     task.milestone = true;
     task.start = task.end = anchor ?? opts.today ?? todayIso();
+  } else if (own) {
+    task.start = own.start;
+    task.end = own.end;
   } else {
     task.start = anchor ? addDays(anchor, 1) : (opts.today ?? todayIso());
     task.end = addDays(task.start, 4);
   }
+  if (opts.milestone && own) task.start = task.end = own.start;
   phase.tasks.splice(ref ? phase.tasks.indexOf(ref) + 1 : phase.tasks.length, 0, task);
   return id;
 }
