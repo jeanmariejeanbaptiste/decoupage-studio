@@ -28,8 +28,20 @@ const words = (s: string) => fold(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 /** En-tête sans ses numéros de scène (« 12. INT. GARE - JOUR 12 ») ni variations d'espaces : une renumérotation n'est pas une révision. */
 const bareHeading = (h: string) => words(h.replace(/^\s*\d+[A-Z]?[.)-]?\s+/, '').replace(/\s+\d+[A-Z]?\.?\s*$/, '')).join(' ');
 
+/**
+ * Corps d'une scène tel qu'il s'imprime : sans les lignes de résumé « = » (phrase du séquencier et sa
+ * note), de partie « # », ni les notes « [[…]] » (surlignage compris). Écrire une phrase ou changer
+ * une étape ne fausse ni le rapprochement ni les marques de révision.
+ */
+const printedBody = (text: string) =>
+  text
+    .replace(/\[\[[\s\S]*?\]\]/g, ' ')
+    .split('\n')
+    .filter((l) => !/^\s*[=#]/.test(l))
+    .join('\n');
+
 function featuresOf(source: string, sc: Scene): Features {
-  const body = source.slice(sc.start, sc.end).split('\n').slice(1).join('\n');
+  const body = printedBody(source.slice(sc.start, sc.end).split('\n').slice(1).join('\n'));
   const w = words(body);
   const grams = new Set<string>();
   if (w.length < 6) w.forEach((x) => grams.add(x));

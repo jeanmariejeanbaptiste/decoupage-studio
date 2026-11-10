@@ -307,6 +307,8 @@ export interface ProjectDoc {
   production?: import('./production').Production;
   /** Adresses géocodées pour la carte des lieux (`geo.ts`), par clé d'adresse. */
   geocodes?: Record<string, import('./geo').GeocodeEntry>;
+  /** Intrigues du séquencier (lettre A…Z, nom), communes aux versions ; absent : l'intrigue principale (`outline.ts`). */
+  plots?: Array<{ key: string; name: string }>;
 }
 
 export const SCHEMA_VERSION = 1;

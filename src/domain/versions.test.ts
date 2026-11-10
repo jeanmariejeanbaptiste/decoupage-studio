@@ -62,6 +62,29 @@ Marc attend sous la pluie, une cigarette éteinte aux lèvres.
     expect(al.matches.every((m) => m.same)).toBe(true);
   });
 
+  it('une phrase du séquencier, sa note ou une étape changée ne touchent ni le rapprochement ni les marques', () => {
+    const withPhrases = V1.replace('INT. GARE — HALL - JOUR\n', 'INT. GARE — HALL - JOUR\n\n= Léa arrive à la gare. [[ds:etape=4;intrigue=B]]\n').replace(
+      'INT. GARE — CONSIGNE - JOUR\n',
+      'INT. GARE — CONSIGNE - JOUR\n\n= Léa dépose la valise.\n\n# Partie\n',
+    );
+    const al = alignScenes(V1, withPhrases);
+    expect(al.matches.map((m) => [m.from, m.to, m.same])).toEqual([
+      [0, 0, true],
+      [1, 1, true],
+      [2, 2, true],
+    ]);
+    const restepped = withPhrases.replace('etape=4;intrigue=B', 'etape=9').replace('Léa arrive à la gare.', 'Léa entre dans le hall.');
+    expect(alignScenes(withPhrases, restepped).matches.every((m) => m.same)).toBe(true);
+    expect(alignScenes(V1, withPhrases).added).toEqual([]);
+    const doc = produce(buildFiction(), (d) => {
+      d.scenario = V1;
+      ensureVersions(d);
+      createVersion(d);
+      d.scenario = withPhrases;
+    });
+    expect([...revisedScenes(doc)!]).toEqual([]);
+  });
+
   it('scènes déplacées et scène supprimée', () => {
     const scenes = V1.split(/\n(?=(?:INT|EXT)\.)/);
     const v2 = [scenes[2], scenes[0]].join('\n');
@@ -162,6 +185,19 @@ describe('versions', () => {
     expect(marks.get(1)).toBe('new');
     expect(marks.get(2)).toBe('changed');
     expect(marks.has(0)).toBe(false);
+  });
+
+  it('nouveau texte : les phrases du séquencier suivent les scènes retrouvées, la version précédente garde les siennes', () => {
+    const base = produce(buildFiction(), (d) => {
+      d.scenario = V1.replace('INT. GARE — CONSIGNE - JOUR\n', 'INT. GARE — CONSIGNE - JOUR\n\n= Léa dépose la valise. [[ds:etape=5]]\n');
+      ensureVersions(d);
+      createVersion(d);
+    });
+    const next = V1.replace('Léa pose la valise sur le comptoir.', 'Léa pose la valise sur le comptoir, essoufflée.').replace(/EXT\. PARVIS[\s\S]*$/, '');
+    const out = produce(base, (d) => void reviseScenario(d, next));
+    expect(out.scenario).toContain('INT. GARE — CONSIGNE - JOUR\n\n= Léa dépose la valise. [[ds:etape=5]]\n\nLéa pose la valise sur le comptoir, essoufflée.');
+    const previous = out.versions!.find((v) => v.slice)!;
+    expect(previous.slice!.scenario).toContain('= Léa dépose la valise. [[ds:etape=5]]');
   });
 
   it('effacer le scénario : cette version ou toutes ; le découpage reste ; le texte se rétablit avec ses liens', () => {

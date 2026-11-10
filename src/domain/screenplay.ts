@@ -33,6 +33,8 @@ export interface SBlock {
   /** Séparateur d'origine placé avant le bloc, et rang d'origine du bloc. */
   sep?: string;
   orig?: number;
+  /** Résumé « = » : note du séquencier en fin de ligne (« [[ds:etape=9;intrigue=B]] »), absente de `text`. */
+  meta?: string;
 }
 
 export interface ScriptDoc {
@@ -77,8 +79,15 @@ const MARKER = /^(!|@|\.(?!\.)|>|#|=|~|\[\[|\/\*)/;
 
 const DIALOGUE_GROUP: ReadonlySet<BlockType> = new Set(['character', 'parenthetical', 'dialogue']);
 
-/** Un bloc vide n'existe que dans l'éditeur : il n'écrit rien dans la source. */
-export const isEmptyBlock = (b: SBlock): boolean => b.type !== 'pagebreak' && (b.type === 'parenthetical' ? b.text.replace(/[()\s]/g, '') === '' : b.text.trim() === '');
+/** Note du séquencier en fin de ligne « = » (étape, intrigue) : jamais imprimée, retirée du texte affiché. */
+export const OUTLINE_TAG_RE = /\s*\[\[ds:([^\]]*)\]\]\s*$/;
+
+/** Note brute d'une ligne de résumé (« [[ds:…]] »), s'il y en a une. */
+export const outlineTagOf = (line: string): string | undefined => OUTLINE_TAG_RE.exec(line.replace(/\r$/, ''))?.[0].trim();
+
+/** Un bloc vide n'existe que dans l'éditeur : il n'écrit rien dans la source (un résumé qui ne porte qu'une note en écrit une). */
+export const isEmptyBlock = (b: SBlock): boolean =>
+  b.type !== 'pagebreak' && !(b.type === 'synopsis' && b.meta) && (b.type === 'parenthetical' ? b.text.replace(/[()\s]/g, '') === '' : b.text.trim() === '');
 
 /** Découpe une source Fountain en blocs, en gardant le texte exact de chacun. */
 export function blocksFromSource(source: string): ScriptDoc {
@@ -119,6 +128,7 @@ export function blocksFromSource(source: string): ScriptDoc {
     const rawStart = lines[cue ? g.first - 1 : g.first].start;
     const lastLine = lines[g.last];
     const rawEnd = lastLine.start + lastLine.text.replace(/\r$/, '').length;
+    const meta = g.type === 'synopsis' ? outlineTagOf(lastLine.text) : undefined;
     blocks.push({
       id: nid(),
       type: g.type,
@@ -127,6 +137,7 @@ export function blocksFromSource(source: string): ScriptDoc {
       lineOffsets: g.starts.map((s) => s - rawStart),
       sep: source.slice(prevEnd, rawStart),
       orig: i,
+      ...(meta ? { meta } : {}),
     });
     prevEnd = rawEnd;
   });
@@ -189,8 +200,10 @@ function rawOwn(b: SBlock, next: SBlock | undefined): { raw: string; lineOffsets
       return single('[[', oneLine(b.text), ']]');
     case 'section':
       return single('# ', oneLine(b.text));
-    case 'synopsis':
-      return single('= ', oneLine(b.text));
+    case 'synopsis': {
+      const t = oneLine(b.text);
+      return single('= ', t, b.meta ? `${t ? ' ' : ''}${b.meta}` : '');
+    }
     case 'pagebreak':
       return single('', '===');
     case 'title':
