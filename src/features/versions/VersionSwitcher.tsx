@@ -4,7 +4,7 @@ import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
 import { openCommentsPanel } from '../comments/commentsUi';
-import { activeVersion, clearScenario, comparableVersions, clearedOf, restoreScenario, createVersion, deleteVersion, ensureVersions, nextVersionName, renameVersion, switchVersion, versionHeir, versionSequences } from '../../domain/versions';
+import { activeVersion, clearScenario, comparableVersions, clearedOf, restoreScenario, createVersion, deleteVersion, ensureVersions, isPublishedVersion, nextVersionName, renameVersion, switchVersion, versionHeir, versionSequences } from '../../domain/versions';
 import type { ProjectDoc } from '../../domain/types';
 import { flushEditors } from '../../store/persistence';
 import { mutateDoc, undo } from '../../store/projectStore';
@@ -163,7 +163,8 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
                         type="button"
                         aria-label={on ? undefined : `Supprimer ${v.name}`}
                         aria-hidden={on || undefined}
-                        disabled={on}
+                        disabled={on || isPublishedVersion(doc, v.id)}
+                        title={!on && isPublishedVersion(doc, v.id) ? 'Publiée pour la relecture' : undefined}
                         tabIndex={on ? -1 : undefined}
                         className={on ? s.placeholder : undefined}
                         onClick={async () => {

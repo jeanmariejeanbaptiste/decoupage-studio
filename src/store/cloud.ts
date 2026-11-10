@@ -82,21 +82,43 @@ let held: Held[] = [];
 let client: TokenClient | null = null;
 let gisPromise: Promise<void> | null = null;
 
+/**
+ * Jetons gardés pour un rechargement. Celui d'un relecteur sans compte ici ne vit que le temps de
+ * l'onglet (sessionStorage) : fermé, l'onglet ne laisse à personne d'autre de quoi commenter sous
+ * son nom.
+ */
 function keepTokens(): void {
+  const lasting = !!useCloud.getState().user || !reviewContext.reviewing();
+  const write = (store: Storage, list: Held[]) => (list.length ? store.setItem(TOKEN_KEY, JSON.stringify(list)) : store.removeItem(TOKEN_KEY));
   try {
-    if (held.length) localStorage.setItem(TOKEN_KEY, JSON.stringify(held));
-    else localStorage.removeItem(TOKEN_KEY);
+    write(localStorage, lasting ? held : []);
+  } catch {
+    /* stockage indisponible */
+  }
+  try {
+    write(sessionStorage, lasting ? [] : held);
   } catch {
     /* stockage indisponible */
   }
 }
 (() => {
-  try {
-    const raw = JSON.parse(localStorage.getItem(TOKEN_KEY) ?? 'null') as Held[] | { token?: string; expiresAt?: number } | null;
+  const read = (store: Storage): Held[] => {
+    const raw = JSON.parse(store.getItem(TOKEN_KEY) ?? 'null') as Held[] | { token?: string; expiresAt?: number } | null;
     // Ancien format : un jeton de synchronisation seul.
-    const list: Held[] = Array.isArray(raw) ? raw : raw?.token ? [{ token: raw.token, expiresAt: raw.expiresAt ?? 0, scopes: [SCOPE_APPDATA] }] : [];
+    return Array.isArray(raw) ? raw : raw?.token ? [{ token: raw.token, expiresAt: raw.expiresAt ?? 0, scopes: [SCOPE_APPDATA] }] : [];
+  };
+  const ok = (h: Held) => typeof h?.token === 'string' && h.expiresAt > Date.now() && Array.isArray(h.scopes);
+  try {
     const user = storedUser();
-    held = list.filter((h) => typeof h?.token === 'string' && h.expiresAt > Date.now() && Array.isArray(h.scopes) && (!!user || !h.scopes.includes(SCOPE_APPDATA)));
+    // Sans compte ici, un jeton durable n'est repris que pour l'auteur d'une relecture publiée.
+    const author = localStorage.getItem(FILE_FLAG) === '1';
+    held = read(localStorage).filter((h) => ok(h) && (!!user || (author && !h.scopes.includes(SCOPE_APPDATA))));
+  } catch {
+    /* rien à reprendre */
+  }
+  try {
+    // Relecteur sans compte : son jeton, le temps de l'onglet (rechargement compris).
+    held = [...held, ...read(sessionStorage).filter((h) => ok(h) && !h.scopes.includes(SCOPE_APPDATA) && !held.some((x) => x.token === h.token))];
   } catch {
     /* rien à reprendre */
   }

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { DataConnection, Peer } from 'peerjs';
 import { diff, type Op } from '../domain/patch';
+import { droppedRemoteIds } from '../domain/reviewMerge';
+import { withoutReview } from '../domain/serialize';
 import type { ProjectDoc } from '../domain/types';
 import { navigate } from '../app/router';
 import { deleteProject, getBlob, putBlobRaw, saveProject, setRemoteBlobSource } from './db';
@@ -222,7 +224,12 @@ export async function startHosting(opts: { mode: ShareMode; keep: boolean }): Pr
         // Relecture : seuls les commentaires viennent des invités.
         const ops = m.t === 'ops' ? (mode === 'edit' ? m.ops : mode === 'review' ? m.ops.filter((o) => o.p[0] === 'comments') : []) : [];
         if (m.t === 'ops' && ops.length) {
+          const before = useProjectStore.getState().doc;
           applyRemote(ops);
+          // Commentaire de la relecture en ligne retiré par un invité : écarté ici, comme si l'hôte l'avait retiré.
+          const after = useProjectStore.getState().doc;
+          const gone = after?.review ? droppedRemoteIds(before, after) : [];
+          if (gone.length) applyRemote([{ p: ['review', 'dismissed'], v: [...(after!.review!.dismissed ?? []), ...gone] }]);
           // Relais aux autres invités.
           for (const [id, c] of conns) if (id !== conn.peer && c.ok) send(c.conn, { t: 'ops', ops });
         } else if (m.t === 'blob?') void answerBlob(conn, m.key);
@@ -292,15 +299,16 @@ export async function joinSession(room: string, password: string, name: string):
           clearTimeout(timer);
           useShare.setState({ mode: m.mode, keep: m.keep, hostName: m.hostName, guests: m.guests });
           installGuards();
+          // La relecture en ligne reste à l'hôte : ni son lien ni son état ne passent chez l'invité (ni dans sa copie).
           // Projet partagé chargé avant d'être « rejoint » : il remplace le projet ouvert ici sans
           // être pris pour l'ouverture d'un autre projet (qui ferait quitter le partage).
-          useProjectStore.getState().loadDoc(m.doc);
+          useProjectStore.getState().loadDoc(withoutReview(m.doc));
           useShare.setState({ status: 'joined' });
           // Rien de ce projet n'est enregistré ici (sauf copie accordée) : pas d'état hérité du précédent.
           useUi.getState().set({ saveStatus: 'idle', selection: null, editing: null });
           resolve(true);
         } else if (m.t === 'denied') fail(m.reason);
-        else if (m.t === 'ops') applyRemote(m.ops);
+        else if (m.t === 'ops') applyRemote(m.ops.filter((o) => o.p[0] !== 'review'));
         else if (m.t === 'settings') {
           const wasKept = useShare.getState().keep;
           useShare.setState({ mode: m.mode, keep: m.keep });

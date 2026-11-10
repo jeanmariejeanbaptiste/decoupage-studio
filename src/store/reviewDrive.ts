@@ -132,6 +132,11 @@ export async function shareWithLink(token: string, id: string, role: 'commenter'
   });
 }
 
+/** Supprime un fichier (image ou tracés joints par ce compte). */
+export async function deleteFile(token: string, id: string): Promise<void> {
+  await call(`${DRIVE_API}/files/${encodeURIComponent(id)}`, { method: 'DELETE', token });
+}
+
 /** Retire l'accès par le lien (le fichier reste). */
 export async function unshare(token: string, id: string): Promise<void> {
   const res = await call(`${DRIVE_API}/files/${encodeURIComponent(id)}/permissions?fields=permissions(id,type)`, { token });

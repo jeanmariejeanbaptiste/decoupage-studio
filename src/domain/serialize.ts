@@ -199,7 +199,13 @@ export function exportBase(doc: ProjectDoc): string {
  * publié reste à l'original ; la copie publiera le sien).
  */
 export function projectCopy(doc: ProjectDoc, id: string): ProjectDoc {
-  const out: ProjectDoc = { ...doc, project: { ...doc.project, id, title: `${doc.project.title} (copie)` } };
+  return withoutReview({ ...doc, project: { ...doc.project, id, title: `${doc.project.title} (copie)` } });
+}
+
+/** Le projet sans sa relecture en ligne (copie, projet reçu d'un partage en direct). */
+export function withoutReview(doc: ProjectDoc): ProjectDoc {
+  if (!doc.review) return doc;
+  const out: ProjectDoc = { ...doc };
   delete out.review;
   return out;
 }

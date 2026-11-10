@@ -31,11 +31,20 @@ class DecoupageDB extends Dexie {
 
 export const db = new DecoupageDB();
 
-export type ProjectSummary = Omit<StoredProject, 'doc'>;
+export type ProjectSummary = Omit<StoredProject, 'doc'> & {
+  /** Fichier d'une relecture en ligne dont le lien est ouvert (à fermer si le projet est supprimé). */
+  liveReview?: string;
+};
+
+/** Fichier publié d'une relecture en ligne dont le lien est encore ouvert. */
+export const liveReviewOf = (doc: ProjectDoc | undefined): string | undefined => (doc?.review && !doc.review.stopped ? doc.review.fileId : undefined);
 
 export async function listProjects(): Promise<ProjectSummary[]> {
   const all = await db.projects.orderBy('updatedAt').reverse().toArray();
-  return all.map((p) => ({ id: p.id, title: p.title, format: p.format, version: p.version, updatedAt: p.updatedAt, sequences: p.sequences, shots: p.shots }));
+  return all.map((p) => {
+    const live = liveReviewOf(p.doc);
+    return { id: p.id, title: p.title, format: p.format, version: p.version, updatedAt: p.updatedAt, sequences: p.sequences, shots: p.shots, ...(live ? { liveReview: live } : {}) };
+  });
 }
 
 export async function saveProject(doc: ProjectDoc): Promise<void> {

@@ -107,6 +107,12 @@ describe('versions', () => {
       deleteVersion(d, v1);
     });
     expect(cut.versions!.map((v) => v.name)).toEqual(['V2']);
+    // Version publiée pour la relecture en ligne : elle reste tant que la relecture existe.
+    const pub = produce(again, (d) => {
+      d.review = { fileId: 'file123456', publishedVersionId: v1, publishedAt: '2026-11-09T10:00:00Z' };
+      deleteVersion(d, v1);
+    });
+    expect(pub.versions!.map((v) => v.name)).toEqual(['V1', 'V2']);
   });
 
   it('supprimer une séquence dans la V2 ne retire pas la préparation que la V1 garde', async () => {

@@ -51,6 +51,11 @@ export interface MergeOptions {
    * ils sont reconnus par la traîne ; leur texte local (une correction pas encore partie) fait foi.
    */
   pending?: ReadonlySet<ID>;
+  /**
+   * Chez l'auteur : commentaires Drive qu'il a lui-même retirés de Drive (après les avoir écartés).
+   * Revenus ici par une annulation, ils restent, détachés de Drive (voir `detachRemoved`).
+   */
+  removedHere?: ReadonlySet<string>;
 }
 
 const COLUMNS = new Set<string>([...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS]);
@@ -97,7 +102,12 @@ export function checkAnchor(doc: ProjectDoc, versionId: ID | undefined, a: unkno
     const text = v.scenario;
     if (start !== null && end !== null && start <= end && end <= text.length && (!quote || norm(text.slice(start, end)) === norm(quote))) return { kind: 'script', start, end, quote };
     const found = locateQuote(text, quote, start ?? 0);
-    return found ? { kind: 'script', ...found, quote } : null;
+    if (found) return { kind: 'script', ...found, quote };
+    // Passage réécrit ici depuis la publication : la citation reste lisible, posée là où il était
+    // (le renvoi aux relecteurs la retrouve dans le texte publié).
+    if (!quote || start === null) return null;
+    const at = Math.min(start, text.length);
+    return { kind: 'script', start: at, end: at, quote };
   }
   if (x.kind === 'shot' && typeof x.shotId === 'string' && v.shots[x.shotId]) {
     return { kind: 'shot', shotId: x.shotId, ...(typeof x.col === 'string' && COLUMNS.has(x.col) ? { col: x.col as ColumnKey } : {}) };
@@ -151,14 +161,31 @@ export function driveAttachmentKeys(remote: readonly DriveComment[]): string[] {
 }
 
 /**
+ * Commentaires (ou réponses) retirés de Drive par l'auteur, puis rétablis ici par une annulation :
+ * ils ne sont plus dans Drive, ils deviennent des commentaires d'ici (sans `remoteId`), que le relevé
+ * suivant ne retire plus. Ceux encore écartés (`review.dismissed`) restent tels quels.
+ */
+export function detachRemoved(doc: ProjectDoc, removed: ReadonlySet<string>): boolean {
+  if (!removed.size) return false;
+  const dismissed = new Set(doc.review?.dismissed ?? []);
+  let changed = false;
+  for (const x of (doc.comments ?? []).flatMap((c) => [c, ...c.replies])) {
+    if (!x.remoteId || !removed.has(x.remoteId) || dismissed.has(x.remoteId)) continue;
+    delete x.remoteId;
+    changed = true;
+  }
+  return changed;
+}
+
+/**
  * Reprend les commentaires Drive dans le projet (à appeler dans une modification immer). Renvoie
  * `true` si quelque chose a changé.
  */
 export function mergeDriveComments(doc: ProjectDoc, remote: readonly DriveComment[], opts: MergeOptions = {}): boolean {
+  let changed = opts.removedHere ? detachRemoved(doc, opts.removedHere) : false;
   const dismissed = new Set(opts.dismissed ?? []);
   const now = opts.now ?? new Date().toISOString();
   const list = remote.filter((r) => r && typeof r.id === 'string' && r.id).slice().sort((a, b) => (a.createdTime ?? '').localeCompare(b.createdTime ?? ''));
-  let changed = false;
   const comments = () => (doc.comments ??= []);
   const find = (rid: string): { c: ReviewComment; r?: CommentReply } | null => {
     for (const c of doc.comments ?? []) {
@@ -282,6 +309,16 @@ export function mergeDriveComments(doc: ProjectDoc, remote: readonly DriveCommen
     changed = true;
   }
   return changed;
+}
+
+/**
+ * Commentaires Drive retirés entre deux états du projet (par un invité d'un partage en direct) : à
+ * écarter, pour que le relevé suivant ne les réimporte pas.
+ */
+export function droppedRemoteIds(before: ProjectDoc | null | undefined, after: ProjectDoc | null | undefined): string[] {
+  const now = remotesOf(after?.comments);
+  const dismissed = new Set(after?.review?.dismissed ?? []);
+  return [...remotesOf(before?.comments)].filter((id) => !now.has(id) && !dismissed.has(id));
 }
 
 const idsOf = (list: readonly ReviewComment[] | undefined) => new Set((list ?? []).flatMap((c) => [c.id, ...c.replies.map((r) => r.id)]));

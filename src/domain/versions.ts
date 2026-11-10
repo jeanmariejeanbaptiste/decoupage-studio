@@ -103,6 +103,9 @@ export function renameVersion(doc: ProjectDoc, id: ID, name: string): void {
   if (v.id === doc.activeVersionId) doc.project.version = v.name;
 }
 
+/** Version que lisent les relecteurs (relecture en ligne publiée) : elle ne se supprime pas. */
+export const isPublishedVersion = (doc: ProjectDoc, id: ID): boolean => !!doc.review && doc.review.publishedVersionId === id;
+
 /** Version qui hérite des commentaires d'une version supprimée : celle qui en est partie, sinon celle d'où elle venait. */
 export function versionHeir(doc: ProjectDoc, id: ID): ID | undefined {
   const list = doc.versions ?? [];
@@ -112,14 +115,14 @@ export function versionHeir(doc: ProjectDoc, id: ID): ID | undefined {
 }
 
 /**
- * Supprime une version rangée (jamais la courante ni la dernière). Ses commentaires ne sont pas
+ * Supprime une version rangée (jamais la courante, ni la dernière, ni celle publiée pour la relecture). Ses commentaires ne sont pas
  * perdus : ils passent à la version qui en hérite (celle qui en était partie, sinon celle d'où elle
  * venait), leurs passages retrouvés par leur citation dans le texte de celle-ci.
  */
 export function deleteVersion(doc: ProjectDoc, id: ID): void {
   const list = ensureVersions(doc);
   const gone = list.find((v) => v.id === id);
-  if (list.length < 2 || !gone || id === doc.activeVersionId) return;
+  if (list.length < 2 || !gone || id === doc.activeVersionId || isPublishedVersion(doc, id)) return;
   const heirId = versionHeir(doc, id)!;
   const heir = list.find((v) => v.id === heirId);
   const oldText = gone.slice?.scenario ?? '';

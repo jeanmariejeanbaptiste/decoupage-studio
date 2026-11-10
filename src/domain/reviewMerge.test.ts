@@ -2,9 +2,10 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { addComment, deleteComment, replyComment, type ReviewComment } from './comments';
-import { driveAttachmentKeys, LIMITS, mergeDriveComments, mergeSnapshotComments, WITHDRAWN, type DriveComment, type MergeOptions } from './reviewMerge';
+import { driveAttachmentKeys, droppedRemoteIds, LIMITS, mergeDriveComments, mergeSnapshotComments, WITHDRAWN, type DriveComment, type MergeOptions } from './reviewMerge';
 import { encodeComment } from './reviewTrailer';
-import { parseReviewSnapshot, reviewSnapshot } from './reviewSnapshot';
+import { withoutReview } from './serialize';
+import { parseReviewSnapshot, reviewSnapshot, withComments } from './reviewSnapshot';
 import type { ProjectDoc } from './types';
 import { createVersion, ensureVersions } from './versions';
 
@@ -102,9 +103,23 @@ describe('retours de la relecture en ligne', () => {
     expect(a.anchor).toEqual({ kind: 'sequence', seqId: doc.project.sequenceIds[0] });
     expect(a.marks!.paths).toHaveLength(LIMITS.paths);
     expect(a.marks!.paths.every((p) => /^M\d+ 0 L10 10$/.test(p))).toBe(true);
-    expect(b.anchor.kind).toBe('sequence');
+    // Citation introuvable : gardée, posée au plus près (jamais jetée pour la première séquence).
+    expect(b.anchor).toEqual({ kind: 'script', start: len, end: len, quote: 'introuvable' });
     expect(c.anchor.kind === 'script' && r.next.scenario!.slice(c.anchor.start, c.anchor.end)).toBe('valise cabossée');
     expect(d.anchor).toEqual({ kind: 'shot', shotId: Object.keys(doc.shots)[0] });
+  });
+
+  it('passage réécrit par l’auteur depuis la publication : la citation reste, et repart recalée sur le texte publié', () => {
+    const doc = base();
+    const word = 'cabossée';
+    const start = doc.scenario!.indexOf(word);
+    const published = reviewSnapshot(doc, {});
+    const edited = produce(doc, (d) => void (d.scenario = d.scenario!.replace(word, 'neuve')));
+    const r = merge(edited, [dc('d1', encodeComment('Pourquoi cabossée ?', { i: 'loc777', v: doc.activeVersionId, a: { kind: 'script', start, end: start + word.length, quote: word } }))]);
+    expect(r.next.comments![0].anchor).toEqual({ kind: 'script', start, end: start, quote: word });
+    // Renvoyé aux relecteurs : retrouvé dans le texte publié, à sa place.
+    const back = withComments(published, r.next, {}).doc.comments![0].anchor;
+    expect(back).toEqual({ kind: 'script', start, end: start + word.length, quote: word });
   });
 
   it('commentaire écrit dans Drive (sans traîne) : texte brut sur la première séquence de la version publiée', () => {
@@ -141,6 +156,44 @@ describe('retours de la relecture en ligne', () => {
     const dismissed = produce(one, (d) => deleteComment(d, d.comments![0].id));
     expect(dismissed.review!.dismissed).toEqual(['d1']);
     expect(merge(dismissed, remote).changed).toBe(false);
+  });
+
+  it('retrait annulé par l’auteur après son départ de Drive : le commentaire reste, réponses comprises', () => {
+    const doc = base();
+    const seqId = doc.project.sequenceIds[0];
+    const remote = [dc('d1', encodeComment('Retour précieux', { i: 'loc555', a: { kind: 'sequence', seqId } })), dc('d22', encodeComment('Et la suite', { r: 'loc555', a: { kind: 'sequence', seqId } }))];
+    const one = merge(doc, remote).next;
+    expect(one.comments![0].replies).toHaveLength(1);
+    // Suppression (annulable), puis retrait de Drive.
+    const gone = produce(one, (d) => deleteComment(d, 'loc555'));
+    expect(gone.review!.dismissed).toEqual(['d1', 'd22']);
+    const deleted = [dc('d1', '', { deleted: true }), dc('d22', '', { deleted: true })];
+    const removedHere = new Set(['d1', 'd22']);
+    // Relevé sur l'état d'après (rien ne change) puis annulation : l'état d'avant revient.
+    expect(merge(gone, deleted, { removedHere }).changed).toBe(false);
+    const undone = one;
+    // Relevé suivant : chaque état lit son propre `dismissed` ; le commentaire reste, détaché de Drive.
+    const r = merge(undone, deleted, { removedHere });
+    const c = r.next.comments![0];
+    expect(c).toMatchObject({ id: 'loc555', text: 'Retour précieux', author: 'Nina Relectrice' });
+    expect(c.remoteId).toBeUndefined();
+    expect(c.replies.map((x) => [x.text, x.remoteId])).toEqual([['Et la suite', undefined]]);
+    expect(merge(r.next, deleted, { removedHere }).changed).toBe(false);
+    // Sans la liste (retrait venu de Drive même) : le relevé retire, comme avant.
+    expect(merge(undone, deleted).next.comments!.map((x) => [x.text, x.replies.length])).toEqual([[WITHDRAWN, 0]]);
+  });
+
+  it('partage en direct : un commentaire Drive retiré par un invité est à écarter chez l’hôte ; l’invité ne reçoit pas la relecture', () => {
+    const doc = base();
+    const seqId = doc.project.sequenceIds[0];
+    const one = merge(doc, [dc('d1', encodeComment('Un', { i: 'loc101', a: { kind: 'sequence', seqId } })), dc('d22', encodeComment('Deux', { i: 'loc202', a: { kind: 'sequence', seqId } }))]).next;
+    const after = produce(one, (d) => void (d.comments = d.comments!.filter((c) => c.id !== 'loc101')));
+    expect(droppedRemoteIds(one, after)).toEqual(['d1']);
+    expect(droppedRemoteIds(one, produce(after, (d) => void (d.review!.dismissed = ['d1'])))).toEqual([]);
+    const guest = withoutReview(one);
+    expect(guest.review).toBeUndefined();
+    expect(one.review).toBeDefined();
+    expect(withoutReview(buildFiction()).review).toBeUndefined();
   });
 
   it('chez le relecteur : son envoi resté sans réponse est reconnu, pas dupliqué', () => {
