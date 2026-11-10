@@ -318,7 +318,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
               {wrap(<Grid doc={doc} model={model} animate={!!dragging} />)}
               <GridFooter sequences={nSeq} shots={model.rows.length} timing={model.timing} mode={doc.project.settings.tcMode} />
             </div>
-            {rightPanel === 'inspector' && <Inspector doc={storeDoc} shotId={selectedShot} />}
+            {rightPanel === 'inspector' && <Inspector doc={storeDoc} shotId={selectedShot} issues={selectedShot ? (model.issues.get(selectedShot) ?? []) : []} />}
             {rightPanel === 'scenario' && <ScenarioPanel doc={storeDoc} />}
           </div>
         </>

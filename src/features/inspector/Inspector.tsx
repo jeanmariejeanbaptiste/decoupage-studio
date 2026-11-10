@@ -9,6 +9,7 @@ import { diagonalFov, fullFrameEquivalent, horizontalFov } from '../../domain/fo
 import { runChecks } from '../../domain/lint';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc, ShotStatus } from '../../domain/types';
+import type { Issue } from '../../domain/lint';
 import { computeTiming } from '../../domain/timing';
 import { isZoom } from '../../domain/vocabulary';
 import { storeImage } from '../storyboard/storeImage';
@@ -24,11 +25,12 @@ import s from './Inspector.module.css';
 
 const STATUSES: ShotStatus[] = ['à tourner', 'tourné', 'abandonné'];
 
-export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undefined }) {
+/** `issues` : vérifications du plan déjà calculées par la page (sinon l'inspecteur les calcule). */
+export function Inspector({ doc, shotId, issues: given }: { doc: ProjectDoc; shotId: ID | undefined; issues?: readonly Issue[] }) {
   const set = useUi((u) => u.set);
   const shot = shotId ? doc.shots[shotId] : undefined;
-  const timing = useMemo(() => computeTiming(doc), [doc]);
-  const issues = useMemo(() => (shotId ? runChecks(doc, timing).filter((i) => i.shotId === shotId) : []), [doc, timing, shotId]);
+  const own = useMemo(() => (given || !shotId ? [] : runChecks(doc, computeTiming(doc)).filter((i) => i.shotId === shotId)), [doc, shotId, given]);
+  const issues = given ?? own;
   const thumb = useBlobUrl(shot?.storyboard?.blobKey);
   const [over, setOver] = useState(false);
 
