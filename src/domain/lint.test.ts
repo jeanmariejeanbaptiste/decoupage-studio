@@ -2,7 +2,7 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
 import { createProjectDoc } from './factory';
-import { CHECK_LABELS, groupIssues, runChecks } from './lint';
+import { CHECK_LABELS, runChecks } from './lint';
 import { addSequence, addShot } from './ops';
 import { computeTiming } from './timing';
 import type { ProjectDoc } from './types';
@@ -32,6 +32,11 @@ describe('contrôles de la scripte (§9)', () => {
     expect(codes(docWith([{ init: base }, { init: base }]))).toContain('jump-cut');
     expect(codes(docWith([{ init: base }, { init: { ...base, movement: ['Trav avant'] } }]))).not.toContain('jump-cut');
   });
+  it('angle : deux axes ou deux hauteurs, comme la grille le signale', () => {
+    expect(codes(docWith([{ init: { subject: 'x', value: 'Taille', angle: ['Face', 'Dos'] } }]))).toContain('angle-conflict');
+    expect(codes(docWith([{ init: { subject: 'x', value: 'Taille', angle: ['Plongée', 'Contre-plongée'] } }]))).toContain('angle-conflict');
+    expect(codes(docWith([{ init: { subject: 'x', value: 'Taille', angle: ['Face', 'Hauteur regard'] } }]))).not.toContain('angle-conflict');
+  });
   it('séquence vide et institutionnel sans plan large', () => {
     const empty = createProjectDoc({ title: 't', format: 'fiction' });
     addSequence(empty, undefined, { label: 'vide' }, false);
@@ -47,9 +52,9 @@ describe('contrôles de la scripte (§9)', () => {
     const doc = docWith([{ init: { subject: 'a', value: 'Taille' }, action: { text: 'x', overrideSec: 60 } }]);
     doc.sequences[doc.project.sequenceIds[0]].estimatedSec = 30;
     expect(codes(doc)).toContain('estimate-gap');
-    // Le lien ne répète pas le titre de la carte ; « % » ne passe pas seul à la ligne.
+    // L'écart propre à la séquence est donné à part ; « % » ne passe pas seul à la ligne.
     const gap = check(doc).find((i) => i.code === 'estimate-gap')!;
-    expect(gap.where).toBe('Séquence');
+    expect(gap.detail).toBe('+0:30 (+100\u202f%)');
     expect(gap.message).toMatch(/\d\u202f% entre/);
     expect(CHECK_LABELS['estimate-gap']).toContain('25\u202f%');
   });
@@ -67,32 +72,5 @@ describe('contrôles de la scripte (§9)', () => {
     });
     expect(check(next).find((i) => i.id === affiche.id)).toBeUndefined();
     expect(check(next).length).toBe(issues.length - 1);
-  });
-  it('chaque contrôle désigne la cellule à montrer (le clic mène à la bonne colonne)', () => {
-    const col = (doc: ProjectDoc, code: string) => check(doc).find((i) => i.code === code)?.col;
-    const blank = docWith([{}]);
-    expect(col(blank, 'missing-value')).toBe('value');
-    expect(col(blank, 'missing-subject')).toBe('subject');
-    expect(col(docWith([{ init: { subject: 'x', value: 'Taille', movement: ['Zoom avant'] } }]), 'zoom-focal')).toBe('focal');
-    expect(col(docWith([{ init: { subject: 'x', value: 'Taille', movement: ['Drone'] } }]), 'drone')).toBe('movement');
-    const base = { subject: 'Léa', value: 'Taille', angle: ['Face'], movement: ['Fixe'] };
-    expect(col(docWith([{ init: base }, { init: base }]), 'jump-cut')).toBe('value');
-    // Séquence sans plan : ni plan ni colonne, la séquence elle-même.
-    const empty = createProjectDoc({ title: 't', format: 'fiction' });
-    addSequence(empty, undefined, { label: 'vide' }, false);
-    const [e] = check(empty);
-    expect([e.shotId, e.col]).toEqual([undefined, undefined]);
-  });
-  it('les séquences sans plan forment une seule entrée (badge, résumé)', () => {
-    const doc = docWith([{ init: { subject: 'x', value: 'Taille', movement: ['Zoom avant'] } }]);
-    for (let k = 0; k < 5; k++) addSequence(doc, undefined, { label: `vide ${k}` }, false);
-    const issues = check(doc);
-    expect(issues.filter((i) => i.code === 'empty-sequence')).toHaveLength(5);
-    const g = groupIssues(issues);
-    expect(g.empty).toHaveLength(5);
-    expect(g.rest.map((i) => i.code)).toEqual(['zoom-focal']);
-    expect(g.count).toBe(2);
-    expect(g.warn).toBe(2);
-    expect(groupIssues(check(docWith([{ init: { subject: 'x', value: 'Taille' } }])))).toMatchObject({ count: 0, warn: 0, empty: [] });
   });
 });

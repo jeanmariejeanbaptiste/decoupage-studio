@@ -139,7 +139,7 @@ export function SequenceBody({
     };
     return (
       <DroppableBody seqId={seq.seqId} className={[s.seq, s.emptyBody].join(' ')} style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}>
-        <tr className={s.emptyRow} data-testid="empty-sequence">
+        <tr className={s.emptyRow} data-testid="empty-sequence" data-empty-seq={seq.seqId}>
           <td className={[s.cell, s.c_sequence].join(' ')} title={sequence?.label ? `${seqNumber}, ${sequence.label.toUpperCase()}` : undefined}>
             <div className={s.seqCell}>
               <SeqHandle seqId={seq.seqId} label={`${seqNumber}`} />

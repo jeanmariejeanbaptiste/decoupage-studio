@@ -210,7 +210,7 @@ export function InterviewPanel({ doc }: { doc: ProjectDoc }) {
             <h3>Caméras · {planLabel(setup.id)}</h3>
             <div className={s.cams}>
               {setup.cameras.map((c, k) => (
-                <div key={c.id} className={s.cam}>
+                <div key={c.id} className={s.cam} data-itw-cam={c.id}>
                   <span className={s.camName} title={`Caméra ${c.name}`}>{(() => {
                     const id = cameraShotId(doc, setup.id, c.id);
                     return id ? shotCode(doc, id) : c.name;

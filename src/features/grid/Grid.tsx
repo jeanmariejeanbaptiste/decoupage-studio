@@ -189,6 +189,9 @@ export function Grid({ doc, model, animate = false }: Props) {
     if (isShortcut(e, 'moveShotDown')) return run(() => moveCurrentShot(1));
     if (isShortcut(e, 'moveSequenceUp')) return run(() => moveCurrentSequence(-1));
     if (isShortcut(e, 'moveSequenceDown')) return run(() => moveCurrentSequence(1));
+    // Touche frappée sur un bouton de la grille (« + » d'une séquence sans plan, poignée…) : elle est
+    // à lui ; la saisie ne part pas dans une cellule sélectionnée ailleurs, peut-être hors de vue.
+    if (e.target !== e.currentTarget && (e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
     if (!sel) {
       if (ARROWS[k] && model.rows.length) {
         e.preventDefault();

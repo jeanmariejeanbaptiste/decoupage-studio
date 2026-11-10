@@ -35,16 +35,17 @@ test('vérifications : liste cliquable, ignorer ici, rétablir', async ({ page }
   const issues = page.getByTestId('issue');
   await expect(issues.first()).toBeVisible();
   const n = await issues.count();
-  expect(n).toBeGreaterThan(3);
+  // Les sautes de rav3 : deux séries (4.1 à 4.6, 7.12 et 7.13), une ligne chacune.
+  expect(n).toBeGreaterThanOrEqual(2);
   // Un sujet qui n'est pas un personnage (« Affiche », insert) ne déclenche plus d'alerte.
   await expect(issues.filter({ hasText: 'Affiche' })).toHaveCount(0);
-  await issues.first().getByRole('button', { name: 'ignorer ici' }).click();
+  // Ignorer une série ignore chacun de ses contrôles (cinq sautes de 4.2 à 4.6).
+  await issues.first().getByRole('button', { name: /^Ignorer 4\.1\s–\s4\.6$/ }).click();
   await expect(issues).toHaveCount(n - 1);
-  await page.getByRole('button', { name: /Rétablir les 1 contrôle/ }).click();
+  await page.getByRole('button', { name: 'Rétablir les 5 contrôles ignorés' }).click();
   await expect(issues).toHaveCount(n);
-  // Le lien mène à la cellule en cause (la valeur de cadre répétée), pas seulement au plan.
-  await issues.filter({ hasText: 'risque de saute' }).first().getByRole('button').first().click();
-  await expect(page.locator('[aria-selected="true"][data-cell$=":value"]')).toHaveCount(1);
+  await page.getByTestId('check-group-jump-cut').getByTestId('issue').first().getByTestId('check-go').click();
+  await expect(page.locator('[aria-selected="true"][data-cell$=":subject"]')).toHaveCount(6);
   await expect(page.getByTestId('issue-dot').first()).toBeVisible();
 });
 

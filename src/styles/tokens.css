@@ -18,6 +18,8 @@
   --tint: rgba(17, 19, 24, 0.04);
   --hover: rgba(17, 19, 24, 0.03);
   --selected: rgba(17, 19, 24, 0.05);
+  /* Arrivée d'un lien interne (vérifications) : voile bref sur la cible. */
+  --flash: rgba(17, 19, 24, 0.1);
   --on-navy: #ffffff;
   --grain-opacity: 0;
   --toast-accent: #d0d3d9;
@@ -63,6 +65,7 @@
   --tint: rgba(242, 243, 245, 0.05);
   --hover: rgba(242, 243, 245, 0.04);
   --selected: rgba(242, 243, 245, 0.08);
+  --flash: rgba(242, 243, 245, 0.14);
   --on-navy: #0f1115;
   --grain-opacity: 0;
   --toast-accent: #3a3f48;
@@ -89,6 +92,8 @@
   --tint: rgba(17, 19, 24, 0.04);
   --hover: rgba(17, 19, 24, 0.03);
   --selected: rgba(17, 19, 24, 0.05);
+  /* Arrivée d'un lien interne (vérifications) : voile bref sur la cible. */
+  --flash: rgba(17, 19, 24, 0.1);
   --on-navy: #ffffff;
   --shadow: 0 1px 2px rgba(17, 19, 24, 0.04), 0 4px 14px rgba(17, 19, 24, 0.04);
   color: var(--ink);

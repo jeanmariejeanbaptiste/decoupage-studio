@@ -1,6 +1,5 @@
 /** Aller à un endroit précis du découpage depuis une autre page : un plan et sa cellule, ou une séquence. */
 import { navigate } from '../../app/router';
-import type { Issue } from '../../domain/lint';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
 import { useUi } from '../../store/uiStore';
 import { rowOfShot } from './actions';
@@ -30,11 +29,4 @@ export function goToSequence(doc: ProjectDoc, seqId: ID) {
   toGrid();
   useUi.getState().set({ selection: null, focusSeq: seqId });
   navigate('grid');
-}
-
-/** Saute à ce qu'une vérification désigne : la cellule du plan, sinon la séquence. */
-export function goToIssue(doc: ProjectDoc, issue: Issue) {
-  const shotId = issue.shotId ?? (issue.col ? doc.sequences[issue.sequenceId]?.shotIds[0] : undefined);
-  if (shotId) return goToShot(doc, shotId, issue.col);
-  goToSequence(doc, issue.sequenceId);
 }

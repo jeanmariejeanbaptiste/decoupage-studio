@@ -45,6 +45,11 @@ export interface UiState {
   saveStatus: 'saved' | 'saving' | 'dirty' | 'error' | 'idle';
   skipCrossSequenceConfirm: boolean;
   highlightShotId: ID | null;
+  /**
+   * Arrivée d'un lien interne (vérifications) dans le découpage : le plan à ouvrir sur téléphone, ou
+   * la séquence sans plan à montrer (gardée dans l'aperçu en lecture seule). Effacée en quittant la page.
+   */
+  cutFocus: { seqId: ID; shotId?: ID } | null;
   setSelection: (anchor: CellPos | null, focus?: CellPos, opts?: { auto?: boolean }) => void;
   setEditing: (e: UiState['editing']) => void;
   toast: (t: Omit<Toast, 'id'>) => void;
@@ -94,6 +99,7 @@ export const useUi = create<UiState>()((set) => ({
   saveStatus: 'idle',
   skipCrossSequenceConfirm: false,
   highlightShotId: null,
+  cutFocus: null,
   setSelection: (anchor, focus, opts) => set({ selection: anchor ? { anchor, focus: focus ?? anchor, ...(opts?.auto ? { auto: true } : {}) } : null }),
   setEditing: (editing) => set({ editing }),
   toast: (t) => {
