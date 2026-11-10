@@ -60,15 +60,28 @@ export function kelvinRgb(k: number): [number, number, number] {
 
 const hex = (rgb: readonly number[]) => `#${rgb.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('')}`;
 
+const toLinear = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+/** Luminance relative d'une couleur sRGB (composantes de 0 à 1). */
+const luminance = (rgb: readonly number[]) => 0.2126 * toLinear(rgb[0]) + 0.7152 * toLinear(rgb[1]) + 0.0722 * toLinear(rgb[2]);
+
+/** TSL → RVB (teinte en sixièmes de tour, composantes de 0 à 1). */
+function hsl(h: number, s: number, L: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * L - 1)) * s;
+  const x = c * (1 - Math.abs((h % 2) - 1));
+  const m = L - c / 2;
+  const [r, g, b] = h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
+  return [r + m, g + m, b + m];
+}
+
 /**
- * Teinte de la lumière à clarté donnée (0 à 1) : la teinte du corps noir, sa pureté accentuée,
- * en hexadécimal. À 5 000 K, un gris neutre.
+ * Teinte de la lumière, en hexadécimal : la teinte du corps noir, sa pureté accentuée, à la
+ * luminance du gris de clarté `lightness` (0 à 1) ; toutes les températures pèsent donc autant à
+ * l'œil, la bougie ne paraît pas plus pâle que le tungstène. À 5 000 K, ce gris même.
  */
 export function kelvinTone(k: number, lightness: number): string {
   const [r, g, b] = kelvinRgb(k).map((v) => v / 255);
   const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const chroma = max - min;
+  const chroma = max - Math.min(r, g, b);
   let h = 0;
   if (chroma > 0) {
     if (max === r) h = ((g - b) / chroma + 6) % 6;
@@ -76,13 +89,17 @@ export function kelvinTone(k: number, lightness: number): string {
     else h = (r - g) / chroma + 4;
   }
   const s = Math.min(1, chroma * CHROMA_GAIN);
-  const L = Math.min(1, Math.max(0, lightness));
-  // TSL → RVB.
-  const c = (1 - Math.abs(2 * L - 1)) * s;
-  const x = c * (1 - Math.abs((h % 2) - 1));
-  const m = L - c / 2;
-  const [r1, g1, b1] = h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
-  return hex([(r1 + m) * 255, (g1 + m) * 255, (b1 + m) * 255]);
+  const grey = Math.min(1, Math.max(0, lightness));
+  const target = luminance([grey, grey, grey]);
+  // Clarté TSL qui donne la luminance du gris (la luminance croît avec la clarté).
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (luminance(hsl(h, s, mid)) < target) lo = mid;
+    else hi = mid;
+  }
+  return hex(hsl(h, s, (lo + hi) / 2).map((v) => v * 255));
 }
 
 /** Teintes d'une source pour les deux thèmes ; rien sans température (ou hors bornes) : elle reste grise. */

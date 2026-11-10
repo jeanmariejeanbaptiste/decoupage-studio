@@ -11,6 +11,12 @@ function hue(hex: string): number {
   return h * 60;
 }
 
+const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const luminance = (rgb: number[]) => {
+  const lin = rgb.map((v) => v / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+};
+
 const warmth = (k: number) => {
   const [r, , b] = kelvinRgb(k);
   return r - b;
@@ -54,9 +60,12 @@ describe('température de couleur → teinte', () => {
     expect(hue(kelvinTone(3200, 0.5))).toBeLessThan(45);
     expect(hue(kelvinTone(8000, 0.5))).toBeGreaterThan(200);
     expect(hue(kelvinTone(8000, 0.5))).toBeLessThan(230);
-    expect(kelvinTone(5000, 0.5)).toBe('#808080');
-    // La clarté demandée est respectée.
-    expect(kelvinTone(5000, 0.64)).toBe('#a3a3a3');
+    // Au blanc de référence : le gris de la clarté demandée.
+    expect(Math.abs(channels(kelvinTone(5000, 0.5))[0] - 128)).toBeLessThanOrEqual(1);
+    expect(new Set(channels(kelvinTone(5000, 0.64))).size).toBe(1);
+    // Toutes les teintes ont la luminance de ce gris : la bougie ne paraît pas plus pâle que le tungstène.
+    const grey = luminance(channels(kelvinTone(5000, 0.5)));
+    for (const k of [1900, 3200, 5600, 12000]) expect(luminance(channels(kelvinTone(k, 0.5)))).toBeCloseTo(grey, 2);
   });
 
   it('sans température, ou hors bornes : pas de teinte (le faisceau reste gris)', () => {
