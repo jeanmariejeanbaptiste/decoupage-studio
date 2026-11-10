@@ -5,7 +5,6 @@
 .zip { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 18px 22px; border: 1px solid color-mix(in srgb, var(--rust) 45%, var(--rule)); border-radius: 10px; background: var(--tint); }
 .zip > svg { color: var(--rust); }
 .zip h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 22px; color: var(--ink); }
-.zip p { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); }
 @media (max-width: 700px) { .zip { grid-template-columns: 1fr; } }
 
 .card { background: var(--paper-card); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 22px 20px; }
@@ -25,7 +24,6 @@
 .seg label:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; }
 .on { background: var(--ink); color: var(--paper) !important; }
 .check { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; font-size: 13.5px; color: var(--ink); cursor: pointer; }
-.check small { margin-left: 4px; font-size: 12px; color: var(--ink-soft); }
 
 .colList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .colList li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 6px; border-radius: 5px; font-size: 13.5px; color: var(--ink); }
