@@ -61,7 +61,7 @@ import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { isZoom } from '../../domain/vocabulary';
-import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { canMutate, mutateDoc, useProjectStore } from '../../store/projectStore';
 import { ask } from '../../ui/dialogStore';
 import { useDraft } from '../../ui/useDraft';
 import { useUi } from '../../store/uiStore';
@@ -73,8 +73,13 @@ import { useAiStatus } from '../assistant/aiStatus';
 import { navigate } from '../../app/router';
 import {
   DIMENSION_FONT,
+  actorCaption,
+  drawOrder,
+  duplicateFloorItems,
+  subjectDistances,
   DIMENSION_REACH,
   LIGHT_PRESETS,
+  OPENING_LIMITS,
   ROOM_LIMITS,
   ROOM_PRESETS,
   WORLD,
@@ -95,7 +100,7 @@ import {
 import { Button } from '../../ui/Button';
 import s from './FloorPlanPage.module.css';
 import { CineCameraIcon, FresnelIcon, RailsIcon } from './icons';
-import { CAMERA, FRESNEL, labelBehind, type SymbolShape } from '../../domain/floorSymbols';
+import { CAMERA, FRESNEL, labelBehind, segmentLabelAt, type SymbolShape } from '../../domain/floorSymbols';
 import { allFloorPlans, floorPlanSvg } from '../../domain/exports';
 import { exportSvgPages } from '../export/imageExport';
 import { ExportPanel } from '../export/ExportPanel';
@@ -177,7 +182,8 @@ function endGesture() {
 }
 const gestureEnd = { onPointerUp: endGesture, onKeyUp: endGesture, onBlur: endGesture };
 
-type Drag =
+/** `free` : Alt maintenu, placement au centimètre près, sans la grille. */
+type Drag = { free?: boolean } & (
   | { mode: 'move'; id: ID; from: Point; to: Point }
   | { mode: 'rotate'; id: ID; from: Point; to: Point }
   | { mode: 'path'; id: ID; from: Point; to: Point }
@@ -186,7 +192,10 @@ type Drag =
   | { mode: 'group'; ids: ID[]; from: Point; to: Point }
   | { mode: 'box'; from: Point; to: Point }
   | { mode: 'bg'; from: Point; to: Point }
-  | { mode: 'ghost'; from: Point; to: Point };
+  | { mode: 'ghost'; from: Point; to: Point }
+  /** Vue déplacée à la main : points en pixels d'écran, cadre de départ. */
+  | { mode: 'pan'; from: Point; to: Point; v0: View }
+);
 
 /** Ajustement de l'aperçu des murs importés avant validation : décalage et échelle autour du centre. */
 interface Ghost {
@@ -246,6 +255,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [tool, setTool] = useState<Tool>('select');
   const [selected, setSelected] = useState<ID | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
+  const [spaceDown, setSpaceDown] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   // Zoom et déplacement : fenêtre visible du plan (bornée), recentrable.
   const [view, setView] = useState<View>({ x: 0, y: 0, w: PLAN_W, h: PLAN_H });
@@ -262,7 +272,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const [mdImport, setMdImport] = useState<{ name: string; plan: ParsedPlan } | null>(null);
   const [realScale, setRealScale] = useState(false);
   const [bgEdit, setBgEdit] = useState(false);
-  const [multi, setMulti] = useState<ID[]>([]);
+  const [multiRaw, setMulti] = useState<ID[]>([]);
   const [ghost, setGhost] = useState<Ghost>({ dx: 0, dy: 0, k: 1 });
   const ghostOnRef = useRef(false);
 
@@ -314,6 +324,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const viewFor = useRef<string | null>(null);
   // Onglets sur une ligne qui défile : la vue active reste visible.
   const tabsRef = useRef<HTMLDivElement>(null);
+  const pressTimer = useRef<number>();
   useEffect(() => {
     tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [planKey]);
@@ -331,6 +342,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     rememberView(planKey, view);
   }, [planKey, view]);
   const items = useMemo(() => (planKey ? planOf(doc, planKey).items : []), [doc, planKey]);
+  // Sélection multiple confrontée au plan : un élément retiré (annulation, autre participant) en sort.
+  const multi = useMemo(() => multiRaw.filter((id) => items.some((i) => i.id === id)), [multiRaw, items]);
   const lighting = useMemo(() => computeLighting(items), [items]);
   const bg = planKey ? planOf(doc, planKey).bg : undefined;
   const bgUrl = useBlobUrl(bg?.blobKey);
@@ -450,16 +463,56 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   }, [planKey]);
   /** Recentre sur les éléments de la vue (ou tout le plan s'il est vide). */
   const fitView = () => {
-    const pts = items.flatMap((i) => ('x2' in i ? [[i.x, i.y], [i.x2, i.y2]] : [[i.x, i.y]]));
+    const pts = items.flatMap((i) => [[i.x, i.y], ...('x2' in i ? [[i.x2, i.y2]] : []), ...(i.kind === 'actor' && i.to ? [[i.to.x, i.to.y]] : [])]);
     if (bg) pts.push([bg.x, bg.y], [bg.x + bg.w, bg.y + bg.w * bgRatio]);
     if (!pts.length) return setView(fitAspect({ x: 0, y: 0, w: PLAN_W, h: PLAN_H }));
     const xs = pts.map((p) => p[0]);
     const ys = pts.map((p) => p[1]);
-    const [x0, x1, y0, y1] = [Math.min(...xs) - 80, Math.max(...xs) + 80, Math.min(...ys) - 80, Math.max(...ys) + 80];
-    const w = Math.min(ZOOM_MAX, Math.max(PLAN_W / 6, x1 - x0, (y1 - y0) / aspectRef.current));
-    const h = w * aspectRef.current;
-    setView({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
+    // Marges en pixels : la palette d'outils et la cote à gauche, la cote en haut, un peu d'air
+    // ailleurs ; les symboles (≈ 40 unités) débordent de leur point.
+    const [x0, x1, y0, y1] = [Math.min(...xs) - 40, Math.max(...xs) + 40, Math.min(...ys) - 40, Math.max(...ys) + 40];
+    const a = aspectRef.current;
+    const px = svgRef.current?.getBoundingClientRect().width || svgPx || 1;
+    const reach = (DIMENSION_REACH * DIM_PX) / DIMENSION_FONT;
+    let [ml, mr, mt, mb] = [PALETTE_PX + reach, 24, reach + 16, 24];
+    // Dessin trop étroit pour ces marges (téléphone) : marges réduites.
+    if (ml + mr > px * 0.5 || mt + mb > px * a * 0.5) [ml, mr, mt, mb] = [12, 12, 12, 12];
+    const need = Math.max(PLAN_W / 6, (x1 - x0) / (1 - (ml + mr) / px), (y1 - y0) / (a - (mt + mb) / px));
+    const w = Math.min(ZOOM_MAX, need);
+    const h = w * a;
+    const k = w / px;
+    // Le dessin centré dans la place laissée par les marges.
+    const x = x0 - ml * k - (w - (x1 - x0) - (ml + mr) * k) / 2;
+    const y = y0 - mt * k - (h - (y1 - y0) - (mt + mb) * k) / 2;
+    setView({ x, y, w, h });
   };
+  /**
+   * Élément choisi dans le panneau : s'il sort du cadre (palette et marge déduites), la vue glisse
+   * au plus court pour le montrer, sans changer le zoom.
+   */
+  const revealItem = (id: ID) => {
+    const it = (planKey ? planOf(useProjectStore.getState().doc ?? doc, planKey).items : items).find((i) => i.id === id);
+    const px = svgRef.current?.getBoundingClientRect().width;
+    if (!it || !px) return;
+    const xs = 'x2' in it ? [it.x, it.x2] : [it.x];
+    const ys = 'y2' in it ? [it.y, it.y2] : [it.y];
+    setView((v) => {
+      const k = v.w / px;
+      const shift = (a0: number, a1: number, lo: number, hi: number) => (a0 < lo || a1 - a0 > hi - lo ? a0 - lo : a1 > hi ? a1 - hi : 0);
+      const dx = shift(Math.min(...xs), Math.max(...xs), v.x + (PALETTE_PX + 40) * k, v.x + v.w - 40 * k);
+      const dy = shift(Math.min(...ys), Math.max(...ys), v.y + 40 * k, v.y + v.h - 40 * k);
+      return dx || dy ? { ...v, x: v.x + dx, y: v.y + dy } : v;
+    });
+  };
+  const revealRef = useRef<ID | null>(null);
+  // Élément d'une autre vue : montré une fois cette vue ouverte et son cadrage repris.
+  useEffect(() => {
+    const id = revealRef.current;
+    if (!id || !items.some((i) => i.id === id)) return;
+    revealRef.current = null;
+    revealItem(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planKey, items]);
   const zoomBy = (f: number) =>
     setView((v) => {
       const w = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.w * f));
@@ -497,7 +550,16 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const onCanvasDown = (e: PointerEvent<SVGSVGElement>) => {
     // Bouton principal seulement (le clic droit ou du milieu ne pose rien) ; Safari ne donne pas le
     // focus clavier à un dessin SVG cliqué : on le lui donne.
+    // Bouton du milieu, ou Espace maintenu : la vue se déplace à la main, sans rien modifier.
+    if (e.button === 1 || (e.button === 0 && spaceDown)) {
+      e.preventDefault();
+      svgRef.current?.setPointerCapture(e.pointerId);
+      const p = { x: e.clientX, y: e.clientY };
+      setDrag({ mode: 'pan', from: p, to: p, v0: view });
+      return;
+    }
     if (e.button !== 0) return;
+    endGesture();
     svgRef.current?.focus({ preventScroll: true });
     if (placed && (e.target as Element).closest('[data-ghost]')) {
       svgRef.current?.setPointerCapture(e.pointerId);
@@ -511,7 +573,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       setDrag({ mode: 'bg', from: p, to: p });
       return;
     }
-    if (tool === 'select') {
+    if (tool === 'select' || !canMutate()) {
       if (e.target === svgRef.current || (e.target as Element).getAttribute('data-bg')) {
         // Rectangle de sélection : glisser sur le fond pour sélectionner plusieurs éléments ;
         // avec Maj, la sélection en cours (même d'un seul élément) est complétée.
@@ -565,11 +627,14 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // Quel que soit l'outil actif, cliquer sur un élément existant le sélectionne et le déplace
   // (sans en créer un nouveau) ; l'outil reste actif pour le placement suivant.
   const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' | 'end1' | 'end2' = 'move') => {
-    if (editingBg || e.button !== 0) return;
+    // Bouton du milieu ou Espace maintenu : le geste revient au plan (vue déplacée).
+    if (editingBg || e.button !== 0 || spaceDown) return;
+    const editable = canMutate();
     // Outil de placement sur un mur : le geste revient au plan (cloison tracée depuis le mur, porte
     // ou fenêtre posée dedans) au lieu de déplacer le mur, ou toute la pièce.
-    if (tool !== 'select' && mode === 'move' && items.find((i) => i.id === id)?.kind === 'wall') return;
+    if (editable && tool !== 'select' && mode === 'move' && items.find((i) => i.id === id)?.kind === 'wall') return;
     e.stopPropagation();
+    endGesture();
     svgRef.current?.focus({ preventScroll: true });
     if (e.shiftKey && mode === 'move') {
       // Maj + clic : ajoute ou retire l'élément de la sélection.
@@ -579,29 +644,46 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       setSelected(next.length === 1 ? next[0] : null);
       return;
     }
+    // Lecture seule : un clic sélectionne pour lire les propriétés, rien ne bouge.
+    if (!editable) {
+      setMulti([]);
+      setSelected(id);
+      return;
+    }
     svgRef.current?.setPointerCapture(e.pointerId);
     const p = toSvg(e);
+    const free = e.altKey;
     if (mode === 'move' && multi.length > 1 && multi.includes(id)) {
-      setDrag({ mode: 'group', ids: multi, from: p, to: p });
+      setDrag({ mode: 'group', ids: multi, from: p, to: p, free });
       return;
     }
     setMulti([]);
     setSelected(id);
     // Un mur de la pièce entraîne toute la pièce.
     const item = items.find((i) => i.id === id);
-    if (mode === 'move' && item && isRoomWall(item)) setDrag({ mode: 'group', ids: withRoomWalls(items, [id]), from: p, to: p });
-    else setDrag({ mode, id, from: p, to: p });
+    if (mode === 'move' && item && isRoomWall(item)) setDrag({ mode: 'group', ids: withRoomWalls(items, [id]), from: p, to: p, free });
+    else setDrag({ mode, id, from: p, to: p, free });
   };
 
   const onMove = (e: PointerEvent) => {
     if (!drag) return;
-    setDrag({ ...drag, to: toSvg(e) });
+    if (drag.mode === 'pan') {
+      const px = svgRef.current?.getBoundingClientRect().width;
+      if (!px) return;
+      const k = drag.v0.w / px;
+      setView({ ...drag.v0, x: drag.v0.x - (e.clientX - drag.from.x) * k, y: drag.v0.y - (e.clientY - drag.from.y) * k });
+      return;
+    }
+    setDrag({ ...drag, to: toSvg(e), free: e.altKey });
   };
+
+  /** Arrondi d'un geste : sur la grille (ou au pas donné), au centimètre près avec Alt. */
+  const q = (d: Drag, v: number, step = GRID) => (d.free ? Math.round(v) : snap(v, step));
 
   const onUp = () => {
     const d0 = drag;
     setDrag(null);
-    if (!d0) return;
+    if (!d0 || d0.mode === 'pan') return;
     if (d0.mode === 'ghost') {
       setGhost((g) => ({ ...g, dx: g.dx + d0.to.x - d0.from.x, dy: g.dy + d0.to.y - d0.from.y }));
       return;
@@ -626,14 +708,15 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       return;
     }
     if (d0.mode === 'group') {
-      const dx = snap(d0.to.x - d0.from.x);
-      const dy = snap(d0.to.y - d0.from.y);
+      const dx = q(d0, d0.to.x - d0.from.x);
+      const dy = q(d0, d0.to.y - d0.from.y);
       if (dx || dy) mutate((d) => moveFloorItems(d, planKey, d0.ids, dx, dy));
       return;
     }
     if (d0.mode === 'line') {
-      if (Math.hypot(d0.to.x - d0.from.x, d0.to.y - d0.from.y) < GRID) return;
-      const id = mutateDoc((d) => addFloorItem(d, planKey, d0.kind, d0.from, d0.to));
+      // Simple clic : un segment de 1,6 m, à orienter ensuite par ses poignées.
+      const short = Math.hypot(d0.to.x - d0.from.x, d0.to.y - d0.from.y) < GRID;
+      const id = mutateDoc((d) => addFloorItem(d, planKey, d0.kind, d0.from, short ? undefined : d0.to));
       if (id) setSelected(id);
       return;
     }
@@ -642,11 +725,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     // Poignée saisie puis relâchée sans bouger : rien ne change.
     if (d0.mode !== 'move' && Math.hypot(d0.to.x - d0.from.x, d0.to.y - d0.from.y) < 1) return;
     if (d0.mode === 'move') {
-      const dx = snap(d0.to.x - d0.from.x);
-      const dy = snap(d0.to.y - d0.from.y);
+      const dx = q(d0, d0.to.x - d0.from.x);
+      const dy = q(d0, d0.to.y - d0.from.y);
       if (dx || dy) mutate((d) => moveFloorItem(d, planKey, item.id, dx, dy));
     } else if ((d0.mode === 'end1' || d0.mode === 'end2') && 'x2' in item) {
-      const p = { x: snap(d0.to.x, 5), y: snap(d0.to.y, 5) };
+      const p = { x: q(d0, d0.to.x, 5), y: q(d0, d0.to.y, 5) };
       mutate((d) => updateFloorItem(d, planKey, item.id, (d0.mode === 'end1' ? { x: p.x, y: p.y } : { x2: p.x, y2: p.y }) as Partial<FloorItem>));
     } else if (d0.mode === 'rotate') {
       // La poignée d'une porte ou d'une fenêtre est posée à 90° de son axe.
@@ -655,26 +738,76 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     } else {
       mutate((d) =>
         updateFloorItem(d, planKey, item.id, {
-          to: { x: snap(d0.to.x), y: snap(d0.to.y) },
+          to: { x: q(d0, d0.to.x), y: q(d0, d0.to.y) },
         } as Partial<FloorItem>),
       );
     }
   };
 
+  /** Copie de la sélection, décalée ; les copies deviennent la sélection (une étape d'annulation). */
+  const duplicateSelection = (ids: readonly ID[]) => {
+    const out = mutateDoc((d) => duplicateFloorItems(d, planKey, ids));
+    if (!out?.length) return;
+    setMulti(out.length > 1 ? out : []);
+    setSelected(out.length === 1 ? out[0] : null);
+    svgRef.current?.focus({ preventScroll: true });
+  };
+
   const onKey = (e: KeyboardEvent) => {
+    // Espace maintenu : glisser déplace la vue.
+    if (e.key === ' ' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      if (!spaceDown) setSpaceDown(true);
+      return;
+    }
+    // Échap pendant un glisser : le geste est abandonné, la sélection reste.
+    if (drag && e.key === 'Escape') {
+      e.preventDefault();
+      setDrag(null);
+      return;
+    }
+    const step = e.shiftKey ? GRID * 5 : GRID;
+    const moves: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    const isRotate = (e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey;
+    // Une touche maintenue (flèche, R) = une seule étape d'annulation ; toute autre touche la clôt.
+    if (!moves[e.key] && !isRotate) endGesture();
+    if (!canMutate()) {
+      // Lecture seule : seule la sélection se défait.
+      if (e.key === 'Escape') {
+        setSelected(null);
+        setMulti([]);
+      }
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      const ids = multi.length > 1 ? multi : sel ? [sel.id] : [];
+      if (ids.length) duplicateSelection(ids);
+      return;
+    }
     if (multi.length > 1) {
-      const step = e.shiftKey ? GRID * 5 : GRID;
-      const mv: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
-      if (mv[e.key]) {
+      if (moves[e.key]) {
         e.preventDefault();
-        const [dx, dy] = mv[e.key];
-        mutate((d) => moveFloorItems(d, planKey, multi, dx, dy));
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const [dx, dy] = moves[e.key];
+        gestureMutate((d) => moveFloorItems(d, planKey, multi, dx, dy));
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         mutate((d) => multi.forEach((id) => removeFloorItem(d, planKey, id)));
         setMulti([]);
-      } else if (e.key === 'Escape') setMulti([]);
-      return;
+        return;
+      }
+      if (e.key === 'Escape') {
+        setMulti([]);
+        setTool('select');
+        return;
+      }
     }
     // Lettres seules : choix de l'outil (V sélection, M mur, P porte, F fenêtre, C caméra, A comédien, L projecteur) ;
     // R reste la rotation de l'élément sélectionné.
@@ -693,26 +826,19 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       setTool('select');
       return;
     }
-    if (!sel) return;
-    const step = e.shiftKey ? GRID * 5 : GRID;
-    const moves: Record<string, [number, number]> = {
-      ArrowLeft: [-step, 0],
-      ArrowRight: [step, 0],
-      ArrowUp: [0, -step],
-      ArrowDown: [0, step],
-    };
+    if (!sel || multi.length > 1) return;
     if (moves[e.key]) {
       e.preventDefault();
       const [dx, dy] = moves[e.key];
-      mutate((d) => moveFloorItem(d, planKey, sel.id, dx, dy));
+      gestureMutate((d) => moveFloorItem(d, planKey, sel.id, dx, dy));
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       mutate((d) => removeFloorItem(d, planKey, sel.id));
       setSelected(null);
-    } else if ((e.key === 'r' || e.key === 'R') && ('rot' in sel || sel.kind === 'actor')) {
+    } else if (isRotate && ('rot' in sel || sel.kind === 'actor')) {
       e.preventDefault();
       const rot = (sel as { rot?: number }).rot ?? 90;
-      mutate((d) => updateFloorItem(d, planKey, sel.id, { rot: rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>));
+      gestureMutate((d) => updateFloorItem(d, planKey, sel.id, { rot: rot + (e.shiftKey ? -15 : 15) } as Partial<FloorItem>));
     } else if (e.key === 'Escape') {
       setSelected(null);
       setTool('select');
@@ -722,11 +848,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // Aperçu d'un élément pendant le glissement (un groupe qui contient un mur de la pièce l'entraîne toute).
   const groupIds = new Set(drag?.mode === 'group' ? withRoomWalls(items, drag.ids) : []);
   const preview = (item: FloorItem): FloorItem => {
-    if (!drag || drag.mode === 'line' || drag.mode === 'box' || drag.mode === 'bg' || drag.mode === 'ghost') return item;
+    if (!drag || drag.mode === 'line' || drag.mode === 'box' || drag.mode === 'bg' || drag.mode === 'ghost' || drag.mode === 'pan') return item;
     if (drag.mode === 'group' ? !groupIds.has(item.id) : drag.id !== item.id) return item;
     if (drag.mode === 'move' || drag.mode === 'group') {
-      const dx = snap(drag.to.x - drag.from.x);
-      const dy = snap(drag.to.y - drag.from.y);
+      const dx = q(drag, drag.to.x - drag.from.x);
+      const dy = q(drag, drag.to.y - drag.from.y);
       const moved = { ...item, x: item.x + dx, y: item.y + dy } as FloorItem;
       if ('x2' in moved)
         Object.assign(moved, { x2: moved.x2 + dx, y2: moved.y2 + dy });
@@ -736,11 +862,11 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     if (drag.mode === 'rotate' && ('rot' in item || item.kind === 'actor'))
       return { ...item, rot: Math.round((deg(item, drag.to) - handleOffset(item)) / 5) * 5 } as FloorItem;
     if ((drag.mode === 'end1' || drag.mode === 'end2') && 'x2' in item) {
-      const p = { x: snap(drag.to.x, 5), y: snap(drag.to.y, 5) };
+      const p = { x: q(drag, drag.to.x, 5), y: q(drag, drag.to.y, 5) };
       return (drag.mode === 'end1' ? { ...item, x: p.x, y: p.y } : { ...item, x2: p.x, y2: p.y }) as FloorItem;
     }
     if (drag.mode === 'path' && item.kind === 'actor')
-      return { ...item, to: { x: snap(drag.to.x), y: snap(drag.to.y) } };
+      return { ...item, to: { x: q(drag, drag.to.x), y: q(drag, drag.to.y) } };
     return item;
   };
   // Pendant qu'on déplace ou tourne un élément, la lumière et les ombres suivent.
@@ -784,6 +910,39 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
     // Réglage du fond et aperçu d'import appartiennent à la vue quittée.
     setBgEdit(false);
     setMdImport(null);
+  };
+  const tabs = [...plans, ...psPlans];
+  const focusActiveTab = () =>
+    requestAnimationFrame(() => tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus());
+  const startRename = (key: string) => {
+    if (canMutate() && plans.some((p) => p.key === key)) setRenaming(key);
+  };
+  /** Onglets des vues : ← et → passent à la voisine, F2 ou Entrée sur l'onglet actif le renomme. */
+  const onTabKey = (e: KeyboardEvent<HTMLButtonElement>, key: string) => {
+    const k = tabs.findIndex((p) => p.key === key);
+    const to = e.key === 'ArrowRight' ? tabs[k + 1] : e.key === 'ArrowLeft' ? tabs[k - 1] : e.key === 'Home' ? tabs[0] : e.key === 'End' ? tabs[tabs.length - 1] : undefined;
+    if (to) {
+      e.preventDefault();
+      pickView(to.key);
+      if (psPlans.some((p) => p.key === to.key)) setBeat(1);
+      focusActiveTab();
+    } else if ((e.key === 'F2' || e.key === 'Enter') && key === planKey && plans.some((p) => p.key === key)) {
+      e.preventDefault();
+      startRename(key);
+    }
+  };
+  /** Appui long au toucher : renomme la vue. */
+  const longPress = (key: string) => {
+    const clear = () => window.clearTimeout(pressTimer.current);
+    return {
+      onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
+        clear();
+        if (e.pointerType === 'touch') pressTimer.current = window.setTimeout(() => startRename(key), 500);
+      },
+      onPointerUp: clear,
+      onPointerCancel: clear,
+      onPointerLeave: clear,
+    };
   };
   const stroke = planOf(doc, planKey).stroke ?? 1;
   const inventory = planInventory(doc, items);
@@ -853,6 +1012,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   onDone={(name) => {
                     setRenaming(null);
                     if (name !== null && name !== p.name) mutateDoc((d) => renamePlan(d, p.key, name));
+                    focusActiveTab();
                   }}
                 />
               ) : (
@@ -861,10 +1021,12 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   type="button"
                   role="tab"
                   aria-selected={p.key === planKey}
+                  tabIndex={p.key === planKey ? 0 : -1}
                   className={p.key === planKey ? s.planOn : ''}
                   onClick={() => pickView(p.key)}
-                  onDoubleClick={() => setRenaming(p.key)}
-                  title="Double-cliquer pour renommer"
+                  onDoubleClick={() => startRename(p.key)}
+                  onKeyDown={(e) => onTabKey(e, p.key)}
+                  {...longPress(p.key)}
                 >
                   {p.name}
                 </button>
@@ -876,12 +1038,13 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 type="button"
                 role="tab"
                 aria-selected={p.key === planKey}
+                tabIndex={p.key === planKey ? 0 : -1}
                 className={[s.psTab, p.key === planKey ? s.planOn : ''].join(' ')}
                 onClick={() => {
                   pickView(p.key);
                   setBeat(1);
                 }}
-                title="Vue propre au plan-séquence : caméra et comédiens placés temps par temps"
+                onKeyDown={(e) => onTabKey(e, p.key)}
                 data-testid="fp-oneshot-view"
               >
                 {p.name}
@@ -917,12 +1080,12 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
               size="sm"
               icon={<Trash2 size={13} strokeWidth={1.4} />}
               aria-label={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue'}
-              title={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue (une séquence garde toujours une vue)'}
+              title={plans.length > 1 && !psView ? 'Supprimer la vue' : 'Vider la vue'}
               data-testid="delete-plan"
               onClick={async () => {
                 const name = [...plans, ...psPlans].find((p) => p.key === planKey)?.name ?? 'cette vue';
                 if (planOf(doc, planKey).items.length) {
-                  const r = await ask({ title: plans.length > 1 && !psView ? `Supprimer « ${name} » ?` : `Vider « ${name} » ?`, body: 'Son contenu disparaît (annulable avec ⌘Z).', confirmLabel: plans.length > 1 && !psView ? 'Supprimer' : 'Vider', danger: true });
+                  const r = await ask({ title: plans.length > 1 && !psView ? `Supprimer « ${name} » ?` : `Vider « ${name} » ?`, confirmLabel: plans.length > 1 && !psView ? 'Supprimer' : 'Vider', danger: true });
                   if (!r.ok) return;
                 }
                 mutateDoc((d) => deletePlan(d, planKey));
@@ -958,7 +1121,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                           setBgEdit(!editingBg);
                           setPlanMenu(false);
                         }}
-                        title="Glisser pour déplacer l’image, molette ou pincement pour l’agrandir"
+                        title="Ajuster le fond"
                         data-testid="fp-bg-edit"
                       >
                         Ajuster
@@ -1229,13 +1392,21 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             )}
           <svg
             ref={svgRef}
-            className={[s.canvas, tool !== 'select' ? s.placing : ''].join(' ')}
+            className={[s.canvas, tool !== 'select' ? s.placing : '', spaceDown || drag?.mode === 'pan' ? s.panning : ''].join(' ')}
             viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
             onPointerDown={onCanvasDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={() => setDrag(null)}
             onKeyDown={onKey}
+            onKeyUp={(e) => {
+              if (e.key === ' ') setSpaceDown(false);
+              endGesture();
+            }}
+            onBlur={() => {
+              setSpaceDown(false);
+              endGesture();
+            }}
             tabIndex={0}
             role="application"
             aria-label={`Plan au sol de la séquence ${sequenceHeading(doc, seqId)}`}
@@ -1323,7 +1494,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 data-testid="fp-choreo"
               />
             ))}
-            {items.map((raw) => {
+            {drawOrder(items).map((raw) => {
               const item = preview(raw);
               const itemBeat = item.kind === 'camera' || item.kind === 'actor' ? item.beat : undefined;
               return (
@@ -1374,17 +1545,20 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
           {multi.length > 1 ? (
             <section className={s.section} data-testid="fp-multi">
               <h2 className={s.h2}>{multi.length} éléments</h2>
-              <Button
-                variant="danger"
-                size="sm"
-                icon={<Trash2 size={13} />}
-                onClick={() => {
-                  mutate((d) => multi.forEach((id) => removeFloorItem(d, planKey, id)));
-                  setMulti([]);
-                }}
-              >
-                Retirer
-              </Button>
+              <div className={s.actions}>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon={<Trash2 size={13} />}
+                  onClick={() => {
+                    mutate((d) => multi.forEach((id) => removeFloorItem(d, planKey, id)));
+                    setMulti([]);
+                  }}
+                >
+                  Retirer
+                </Button>
+                <Button variant="icon" size="sm" icon={<Copy size={13} strokeWidth={1.4} />} aria-label="Dupliquer" title="Dupliquer (Ctrl+D)" onClick={() => duplicateSelection(multi)} data-testid="fp-duplicate" />
+              </div>
             </section>
           ) : sel ? (
             <section className={s.section}>
@@ -1394,7 +1568,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                 planKey={planKey}
                 item={sel}
                 beats={nBeats}
+                items={items}
                 onDelete={() => setSelected(null)}
+                onDuplicate={duplicateSelection}
                 room={isRoomWall(sel) ? <RoomFields key={planKey} room={room} onCommit={applyRoom} removeLabel="Retirer la pièce" /> : undefined}
               />
             </section>
@@ -1458,7 +1634,10 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                           type="button"
                           className={[s.camChip, cams.some((x) => same(x, c) && x.id === selected) ? s.camChipOn : ''].join(' ')}
                           onClick={() => {
-                            if (c.planKey !== planKey) pickView(c.planKey === seqId ? undefined : c.planKey);
+                            if (c.planKey !== planKey) {
+                              pickView(c.planKey === seqId ? undefined : c.planKey);
+                              revealRef.current = c.id;
+                            } else revealItem(c.id);
                             setMulti([]);
                             setSelected(c.id);
                           }}
@@ -1504,6 +1683,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                       onClick={() => {
                         setMulti([]);
                         setSelected(r.id);
+                        revealItem(r.id);
                         svgRef.current?.focus({ preventScroll: true });
                       }}
                       data-testid="fp-item"
@@ -1603,7 +1783,7 @@ function ItemShape({
             <path d={`M ${item.x - 1.6} ${item.y + 8} L ${item.x} ${item.y + 11} L ${item.x + 1.6} ${item.y + 8}`} className={s.nose} />
           </g>
           <text x={item.x} y={item.y - 13} className={s.actorText}>
-            {item.label}
+            {actorCaption(doc, item)}
           </text>
           {selected && (
             <circle
@@ -1614,27 +1794,24 @@ function ItemShape({
               data-testid="fp-actor-rotate"
             />
           )}
-          {item.characterId && doc.characters[item.characterId] && (
-            <text x={item.x} y={item.y + 32} className={s.label}>
-              {doc.characters[item.characterId].name}
-            </text>
-          )}
         </g>
       );
     case 'reflector':
     case 'diffuser':
-    case 'flag':
+    case 'flag': {
+      const at = segmentLabelAt(item);
       return (
         <g className={cls} onPointerDown={(e) => onDown(e, item.id)} data-testid={`fp-${item.kind}`}>
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.hit} />
           {item.kind === 'reflector' && <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s.reflectorEdge} />}
           <line x1={item.x} y1={item.y} x2={item.x2} y2={item.y2} className={s[item.kind]} />
-          <text x={(item.x + item.x2) / 2} y={(item.y + item.y2) / 2 - 10} className={s.label}>
+          <text x={at.x} y={at.y} className={s.label} style={{ textAnchor: at.anchor }} data-testid="fp-segment-label">
             {item.label}
           </text>
           {selected && <Ends item={item} onDown={onDown} />}
         </g>
       );
+    }
     case 'wall':
     case 'rail':
       return (
@@ -1777,13 +1954,27 @@ const KIND_ICON: Record<FloorKind | 'practical', JSX.Element> = Object.fromEntri
   TOOL_GROUPS.flatMap((g) => g.tools).filter((t) => t.key !== 'select').map((t) => [t.key, t.icon]),
 ) as Record<FloorKind | 'practical', JSX.Element>;
 
-/** Repère d'un élément : appliqué après une pause ou en quittant le champ (une étape d'annulation). */
+/**
+ * Repère d'un élément : appliqué après une pause ou en quittant le champ (une étape d'annulation).
+ * Un repère vide n'est jamais enregistré : en quittant le champ, il reprend sa valeur.
+ */
 function LabelField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
-  const [draft, setDraft, flush] = useDraft(value, onCommit);
+  const [round, setRound] = useState(0);
+  return <LabelInput key={round} value={value} onCommit={onCommit} onBlank={() => setRound((r) => r + 1)} />;
+}
+
+function LabelInput({ value, onCommit, onBlank }: { value: string; onCommit: (v: string) => void; onBlank: () => void }) {
+  const [draft, setDraft, flush] = useDraft(value, (v) => {
+    if (v.trim()) onCommit(v);
+  });
+  const done = () => {
+    flush();
+    if (!draft.trim()) onBlank();
+  };
   return (
     <label className={s.field}>
       <span>Repère</span>
-      <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={flush} onKeyDown={(e) => e.key === 'Enter' && flush()} />
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={done} onKeyDown={(e) => e.key === 'Enter' && done()} />
     </label>
   );
 }
@@ -1793,7 +1984,9 @@ function WidthField({ value, onCommit }: { value: number; onCommit: (w: number) 
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);
   const commit = () => {
-    const w = Math.max(20, Math.round(Number(text.replace(',', '.')) || 0));
+    // Saisie vide ou illisible : l'ancienne largeur revient ; sinon, bornée.
+    const n = Number(text.replace(',', '.').replace(/\s/g, ''));
+    const w = text.trim() && Number.isFinite(n) ? Math.max(OPENING_LIMITS[0], Math.min(OPENING_LIMITS[1], Math.round(n))) : value;
     if (w !== value) onCommit(w);
     else setText(String(value));
   };
@@ -1837,7 +2030,9 @@ function Properties({
   planKey,
   item,
   beats,
+  items,
   onDelete,
+  onDuplicate,
   room,
 }: {
   doc: ProjectDoc;
@@ -1845,7 +2040,10 @@ function Properties({
   planKey: string;
   item: FloorItem;
   beats: number;
+  /** Éléments de la vue (distances caméra → comédiens). */
+  items: readonly FloorItem[];
   onDelete: () => void;
+  onDuplicate: (ids: ID[]) => void;
   /** Mur de la pièce : les dimensions de la pièce, sous le titre. */
   room?: React.ReactNode;
 }) {
@@ -1864,7 +2062,7 @@ function Properties({
       {item.kind === 'wall' && (
         <label className={s.check}>
           <input type="checkbox" checked={!!item.white} onChange={(e) => update({ white: e.target.checked } as Partial<FloorItem>)} />
-          Mur blanc (renvoie un peu la lumière)
+          Mur blanc
         </label>
       )}
       {(item.kind === 'camera' ||
@@ -1898,6 +2096,15 @@ function Properties({
                 : '60° (aucun plan lié)';
             })()}
           </p>
+          {(() => {
+            // Distance de mise au point : les comédiens dans le champ, du plus proche au plus loin.
+            const list = subjectDistances(doc, item, items);
+            return list.length > 0 ? (
+              <p className={s.note} data-testid="fp-distances">
+                {list.map((x) => `${x.name} ${formatMeters(x.meters)}`).join(' · ')}
+              </p>
+            ) : null;
+          })()}
         </>
       )}
       {item.kind === 'actor' &&
@@ -1991,17 +2198,22 @@ function Properties({
       {(item.kind === 'door' || item.kind === 'window') && (
         <WidthField key={item.id} value={item.width} onCommit={(w) => update({ width: w } as Partial<FloorItem>)} />
       )}
-      <Button
-        variant="danger"
-        size="sm"
-        icon={<Trash2 size={13} />}
-        onClick={() => {
-          mutateDoc((d) => removeFloorItem(d, planKey, item.id));
-          onDelete();
-        }}
-      >
-        {isRoomWall(item) ? 'Retirer ce côté' : 'Retirer'}
-      </Button>
+      <div className={s.actions}>
+        <Button
+          variant="danger"
+          size="sm"
+          icon={<Trash2 size={13} />}
+          onClick={() => {
+            mutateDoc((d) => removeFloorItem(d, planKey, item.id));
+            onDelete();
+          }}
+        >
+          {isRoomWall(item) ? 'Retirer ce côté' : 'Retirer'}
+        </Button>
+        {!isRoomWall(item) && (
+          <Button variant="icon" size="sm" icon={<Copy size={13} strokeWidth={1.4} />} aria-label="Dupliquer" title="Dupliquer (Ctrl+D)" onClick={() => onDuplicate([item.id])} data-testid="fp-duplicate" />
+        )}
+      </div>
     </div>
   );
 }
