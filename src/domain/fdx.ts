@@ -4,6 +4,7 @@
  * Final Draft, KIT Scenarist, Highland, WriterDuet, Fade In et Yamdu l'exportent.
  */
 import { headingNumbers, isEmptyBlock, parseTitlePage, serialize, setTitlePage, type BlockType, type SBlock, type ScriptDoc } from './screenplay';
+import { isOutlinePhrase } from './outline';
 import { parseEmphasis, type Run } from './scriptLayout';
 
 export interface FdxParagraph {
@@ -110,6 +111,16 @@ export function parseFdx(xml: string): FdxScript {
     text = text.replace(/[^\S\n]+$/gm, '').replace(/^\n+|\n+$/g, '');
     if (!text.trim()) return;
     paragraphs.push({ type, text });
+    // Résumé de la scène (Final Draft) : la phrase du séquencier, ligne « = » sous l'en-tête.
+    if (type === 'heading') {
+      const summary = childrenNamed(p, 'SceneProperties')
+        .flatMap((sp) => childrenNamed(sp, 'Summary'))
+        .flatMap((sm) => childrenNamed(sm, 'Paragraph'))
+        .map((sp) => paragraphText(sp).replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .join(' ');
+      if (summary) paragraphs.push({ type: 'synopsis', text: summary });
+    }
   };
   for (const el of content ? Array.from(content.children) : []) {
     if (el.localName === 'Paragraph') add(el);
@@ -149,8 +160,8 @@ const FDX_TYPE: Partial<Record<BlockType, string>> = {
   centered: 'Action',
 };
 
-/** Paragraphe Final Draft : l'emphase Fountain devient le style des morceaux de texte. */
-function fdxParagraph(type: string, text: string, attrs = ''): string {
+/** Morceaux de texte Final Draft : l'emphase Fountain devient leur style. */
+function fdxRuns(text: string): string {
   const runs: Run[] = text.split('\n').flatMap((line, i) => [...(i ? [{ text: '\n' }] : []), ...parseEmphasis(line)]);
   const body = runs
     .map((r) => {
@@ -158,7 +169,12 @@ function fdxParagraph(type: string, text: string, attrs = ''): string {
       return `<Text${style ? ` Style="${style}"` : ''}>${xmlEsc(r.text)}</Text>`;
     })
     .join('');
-  return `    <Paragraph${attrs} Type="${type}">${body || '<Text></Text>'}</Paragraph>`;
+  return body || '<Text></Text>';
+}
+
+/** Paragraphe Final Draft ; `inner` se place avant le texte (propriétés de la scène). */
+function fdxParagraph(type: string, text: string, attrs = '', inner = ''): string {
+  return `    <Paragraph${attrs} Type="${type}">${inner}${fdxRuns(text)}</Paragraph>`;
 }
 
 /** Écrit le scénario au format Final Draft (A4, numéros de séquence de l'outil). */
@@ -166,21 +182,25 @@ export function scriptToFdx(blocks: readonly SBlock[]): string {
   const numbers = headingNumbers(blocks);
   const out: string[] = [];
   let newPage = false;
-  for (const b of blocks) {
+  blocks.forEach((b, i) => {
     if (b.type === 'pagebreak') {
       newPage = out.length > 0;
-      continue;
+      return;
     }
     const type = FDX_TYPE[b.type];
-    if (!type || isEmptyBlock(b)) continue;
+    if (!type || isEmptyBlock(b)) return;
     let attrs = '';
     if (b.type === 'heading' && numbers.has(b.id)) attrs += ` Number="${numbers.get(b.id)}"`;
     if (b.type === 'centered') attrs += ' Alignment="Center"';
     if (newPage) attrs += ' StartsNewPage="Yes"';
     newPage = false;
     const text = b.type === 'heading' || b.type === 'character' || b.type === 'transition' ? b.text.toLocaleUpperCase('fr') : b.text;
-    out.push(fdxParagraph(type, text, attrs));
-  }
+    // La phrase du séquencier devient le résumé de la scène (sa note ne passe pas).
+    let k = i + 1;
+    while (b.type === 'heading' && k < blocks.length && blocks[k].type !== 'synopsis' && (blocks[k].type === 'note' || isEmptyBlock(blocks[k]))) k++;
+    const phrase = b.type === 'heading' && isOutlinePhrase(blocks, k) ? blocks[k].text.trim() : '';
+    out.push(fdxParagraph(type, text, attrs, phrase ? `<SceneProperties><Summary><Paragraph Type="General">${fdxRuns(phrase)}</Paragraph></Summary></SceneProperties>` : ''));
+  });
   const tb = blocks.find((b) => b.type === 'title');
   const title = tb ? parseTitlePage(tb.text) : {};
   const tp: string[] = [];

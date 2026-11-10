@@ -76,4 +76,50 @@ describe('outils de l’assistant', () => {
     expect(replay.project.sequenceIds).toEqual(next.project.sequenceIds);
     expect(replay.sequences[replay.project.sequenceIds[3]].label).toBe('QUAI');
   });
+
+  it('séquencier : lit, écrit la phrase, l’étape et l’intrigue, ajoute et déplace', () => {
+    let doc = buildFiction();
+    const ids = doc.project.sequenceIds.slice();
+    const read = (d: ProjectDoc) => JSON.parse(runAiTool(d, 'get_outline', {}).result);
+    const o = read(doc);
+    expect(o.sequences.map((x: { n: number; heading: string }) => [x.n, x.heading])).toEqual([
+      [1, 'INT. GARE — HALL - JOUR'],
+      [2, 'INT. GARE — CONSIGNE - JOUR'],
+      [3, 'EXT. PARVIS DE LA GARE - NUIT'],
+    ]);
+    expect(o.sequences[0]).toMatchObject({ phrase: '', step: null, plot: 'A', page: 1 });
+    expect(o.sequences[0].duration).toMatch(/^\d+:\d\d$/);
+    expect(o.plots).toEqual([{ key: 'A', name: 'Intrigue principale' }]);
+
+    const set = run(doc, 'set_outline_entry', { n: 2, phrase: 'Léa laisse la valise.', step: 4, plot: 'b' });
+    expect(set.out.isError).toBeFalsy();
+    doc = set.doc;
+    expect(doc.scenario).toContain('INT. GARE — CONSIGNE - JOUR\n\n= Léa laisse la valise. [[ds:etape=4;intrigue=B]]\n\nLéa pose');
+    expect(read(doc).sequences[1]).toMatchObject({ phrase: 'Léa laisse la valise.', step: 4, step_label: 'Événement déclencheur', plot: 'B' });
+    // Le résumé de la séquence du découpage est cette phrase.
+    expect(JSON.parse(runAiTool(doc, 'get_sequence', { sequence: 2 }).result).summary).toBe('Léa laisse la valise.');
+    expect(run(doc, 'set_outline_entry', { n: 9, phrase: 'x' }).out.isError).toBe(true);
+    expect(run(doc, 'set_outline_entry', { n: 1, step: 40 }).out.isError).toBe(true);
+
+    const added = run(doc, 'add_outline_entry', { after: 1, int_ext: 'EXT', location: 'Quai', effect: 'JOUR', phrase: 'Le train entre en gare.' });
+    expect(JSON.parse(added.out.result)).toEqual({ n: 2 });
+    expect(read(added.doc).sequences.map((x: { heading: string }) => x.heading)[1]).toBe('EXT. QUAI - JOUR');
+    expect(run(doc, 'add_outline_entry', { location: '' }).out.isError).toBe(true);
+
+    const moved = run(doc, 'move_outline_entry', { from: 3, to: 1 });
+    expect(read(moved.doc).sequences.map((x: { heading: string }) => x.heading)[0]).toBe('EXT. PARVIS DE LA GARE - NUIT');
+    // Le découpage suivait le texte : il suit le déplacement.
+    expect(moved.doc.project.sequenceIds).toEqual([ids[2], ids[0], ids[1]]);
+    expect(checkInvariants(moved.doc)).toEqual([]);
+  });
+
+  it('update_sequence écrit le résumé dans le texte pour une séquence rapprochée, et write_scenario garde les phrases', () => {
+    let doc = buildFiction();
+    doc = run(doc, 'update_sequence', { sequence: 1, summary: 'Léa arrive.' }).doc;
+    expect(doc.scenario).toContain('INT. GARE — HALL - JOUR\n\n= Léa arrive.\n');
+    expect(doc.sequences[doc.project.sequenceIds[0]].summary).toBeUndefined();
+    doc = run(doc, 'write_scenario', { text: 'INT. GARE — HALL - JOUR\n\nLe hall bruisse, les annonces se succèdent.\n\nLéa traverse le hall en tirant une valise cabossée dont une roue grince.', replace_scene: 1 }).doc;
+    expect(doc.scenario).toContain('INT. GARE — HALL - JOUR\n\n= Léa arrive.\n\nLe hall bruisse');
+    expect(doc.scenario).toContain('dont une roue grince.\n\nINT. GARE — CONSIGNE');
+  });
 });
