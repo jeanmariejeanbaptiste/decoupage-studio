@@ -1,15 +1,13 @@
 import { newId } from '../../domain/factory';
 import { formatOneShotDuration, oneShotTiming, toggleOneShot } from '../../domain/oneshot';
-import { useEffect, useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { ImagePlus, PanelRightClose, Trash2 } from 'lucide-react';
 import { setCellText } from '../../domain/cells';
 import { deduceEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
 import { diagonalFov, fullFrameEquivalent, horizontalFov } from '../../domain/focal';
-import { runChecks } from '../../domain/lint';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
-import type { ID, ProjectDoc, ShotStatus } from '../../domain/types';
-import { computeTiming } from '../../domain/timing';
+import type { ID, ProjectDoc } from '../../domain/types';
 import { isZoom } from '../../domain/vocabulary';
 import { putBlob } from '../../store/db';
 import { cropStyle, removeFrame, setFrame } from '../../domain/keyframes';
@@ -22,13 +20,10 @@ import { FovCone } from './FovCone';
 import { camerasForShot } from '../../domain/floorplan';
 import s from './Inspector.module.css';
 
-const STATUSES: ShotStatus[] = ['à tourner', 'tourné', 'abandonné'];
 
 export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undefined }) {
   const set = useUi((u) => u.set);
   const shot = shotId ? doc.shots[shotId] : undefined;
-  const timing = useMemo(() => computeTiming(doc), [doc]);
-  const issues = useMemo(() => (shotId ? runChecks(doc, timing).filter((i) => i.shotId === shotId) : []), [doc, timing, shotId]);
   const thumb = useBlobUrl(shot?.storyboard?.blobKey);
   const [over, setOver] = useState(false);
 
@@ -200,20 +195,6 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
           <span>Image</span>
           <Draft multiline value={shot.notes ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'notes', v))} />
         </label>
-        <div className={s.row}>
-          <label className={s.field}>
-            <span>Statut</span>
-            <select value={shot.status} onChange={(e) => update((d) => void (d.shots[shot.id].status = e.target.value as ShotStatus))}>
-              {STATUSES.map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
-          <label className={s.field}>
-            <span>Jour de tournage</span>
-            <Draft type="number" value={shot.shootingDay !== undefined ? String(shot.shootingDay) : ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'shootingDay', v))} />
-          </label>
-        </div>
       </section>
 
       {!shot.oneShot && (
@@ -222,21 +203,6 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
         </button>
       )}
 
-      {issues.length > 0 && (
-        <section className={s.block}>
-          <h3>Vérifications</h3>
-          <ul className={s.issues}>
-            {issues.map((i) => (
-              <li key={i.id} className={i.level === 'info' ? s.info : undefined}>
-                <span>{i.message}</span>
-                <button type="button" onClick={() => update((d) => void d.ignoredChecks.push(i.id))}>
-                  Ignorer
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </aside>
   );
 }
