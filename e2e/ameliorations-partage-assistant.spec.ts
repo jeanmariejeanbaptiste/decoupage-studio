@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
+import { PeerServer } from 'peer';
 
 // --- Assistant (API Anthropic simulée) ---------------------------------------------------------
 
@@ -170,4 +171,236 @@ test('assistant : un autre projet ouvert, la conversation repart de zéro et rie
   await panel.getByTestId('assistant-input').press('Enter');
   await expect(panel.getByTestId('assistant-assistant')).toHaveText('Fait.');
   expect(bodies[n].messages).toHaveLength(1);
+});
+
+// --- Commentaires (auteur, sans partage) -------------------------------------------------------
+
+test('commentaires : planche à dessin au-dessus de la bulle, Échap referme planche et fenêtre, cellule désignée', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  await page.getByTestId('toggle-print').click();
+  const cell = page.locator('tr[data-shot] td[data-col="value"]').first();
+  await cell.click();
+  const pop = page.getByTestId('comment-popover');
+  await expect(pop).toBeVisible();
+  // La cellule commentée reste désignée, une seule.
+  await expect(page.locator('[data-comment-active]')).toHaveCount(1);
+  expect(await cell.getAttribute('data-comment-active')).toBe('');
+  await page.getByTestId('comment-text').fill('Un plan plus serré');
+  await page.getByTestId('comment-sketch').click();
+  const pad = page.getByTestId('sketch-pad');
+  await expect(pad).toBeVisible();
+  await expect(pop).toBeHidden();
+  // Un clic sur le fond referme la planche : la bulle revient avec son brouillon.
+  await page.mouse.click(5, 300);
+  await expect(pad).toHaveCount(0);
+  await expect(page.getByTestId('comment-text')).toHaveValue('Un plan plus serré');
+  // Échap referme la planche seule.
+  await page.getByTestId('comment-sketch').click();
+  await expect(pad).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(pad).toHaveCount(0);
+  await expect(page.getByTestId('comment-text')).toHaveValue('Un plan plus serré');
+  await page.getByTestId('comment-send').click();
+  // Signé « Réalisation » quand le projet n'a pas de réalisateur, jamais « Moi ».
+  await expect(pop.getByTestId('comment')).toContainText('Réalisation');
+  await page.keyboard.press('Escape');
+  await expect(pop).toHaveCount(0);
+  await expect(page.locator('[data-comment-active]')).toHaveCount(0);
+  await expect(page.locator('td[data-commented]')).toHaveCount(1);
+  // La fenêtre des commentaires se ferme à Échap.
+  await page.getByTestId('version-switcher').click();
+  await page.getByTestId('version-comments').click();
+  await expect(page.getByTestId('comments-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('comments-panel')).toHaveCount(0);
+});
+
+test('planche à dessin : un geste interrompu clôt le trait', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  await page.getByTestId('toggle-print').click();
+  await page.locator('tr[data-shot] td[data-col="value"]').first().click();
+  await page.getByTestId('comment-sketch').click();
+  const canvas = page.getByTestId('sketch-pad').locator('canvas');
+  await canvas.evaluate((c) => {
+    // Pointeur simulé : la capture ne s'applique qu'aux vrais pointeurs actifs.
+    c.setPointerCapture = () => undefined;
+    const r = c.getBoundingClientRect();
+    const ev = (type: string, x: number) => c.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, clientX: r.left + x, clientY: r.top + 50 }));
+    ev('pointerdown', 20);
+    ev('pointermove', 60);
+    ev('pointercancel', 60);
+    ev('pointermove', 120);
+    ev('pointerdown', 200);
+    ev('pointermove', 260);
+    ev('pointerup', 260);
+  });
+  // Deux traits distincts : deux annulations.
+  const undo = page.getByRole('button', { name: 'Annuler le dernier trait' });
+  await undo.click();
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(undo).toBeDisabled();
+});
+
+// --- Partage en direct (serveur de mise en relation local) ------------------------------------
+
+test.describe('partage', () => {
+  test.describe.configure({ mode: 'serial', timeout: 90_000 });
+  const PORT = 9189;
+  let server: ReturnType<typeof PeerServer> | null = null;
+  test.beforeAll(() => {
+    server = PeerServer({ port: PORT, path: '/', host: '127.0.0.1' });
+  });
+  test.afterAll(() => {
+    (server as unknown as { close?: () => void } | null)?.close?.();
+  });
+
+  async function participant(browser: Browser): Promise<Page> {
+    const ctx = await browser.newContext();
+    await ctx.addInitScript((port) => localStorage.setItem('ds-peer-server', `localhost:${port}`), PORT);
+    return ctx.newPage();
+  }
+
+  async function host(browser: Browser, seed: string, mode?: string) {
+    const page = await participant(browser);
+    await page.goto(`/#/grid?seed=${seed}`);
+    await page.getByTestId('share-button').click();
+    if (mode) await page.getByTestId('share-panel').getByText(mode).click();
+    await page.getByTestId('share-start').click();
+    const link = (await page.getByTestId('share-link').textContent())!;
+    const password = (await page.getByTestId('share-password').textContent())!;
+    return { page, link, password };
+  }
+
+  async function join(page: Page, link: string, password: string, name: string) {
+    await page.goto(link);
+    await page.getByLabel('Votre nom').fill(name);
+    await page.getByRole('textbox', { name: 'Mot de passe' }).fill(password);
+    await page.getByTestId('join-go').click();
+  }
+
+  test('QR code : il reste ouvert quand un invité arrive, et porte le mot de passe', async ({ browser }) => {
+    const h = await host(browser, 'rav3');
+    expect(h.link).not.toContain('pw=');
+    await h.page.getByTestId('share-qr').click();
+    const screen = h.page.getByTestId('share-qr-screen');
+    await expect(screen).toBeVisible();
+    await expect(screen.locator('svg[role="img"]')).toHaveAttribute('aria-label', `QR code : ${h.link}&pw=${h.password}`);
+    // Arrivée par le QR code : mot de passe rempli, puis retiré de l'adresse.
+    const guest = await participant(browser);
+    await guest.goto(`${h.link}&pw=${h.password}`);
+    await expect(guest.getByLabel('Mot de passe')).toHaveValue(h.password);
+    await expect.poll(() => guest.url()).not.toContain('pw=');
+    await guest.getByLabel('Votre nom').fill('Nina');
+    await guest.getByTestId('join-go').click();
+    await expect(guest.getByTestId('guest-banner')).toBeVisible();
+    await expect(h.page.getByTestId('share-button')).toContainText('· 1');
+    await expect(screen).toBeVisible();
+    await h.page.keyboard.press('Escape');
+    await expect(screen).toHaveCount(0);
+    await h.page.getByTestId('share-stop').click();
+  });
+
+  test('invités : homonymes distingués, exclusion durable, Échap referme le panneau, bandeau sans hôte anonyme', async ({ browser }) => {
+    const h = await host(browser, 'rav3');
+    const a = await participant(browser);
+    await join(a, h.link, h.password, 'Nina');
+    // RAV3 n'a pas de réalisateur : pas de « partagé par l'hôte ».
+    await expect(a.getByTestId('guest-banner')).toContainText(/^Projet partagé · modification/);
+    const b = await participant(browser);
+    await join(b, h.link, h.password, 'Nina');
+    await expect(b.getByTestId('guest-banner')).toBeVisible();
+    const guests = h.page.getByTestId('share-guests');
+    await expect(guests.locator('li')).toHaveText(['NNina', 'NNina 2']);
+    // Le second est exclu : prévenu comme tel, et l'ancien mot de passe ne lui rouvre pas la porte.
+    await h.page.getByRole('button', { name: 'Exclure Nina 2' }).click();
+    await expect(b.getByTestId('home')).toBeVisible();
+    await expect(b.getByText('Vous avez été retiré du partage.')).toBeVisible();
+    const fresh = (await h.page.getByTestId('share-password').textContent())!;
+    expect(fresh).not.toBe(h.password);
+    await join(b, h.link, h.password, 'Nina');
+    await expect(b.getByText('Mot de passe incorrect.')).toBeVisible();
+    await b.getByRole('textbox', { name: 'Mot de passe' }).fill(fresh);
+    await b.getByTestId('join-go').click();
+    await expect(b.getByTestId('guest-banner')).toBeVisible();
+    // La première Nina est restée connectée.
+    await expect(a.getByTestId('guest-banner')).toBeVisible();
+    await expect(guests.locator('li')).toHaveCount(2);
+    // Échap referme le panneau et rend la main au bouton Partager.
+    await h.page.getByRole('button', { name: 'Copier le lien' }).focus();
+    await h.page.keyboard.press('Escape');
+    await expect(h.page.getByTestId('share-panel')).toHaveCount(0);
+    await expect(h.page.getByTestId('share-button')).toBeFocused();
+    // Quitter la page avec des invités connectés : le navigateur demande confirmation.
+    let asked = false;
+    h.page.once('dialog', (d) => {
+      asked = d.type() === 'beforeunload';
+      void d.dismiss();
+    });
+    await h.page.evaluate(() => void window.dispatchEvent(new Event('beforeunload', { cancelable: true })));
+    const prevented = await h.page.evaluate(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+    expect(prevented || asked).toBe(true);
+    await h.page.getByTestId('share-button').click();
+    await h.page.getByTestId('share-stop').click();
+    const after = await h.page.evaluate(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+    expect(after).toBe(false);
+  });
+
+  test('l’hôte qui rejoint un autre partage ferme d’abord le sien', async ({ browser }) => {
+    const a = await host(browser, 'rav3');
+    const guestOfA = await participant(browser);
+    await join(guestOfA, a.link, a.password, 'Paul');
+    await expect(guestOfA.getByTestId('guest-banner')).toBeVisible();
+    const c = await host(browser, 'fiction');
+    await join(a.page, c.link, c.password, 'Alice');
+    await expect(a.page.getByTestId('guest-banner')).toBeVisible();
+    await expect(guestOfA.getByTestId('home')).toBeVisible();
+    await expect(c.page.getByTestId('share-guests')).toContainText('Alice');
+    await c.page.getByTestId('share-stop').click();
+  });
+
+  test('invité qui avait déjà ce projet : il le retrouve intact en quittant le partage', async ({ browser }) => {
+    const guest = await participant(browser);
+    // Le même projet (même identifiant), dans le navigateur de l'invité.
+    await guest.goto('/#/grid?seed=fiction');
+    await expect(guest.getByText('Enregistré dans le navigateur')).toBeVisible();
+    const h = await host(browser, 'fiction');
+    await join(guest, h.link, h.password, 'Nina');
+    await expect(guest.getByTestId('guest-banner')).toBeVisible();
+    await guest.getByTestId('guest-leave').click();
+    await expect(guest.getByTestId('home')).toBeVisible();
+    await expect(guest.getByTestId('project-list')).toContainText('La Consigne');
+    await h.page.getByTestId('share-stop').click();
+  });
+
+  test('relecture : commentaires écrits en même temps par l’hôte et l’invité, aucun perdu', async ({ browser }) => {
+    const h = await host(browser, 'fiction', 'Commenter');
+    await h.page.getByTestId('share-button').click();
+    const guest = await participant(browser);
+    await join(guest, h.link, h.password, 'Nina');
+    await expect(guest.getByTestId('guest-banner')).toContainText('relecture');
+    await h.page.getByTestId('toggle-print').click();
+    const write = async (p: Page, row: number, text: string) => {
+      await p.locator('tr[data-shot] td[data-col="value"]').nth(row).click();
+      await p.getByTestId('comment-text').fill(text);
+    };
+    await write(h.page, 0, 'De l’hôte');
+    await write(guest, 3, 'De Nina');
+    // Envoyés dans la même tranche de temps.
+    await Promise.all([h.page.getByTestId('comment-send').click(), guest.getByTestId('comment-send').click()]);
+    await h.page.keyboard.press('Escape');
+    await guest.keyboard.press('Escape');
+    await expect(h.page.locator('td[data-commented]')).toHaveCount(2);
+    await expect(guest.locator('td[data-commented]')).toHaveCount(2);
+    await h.page.getByTestId('share-button').click();
+    await h.page.getByTestId('share-stop').click();
+  });
 });

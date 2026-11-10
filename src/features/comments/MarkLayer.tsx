@@ -19,6 +19,8 @@ export function MarkLayer({ surface }: { surface: CommentMarks['surface'] }) {
   const draft = useCommentsUi((u) => u.draft);
   const svg = useRef<SVGSVGElement>(null);
   const [live, setLive] = useState<Array<[number, number]> | null>(null);
+  // Le trait en cours vit aussi hors du rendu : des événements rapprochés ne lisent pas un état périmé.
+  const liveRef = useRef<Array<[number, number]> | null>(null);
   // Échap quitte le tracé : la bulle et son brouillon reviennent tels quels.
   useEffect(() => {
     if (!drawing) return;
@@ -41,20 +43,32 @@ export function MarkLayer({ surface }: { surface: CommentMarks['surface'] }) {
     const k = r.width / (el.clientWidth || r.width) || 1;
     return [(e.clientX - r.left) / k, (e.clientY - r.top) / k];
   };
+  const finish = () => {
+    const pts = liveRef.current;
+    if (!pts) return;
+    liveRef.current = null;
+    const cur = useCommentsUi.getState().draft.marks;
+    if (pts.length > 1) patchDraft({ marks: { surface, paths: [...(cur?.surface === surface ? cur.paths : []), path(pts)] } });
+    setLive(null);
+  };
   return (
     <>
       <svg ref={svg} className={[s.marks, drawing ? s.marksDrawing : ''].join(' ')} data-testid={`marks-${surface}`}
         onPointerDown={(e) => {
           if (!drawing) return;
           (e.target as Element).setPointerCapture?.(e.pointerId);
-          setLive([at(e)]);
+          liveRef.current = [at(e)];
+          setLive(liveRef.current);
         }}
-        onPointerMove={(e) => live && setLive([...live, at(e)])}
-        onPointerUp={() => {
-          if (!live) return;
-          if (live.length > 1) patchDraft({ marks: { surface, paths: [...mine, path(live)] } });
-          setLive(null);
+        onPointerMove={(e) => {
+          if (!liveRef.current) return;
+          liveRef.current = [...liveRef.current, at(e)];
+          setLive(liveRef.current);
         }}
+        onPointerUp={finish}
+        // Geste interrompu (paume, geste du système) : le trait est clos, le suivant ne s'y raccorde pas.
+        onPointerCancel={finish}
+        onLostPointerCapture={finish}
       >
         {shown.map((x) =>
           x.c.marks!.paths.map((d, i) => (

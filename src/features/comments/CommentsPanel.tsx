@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { COLUMN_DEFS } from '../../domain/columns';
 import { commentsOf, shownComments, type ReviewComment } from '../../domain/comments';
@@ -27,6 +27,14 @@ export function CommentsPanel() {
   const panel = useCommentsUi((u) => u.panel);
   const doc = useProjectStore((st) => st.doc);
   const [all, setAll] = useState(false);
+  const open = panel !== null;
+  useEffect(() => {
+    if (!open) return;
+    // Échap ferme la fenêtre (pas pendant un schéma, que la planche referme d'abord).
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && !useCommentsUi.getState().sketch && closeCommentsPanel();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [open]);
   if (panel === null || !doc) return null;
   const versionId = panel || doc.activeVersionId;
   const version = doc.versions?.find((v) => v.id === versionId);

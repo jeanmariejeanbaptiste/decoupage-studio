@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { cutComments, type CommentAnchor } from '../../domain/comments';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { useCanComment } from '../../store/share';
@@ -32,12 +32,18 @@ export function CutComments({ doc, children }: { doc: ProjectDoc; children: Reac
   const root = useRef<HTMLDivElement>(null);
   const canComment = useCanComment();
   const focus = useCommentsUi((u) => u.focus);
-  const marks = cutComments(doc);
+  // Recalculées seulement quand ce qu'elles lisent change (pas à chaque frappe d'un autre panneau).
+  const { comments, versions, activeVersionId, shots, sequences, scenario } = doc;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const marks = useMemo(() => cutComments(doc), [comments, versions, activeVersionId, shots, sequences, scenario]);
+  // Bulle ouverte sur une cellule : elle reste désignée tant que la bulle la recouvre en partie.
+  const active = useCommentsUi((u) => (u.popover && u.popover.anchor.kind !== 'script' ? u.popover.anchor : null));
 
   // Marques posées sur les cellules (l'aperçu n'a pas à les connaître) ; reposées quand l'aperçu se
   // repagine et recrée ses cellules.
-  const marksRef = useRef(marks);
-  marksRef.current = marks;
+  const state = useRef({ marks, active });
+  state.current = { marks, active };
+  const applyRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     const el = root.current;
     if (!el) return;
@@ -46,13 +52,17 @@ export function CutComments({ doc, children }: { doc: ProjectDoc; children: Reac
         n.removeAttribute('data-commented');
         n.removeAttribute('title');
       });
-      for (const list of marksRef.current.values()) {
+      el.querySelectorAll('[data-comment-active]').forEach((n) => n.removeAttribute('data-comment-active'));
+      for (const list of state.current.marks.values()) {
         const cell = cellOf(el, list[0].anchor);
         if (!cell) continue;
         cell.setAttribute('data-commented', String(list.length));
         cell.setAttribute('title', `${list.length} commentaire${list.length > 1 ? 's' : ''}`);
       }
+      const on = state.current.active && cellOf(el, state.current.active);
+      on?.setAttribute('data-comment-active', '');
     };
+    applyRef.current = apply;
     apply();
     let frame = 0;
     const obs = new MutationObserver(() => {
@@ -64,7 +74,8 @@ export function CutComments({ doc, children }: { doc: ProjectDoc; children: Reac
       obs.disconnect();
       cancelAnimationFrame(frame);
     };
-  });
+  }, []);
+  useEffect(() => applyRef.current(), [marks, active]);
 
   // « Voir » depuis la fenêtre des commentaires : la cellule s'affiche, sa bulle s'ouvre.
   useEffect(() => {

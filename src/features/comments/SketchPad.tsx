@@ -18,6 +18,12 @@ export function SketchPad() {
 
   useEffect(() => setStrokes([]), [sketch]);
   useEffect(() => {
+    if (!sketch) return;
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && useCommentsUi.setState({ sketch: null });
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [sketch]);
+  useEffect(() => {
     const c = canvas.current;
     const g = c?.getContext('2d');
     if (!c || !g) return;
@@ -60,15 +66,21 @@ export function SketchPad() {
           height={H}
           onPointerDown={(e) => {
             (e.target as Element).setPointerCapture(e.pointerId);
-            current.current = [at(e)];
-            setStrokes((x) => [...x, current.current!]);
+            const start = [at(e)];
+            current.current = start;
+            setStrokes((x) => [...x, start]);
           }}
           onPointerMove={(e) => {
             if (!current.current) return;
             current.current.push(at(e));
-            setStrokes((x) => [...x.slice(0, -1), [...current.current!]]);
+            // Copie prise maintenant : le trait peut être clos avant que React n'applique la mise à jour.
+            const pts = [...current.current];
+            setStrokes((x) => [...x.slice(0, -1), pts]);
           }}
           onPointerUp={() => void (current.current = null)}
+          // Geste interrompu (paume, geste du système) : le trait s'arrête là, le suivant repart à neuf.
+          onPointerCancel={() => void (current.current = null)}
+          onLostPointerCapture={() => void (current.current = null)}
         />
         <div className={s.sketchBar}>
           <button type="button" className={s.iconBtn} aria-label="Annuler le dernier trait" onClick={() => setStrokes((x) => x.slice(0, -1))} disabled={!strokes.length}>

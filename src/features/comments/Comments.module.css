@@ -36,6 +36,7 @@
 
 /* Marque d'un endroit commenté (cellules du découpage). */
 :global([data-commented]) { position: relative; cursor: pointer; }
+:global([data-comment-active]) { outline: 1.5px solid var(--ink); outline-offset: -1.5px; }
 :global([data-commented])::after { content: ''; position: absolute; top: 3px; right: 3px; width: 0; height: 0; border-top: 7px solid var(--ink); border-left: 7px solid transparent; pointer-events: none; }
 
 /* Pièces jointes : vignettes. */
