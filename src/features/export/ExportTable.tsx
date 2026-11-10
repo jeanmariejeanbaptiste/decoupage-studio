@@ -251,7 +251,14 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
     );
 
   return (
-    <div ref={measure} className={sheetClass} data-theme-export={th} style={paper ? { padding: '0 12mm', width: `${paperW}mm`, boxSizing: 'border-box' } : undefined}>
+    // Mise en pages : le rendu continu ne sert qu'à mesurer ; caché, il ne s'affiche pas un instant à
+    // pleine taille avant les pages (saut à l'ouverture de l'aperçu).
+    <div
+      ref={measure}
+      className={sheetClass}
+      data-theme-export={th}
+      style={paper ? { padding: '0 12mm', width: `${paperW}mm`, boxSizing: 'border-box', position: 'absolute', visibility: 'hidden', pointerEvents: 'none' } : undefined}
+    >
       {title}
       <table className={s.table} data-testid={paper ? undefined : 'export-table'}>
         {head(cols)}
