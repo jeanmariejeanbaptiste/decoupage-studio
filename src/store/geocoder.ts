@@ -51,9 +51,14 @@ function nextWanted(doc: ProjectDoc | null): MapPlace | undefined {
 
 const stillWanted = (key: string) => [...owners.values()].some((m) => m.has(key));
 
-async function lookup(query: string): Promise<{ lat: number; lon: number } | null> {
+/** Recherche interrompue pendant l'attente (carte masquée, hors ligne) : rien n'est demandé. */
+const STOPPED = Symbol('interrompu');
+
+async function lookup(query: string, stillOk: () => boolean): Promise<{ lat: number; lon: number } | null | typeof STOPPED> {
   const wait = last + MIN_GAP - Date.now();
   if (wait > 0) await sleep(wait);
+  // L'attente peut durer (jusqu'à 30 s après un refus 429) : tout est revérifié avant d'envoyer.
+  if (!stillOk()) return STOPPED;
   last = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
@@ -91,9 +96,11 @@ async function pump(): Promise<void> {
       let entry: GeocodeEntry | undefined;
       try {
         const queries = geocodeQueries(place);
+        const stillOk = () => stillWanted(place.key) && online();
         for (let i = 0; i < queries.length; i++) {
-          if (!stillWanted(place.key) || !online()) break;
-          const hit = await lookup(queries[i]);
+          if (!stillOk()) break;
+          const hit = await lookup(queries[i], stillOk);
+          if (hit === STOPPED) break;
           if (hit) entry = { address: place.address, ...hit };
           else if (i === queries.length - 1) entry = { address: place.address, missing: true };
           if (entry) break;
