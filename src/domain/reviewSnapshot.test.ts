@@ -66,6 +66,9 @@ describe('instantané de relecture', () => {
       expect(text, secret).not.toContain(secret);
     expect(snap.doc.intentionHtml).toBeUndefined();
     expect(snap.doc.schedule).toBeUndefined();
+    // Résumés des séquences (dépouillement, documents de production) : rien ne les montre au relecteur.
+    expect(Object.values(doc.sequences).some((sq) => sq.summary)).toBe(true);
+    expect(Object.values(snap.doc.sequences).filter((sq) => sq.summary !== undefined)).toEqual([]);
     expect(snap.doc.review).toBeUndefined();
     // Ce qui sert à relire est là.
     expect(snap.doc.scenario).toBe(publicScript(doc.scenario!));

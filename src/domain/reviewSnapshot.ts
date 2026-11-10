@@ -244,11 +244,13 @@ export function reviewDoc(doc: ProjectDoc): ProjectDoc {
   for (const [id, d] of Object.entries(doc.decors)) decors[id] = { id, name: d.name, ...(d.intExt ? { intExt: d.intExt } : {}) };
   const shots: Record<ID, Shot> = {};
   for (const [id, sh] of Object.entries(doc.shots)) shots[id] = reviewShot(sh, shown);
-  // Séquences : sans le créneau de tournage (plan de travail).
+  // Séquences : sans le créneau de tournage (plan de travail) ni le résumé (aide privée, montrée
+  // seulement au dépouillement et dans les documents de production).
   const sequences: Record<ID, Sequence> = {};
   for (const [id, sq] of Object.entries(doc.sequences)) {
     const out = copy(sq);
     delete out.slot;
+    delete out.summary;
     sequences[id] = out;
   }
   const out: ProjectDoc = {
