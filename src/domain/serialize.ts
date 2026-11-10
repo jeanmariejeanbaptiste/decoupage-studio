@@ -7,6 +7,7 @@ import { adoptUnversionedComments, commentAttachments } from './comments';
 import { migrateDecorLocations } from './locations';
 import { migrateBreakdownCharacters } from './breakdown';
 import { normalizeProduction, syncProduction } from './production';
+import { normalizeCalendar } from './calendar';
 import { ensureDayIds } from './schedule';
 import { activeColumns } from './columns';
 import { normalizeTiming } from './factory';
@@ -184,6 +185,7 @@ export function migrate(input: ProjectDoc): ProjectDoc {
   syncInterviewShots(doc);
   // Calendrier de production relu : données abîmées écartées, étape liée recalée sur le plan de travail.
   normalizeProduction(doc);
+  normalizeCalendar(doc);
   syncProduction(doc);
   ensureDayIds(doc);
   return doc;

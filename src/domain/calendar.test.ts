@@ -22,6 +22,7 @@ import {
   periodTitle,
   removeEvent,
   shiftAnchor,
+  shiftStart,
   updateEvent,
   weekDays,
   weekday,
@@ -95,11 +96,60 @@ describe('éléments du calendrier', () => {
   it('passe du formulaire au rendez-vous et retour', () => {
     const f = newEventFields('2026-11-10', 14);
     expect(f).toMatchObject({ start: '14:00', end: '15:00', allDay: false, kind: 'rdv' });
-    expect(eventFromFields({ ...f, title: ' Repérages ', end: '13:00' })).toEqual({ title: 'Repérages', kind: 'rdv', note: undefined, start: '2026-11-10T14:00', end: '2026-11-10T15:00' });
+    expect(eventFromFields({ ...f, title: ' Repérages ', end: '14:00' })).toEqual({ title: 'Repérages', kind: 'rdv', note: undefined, start: '2026-11-10T14:00', end: '2026-11-10T15:00' });
     const allDay = eventFromFields({ ...f, allDay: true, endDate: '2026-11-12', note: 'Lycée' });
     expect(allDay).toMatchObject({ start: '2026-11-10', end: '2026-11-12', allDay: true, note: 'Lycée', title: 'Sans titre' });
     expect(eventFields({ id: 'x', ...allDay })).toMatchObject({ date: '2026-11-10', endDate: '2026-11-12', allDay: true, note: 'Lycée' });
     expect(eventFields({ id: 'y', title: 'A', start: '2026-11-10T08:15', end: '2026-11-10T09:45' })).toMatchObject({ start: '08:15', end: '09:45', allDay: false, kind: 'autre' });
+  });
+
+  it('tournage de nuit : la fin avant le début tombe le lendemain, minuit compris', () => {
+    const f = { ...newEventFields('2026-11-10', 20), title: 'Tournage de nuit', end: '02:00' };
+    const ev = eventFromFields(f);
+    expect(ev).toMatchObject({ start: '2026-11-10T20:00', end: '2026-11-11T02:00' });
+    expect(eventItem({ id: 'n', ...ev })).toMatchObject({ date: '2026-11-10', endDate: '2026-11-11', start: '20:00', end: '02:00', allDay: false });
+    expect(eventFromFields(eventFields({ id: 'n', ...ev }))).toEqual(ev);
+    const late = eventFromFields({ ...f, start: '22:00', end: '00:00' });
+    expect(late.end).toBe('2026-11-11T00:00');
+    // Fin à minuit : le lendemain reste libre, et la fenêtre relit « 00:00 ».
+    expect(eventItem({ id: 'm', ...late })).toMatchObject({ endDate: '2026-11-10', end: '23:59' });
+    expect(eventFields({ id: 'm', ...late }).end).toBe('00:00');
+    expect(eventFromFields(eventFields({ id: 'm', ...late }))).toEqual(late);
+  });
+
+  it('changer le début ou la date décale la fin du même écart', () => {
+    const f = { ...newEventFields('2026-11-10', 9), end: '10:30' };
+    expect(shiftStart(f, { start: '15:00' })).toMatchObject({ start: '15:00', end: '16:30' });
+    expect(shiftStart(f, { start: '23:00' })).toMatchObject({ start: '23:00', end: '00:30' });
+    const night = { ...f, start: '20:00', end: '02:00' };
+    expect(shiftStart(night, { start: '21:00' }).end).toBe('03:00');
+    const allDay = { ...f, allDay: true, endDate: '2026-11-12' };
+    expect(shiftStart(allDay, { date: '2026-11-20' })).toMatchObject({ date: '2026-11-20', endDate: '2026-11-22' });
+  });
+
+  it('relit des rendez-vous abîmés sans planter, garde les autres à l’identique', async () => {
+    const { migrate } = await import('./serialize');
+    const good = [
+      { id: 'a', title: 'Lecture', start: '2026-11-12T10:00', end: '2026-11-12T12:00', kind: 'prep' as const },
+      { id: 'b', title: 'Repérages', start: '2026-11-13', end: '2026-11-15', allDay: true, note: 'Bretagne' },
+    ];
+    const doc = {
+      ...buildRav3(),
+      calendar: [
+        ...good,
+        null,
+        { id: 'x', title: 3, start: 20270101 },
+        { id: 'y', start: '2026-11-20T25:99', kind: 'inconnu', note: 4, end: 'jamais' },
+        { title: 'Sans id', start: '2026-11-20' },
+        { id: 'a', title: 'Double', start: '2026-11-21' },
+      ],
+    } as unknown as ReturnType<typeof buildRav3>;
+    const out = migrate(doc);
+    expect(out.calendar).toEqual([...good, { id: 'y', title: 'Sans titre', start: '2026-11-20', allDay: true }]);
+    expect(() => calendarItems(out)).not.toThrow();
+    expect(eventsOn(out, '2026-11-20').map((it) => it.title)).toEqual(['Sans titre']);
+    const none = migrate({ ...buildRav3(), calendar: 'x' } as unknown as ReturnType<typeof buildRav3>);
+    expect(none.calendar).toBeUndefined();
   });
 
   it('montre les jours de tournage datés : « Jour n · décors », RDV', () => {
@@ -210,5 +260,18 @@ describe('export iCalendar : identifiants des jours de tournage', () => {
       for (const x of d.schedule!.days) delete x.id;
     });
     expect(migrate(old).schedule!.days.every((x) => !!x.id)).toBe(true);
+  });
+
+  it('rendez-vous et étapes : propres au projet, stables quand on les modifie', () => {
+    const build = (id: string, title = 'Lecture') =>
+      produce(buildRav3(), (d) => {
+        d.project.id = id;
+        d.calendar = [{ id: 'e1', title, start: '2026-11-12T10:00' }];
+        d.production = { phases: [{ id: 'p', name: 'P', tasks: [{ id: 't1', name: 'T', start: '2026-11-01', end: '2026-11-05' }] }] };
+      });
+    const uids = (doc: ReturnType<typeof buildRav3>) => [...calendarIcs(calendarItems(doc), 'x').matchAll(/UID:([^@]+)@/g)].map((m) => m[1]);
+    expect(uids(build('a'))).toEqual(['rdv-a-e1', 'etape-a-t1']);
+    expect(uids(build('a')).some((u) => uids(build('b')).includes(u))).toBe(false);
+    expect(uids(build('a', 'Autre titre'))).toEqual(uids(build('a')));
   });
 });
