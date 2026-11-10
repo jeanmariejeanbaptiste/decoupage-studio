@@ -1026,7 +1026,8 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   // En quittant l'éditeur, le sommaire et les statistiques restent (vue Découpage) ; la sélection, non.
   useEffect(() => () => useScriptUi.setState({ activeType: null, selection: null, activeHeading: null }), []);
 
-  // --- Passages liés au découpage : surlignés sans toucher au texte (CSS Custom Highlight API) ---
+  // --- Passage du plan désigné (survol) et passages commentés : surlignés sans toucher au texte (CSS Custom
+  // Highlight API). Les passages déjà repris au découpage ne portent aucune marque. ---
   useLayoutEffect(() => {
     const el = root.current;
     const reg = (globalThis as { CSS?: { highlights?: Map<string, unknown> } }).CSS?.highlights;
@@ -1037,13 +1038,10 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       const y = sourceToCaret(sdoc.blocks, ser.spans, a.end);
       return x && y ? domRange(el, x, y) : null;
     };
-    const all = anchors.map(toRange).filter((r): r is Range => !!r);
     const hotRanges = anchors.filter((a) => a.id === hot).map(toRange).filter((r): r is Range => !!r);
-    reg.set('ds-linked', new HighlightCtor(...all));
     reg.set('ds-linked-hot', new HighlightCtor(...hotRanges));
     reg.set('ds-comment', new HighlightCtor(...(comments ?? []).map((c) => toRange({ start: c.start, end: Math.max(c.end, c.start + 1) })).filter((r): r is Range => !!r)));
     return () => {
-      reg.delete('ds-linked');
       reg.delete('ds-linked-hot');
       reg.delete('ds-comment');
     };

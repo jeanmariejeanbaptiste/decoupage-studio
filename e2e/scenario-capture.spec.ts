@@ -72,7 +72,11 @@ test('scénario vers la cellule Action : seulement en saisie, au curseur, lié a
   await expect(action).toContainText(`${picked} ${fifthText} Fin.`);
   await expect(rows).toHaveCount(n);
   await expect(panel.getByTestId('capture-target')).toHaveCount(0);
-  await expect(panel.getByTestId('script-sentence').nth(2)).toHaveClass(/linked/);
+  // Le passage est lié à l'action du plan (aucune marque dans le lecteur).
+  await expect
+    .poll(() => page.evaluate(() => Object.values((window as unknown as { __ds: { doc: () => { blocks: Record<string, { scenarioAnchor?: unknown }> } } }).__ds.doc().blocks).filter((b) => b.scenarioAnchor).length))
+    .toBeGreaterThan(0);
+  await expect(panel.locator('[class*="linked"]')).toHaveCount(0);
   // Un seul pas d'annulation.
   await page.keyboard.press('ControlOrMeta+z');
   await expect(action).toHaveText(before);

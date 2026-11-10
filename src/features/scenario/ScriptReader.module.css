@@ -16,7 +16,6 @@
 .reply { position: relative; margin: 12pt 0 11pt; padding: 1px 0; border-radius: 3px; }
 .reply:hover { background: color-mix(in srgb, var(--rust) 6%, transparent); }
 .reply p:last-of-type { margin-bottom: 0; }
-.linked { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--rust) 45%, transparent); }
 
 /* « + » discret : en fin de phrase au survol, en exposant comme un accent. */
 .plus { display: none; width: 15px; height: 15px; margin: 0 0 0 3px; padding: 0; border: 1px solid var(--rust); border-radius: 50%; background: var(--paper-card); color: var(--rust); cursor: pointer; vertical-align: super; font-family: var(--font-ui, sans-serif); font-size: 11px; line-height: 12px; text-align: center; }

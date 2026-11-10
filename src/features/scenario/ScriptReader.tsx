@@ -60,14 +60,6 @@ function offsetOf(node: Node, offset: number): number | null {
 export function ScriptReader({ doc, source, className, capture }: { doc: ProjectDoc; source: string; className?: string; capture?: boolean }) {
   const elements = useMemo(() => parseFountain(source), [source]);
   const sentences = useMemo(() => sentencesOf(source, elements), [source, elements]);
-  const anchors = useMemo(
-    () =>
-      Object.values(doc.blocks)
-        .map((b) => b.scenarioAnchor)
-        .filter((a): a is { start: number; end: number } => !!a && a.end > a.start),
-    [doc.blocks],
-  );
-  const linked = (a: number, b: number) => anchors.some((x) => a < x.end && b > x.start);
   const root = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<{ start: number; end: number; x: number; y: number } | null>(null);
 
@@ -119,7 +111,7 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
       while (elements[i + 1] && (elements[i + 1].type === 'dialogue' || elements[i + 1].type === 'parenthetical')) group.push(elements[++i]);
       const end = group[group.length - 1].end;
       blocks.push(
-        <div key={el.start} className={[s.reply, linked(el.start, end) ? s.linked : ''].join(' ')} data-testid="script-reply">
+        <div key={el.start} className={s.reply} data-testid="script-reply">
           {group.map((g) => (
             <p key={g.start} className={s[`el_${g.type}`]}>
               {seg(g.text, g.start, 0)}
@@ -137,7 +129,7 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
         if (sn.kind !== 'action' || sn.start < el.start || sn.end > el.end) continue;
         if (sn.start > pos) parts.push(seg(source.slice(pos, sn.start), pos, `g${pos}`));
         parts.push(
-          <span key={sn.start} className={[s.sentence, linked(sn.start, sn.end) ? s.linked : ''].join(' ')} data-testid="script-sentence">
+          <span key={sn.start} className={s.sentence} data-testid="script-sentence">
             {seg(source.slice(sn.start, sn.end), sn.start, 0)}
             {plus(sn.start, sn.end, `Ajouter « ${source.slice(sn.start, sn.end).slice(0, 40)} » au découpage`)}
           </span>,
