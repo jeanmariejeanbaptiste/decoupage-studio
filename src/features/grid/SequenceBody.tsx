@@ -158,7 +158,8 @@ export function SequenceBody({
                 {seqNumber}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
               </span>
               <SeqMeta doc={doc} seqId={seq.seqId} />
-              <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} />
+              {/* Sans plan, la ligne reste compacte : la durée n'y figure que si elle est estimée. */}
+              {sequence?.estimatedSec !== undefined && <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} />}
             </div>
           </td>
           <td className={s.gutter} aria-hidden="true" />

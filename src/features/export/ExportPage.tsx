@@ -18,12 +18,12 @@ import s from './ExportPage.module.css';
 
 const ALL: ColumnKey[] = [...ALL_COLUMNS];
 
-/** Tableaux du projet, chacun en CSV : nom du fichier, intitulé, contenu, compte. */
+/** Tableaux du projet, chacun en CSV : nom du fichier, intitulé, contenu, nombre de lignes. */
 const TABLES = [
-  { key: 'sequences', label: 'Séquences', csv: sequencesCsv, count: (d: ProjectDoc) => d.project.sequenceIds.length, unit: ['séquence', 'séquences'] },
-  { key: 'personnages', label: 'Personnages', csv: charactersCsv, count: (d: ProjectDoc) => Object.keys(d.characters).length, unit: ['personnage', 'personnages'] },
-  { key: 'decors', label: 'Décors', csv: decorsCsv, count: (d: ProjectDoc) => Object.keys(d.decors).length, unit: ['décor', 'décors'] },
-  { key: 'plans', label: 'Plans', csv: shotsCsv, count: (d: ProjectDoc) => Object.keys(d.shots).length, unit: ['plan', 'plans'] },
+  { key: 'sequences', label: 'Séquences', csv: sequencesCsv, count: (d: ProjectDoc) => d.project.sequenceIds.length },
+  { key: 'personnages', label: 'Personnages', csv: charactersCsv, count: (d: ProjectDoc) => Object.keys(d.characters).length },
+  { key: 'decors', label: 'Décors', csv: decorsCsv, count: (d: ProjectDoc) => Object.keys(d.decors).length },
+  { key: 'plans', label: 'Plans', csv: shotsCsv, count: (d: ProjectDoc) => Object.keys(d.shots).length },
 ] as const;
 
 export function ExportPage({ doc }: { doc: ProjectDoc }) {
@@ -185,11 +185,9 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
           const n = t.count(doc);
           return (
             <div key={t.key} className={s.fileRow} data-view>
-              <div>
+              <div className={s.tableName}>
                 <strong>{t.label}</strong>
-                <span>
-                  {n} {t.unit[n > 1 ? 1 : 0]}
-                </span>
+                <span>{n}</span>
               </div>
               <Button
                 variant="outline"
