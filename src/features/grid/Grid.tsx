@@ -20,6 +20,7 @@ import {
   newShotBelow,
   pasteMatrix, insertSequenceAt } from './actions';
 import type { CommitMove } from './CellEditor';
+import type { PickedRange } from './scriptCapture';
 import { cellSpan, moveCell, selectionRect, type GridModel } from './gridModel';
 import { SeqAddRows, SequenceBody } from './SequenceBody';
 import s from './Grid.module.css';
@@ -138,12 +139,12 @@ export function Grid({ doc, model, animate = false }: Props) {
     setEditing({ pos: anchor, initial });
   };
 
-  const onCommit = (text: string, move: CommitMove) => {
+  const onCommit = (text: string, move: CommitMove, picked?: PickedRange[]) => {
     const e = useUi.getState().editing;
     if (!e) return;
     const shotId = model.rows[e.pos.row]?.shotId;
     setEditing(null);
-    if (shotId) commitCell(shotId, e.pos.col, text);
+    if (shotId) commitCell(shotId, e.pos.col, text, picked);
     if (move !== 'none') {
       // Le modèle courant suffit : les lignes ne changent pas lors d'une simple édition.
       const next = moveCell(doc, model, e.pos, move, true);

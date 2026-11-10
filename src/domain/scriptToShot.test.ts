@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
-import { chronologicalIndex, createShotFromPassage, passageOf, sentencesOf, upperName } from './scriptToShot';
+import { addSequence, addShot } from './ops';
+import { anchorShotToPassages, chronologicalIndex, createShotFromPassage, passageInsertText, passageOf, sentencesOf, upperName } from './scriptToShot';
 
 const SCRIPT = `INT. ENTREPRISE - JOUR
 
@@ -200,5 +201,35 @@ describe('minutage', () => {
   it('ne compte pas les repères de réplique', async () => {
     const { countWords } = await import('./text');
     expect(countWords('Elle entre. [Rép (ton saccadé)]. Elle sort. [Rép]. Fin.')).toBe(5);
+  });
+});
+
+describe('passages versés dans une cellule Action', () => {
+  const setup = () => {
+    const doc = createProjectDoc({ title: 't', format: 'fiction' });
+    doc.scenario = SCRIPT;
+    const seq = addSequence(doc, undefined, { label: 'x' }, false);
+    const shot = addShot(doc, seq);
+    return { doc, shot };
+  };
+  it('texte versé : l’action seule, sinon la réplique', () => {
+    const { doc } = setup();
+    expect(passageInsertText(doc, SCRIPT, ...at('Elle est seule. Devant'))).toBe('Elle est seule. Devant');
+    expect(passageInsertText(doc, SCRIPT, ...at('Tu es en avance'))).toBe('MARC : Tu es en avance');
+  });
+  it('ancre posée, étendue dans la même scène, laissée telle quelle dans une autre', () => {
+    const { doc, shot } = setup();
+    const block = () => doc.blocks[doc.shots[shot].actionBlockId];
+    const [a, b] = at('Elle est seule.');
+    anchorShotToPassages(doc, shot, [{ start: a, end: b }]);
+    expect(block().scenarioAnchor).toEqual({ start: a, end: b });
+    const [c, d] = at('Devant elle, plusieurs chaises.');
+    anchorShotToPassages(doc, shot, [{ start: c, end: d }]);
+    expect(block().scenarioAnchor).toEqual({ start: a, end: d });
+    anchorShotToPassages(doc, shot, [{ start: at('LÉA traverse')[0], end: at('LÉA traverse')[1] }]);
+    expect(block().scenarioAnchor).toEqual({ start: a, end: d });
+    // Passage hors du texte : ignoré.
+    anchorShotToPassages(doc, shot, [{ start: 0, end: SCRIPT.length + 5 }]);
+    expect(block().scenarioAnchor).toEqual({ start: a, end: d });
   });
 });
