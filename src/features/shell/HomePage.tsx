@@ -22,6 +22,12 @@ const FORMAT_LABEL: Record<string, string> = {
 };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+const dateYearFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+/** « 10 nov. » dans l'année, « 10 nov. 2025 » au-delà. */
+const formatDay = (iso: string) => {
+  const d = new Date(iso);
+  return (d.getFullYear() === new Date().getFullYear() ? dateFmt : dateYearFmt).format(d);
+};
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
@@ -147,7 +153,7 @@ export function HomePage() {
                   <span className={s.cardTitle}>{p.title}</span>
                   <span className={s.cardMeta}>
                     {p.sequences} séq. · {p.shots} plan{p.shots > 1 ? 's' : ''} ·{' '}
-                    {dateFmt.format(new Date(p.updatedAt))}
+                    {formatDay(p.updatedAt)}
                   </span>
                 </button>
                 <button
