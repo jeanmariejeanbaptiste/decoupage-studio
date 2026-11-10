@@ -7,6 +7,7 @@ import { apply, type Op } from '../domain/patch';
 import type { ProjectDoc } from '../domain/types';
 import { syncInterviewShots } from '../domain/interview';
 import { syncProduction } from '../domain/production';
+import { useUi } from './uiStore';
 
 interface ProjectState {
   doc: ProjectDoc | null;
@@ -41,6 +42,7 @@ export const useProjectStore = create<ProjectState>()(
         });
         // Rien n'a changé (saisie refusée, valeur identique) : pas d'étape d'annulation vide.
         if (next === cur) return;
+        dropUndoToasts();
         set({
           doc: produce(next, (d) => {
             // Institutionnel : les plans d'interview suivent la fiche (caméras, intervenant, place).
@@ -69,12 +71,25 @@ export function mutateDoc<T>(recipe: (doc: ProjectDoc) => T): T | undefined {
   return out;
 }
 
+/**
+ * Toasts « Annuler » : leur bouton annule la dernière étape. Une autre modification (ou une
+ * annulation) les rend faux : ils se ferment, pour ne jamais annuler autre chose que leur action.
+ */
+function dropUndoToasts(): void {
+  const ui = useUi.getState();
+  for (const t of ui.toasts) if (t.action === undo) ui.dismissToast(t.id);
+}
+
 /** Annuler / rétablir : sans effet pour un invité en lecture seule. */
 export const undo = () => {
-  if (canMutate()) useProjectStore.temporal.getState().undo();
+  if (!canMutate()) return;
+  dropUndoToasts();
+  useProjectStore.temporal.getState().undo();
 };
 export const redo = () => {
-  if (canMutate()) useProjectStore.temporal.getState().redo();
+  if (!canMutate()) return;
+  dropUndoToasts();
+  useProjectStore.temporal.getState().redo();
 };
 
 export function useHistory() {

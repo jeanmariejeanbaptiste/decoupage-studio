@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { produce } from 'immer';
 import { buildFiction } from '../../seed/fiction';
-import { callSheetDocument } from './documents';
-import { callSheetCsv } from './exports';
+import { callSheetDocument, scheduleDocument } from './documents';
+import { callSheetCsv, scheduleCsv } from './exports';
 import { characterNumbers } from './registry';
-import { addBanner, dayAgenda, dayKeyTimes, moveBanner, setDayMeal, updateDay } from './schedule';
+import { buildRav3 } from '../../seed/rav3';
+import { addBanner, callSheetAgenda, dayAgenda, dayKeyTimes, assignShots, moveBanner, placeShot, setDayMeal, suggestSchedule, updateBanner, updateDay } from './schedule';
 
 describe('feuille de service au format professionnel', () => {
   it('en-tête en trois blocs, séquences, comédiens numérotés, besoins des postes, prévisions', () => {
@@ -95,5 +96,128 @@ describe('repas et reprise : de … à …', () => {
     expect(dayKeyTimes(legacy, 1).meal).toMatchObject({ start: '13:00', end: '14:00' });
     const moved = produce(legacy, (d) => setDayMeal(d, 1, { end: '13:30' }));
     expect(moved.schedule!.days[0].banners![0]).toMatchObject({ start: '13:00', minutes: 30 });
+  });
+});
+
+describe('plan de travail et feuille de service : un seul déroulé', () => {
+  const meal = (ag: ReturnType<typeof dayAgenda>) => ag.find((x) => x.type === 'banner' && x.banner.kind === 'repas');
+  const times = (ag: ReturnType<typeof dayAgenda>) => ag.map((x) => [x.type === 'strip' ? x.strip.seqId : x.banner.id, x.start, x.end]);
+
+  it('mêmes horaires (repas, fin) depuis les deux pages, avant et après la saisie du repas', () => {
+    const a = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      updateDay(d, 1, { callTime: '08:00' });
+      addBanner(d, 1, 'repas');
+      const first = Object.values(d.shots).find((s) => s.shootingDay === 1)!;
+      placeShot(d, 1, first.id, '09:00');
+    });
+    const plan = dayAgenda(a, 1);
+    const sheet = callSheetAgenda(a, 1);
+    // La feuille ne garde que les bandes placées, mais chacune à l'horaire du plan de travail.
+    expect(sheet.length).toBeLessThan(plan.length);
+    for (const row of times(sheet)) expect(times(plan)).toContainEqual(row);
+    const k = dayKeyTimes(a, 1);
+    expect(k.meal).toMatchObject({ start: meal(plan)!.start, end: meal(plan)!.end });
+    expect(meal(sheet)).toMatchObject({ start: meal(plan)!.start, end: meal(plan)!.end });
+    // Bande en partie placée : elle ne se réduit pas à la plage de son seul plan placé.
+    const strip = plan.find((x) => x.type === 'strip' && x.start === '09:00')!;
+    expect(strip.end).not.toBe('09:30');
+    // Fin du repas saisie sur la feuille : les deux pages la lisent pareil.
+    const b = produce(a, (d) => setDayMeal(d, 1, { end: '13:00' }));
+    expect(dayKeyTimes(b, 1).meal?.end).toBe('13:00');
+    expect(meal(dayAgenda(b, 1))!.end).toBe('13:00');
+    expect(meal(callSheetAgenda(b, 1))!.end).toBe('13:00');
+    expect(dayKeyTimes(b, 1).meal!.end).toBe(meal(dayAgenda(b, 1))!.end);
+  });
+});
+
+describe('tournage de nuit', () => {
+  it('aucune heure au-delà de 24 h affichée ni exportée ; la saisie se lit après le rendez-vous', () => {
+    let meal = '';
+    const doc = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      updateDay(d, 1, { callTime: '20:00' });
+      meal = addBanner(d, 1, 'repas');
+    });
+    const ag = dayAgenda(doc, 1);
+    // Les calculs gardent des minutes non bouclées…
+    expect(ag.some((x) => x.end && x.end > '24:00')).toBe(true);
+    // … que rien n'affiche tel quel.
+    const late = /\b(2[4-9]|3\d|4[0-7]):[0-5]\d\b/;
+    for (const text of [callSheetDocument(doc, 1).html, scheduleDocument(doc).html, callSheetCsv(doc, 1), scheduleCsv(doc)]) {
+      expect(text).not.toMatch(late);
+      expect(text).toContain('(+1)');
+    }
+    const k = dayKeyTimes(doc, 1);
+    const m = ag.find((x) => x.type === 'banner')!;
+    expect(k.meal).toMatchObject({ start: m.start, end: m.end });
+    // Saisie d'un début à 02:00 un jour à RDV 20:00 : le lendemain, pas avant le rendez-vous.
+    const set = produce(doc, (d) => updateBanner(d, 1, meal, { start: '02:00' }));
+    expect(set.schedule!.days.find((x) => x.n === 1)!.banners![0].start).toBe('26:00');
+  });
+});
+
+describe('repas ajouté au déroulé', () => {
+  it('se place à midi, et la reprise ne dure jamais zéro minute', () => {
+    const doc = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      updateDay(d, 1, { callTime: '08:00' });
+      addBanner(d, 1, 'repas');
+    });
+    const ag = dayAgenda(doc, 1);
+    const i = ag.findIndex((x) => x.type === 'banner');
+    const before = ag[i - 1];
+    // Bandes 08:00–11:00 puis 11:00–15:00 : le repas suit la première (fin la plus proche de midi).
+    expect(before).toMatchObject({ type: 'strip', end: '11:00' });
+    expect(i).toBeLessThan(ag.length - 1);
+    const k = dayKeyTimes(doc, 1);
+    expect(k.restart?.start).toBe(ag[i + 1].start);
+    expect(k.restart?.end).toBe(ag.at(-1)!.end);
+    // Sans horaire : après la bande du milieu. Les autres bandeaux restent en fin de journée.
+    const bare = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 15);
+      addBanner(d, 1, 'repas');
+      addBanner(d, 1, 'trajet');
+    });
+    const ag2 = dayAgenda(bare, 1);
+    const strips = ag2.filter((x) => x.type === 'strip').length;
+    expect(ag2.findIndex((x) => x.type === 'banner' && x.banner.kind === 'repas')).toBe(Math.ceil(strips / 2));
+    expect(ag2.at(-1)).toMatchObject({ type: 'banner', banner: { kind: 'trajet' } });
+  });
+
+  it('repas en fin de journée : pas de reprise de 16:00 à 16:00, ni de nuit de 04:00 à 04:00', () => {
+    for (const call of ['08:00', '20:00']) {
+      const doc = produce(buildRav3(), (d) => {
+        suggestSchedule(d, 15);
+        updateDay(d, 1, { callTime: call });
+        const id = addBanner(d, 1, 'trajet');
+        d.schedule!.days.find((x) => x.n === 1)!.banners!.find((b) => b.id === id)!.kind = 'repas';
+      });
+      const k = dayKeyTimes(doc, 1);
+      expect(k.meal).toBeDefined();
+      expect(k.restart).toBeUndefined();
+      expect(callSheetDocument(doc, 1).html).not.toContain('<th>Reprise</th>');
+    }
+  });
+});
+
+describe('feuille de service : distribution d’une séquence coupée sur deux jours', () => {
+  it('la ligne de séquence ne cite que les comédiens des plans du jour, comme le tableau Comédiens', () => {
+    const base = buildFiction();
+    const seqId = base.project.sequenceIds.find((id) => base.sequences[id].shotIds.length >= 2)!;
+    const [first, ...rest] = base.sequences[seqId].shotIds;
+    const extra = Object.values(base.characters).find((c) => !base.sequences[seqId].characterIds.includes(c.id) && !base.shots[first].characterIds.includes(c.id))!;
+    const doc = produce(base, (d) => {
+      for (const id of rest) d.shots[id].characterIds = d.shots[id].characterIds.filter((c) => c !== extra.id);
+      d.shots[rest[0]].characterIds.push(extra.id);
+      assignShots(d, [first], 1);
+      assignShots(d, rest, 2);
+    });
+    const n = characterNumbers(doc).get(extra.id)!;
+    const html = callSheetDocument(doc, 1).html;
+    const row = html.slice(html.indexOf('<h3>Séquences</h3>'), html.indexOf('<h3>Plans</h3>'));
+    const cell = [...row.matchAll(/<td>([\d, ]*)<\/td><td class="time">\d+ pl\./g)].map((m) => m[1].split(', ').filter(Boolean).map(Number));
+    expect(cell.flat()).not.toContain(n);
+    expect(callSheetDocument(doc, 2).html).toContain(extra.name);
   });
 });

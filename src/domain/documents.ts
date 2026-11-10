@@ -11,7 +11,7 @@ import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
-import { bannerLabel, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
+import { bannerLabel, showTime, callSheetAgenda, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
 import { decorLocation } from './locations';
 import { cleanAddress, routeUrl, storedGeocode } from './geo';
 import { formatTc } from './timecode';
@@ -123,7 +123,8 @@ function tone(doc: ProjectDoc, seqId: string): string {
   return t === 'int-day' ? '' : `tone-${t}`;
 }
 
-const slotText = (slot?: { start?: string; end?: string }) => (slot?.start || slot?.end ? `${slot.start ?? '…'} – ${slot.end ?? '…'}` : '');
+/** Plage horaire imprimée ; après minuit : « 01:30 (+1) ». */
+const slotText = (slot?: { start?: string; end?: string }) => (slot?.start || slot?.end ? `${showTime(slot.start) || '…'} – ${showTime(slot.end) || '…'}` : '');
 
 /** Ligne d'un bandeau (installation, trajet, repas, pause) dans un tableau horaire. */
 const bannerRow = (it: Extract<AgendaItem, { type: 'banner' }>, span: number) =>
@@ -170,16 +171,16 @@ export function callSheetDocument(doc: ProjectDoc, day: number): DocPage {
   const nums = characterNumbers(doc);
   const date = d?.date ? new Date(`${d.date}T12:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Date à préciser';
   const cell = (label: string, value?: string) => (value ? `<tr><th>${esc(label)}</th><td class="time">${esc(value)}</td></tr>` : '');
-  const agenda = dayAgenda(doc, day, strips);
+  const agenda = callSheetAgenda(doc, day);
   // Repas, reprise et fin prévue : saisis sur la feuille, sinon déduits du déroulé (bandeau « Repas », dernière bande).
-  const keys = dayKeyTimes(doc, day, agenda);
-  const range = (a: string, b?: string) => (b ? `de ${a} à ${b}` : a);
+  const keys = dayKeyTimes(doc, day);
+  const range = (a: string, b?: string) => (b ? `de ${showTime(a)} à ${showTime(b)}` : showTime(a));
   const events = [
     cell('Rendez-vous', d?.callTime),
     cell('Prêt à tourner', d?.pat),
     keys.meal && cell('Repas', range(keys.meal.start, keys.meal.end)),
     keys.restart && cell('Reprise', range(keys.restart.start, keys.restart.end)),
-    !keys.restart?.end && cell('Fin prévue', keys.wrap),
+    !keys.restart?.end && cell('Fin prévue', showTime(keys.wrap)),
   ]
     .filter(Boolean)
     .join('');
@@ -201,13 +202,13 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
       const r = it.start ? it : undefined;
       const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
       const heading = [[seq?.intExt, decor?.name ?? seq?.label].filter(Boolean).join('. '), seq?.effect].filter(Boolean).join(' — ');
-      const cast = sequenceCharacterIds(doc, strip.seqId).map((id) => nums.get(id)).filter((n): n is number => !!n).sort((a, b) => a - b);
+      const cast = stripCharacterIds(doc, strip).map((id) => nums.get(id)).filter((n): n is number => !!n).sort((a, b) => a - b);
       const dur = strip.shotIds.reduce((n, id) => n + (doc.shots[id] ? (timing.blocks.get(doc.shots[id].actionBlockId)?.durationSec ?? 0) / Math.max(1, strip.shotIds.length) : 0), 0);
       const loc = decorLocation(decor);
       // Lieu de tournage : nom, adresse (celle du jour d'abord), accès et contact.
       const address = d?.seqAddresses?.[strip.seqId] ?? (seq?.decorId ? d?.addresses?.[seq.decorId] : undefined) ?? loc.address ?? '';
       const place = [loc.name && `<b>${esc(loc.name)}</b>`, esc(address), address.trim() && routeLink(doc, address), loc.access && `<span class="muted">Accès : ${esc(loc.access)}</span>`, loc.contact && `<span class="muted">Contact : ${esc(loc.contact)}</span>`].filter(Boolean).join('<br>');
-      return `<tr><td class="time">${r ? `${r.start} – ${r.end}` : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${seq?.summary ? `<br><span class="muted">${esc(seq.summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
+      return `<tr><td class="time">${r ? esc(slotText(r)) : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${seq?.summary ? `<br><span class="muted">${esc(seq.summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
     })
     .join('');
   const scenes = `<h3>Séquences</h3><table><thead><tr><th>Horaire</th><th>Séq.</th><th>Description</th><th>Personnages</th><th>Plans · durée</th><th>Lieu de tournage</th></tr></thead><tbody>${seqRows || '<tr><td colspan="6" class="muted">Aucune séquence ce jour.</td></tr>'}</tbody></table>`;

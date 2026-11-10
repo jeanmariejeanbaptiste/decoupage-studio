@@ -6,17 +6,18 @@ import { formatFocal } from '../../domain/focal';
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import {
   bannerLabel,
+  callSheetAgenda,
   callSheetStrips,
-  dayAgenda,
+  clockTime,
   dayItinerary,
   dayKeyTimes,
   dayStats,
   scheduleDays,
   firstSlot,
-  fromMin,
+  plural,
   setDayMeal,
   shotSlotsText,
-  toMin,
+  showTime,
   updateDay,
 } from '../../domain/schedule';
 import { formatTc } from '../../domain/timecode';
@@ -74,17 +75,17 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const strips = callSheetStrips(doc, day.n);
   const stats = dayStats(doc, timing, day.n, strips);
   const itinerary = dayItinerary(doc, day.n);
-  const agenda = dayAgenda(doc, day.n, strips);
+  const agenda = callSheetAgenda(doc, day.n);
   const shotIds = strips.flatMap((x) => x.shotIds);
   const equipment = aggregateEquipment(doc);
   const set = (patch: Parameters<typeof updateDay>[2]) => mutateDoc((d) => updateDay(d, day.n, patch));
   const nums = characterNumbers(doc);
-  const keys = dayKeyTimes(doc, day.n, agenda);
+  const keys = dayKeyTimes(doc, day.n);
   const wrapInput = (
     <input
       type="time"
       className={keys.wrapComputed ? s.computed : undefined}
-      value={keys.wrap ? fromMin(toMin(keys.wrap) % 1440) : ''}
+      value={clockTime(keys.wrap)}
       onChange={(e) => set({ wrap: e.target.value || undefined })}
       aria-label="Fin prévue"
     />
@@ -184,7 +185,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   if (it.type === 'banner') {
                     return (
                       <tr key={it.banner.id} className={s.bannerRow} data-testid="itinerary-banner">
-                        <td className={s.code}>{it.start ? `${it.start} – ${it.end}` : '—'}</td>
+                        <td className={s.code}>{it.start ? `${showTime(it.start)} – ${showTime(it.end)}` : '—'}</td>
                         <td colSpan={3}>
                           <strong>{bannerLabel(it.banner)}</strong>
                           {it.banner.label ? ` · ${it.banner.label}` : ''} <span className={s.muted}>{it.banner.minutes} min</span>
@@ -198,7 +199,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   const loc = decorLocation(decor);
                   return (
                     <tr key={it.strip.seqId}>
-                      <td className={[s.code, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? `${stop.start} – ${stop.end}` : '—'}</td>
+                      <td className={[s.code, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? `${showTime(stop.start)} – ${showTime(stop.end)}` : '—'}</td>
                       <td>
                         <strong>{decor?.name ?? 'Décor non renseigné'}</strong>{' '}
                         {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
@@ -244,7 +245,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                 <input
                   type="time"
                   className={keys.meal?.computed.start ? s.computed : undefined}
-                  value={keys.meal?.start ?? ''}
+                  value={clockTime(keys.meal?.start)}
                   onChange={(e) => mutateDoc((d) => setDayMeal(d, day.n, { start: e.target.value || undefined }))}
                   aria-label="Début du repas"
                 />
@@ -252,18 +253,18 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                 <input
                   type="time"
                   className={keys.meal?.computed.end ? s.computed : undefined}
-                  value={keys.meal?.end ?? ''}
+                  value={clockTime(keys.meal?.end)}
                   onChange={(e) => mutateDoc((d) => setDayMeal(d, day.n, { end: e.target.value || undefined }))}
                   aria-label="Fin du repas"
                 />
               </div>
             </div>
-            {keys.meal ? (
+            {keys.restart ? (
               <div className={s.key} role="group" aria-label="Reprise" data-testid="callsheet-restart">
                 <span>Reprise</span>
                 <div className={s.range}>
                   <output className={s.rangeFixed} aria-label="Début de la reprise">
-                    {keys.restart?.start ?? keys.meal.end}
+                    {showTime(keys.restart.start)}
                   </output>
                   <span>à</span>
                   {wrapInput}
@@ -360,7 +361,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           <h3>
             Plans du jour{' '}
             <span className={s.count}>
-              {shotIds.length} plans · {formatTc(stats.screenSec)} d’écran
+              {plural(shotIds.length, 'plan')} · {formatTc(stats.screenSec)} d’écran
             </span>
           </h3>
           <table className={s.table} data-testid="callsheet-shots">

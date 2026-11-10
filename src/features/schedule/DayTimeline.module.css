@@ -30,6 +30,8 @@
 .blockText { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tools { position: absolute; right: 3px; top: 2px; display: inline-flex; gap: 1px; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
 .block:hover .tools, .block:focus-within .tools { opacity: 1; }
+/* Bloc survolé : ses outils passent au-dessus de l'étiquette de lieu. */
+.block:hover, .block:focus-within { z-index: 4; }
 .tools button { border: 1px solid var(--rule); background: var(--paper-card); border-radius: 3px; padding: 0 2px; display: inline-flex; cursor: pointer; }
 @media (max-width: 1000px) { .wrap { grid-template-columns: 1fr; } .pool { position: static; } }
 .move { position: absolute; left: 52px; right: 0; z-index: 3; border-top: 2px solid var(--rust); pointer-events: none; }

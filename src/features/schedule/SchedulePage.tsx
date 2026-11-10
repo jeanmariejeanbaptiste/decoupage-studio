@@ -4,12 +4,11 @@ import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRi
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { addBanner, BANNER_KINDS, bannerLabel, dayAgenda, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayStats, dayTotalsText, longDate, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
+import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, dayStats, dayTotalsText, longDate, plural, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
-import { mutateDoc, undo } from '../../store/projectStore';
-import { useUi } from '../../store/uiStore';
+import { mutateDoc } from '../../store/projectStore';
 import { navigate, useLocation } from '../../app/router';
 import { eventsOn, timeOn } from '../../domain/calendar';
 import { Button } from '../../ui/Button';
@@ -43,9 +42,10 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const [mapOn, toggleMap] = useMapVisible();
   const showMap = mapOn && places.length > 0;
   const [capacity, setCapacity] = useState(20);
+  // Réserve « Non planifié » vide : affichée seulement pendant un glisser, comme cible de dépôt.
+  const [dragging, setDragging] = useState(false);
   const [openDays, setOpenDays] = useState<number[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
-  const toast = useUi((u) => u.toast);
   // Venu du calendrier (« ?day=n ») : la journée demandée s'affiche en haut.
   const focusDay = useLocation().params.get('day');
   useEffect(() => {
@@ -68,8 +68,8 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
       const r = await ask({ title: 'Remplacer le plan de travail ?', body: 'Tous les plans seront réaffectés : regroupement par décor, puis par comédiens, puis par axes.', confirmLabel: 'Répartir' });
       if (!r.ok) return;
     }
-    const n = mutateDoc((d) => suggestSchedule(d, capacity)) ?? 0;
-    toast({ message: `Plan de travail réparti sur ${n} jour${n > 1 ? 's' : ''}.`, actionLabel: 'Annuler', action: undo });
+    // Sans toast : la confirmation précède, l'annulation générale défait la répartition.
+    mutateDoc((d) => void suggestSchedule(d, capacity));
   };
 
   const total = [...strips.values()].flat().reduce((n, x) => n + x.shotIds.length, 0);
@@ -110,7 +110,10 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
           <ScheduleMap doc={doc} places={places} days={days.map((d) => d.n)} />
         </aside>
       )}
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} onDragStart={() => setDragging(true)} onDragCancel={() => setDragging(false)} onDragEnd={(e) => {
+          setDragging(false);
+          onDragEnd(e);
+        }}>
         <div className={s.bands}>
           {days.map((d) => {
             const st = dayStats(doc, timing, d.n);
@@ -135,53 +138,67 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
                     RDV
                     <input type="time" value={d.callTime ?? ''} onChange={(e) => mutateDoc((x) => updateDay(x, d.n, { callTime: e.target.value || undefined }))} aria-label={`Rendez-vous du jour ${d.n}`} />
                   </label>
-                  <span className={s.stats} data-testid={`day-stats-${d.n}`}>
+                  <span className={s.stats} title={dayTotalsText(doc, st)} data-testid={`day-stats-${d.n}`}>
                     {dayTotalsText(doc, st)}
                   </span>
-                  <select
-                    className={s.addBanner}
-                    value=""
-                    aria-label={`Ajouter un bandeau au jour ${d.n}`}
-                    onChange={(e) => e.target.value && mutateDoc((x) => void addBanner(x, d.n, e.target.value as BannerKind))}
-                    data-testid={`add-banner-${d.n}`}
-                  >
-                    <option value="" hidden>
-                      + Bandeau
-                    </option>
-                    {BANNER_KINDS.map((k) => (
-                      <option key={k.kind} value={k.kind}>
-                        {k.label}
+                  {/* Actions groupées : toujours à droite, jamais renvoyées à la ligne par les totaux. */}
+                  <span className={s.dayActions}>
+                    <select
+                      className={s.addBanner}
+                      value=""
+                      aria-label={`Ajouter un bandeau au jour ${d.n}`}
+                      onChange={(e) => e.target.value && mutateDoc((x) => void addBanner(x, d.n, e.target.value as BannerKind))}
+                      data-testid={`add-banner-${d.n}`}
+                    >
+                      <option value="" hidden>
+                        + Bandeau
                       </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    variant={openDays.includes(d.n) ? 'primary' : 'outline'}
-                    icon={<Clock size={13} strokeWidth={1.5} />}
-                    aria-expanded={openDays.includes(d.n)}
-                    onClick={() => setOpenDays(openDays.includes(d.n) ? openDays.filter((x) => x !== d.n) : [...openDays, d.n])}
-                    data-testid={`timeline-toggle-${d.n}`}
-                  >
-                    Emploi du temps
-                  </Button>
-                  <Button
-                    variant="icon"
-                    size="sm"
-                    aria-label={`Supprimer le jour ${d.n}`}
-                    icon={<Trash2 size={13} strokeWidth={1.25} />}
-                    onClick={() => mutateDoc((x) => removeDay(x, d.n))}
-                  />
+                      {BANNER_KINDS.map((k) => (
+                        <option key={k.kind} value={k.kind}>
+                          {k.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant={openDays.includes(d.n) ? 'primary' : 'outline'}
+                      icon={<Clock size={13} strokeWidth={1.5} />}
+                      aria-expanded={openDays.includes(d.n)}
+                      onClick={() => setOpenDays(openDays.includes(d.n) ? openDays.filter((x) => x !== d.n) : [...openDays, d.n])}
+                      data-testid={`timeline-toggle-${d.n}`}
+                    >
+                      Emploi du temps
+                    </Button>
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      aria-label={`Supprimer le jour ${d.n}`}
+                      icon={<Trash2 size={13} strokeWidth={1.25} />}
+                      onClick={async () => {
+                        if (dayHasData(doc, d.n)) {
+                          const later = days.some((x) => x.n > d.n);
+                          const r = await ask({
+                            title: `Supprimer le jour ${d.n} ?`,
+                            body: `Ses plans redeviennent non planifiés et sa feuille de service est effacée.${later ? ' Les jours suivants sont renumérotés.' : ''}`,
+                            confirmLabel: 'Supprimer',
+                            danger: true,
+                          });
+                          if (!r.ok) return;
+                        }
+                        mutateDoc((x) => removeDay(x, d.n));
+                      }}
+                    />
+                  </span>
                   <DayEvents doc={doc} date={d.date} />
                 </div>
               </Band>
             );
           })}
-          <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)} nums={nums}>
-            <p className={s.unplannedHead}>
-              Non planifié · {(strips.get(0) ?? []).reduce((n, x) => n + x.shotIds.length, 0)} plans
-              <span> — piochez-les plutôt depuis l’emploi du temps d’un jour</span>
-            </p>
-          </Band>
+          {(total > planned || dragging) && (
+            <Band day={0} doc={doc} strips={strips.get(0) ?? []} days={days.map((x) => x.n)} nums={nums}>
+              <p className={s.unplannedHead}>Non planifié · {plural(total - planned, 'plan')}</p>
+            </Band>
+          )}
         </div>
       </DndContext>
       </div>
@@ -219,7 +236,7 @@ function Band({ day, doc, strips, items, days, nums, children, extra }: { day: n
     <section ref={setNodeRef} className={[s.band, day === 0 ? s.unplanned : '', isOver ? s.over : ''].join(' ')} data-testid={`band-${day}`}>
       {children}
       <div className={s.strips}>
-        {strips.length === 0 && <p className={s.empty}>{day === 0 ? 'Tout est planifié.' : 'Déposez ici des séquences.'}</p>}
+        {strips.length === 0 && day > 0 && <p className={s.empty}>Déposez ici des séquences.</p>}
         {list.map((it, i) =>
           it.type === 'strip' ? (
             <StripRow key={it.strip.seqId} doc={doc} day={day} item={it} days={days} nums={nums} />
@@ -243,11 +260,11 @@ function BannerRow({ day, item, first, last }: { day: number; item: Extract<Agen
       <input
         type="time"
         className={[s.bannerTime, item.computed ? s.computed : ''].join(' ')}
-        value={b.start ?? item.start ?? ''}
+        value={clockTime(b.start ?? item.start)}
         onChange={(e) => set({ start: e.target.value || undefined })}
         aria-label={`Début : ${name}`}
       />
-      <span className={s.bannerEnd}>{item.end ? `– ${item.end}` : ''}</span>
+      <span className={s.bannerEnd}>{item.end ? `– ${showTime(item.end)}` : ''}</span>
       <span className={s.bannerKind}>{name}</span>
       <input className={s.bannerLabel} value={b.label ?? ''} placeholder="Précision" onChange={(e) => set({ label: e.target.value })} aria-label={`Précision : ${name}`} />
       <label className={s.bannerMin}>
@@ -286,7 +303,7 @@ function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number
         <span className={s.label}>{seq?.label.toUpperCase()}</span>
         <span className={s.decor}>{decor && decor.name.toUpperCase() !== seq?.label.toUpperCase() ? decor.name : ''}</span>
         <span className={s.cast}>{cast}</span>
-        <span className={[s.when, item.computed ? s.computed : ''].join(' ')}>{item.start ? `${item.start}–${item.end}` : ''}</span>
+        <span className={[s.when, item.computed ? s.computed : ''].join(' ')}>{item.start ? `${showTime(item.start)}–${showTime(item.end)}` : ''}</span>
         <span className={s.count}>
           {strip.shotIds.length}
           {strip.shotIds.length !== totalInSeq ? ` / ${totalInSeq}` : ''} pl.

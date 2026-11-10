@@ -26,7 +26,8 @@ describe('documents imprimables', () => {
     const [s1, s2] = doc.project.sequenceIds;
     expect(stripsByTime(doc, 1).map((s) => s.seqId).slice(0, 2)).toEqual([s2, s1]);
     expect(callSheetDocument(doc, 1).html).toContain('09:00 – 11:00');
-    expect(scheduleDocument(doc).html).toContain('14:00 – 14:30');
+    // Bande en partie placée : ses plans non placés s'enchaînent après le dernier créneau.
+    expect(scheduleDocument(doc).html).toContain('14:00 – 16:00');
   });
   it('liste le matériel avec ou sans les plans, et échappe le texte', () => {
     expect(equipmentDocument(doc, true).html).toContain('Plans concernés');
@@ -57,12 +58,13 @@ describe('documents imprimables', () => {
     const sched = scheduleDocument(next).html;
     expect(sched).toContain('<tr class="banner">');
     expect(sched).toContain('<b>Repas</b> · cantine · 60 min');
-    // Feuille de service : seules les séquences placées comptent ; le repas suit la dernière (14:00–14:30).
+    // Feuille de service : seuls les plans placés y figurent, mais les horaires sont ceux du plan de travail.
     const sheet = callSheetDocument(next, 1).html;
-    expect(sheet).toContain('<th>Repas</th><td class="time">de 14:30 à 15:30</td>');
-    // Rien ne suit le repas : pas de reprise, la fin prévue reste.
-    expect(sheet).not.toContain('<th>Reprise</th>');
-    expect(sheet).toContain('<th>Fin prévue</th><td class="time">15:30</td>');
+    // Le repas se place après la bande qui franchit midi (09:00–12:30) ; la reprise suit, jusqu'à la fin du déroulé.
+    expect(sheet).toContain('<th>Repas</th><td class="time">de 12:30 à 13:30</td>');
+    expect(sched).toContain('<td class="time">12:30 – 13:30</td>');
+    expect(sheet).toContain('<th>Reprise</th><td class="time">de 14:00 à 17:30</td>');
+    expect(sheet).not.toContain('<th>Fin prévue</th>');
     expect(scheduleCsv(next)).toContain('Repas · cantine');
     expect(callSheetCsv(next, 1)).toContain('60 min');
   });

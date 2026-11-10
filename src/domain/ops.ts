@@ -110,7 +110,7 @@ export function deleteShot(doc: ProjectDoc, shotId: ID): void {
  * Une autre version du film (rangée) a-t-elle encore cette séquence ou ce plan ? Sa préparation,
  * commune aux versions (plans au sol, dépouillement, emploi du temps), reste alors en place.
  */
-const keptElsewhere = (doc: ProjectDoc, kind: 'sequences' | 'shots', id: ID) => (doc.versions ?? []).some((v) => !!v.slice?.[kind]?.[id]);
+export const keptElsewhere = (doc: ProjectDoc, kind: 'sequences' | 'shots', id: ID) => (doc.versions ?? []).some((v) => !!v.slice?.[kind]?.[id]);
 
 /** Supprime ce seul plan, sans toucher aux autres caméras d'un cadre d'interview. */
 export function removeShot(doc: ProjectDoc, shotId: ID): void {

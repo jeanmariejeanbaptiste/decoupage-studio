@@ -282,7 +282,7 @@ describe('plan de travail : bandeaux et horaires en cascade', () => {
     expect(ag2[3]).toMatchObject({ start: '13:30', end: '14:15', computed: true });
   });
 
-  it('les créneaux de l’emploi du temps priment ; un bandeau orphelin reste en fin de journée', async () => {
+  it('les créneaux de l’emploi du temps priment ; un bandeau orphelin suit la bande qui précédait sa séquence', async () => {
     const { addBanner, dayAgenda, dayItinerary, removeBanner } = await import('./schedule');
     const { doc, a, b } = setup();
     let pause = '';
@@ -297,8 +297,16 @@ describe('plan de travail : bandeaux et horaires en cascade', () => {
     expect(ag[1]).toMatchObject({ type: 'strip', start: '10:00', end: '11:00', computed: true });
     expect(ag[2]).toMatchObject({ type: 'banner', start: '11:00', end: '11:15' });
     expect(dayItinerary(next, 1).map((x) => x.seqIds[0])).toEqual([b]);
+    // Sa séquence (a) quitte la journée : aucune bande du jour ne la précède, le bandeau passe en tête.
     const orphan = produce(next, (d) => assignShots(d, d.sequences[a].shotIds, undefined));
-    expect(dayAgenda(orphan, 1).at(-1)).toMatchObject({ type: 'banner' });
+    expect(dayAgenda(orphan, 1)[0]).toMatchObject({ type: 'banner' });
+    // Rattaché à une séquence absente qui suit c dans l'ordre : il vient après c, pas en fin de journée.
+    const c = doc.project.sequenceIds[2];
+    const after = produce(next, (d) => {
+      placeShot(d, 1, d.sequences[c].shotIds[0], '08:00', 60);
+      d.schedule!.days[0].banners![0].after = doc.project.sequenceIds[3];
+    });
+    expect(dayAgenda(after, 1).map((i) => (i.type === 'strip' ? i.strip.seqId : 'pause'))).toEqual([c, 'pause', b, a]);
     expect(dayAgenda(produce(next, (d) => removeBanner(d, 1, pause)), 1).some((i) => i.type === 'banner')).toBe(false);
   });
 
@@ -317,5 +325,66 @@ describe('plan de travail : bandeaux et horaires en cascade', () => {
     const sa = ag.find((i) => i.type === 'strip' && i.strip.seqId === a)!;
     const share = Math.round((120 * 2) / next.sequences[a].shotIds.length / 5) * 5;
     expect(sa.type === 'strip' && stripMinutes(next, 1, sa.strip)).toBe(Math.max(15, share));
+  });
+});
+
+describe('plan de travail et versions du film', () => {
+  const prepared = async () => {
+    const { placeSequence, timelineOf } = await import('./schedule');
+    const { createVersion } = await import('./versions');
+    const v1 = produce(buildRav3(), (d) => {
+      suggestSchedule(d, 6);
+      const day2 = Object.values(d.shots).filter((s) => s.shootingDay === 2).map((s) => s.id);
+      placeSequence(d, 2, day2, '09:00');
+    });
+    let v1Id = '';
+    const v2 = produce(v1, (d) => {
+      createVersion(d, 'V2');
+      v1Id = d.versions![0].id;
+    });
+    return { v1, v2, v1Id, timelineOf };
+  };
+
+  it('Répartir dans une version garde l’emploi du temps des plans qu’une autre version tient', async () => {
+    const { deleteSequence } = await import('./ops');
+    const { switchVersion } = await import('./versions');
+    const { v1, v2, v1Id, timelineOf } = await prepared();
+    const placed = timelineOf(v1, 2).length;
+    expect(placed).toBeGreaterThan(0);
+    const seqOfDay2 = v1.shots[timelineOf(v1, 2)[0].shotId].sequenceId;
+    const cut = produce(v2, (d) => deleteSequence(d, seqOfDay2));
+    const spread = produce(cut, (d) => void suggestSchedule(d, 6));
+    const back = produce(spread, (d) => switchVersion(d, v1Id));
+    expect(timelineOf(back, 2)).toHaveLength(placed);
+    // Plan commun dont Répartir change le jour dans V2 : son créneau reste pour V1.
+    const moved = produce(v2, (d) => void suggestSchedule(d, 3));
+    expect(timelineOf(produce(moved, (d) => switchVersion(d, v1Id)), 2)).toHaveLength(placed);
+  });
+
+  it('supprimer un jour dans une version renumérote aussi les autres versions', async () => {
+    const { switchVersion } = await import('./versions');
+    const { v1, v2, v1Id } = await prepared();
+    const count = scheduleDays(v1).length;
+    const day2Shots = Object.values(v1.shots).filter((s) => s.shootingDay === 2).map((s) => s.id);
+    const day1Shots = Object.values(v1.shots).filter((s) => s.shootingDay === 1).map((s) => s.id);
+    const next = produce(v2, (d) => removeDay(d, 1));
+    const back = produce(next, (d) => switchVersion(d, v1Id));
+    expect(scheduleDays(back).map((x) => x.n)).toEqual(Array.from({ length: count - 1 }, (_, i) => i + 1));
+    for (const id of day2Shots) expect(back.shots[id].shootingDay).toBe(1);
+    for (const id of day1Shots) expect(back.shots[id].shootingDay).toBeUndefined();
+  });
+});
+
+describe('supprimer un jour : confirmation', () => {
+  it('seul un jour vide se supprime sans confirmation', async () => {
+    const { dayHasData } = await import('./schedule');
+    const doc = buildRav3();
+    const id = doc.sequences[doc.project.sequenceIds[0]].shotIds[0];
+    const empty = produce(doc, (d) => void addDay(d));
+    expect(dayHasData(empty, 1)).toBe(false);
+    expect(dayHasData(produce(empty, (d) => updateDay(d, 1, { hospital: 'CHU Nord' })), 1)).toBe(true);
+    expect(dayHasData(produce(empty, (d) => updateDay(d, 1, { callTime: '07:00' })), 1)).toBe(true);
+    expect(dayHasData(produce(empty, (d) => updateDay(d, 1, { banners: [] })), 1)).toBe(false);
+    expect(dayHasData(produce(empty, (d) => assignShots(d, [id], 1)), 1)).toBe(true);
   });
 });

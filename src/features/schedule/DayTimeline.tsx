@@ -167,7 +167,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
             return (
               <div key={it.banner.id} className={s.banner} style={{ top: ((a - start) / SLOT_MIN) * ROW, height: ((b - a) / SLOT_MIN) * ROW }} data-testid="timeline-banner">
                 <span>
-                  {[bannerLabel(it.banner), it.banner.label].filter(Boolean).join(' · ')} {it.start}–{it.end}
+                  {[bannerLabel(it.banner), it.banner.label].filter(Boolean).join(' · ')} {showTime(it.start)}–{showTime(it.end)}
                 </span>
               </div>
             );
@@ -187,7 +187,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
             return (
               <div key={stop.seqIds[0]} className={s.move} style={{ top }} data-testid="timeline-move">
                 <span>
-                  {i === 0 ? 'Lieu' : 'Changement de lieu'} {stop.start} : {place}
+                  {i === 0 ? 'Lieu' : 'Changement de lieu'} {showTime(stop.start)} : {place}
                 </span>
               </div>
             );
@@ -266,7 +266,11 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
             {active.startsWith('tseq:') ? (
               sequenceHeading(doc, active.slice(5))
             ) : (
-              <ShotCard doc={doc} id={active.slice(6)} />
+              // « tshot:<plan> » ou « tpart:<plan>:<n> » (reprise n).
+              <>
+                <ShotCard doc={doc} id={active.split(':')[1]} />
+                {active.startsWith('tpart:') && <em className={s.partTag}>reprise {active.split(':')[2]}</em>}
+              </>
             )}
           </div>
         ) : null}
