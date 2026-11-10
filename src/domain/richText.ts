@@ -18,11 +18,33 @@ export type ParagraphStyle = (typeof PARAGRAPH_STYLES)[number]['key'];
 
 /** Polices proposées (servies avec l'application). */
 export const RICH_FONTS = [
-  { family: 'Inter Variable', label: 'Inter' },
-  { family: 'Source Serif 4', label: 'Source Serif' },
-  { family: 'Cormorant Garamond', label: 'Cormorant Garamond' },
-  { family: 'Courier Prime', label: 'Courier Prime' },
+  { family: 'Inter Variable', label: 'Inter', fallback: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+  { family: 'Source Serif 4', label: 'Source Serif', fallback: "'Source Serif 4', Georgia, serif" },
+  { family: 'Cormorant Garamond', label: 'Cormorant Garamond', fallback: "'Cormorant Garamond', Garamond, Georgia, serif" },
+  { family: 'Courier Prime', label: 'Courier Prime', fallback: "'Courier Prime', 'Courier New', monospace" },
 ] as const;
+
+/** Polices d'un traitement de texte : chaque police de la note suivie de ses polices de secours (export Word). */
+export function wordFontStacks(html: string): string {
+  return html.replace(/font-family: '([^']+)'/g, (all, fam: string) => {
+    const f = RICH_FONTS.find((x) => x.family === fam);
+    return f ? `font-family: ${f.fallback}` : all;
+  });
+}
+
+/** Zone de texte d'une page A4 à marges de 2,5 cm, en px CSS (16 cm de large, 230 mm de haut au plus pour une image). */
+export const WORD_TEXT_PX = { w: Math.round((160 * 96) / 25.4), h: Math.round((230 * 96) / 25.4) };
+
+/** Taille d'une image dans le document Word : la largeur voulue (en % de la zone de texte), proportions gardées. */
+export function wordImageBox(naturalW: number, naturalH: number, widthPct = 100): { width: number; height: number } {
+  let width = (WORD_TEXT_PX.w * Math.min(100, Math.max(5, widthPct))) / 100;
+  let height = naturalW > 0 ? (width * naturalH) / naturalW : width;
+  if (height > WORD_TEXT_PX.h) {
+    width = (width * WORD_TEXT_PX.h) / height;
+    height = WORD_TEXT_PX.h;
+  }
+  return { width: Math.round(width), height: Math.round(height) };
+}
 
 /** Corps proposés, en points. */
 export const RICH_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48] as const;

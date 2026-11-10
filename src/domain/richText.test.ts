@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { richImageKeys, richToText, sanitizeRich, textToRich } from './richText';
+import { richImageKeys, richToText, sanitizeRich, textToRich, wordFontStacks, wordImageBox } from './richText';
 import { mediaKeys } from './serialize';
 import { createProjectDoc } from './factory';
 
@@ -66,5 +66,19 @@ describe('note d’intention mise en forme', () => {
     expect(sanitizeRich('<p>Un <b>mot</b> et <span style="font-weight: bold">deux</span></p>')).toBe('<p>Un <b>mot</b> et <b>deux</b></p>');
     const once = sanitizeRich('<b style="font-weight:normal"><p><span style="font-weight:700;font-size:14pt">A</span></p></b><table><tr><td>x</td><td>y</td></tr></table>');
     expect(sanitizeRich(once)).toBe(once);
+  });
+
+  it('export Word : polices de secours et images à la bonne taille', () => {
+    const html = sanitizeRich('<p><span style="font-family: \'Inter Variable\'">A</span> <span style="font-family: \'Courier Prime\'; font-size: 12pt">B</span></p>');
+    const word = wordFontStacks(html);
+    expect(word).toContain("font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif");
+    expect(word).toContain("font-family: 'Courier Prime', 'Courier New', monospace; font-size: 12pt");
+    expect(word).not.toContain('Inter Variable');
+    expect(wordImageBox(2000, 1000, 50)).toEqual({ width: 303, height: 151 });
+    expect(wordImageBox(2000, 1000)).toEqual({ width: 605, height: 303 });
+    // Image en hauteur : plafonnée à 230 mm, proportions gardées.
+    const tall = wordImageBox(1000, 4000);
+    expect(tall.height).toBe(869);
+    expect(Math.abs(tall.width / tall.height - 0.25)).toBeLessThan(0.01);
   });
 });
