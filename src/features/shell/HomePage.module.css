@@ -7,7 +7,7 @@
   --h-faint: rgba(243, 237, 228, 0.22);
   --h-glass: rgba(255, 255, 255, 0.05);
   --h-glass-line: rgba(255, 255, 255, 0.12);
-  --h-accent: #ff8a4c;
+  --h-accent: var(--h-ink);
   --h-grain: 0.45;
   --h-grain-blend: overlay;
   --h-beam: 0.62;
@@ -28,7 +28,7 @@
   --h-faint: rgba(29, 26, 34, 0.22);
   --h-glass: rgba(255, 255, 255, 0.5);
   --h-glass-line: rgba(29, 26, 34, 0.1);
-  --h-accent: #e2552b;
+  --h-accent: var(--h-ink);
   --h-grain: 0.5;
   --h-grain-blend: multiply;
   --h-beam: 0.7;
@@ -285,7 +285,7 @@
   cursor: pointer;
   transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
-.card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--h-accent) 60%, transparent); box-shadow: 0 16px 40px -18px rgba(255, 110, 70, 0.6); }
+.card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--h-accent) 60%, transparent); box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.45); }
 .cardTop { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--h-soft); }
 .cardTop > :first-child { color: var(--h-accent); }
 .cardTitle { font-family: var(--font-ui); font-size: 22px; font-weight: 400; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -311,7 +311,7 @@
   .del, .dup { opacity: 1; }
   .cardTop { padding-right: 58px; }
 }
-.del:hover, .dup:hover { color: var(--h-accent); }
+.del:hover, .dup:hover { color: var(--h-ink); }
 .empty {
   display: inline-flex;
   flex-direction: column;
