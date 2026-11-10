@@ -165,6 +165,15 @@ export function dependencyCandidates(plan: Production, id: ID): TaskRef[] {
 
 // --- Dates et cascade ---------------------------------------------------------------------------
 
+/** Bornes des dates saisies : une coquille (« 2207 ») ne doit pas étirer la frise sur deux siècles. */
+export const MIN_DATE = '1970-01-01';
+export const MAX_DATE = '2099-12-31';
+/** Durée la plus longue d'une étape, en jours (dix ans). */
+export const MAX_DAYS = 3650;
+
+/** Date valide et dans les bornes de la frise. */
+export const isPlanDate = (date: string | undefined): date is string => isValidDate(date) && date.slice(0, 10) >= MIN_DATE && date.slice(0, 10) <= MAX_DATE;
+
 function shift(t: ProductionTask, days: number): void {
   if (!days) return;
   t.start = addDays(t.start, days);
@@ -217,14 +226,19 @@ export function cascade(doc: ProjectDoc, ids: readonly ID[]): void {
   if (!plan) return;
   const pinned = shootingRange(doc) ? new Set(allTasks(plan).filter((r) => r.task.linked).map((r) => r.task.id)) : new Set<ID>();
   const queue = [...ids];
+  // Un élément n'est repoussé qu'un nombre limité de fois : une boucle restée dans les données ne
+  // l'envoie pas des siècles plus loin.
+  const limit = allTasks(plan).length + 1;
+  const moves = new Map<ID, number>();
   let guard = 0;
   while (queue.length && guard++ < 10_000) {
     const id = queue.shift()!;
     for (const { task } of successors(plan, id)) {
-      if (pinned.has(task.id)) continue;
+      if (pinned.has(task.id) || (moves.get(task.id) ?? 0) >= limit) continue;
       const need = earliestBound(plan, task);
       if (need && startBound(task) < need) {
         shift(task, daysBetween(startBound(task), need));
+        moves.set(task.id, (moves.get(task.id) ?? 0) + 1);
         queue.push(task.id);
       }
     }
@@ -238,7 +252,7 @@ export function cascade(doc: ProjectDoc, ids: readonly ID[]): void {
 export function setTaskDates(doc: ProjectDoc, id: ID, start: string, end: string): void {
   const plan = doc.production;
   const t = findTask(plan, id)?.task;
-  if (!plan || !t || isPinned(doc, t) || !isValidDate(start) || !isValidDate(end)) return;
+  if (!plan || !t || isPinned(doc, t) || !isPlanDate(start) || !isPlanDate(end)) return;
   const range = isHeld(doc, t) ? shootingRange(doc) : undefined;
   if (range) {
     // Étape liée, plan de travail daté en partie : seule la fin se règle (durée prévue), sans couvrir moins que lui.
@@ -261,11 +275,11 @@ export function moveTask(doc: ProjectDoc, id: ID, days: number): void {
   if (t && days) setTaskDates(doc, id, addDays(t.start, days), addDays(t.end, days));
 }
 
-/** Durée saisie (jours, au moins 1) : la fin suit. */
+/** Durée saisie (jours, de 1 à `MAX_DAYS`) : la fin suit. */
 export function setDuration(doc: ProjectDoc, id: ID, days: number): void {
   const t = findTask(doc.production, id)?.task;
   if (!t || t.milestone || !Number.isFinite(days)) return;
-  setTaskDates(doc, id, t.start, addDays(t.start, Math.max(1, Math.round(days)) - 1));
+  setTaskDates(doc, id, t.start, addDays(t.start, Math.min(MAX_DAYS, Math.max(1, Math.round(days))) - 1));
 }
 
 // --- Dépendances --------------------------------------------------------------------------------
@@ -551,7 +565,10 @@ export function applyTemplate(doc: ProjectDoc, today = todayIso()): void {
 
 // --- Fichier ------------------------------------------------------------------------------------
 
-/** Données relues d'un fichier : éléments sans date valide écartés, dépendances orphelines retirées. */
+/**
+ * Données relues d'un fichier : éléments sans date valide écartés, identifiants en double retirés,
+ * dépendances orphelines ou en boucle retirées, une seule étape liée (jamais un jalon).
+ */
 export function normalizeProduction(doc: ProjectDoc): void {
   const plan = doc.production as Production | undefined;
   if (!plan) return;
@@ -560,19 +577,32 @@ export function normalizeProduction(doc: ProjectDoc): void {
     return;
   }
   plan.phases = plan.phases.filter((p) => p && typeof p.id === 'string');
+  const ids = new Set<ID>();
+  let linkedSeen = false;
   for (const p of plan.phases) {
     if (typeof p.name !== 'string') p.name = '';
-    p.tasks = (Array.isArray(p.tasks) ? p.tasks : []).filter((t) => t && typeof t.id === 'string' && isValidDate(t.start));
+    p.tasks = (Array.isArray(p.tasks) ? p.tasks : []).filter((t) => t && typeof t.id === 'string' && isValidDate(t.start) && !ids.has(t.id) && !!ids.add(t.id));
     for (const t of p.tasks) {
       if (typeof t.name !== 'string') t.name = '';
+      // « 2027-01-01T10:00 » passe pour une date valide : ramenée au jour.
+      t.start = t.start.slice(0, 10);
+      if (typeof t.end === 'string') t.end = t.end.slice(0, 10);
       if (t.milestone || !isValidDate(t.end) || t.end < t.start) t.end = t.start;
+      if (t.linked !== undefined && (t.linked !== 'schedule' || t.milestone || linkedSeen)) delete t.linked;
+      if (t.linked) linkedSeen = true;
       if (!t.linked || !Number.isInteger(t.planned) || t.planned! < 1) delete t.planned;
     }
   }
   const known = new Set(allTasks(plan).map((r) => r.task.id));
   for (const { task } of allTasks(plan)) {
     if (!task.after) continue;
-    task.after = Array.isArray(task.after) ? task.after.filter((x) => known.has(x) && x !== task.id) : [];
+    task.after = Array.isArray(task.after) ? [...new Set(task.after.filter((x) => known.has(x) && x !== task.id))] : [];
+    if (!task.after.length) delete task.after;
+  }
+  // Boucles (A après B, B après A) : chacune est rompue à son dernier lien, dans l'ordre du tableau.
+  for (const { task } of allTasks(plan)) {
+    if (!task.after) continue;
+    task.after = task.after.filter((p) => !dependsOn(plan, p, task.id));
     if (!task.after.length) delete task.after;
   }
 }
