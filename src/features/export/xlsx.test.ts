@@ -23,6 +23,8 @@ describe('export Excel', () => {
     const reg = wb.getWorksheet('Registre')!;
     expect(reg.getCell('B2').value).toBe('CHAMBRE ADMIRATRICE');
     expect(reg.getCell('G8').value).toBe(15);
+    expect(String(ws.getCell('A1').value)).toContain('RAV3 · V3');
+    expect(ws.getCell('B3').value).toBe(1);
     const buf = await wb.xlsx.writeBuffer();
     expect(buf.byteLength).toBeGreaterThan(5000);
   });

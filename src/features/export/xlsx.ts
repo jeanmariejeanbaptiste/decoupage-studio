@@ -63,7 +63,9 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
   const widths = columnWidths(columns);
   ws.columns = columns.map((c) => ({ key: c, width: Math.max(4, (widths[c] / 100) * TOTAL_WIDTH) }));
 
-  const title = ws.addRow(['Découpage technique']);
+  // Le titre du film et sa version en tête : une page isolée reste identifiable.
+  const film = [doc.project.title, doc.project.version].map((x) => x?.trim()).filter(Boolean).join(' · ');
+  const title = ws.addRow([film ? `Découpage technique — ${film}` : 'Découpage technique']);
   ws.mergeCells(1, 1, 1, columns.length);
   title.height = 42;
   title.getCell(1).font = { name: 'Inter', size: 26, bold: true, color: { argb: `FF${p.title}` } };
@@ -105,7 +107,9 @@ export async function buildWorkbook(doc: ProjectDoc, columns: ColumnKey[] = doc.
         columns.forEach((c, i) => {
           const cell = row.getCell(i + 1);
           const beat = l && BEAT_COLUMNS.includes(c);
-          cell.value = beat ? (l.bridge ? (l.cells[c] ? `↳ ${l.cells[c]}` : '') : `${c === firstBeat ? `${l.tag} ` : ''}${l.cells[c] ?? ''}`) : k === 0 ? (r.cells[c] ?? '') : '';
+          const text = beat ? (l.bridge ? (l.cells[c] ? `↳ ${l.cells[c]}` : '') : `${c === firstBeat ? `${l.tag} ` : ''}${l.cells[c] ?? ''}`) : k === 0 ? (r.cells[c] ?? '') : '';
+          // N° entier écrit en nombre (tri juste, pas d'avertissement « nombre stocké comme texte ») ; « 3A » reste du texte.
+          cell.value = c === 'number' && /^\d+$/.test(text) ? Number(text) : text;
           cell.fill = fill(p.bg);
           cell.border = beat && lines.length > 1 ? { ...border, top: k > 0 ? { style: 'dotted' } : border.top, bottom: k < lines.length - 1 ? { style: 'dotted' } : border.bottom } : border;
           cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
