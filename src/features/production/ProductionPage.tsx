@@ -17,6 +17,7 @@ import {
   ensureProduction,
   findTask,
   formatFrDate,
+  isHeld,
   isPinned,
   moveTask,
   parseFrDate,
@@ -33,6 +34,7 @@ import {
   setDuration,
   setLinked,
   setTaskDates,
+  shootingRange,
   type Production,
   type ProductionTask,
 } from '../../domain/production';
@@ -231,7 +233,8 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
   // --- Glisser une barre ------------------------------------------------------------------------
 
   const startBarDrag = (e: ReactPointerEvent, t: ProductionTask, mode: BarDrag['mode']) => {
-    if (readOnly || e.button !== 0 || isPinned(doc, t)) return;
+    // Étape liée au plan de travail : figée s'il est tout daté, sinon seule sa fin se tire.
+    if (readOnly || e.button !== 0 || isPinned(doc, t) || (isHeld(doc, t) && mode !== 'end')) return;
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -470,6 +473,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                 const t = r.task;
                 const g = barGeometry(scale, t);
                 const pinned = isPinned(doc, t);
+                const held = isHeld(doc, t);
                 const tip = t.milestone ? `${t.name} · ${formatFrDate(t.start)}` : `${t.name} · ${formatFrDate(t.start)} – ${formatFrDate(t.end)} · ${durationDays(t)} j`;
                 return (
                   <div key={id} className={rowCls} style={{ top }} onPointerEnter={() => setHover(id)}>
@@ -484,7 +488,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                       />
                     ) : (
                       <span
-                        className={[s.taskBar, t.done ? s.done : '', pinned ? s.pinned : '', readOnly || pinned ? '' : s.movable, bar?.id === t.id ? s.active : ''].join(' ')}
+                        className={[s.taskBar, t.done ? s.done : '', pinned ? s.pinned : '', readOnly || held ? '' : s.movable, bar?.id === t.id ? s.active : ''].join(' ')}
                         style={{ left: g.x, width: g.w, background: shade(r.index) }}
                         title={tip}
                         onPointerDown={(e) => startBarDrag(e, t, 'move')}
@@ -493,7 +497,7 @@ export function ProductionPage({ doc }: { doc: ProjectDoc }) {
                       >
                         {!readOnly && !pinned && (
                           <>
-                            <i className={[s.handle, s.handleStart].join(' ')} onPointerDown={(e) => startBarDrag(e, t, 'start')} />
+                            {!held && <i className={[s.handle, s.handleStart].join(' ')} onPointerDown={(e) => startBarDrag(e, t, 'start')} />}
                             <i className={[s.handle, s.handleEnd].join(' ')} onPointerDown={(e) => startBarDrag(e, t, 'end')} />
                           </>
                         )}
@@ -643,6 +647,10 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
   const t = row.task;
   const pinned = isPinned(doc, t);
   const locked = readOnly || pinned;
+  // Plan de travail daté en partie : le début le suit, la fin reste réglable.
+  const startLocked = locked || isHeld(doc, t);
+  const range = t.linked ? shootingRange(doc) : undefined;
+  const linkTip = range && range.dated < range.total ? `Suit le plan de travail (${range.dated} ${range.dated > 1 ? 'jours' : 'jour'} sur ${range.total} datés)` : 'Suit le plan de travail';
   return (
     <div className={[cls, t.done ? s.isDone : ''].join(' ')} role="row" onPointerEnter={onHover} data-row={id} data-testid="task-row">
       <span className={s.cName} role="cell">
@@ -656,13 +664,13 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
         {t.milestone && <span className={s.diamond} aria-label="Jalon" />}
         {label}
         {t.linked && (
-          <span className={s.linked} title="Suit le plan de travail" aria-label="Suit le plan de travail" data-testid="linked-mark">
+          <span className={s.linked} title={linkTip} aria-label={linkTip} data-testid="linked-mark">
             <Link2 {...SMALL} />
           </span>
         )}
       </span>
       <span className={s.cDate} role="cell">
-        <DateField value={t.start} locked={locked} label={t.milestone ? `Date : ${t.name}` : `Début : ${t.name}`} onCommit={(v) => mutateDoc((d) => setTaskDates(d, t.id, v, t.milestone ? v : addDays(v, daysBetween(t.start, t.end))))} />
+        <DateField value={t.start} locked={startLocked} label={t.milestone ? `Date : ${t.name}` : `Début : ${t.name}`} onCommit={(v) => mutateDoc((d) => setTaskDates(d, t.id, v, t.milestone ? v : addDays(v, daysBetween(t.start, t.end))))} />
       </span>
       <span className={s.cDate} role="cell">
         {!t.milestone && <DateField value={t.end} locked={locked} label={`Fin : ${t.name}`} onCommit={(v) => mutateDoc((d) => setTaskDates(d, t.id, t.start, v))} />}

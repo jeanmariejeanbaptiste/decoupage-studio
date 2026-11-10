@@ -14,6 +14,9 @@ import {
   durationDays,
   findTask,
   formatFrDate,
+  isHeld,
+  isLate,
+  isPinned,
   moveTask,
   normalizeProduction,
   parseFrDate,
@@ -203,6 +206,20 @@ function withShooting(doc: ProjectDoc, first: string, last: string): ProjectDoc 
   });
 }
 
+/** Plan de travail de `n` jours, sans date : la séquence i au jour i. */
+function schedule(doc: ProjectDoc, n: number): ProjectDoc {
+  const ids = doc.project.sequenceIds;
+  return produce(doc, (d) => {
+    for (let i = 0; i < n; i++) assignShots(d, d.sequences[ids[i]].shotIds, i + 1);
+  });
+}
+
+/** Dépendances non respectées : « successeur < prédécesseur ». */
+function lateLinks(doc: ProjectDoc): string[] {
+  const all = allTasks(doc.production).map((r) => r.task);
+  return all.flatMap((t) => (t.after ?? []).map((p) => all.find((x) => x.id === p)!).filter((p) => isLate(t, p)).map((p) => `${t.name} < ${p.name}`));
+}
+
 describe('modèle et plan de travail', () => {
   it('crée le modèle à partir d’aujourd’hui, enchaîné et sans chevauchement interdit', () => {
     const doc = produce(blank(), (d) => applyTemplate(d, '2026-11-09'));
@@ -240,7 +257,7 @@ describe('modèle et plan de travail', () => {
     const shootId = allTasks(base.production).find((r) => r.task.linked)!.task.id;
     const edit = allTasks(base.production).find((r) => r.task.name === 'Montage image')!.task;
     const dated = produce(withShooting(base, '2027-06-01', '2027-06-20'), (d) => syncProduction(d));
-    expect(shootingRange(dated)).toEqual({ start: '2027-06-01', end: '2027-06-20' });
+    expect(shootingRange(dated)).toEqual({ start: '2027-06-01', end: '2027-06-20', dated: 2, total: 2 });
     expect(dates(dated, shootId)).toEqual(['2027-06-01', '2027-06-20']);
     expect(task(dated, edit.id).start).toBe('2027-06-21');
     // Dates tenues par le plan de travail : non modifiables à la main.
@@ -259,6 +276,116 @@ describe('modèle et plan de travail', () => {
     expect([shoot.start, shoot.end]).toEqual(['2027-09-06', '2027-09-30']);
     const prepEnd = doc.production!.phases[1].tasks.reduce((a, t) => (t.end > a ? t.end : a), '');
     expect(prepEnd).toBe('2027-09-05');
+    // La postproduction s'enchaîne après lui.
+    expect(all.find((t) => t.name === 'Montage image')!.start).toBe('2027-10-01');
+    expect(lateLinks(doc)).toEqual([]);
+  });
+
+  it('construit le modèle autour d’un tournage proche : préparation avant, postproduction juste après', () => {
+    const doc = produce(withShooting(buildRav3(), '2026-11-30', '2026-12-01'), (d) => applyTemplate(d, '2026-11-09'));
+    const all = allTasks(doc.production).map((r) => r.task);
+    const shoot = all.find((t) => t.linked)!;
+    expect([shoot.start, shoot.end]).toEqual(['2026-11-30', '2026-12-01']);
+    expect(all.find((t) => t.name === 'Montage image')!.start).toBe('2026-12-02');
+    const prepEnd = doc.production!.phases[1].tasks.reduce((a, t) => (t.end > a ? t.end : a), '');
+    expect(prepEnd).toBe('2026-11-29');
+    // Développement commencé avant aujourd'hui : aucune dépendance enfreinte dès la création.
+    expect(all[0].start < '2026-11-09').toBe(true);
+    expect(lateLinks(doc)).toEqual([]);
+  });
+
+  it('date erronée puis corrigée dans le plan de travail : la postproduction revient', () => {
+    const base = produce(schedule(buildRav3(), 3), (d) => applyTemplate(d, '2026-11-09'));
+    const edit = () => allTasks(base.production).find((r) => r.task.name === 'Montage image')!.task.id;
+    const dcp = () => allTasks(base.production).find((r) => r.task.name === 'Copie de diffusion')!.task.id;
+    const mutate = (doc: ProjectDoc, date: string) =>
+      produce(doc, (d) => {
+        updateDay(d, 1, { date });
+        syncProduction(d);
+      });
+    const good = mutate(base, '2027-03-01');
+    const wrong = mutate(good, '2072-03-01');
+    expect(task(wrong, edit()).start > '2072-03-01').toBe(true);
+    const fixed = mutate(wrong, '2027-03-01');
+    expect(fixed.production).toEqual(good.production);
+    expect(task(fixed, dcp()).start < '2028-01-01').toBe(true);
+  });
+
+  it('plan de travail daté en partie, un jour erroné puis corrigé : le tournage retrouve sa durée prévue', () => {
+    const base = produce(schedule(buildRav3(), 3), (d) => {
+      applyTemplate(d, '2026-11-09');
+      updateDay(d, 1, { date: '2027-03-01' });
+      syncProduction(d);
+    });
+    const shootId = allTasks(base.production).find((r) => r.task.linked)!.task.id;
+    const day2 = (doc: ProjectDoc, date: string) =>
+      produce(doc, (d) => {
+        updateDay(d, 2, { date });
+        syncProduction(d);
+      });
+    const good = day2(base, '2027-03-02');
+    expect(dates(good, shootId)).toEqual(['2027-03-01', '2027-03-25']);
+    const wrong = day2(good, '2072-03-02');
+    expect(dates(wrong, shootId)).toEqual(['2027-03-01', '2072-03-02']);
+    const fixed = day2(wrong, '2027-03-02');
+    expect(fixed.production).toEqual(good.production);
+  });
+
+  it('ne ramène que les éléments collés, jamais avant un autre prédécesseur', () => {
+    const doc = produce(schedule(buildRav3(), 2), (d) => {
+      d.production = {
+        phases: [
+          {
+            id: 'p',
+            name: 'Film',
+            tasks: [
+              { id: 's', name: 'Tournage', start: '2027-03-01', end: '2027-03-10', linked: 'schedule' },
+              { id: 'o', name: 'Autre', start: '2027-03-01', end: '2027-03-08' },
+              { id: 'm', name: 'Montage', start: '2027-03-11', end: '2027-03-20', after: ['s', 'o'] },
+              { id: 'f', name: 'Libre', start: '2027-04-01', end: '2027-04-02', after: ['s'] },
+            ],
+          },
+        ],
+      };
+      updateDay(d, 1, { date: '2027-03-01' });
+      updateDay(d, 2, { date: '2027-03-02' });
+      syncProduction(d);
+    });
+    // Le tournage raccourcit de huit jours : Montage revient, mais pas avant « Autre » ; « Libre » ne bouge pas.
+    expect(dates(doc, 's')).toEqual(['2027-03-01', '2027-03-02']);
+    expect(dates(doc, 'm')).toEqual(['2027-03-09', '2027-03-18']);
+    expect(dates(doc, 'f')).toEqual(['2027-04-01', '2027-04-02']);
+  });
+
+  it('plan de travail daté en partie : le début suit, la durée prévue est gardée, la fin reste réglable', () => {
+    const base = produce(schedule(buildRav3(), 3), (d) => applyTemplate(d, '2026-11-09'));
+    const shootId = allTasks(base.production).find((r) => r.task.linked)!.task.id;
+    const one = produce(base, (d) => {
+      updateDay(d, 1, { date: '2027-03-01' });
+      syncProduction(d);
+    });
+    expect(shootingRange(one)).toMatchObject({ dated: 1, total: 3 });
+    // Tournage de 25 jours dans le modèle : il les garde.
+    expect(dates(one, shootId)).toEqual(['2027-03-01', '2027-03-25']);
+    expect(isPinned(one, task(one, shootId))).toBe(false);
+    expect(isHeld(one, task(one, shootId))).toBe(true);
+    expect(task(one, allTasks(one.production).find((r) => r.task.name === 'Montage image')!.task.id).start).toBe('2027-03-26');
+    // La fin se règle, jamais en deçà des jours du plan de travail ; le début ne bouge pas.
+    const shorter = produce(one, (d) => {
+      setTaskDates(d, shootId, '2027-01-01', '2027-03-10');
+      syncProduction(d);
+    });
+    expect(dates(shorter, shootId)).toEqual(['2027-03-01', '2027-03-10']);
+    const tooShort = produce(one, (d) => setDuration(d, shootId, 1));
+    expect(dates(tooShort, shootId)).toEqual(['2027-03-01', '2027-03-03']);
+    // Tous les jours datés : l'étape les suit exactement et se fige.
+    const all = produce(one, (d) => {
+      updateDay(d, 2, { date: '2027-03-02' });
+      updateDay(d, 3, { date: '2027-03-04' });
+      syncProduction(d);
+    });
+    expect(dates(all, shootId)).toEqual(['2027-03-01', '2027-03-04']);
+    expect(isPinned(all, task(all, shootId))).toBe(true);
   });
 });
 
@@ -296,7 +423,7 @@ describe('calendrier et fichier', () => {
     };
     const out = migrate(broken);
     expect(out.production!.phases).toHaveLength(1);
-    expect(out.production!.phases[0].tasks).toEqual([{ id: 't', name: 'Tournage', start: '2027-06-01', end: '2027-06-03', linked: 'schedule' }]);
+    expect(out.production!.phases[0].tasks).toEqual([{ id: 't', name: 'Tournage', start: '2027-06-01', end: '2027-06-03', linked: 'schedule', planned: 1 }]);
     const gone = { ...doc, production: { phases: 'x' } as unknown as Production };
     normalizeProduction(gone);
     expect(gone.production).toBeUndefined();

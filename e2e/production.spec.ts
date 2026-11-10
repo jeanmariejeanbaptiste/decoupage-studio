@@ -175,11 +175,14 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
   await page.getByTestId('production-template').click();
 
-  // L'étape Tournage suit le jour daté : dates en lecture seule, marquée comme liée.
+  // L'étape Tournage suit le jour daté : début en lecture seule, marquée comme liée ; tant que tout
+  // le plan de travail n'est pas daté, elle garde sa durée prévue et sa fin reste réglable.
   const shoot = row(page, 'Tournage');
   await expect(shoot.getByTestId('linked-mark')).toBeVisible();
+  await expect(shoot.getByTestId('linked-mark')).toHaveAttribute('title', /^Suit le plan de travail \(1 jour sur \d+ datés\)$/);
   await expect(shoot).toContainText(fr(first));
   await expect(field(page, 'Début : Tournage')).toHaveCount(0);
+  await expect(field(page, 'Durée en jours : Tournage')).toHaveValue('25');
   // La préparation se cale juste avant.
   await expect(field(page, 'Fin : Costumes')).toHaveValue(fr(plusDays(first, -1)));
 
@@ -190,8 +193,21 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
   const days = page.locator('input[aria-label^="Date du jour"]');
   await days.last().fill(iso(last));
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
-  await expect(row(page, 'Tournage')).toContainText(fr(last));
+  await expect(field(page, 'Fin : Tournage')).toHaveValue(fr(last));
   await expect(field(page, 'Début : Montage image')).toHaveValue(fr(plusDays(last, 1)));
+  const dcp = await field(page, 'Date : Copie de diffusion').inputValue();
+
+  // Une date erronée, puis corrigée, dans le plan de travail : la postproduction revient avec le tournage.
+  await page.getByRole('button', { name: 'Plan de travail' }).click();
+  const wrong = new Date(last.getFullYear() + 46, last.getMonth(), last.getDate());
+  await days.last().fill(iso(wrong));
+  await page.getByRole('button', { name: 'Calendrier de production' }).click();
+  await expect(field(page, 'Début : Montage image')).toHaveValue(fr(plusDays(wrong, 1)));
+  await page.getByRole('button', { name: 'Plan de travail' }).click();
+  await days.last().fill(iso(last));
+  await page.getByRole('button', { name: 'Calendrier de production' }).click();
+  await expect(field(page, 'Début : Montage image')).toHaveValue(fr(plusDays(last, 1)));
+  await expect(field(page, 'Date : Copie de diffusion')).toHaveValue(dcp);
 
   // Délier : les dates redeviennent modifiables.
   await row(page, 'Tournage').hover();
