@@ -48,6 +48,8 @@
 .kickerMeta { color: inherit !important; opacity: 0.75; font-size: 12px !important; font-weight: 600; margin-bottom: 4px; }
 .kickerMeta select:hover { background: color-mix(in srgb, var(--paper-card) 14%, transparent) !important; color: inherit !important; }
 .kickerMeta option { color: #111; }
+.kickerMeta input:hover, .kickerMeta input:focus { background: color-mix(in srgb, var(--paper-card) 14%, transparent) !important; color: inherit !important; }
+.kickerMeta + .kickerMeta { margin-top: -2px; font-weight: 500; }
 
 .headActions { display: flex; flex-direction: column; gap: 8px; }
 .seqTabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 2px; scrollbar-width: none; }

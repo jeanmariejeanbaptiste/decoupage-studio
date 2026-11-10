@@ -114,15 +114,18 @@ export function decorStats(doc: ProjectDoc, timing: Timing): Map<ID, { sequenceI
  */
 export function setSequenceEstimate(doc: ProjectDoc, seqId: ID, text: string): boolean {
   const seq = doc.sequences[seqId];
-  if (!seq) return false;
-  if (!text.trim()) {
-    delete seq.estimatedSec;
-    return true;
-  }
-  const p = parseTc(text);
-  if (p?.kind !== 'sec') return false;
-  seq.estimatedSec = p.sec;
+  const sec = parseEstimate(text);
+  if (!seq || sec === null) return false;
+  if (sec === undefined) delete seq.estimatedSec;
+  else seq.estimatedSec = sec;
   return true;
+}
+
+/** Durée estimée lue dans une saisie : secondes ; `undefined` si vide ; `null` si ce n'est pas une durée. */
+export function parseEstimate(text: string): number | undefined | null {
+  if (!text.trim()) return undefined;
+  const p = parseTc(text);
+  return p?.kind === 'sec' ? p.sec : null;
 }
 
 /** Plans tournés d'une séquence, sur ses plans à tourner (les abandonnés ne comptent pas). */

@@ -1,4 +1,5 @@
 import { SeqMeta } from './SeqMeta';
+import { SeqTiming } from './SeqTiming';
 import { Plus, Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
@@ -20,7 +21,6 @@ import { editableText, setCellText } from '../../domain/cells';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { sequenceNumber } from '../../domain/numbering';
-import { formatGap } from '../../domain/timing';
 import { focalTooltip } from '../../domain/focal';
 import { hasAngleConflict } from '../../domain/vocabulary';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -158,6 +158,7 @@ export function SequenceBody({
                 {seqNumber}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
               </span>
               <SeqMeta doc={doc} seqId={seq.seqId} />
+              <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} />
             </div>
           </td>
           <td className={s.gutter} aria-hidden="true" />
@@ -328,14 +329,7 @@ export function SequenceBody({
                             {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
                           </span>
                           <SeqMeta doc={doc} seqId={seq.seqId} />
-                          {seqTiming?.gap && (
-                            <span
-                              className={[s.gap, s[`gap_${seqTiming.gap.level}`]].join(' ')}
-                              title="Écart entre durée calculée et durée estimée"
-                            >
-                              {formatGap(seqTiming.gap)}
-                            </span>
-                          )}
+                          <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} />
                         </div>
                       ) : col === 'tc' ? (
                         <span className={s.tc}>

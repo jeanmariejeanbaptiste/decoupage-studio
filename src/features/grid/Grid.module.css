@@ -114,10 +114,6 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 .seqLabel { letter-spacing: 0.02em; }
 .seqMeta { font-size: 11px; font-weight: 400; color: var(--ink-soft); letter-spacing: 0.06em; }
 .placeholder { color: var(--ink-soft); font-weight: 400; font-style: italic; text-transform: none; }
-.gap { font-family: var(--font-mono); font-size: 10.5px; font-weight: 400; padding: 1px 6px; border-radius: 8px; border: 1px solid currentColor; }
-.gap_ok { color: var(--sage); }
-.gap_warn { color: var(--ochre); }
-.gap_bad { color: var(--rust); }
 
 .spacer td { height: 7px; padding: 0; background: color-mix(in srgb, var(--kraft) 40%, var(--paper)); border-bottom: 1px solid var(--rule); }
 .conflict { text-decoration: underline dotted var(--ochre); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
@@ -213,7 +209,6 @@ tr[data-lifted], tbody[data-lifted] { filter: drop-shadow(0 8px 16px rgba(17, 19
  * qu'au survol, et aucune bordure de couleur n'encadre la grille ni la cellule. */
 .wrap { border: 0; border-radius: 0; background: transparent; }
 .wrap:focus-visible { box-shadow: none; }
-.gap { display: none; }
 .gutter .rowDel { opacity: 0; }
 .row:hover .gutter .rowDel, .gutter .rowDel:focus-visible { opacity: 0.6; color: var(--ink-soft); }
 .gutter .rowDel:hover { opacity: 1 !important; color: var(--ink) !important; }
@@ -261,7 +256,7 @@ tr[data-lifted], tbody[data-lifted] { filter: drop-shadow(0 8px 16px rgba(17, 19
 .emptyRow > .gutter { border-top: 1px solid var(--rule); }
 .emptyRow > .c_sequence { padding: 4px; }
 .emptyRow .seqCell { gap: 2px; padding: 0 10px; }
-.emptyRow .seqCell > :last-child { flex-wrap: nowrap; white-space: nowrap; }
+.emptyRow .seqCell > :nth-last-child(-n + 2) { flex-wrap: nowrap; white-space: nowrap; }
 .emptyRow .seqLabel {
   line-height: 1.3; max-width: 100%;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;

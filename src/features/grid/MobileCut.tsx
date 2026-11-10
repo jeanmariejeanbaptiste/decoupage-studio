@@ -1,4 +1,5 @@
 import { SeqMeta } from './SeqMeta';
+import { SeqTiming } from './SeqTiming';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Copy, List, Plus, Trash2, X } from 'lucide-react';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
@@ -225,6 +226,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
             />
           </label>
           <SeqMeta doc={doc} seqId={shot.sequenceId} readOnly={readOnly} className={s.kickerMeta} />
+          <SeqTiming doc={doc} seqId={shot.sequenceId} timing={timing} readOnly={readOnly} className={s.kickerMeta} />
           <h1 className={s.title} data-mobile-title>
             Plan {shotCode(doc, shot.id)}
             {tc && <span className={s.tc}>{tc}</span>}

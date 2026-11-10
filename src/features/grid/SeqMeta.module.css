@@ -6,3 +6,10 @@
 .slot { width: 78px; border: 0; padding: 1px 2px; border-radius: 4px; background: none; font: inherit; letter-spacing: inherit; color: inherit; text-align: center; outline: none; }
 .slot:hover, .slot:focus { background: var(--hover); color: var(--ink); }
 .meta { flex-wrap: wrap; }
+/* Durée estimée, écart et avancement : une ligne grise, la durée modifiable sur place. */
+.timing { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; column-gap: 8px; row-gap: 0; }
+.est { display: inline-flex; align-items: baseline; gap: 4px; cursor: text; }
+.est input { border: 0; padding: 1px 2px; border-radius: 4px; background: none; font: inherit; letter-spacing: inherit; color: inherit; text-align: center; outline: none; min-width: 3ch; }
+.est input::placeholder { color: inherit; opacity: 1; }
+.est input:hover, .est input:focus { background: var(--hover); color: var(--ink); }
+.est input[aria-invalid] { text-decoration: underline dotted; }
