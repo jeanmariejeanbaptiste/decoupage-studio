@@ -41,4 +41,5 @@
 /* Feuille de service : carte réduite des lieux du jour, à l'écran seulement. */
 .dayMap { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
 .dayMapMap { height: 200px; }
-.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 200px; overflow: auto; }
+/* Légende entière, sans défilement interne : la page A4 se pagine d'elle-même. */
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
