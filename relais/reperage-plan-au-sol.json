@@ -1,0 +1,327 @@
+{
+ "ideas": [
+  {
+   "title": "Rétablir la mise en page étroite : le dessin tombe à 32 px de large sur téléphone",
+   "kind": "bug",
+   "why": "Mesuré au navigateur : la grille de .layout vaut « 32px 312px » à 390 px de large, « 162px 312px » à 768 px et « 494px 312px » à 1100 px. Le panneau de 312 px recouvre le dessin, et la palette passe par-dessus le panneau (capture reperage-plan-au-sol/a-papier-390.png). Cause : la règle `.layout { grid-template-columns: minmax(0, 1fr) 312px; }`, écrite dans la section « Panneau latéral », vient après `@media (max-width: 1100px) { .layout { grid-template-columns: 1fr } }` et l'emporte, à spécificité égale.",
+   "what": "Dans FloorPlanPage.module.css, regrouper en fin de fichier un seul bloc `@media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .panel { position: static; height: auto; min-height: 0; overflow: visible; } }`, après toutes les définitions de .layout et de .panel, puis retirer les deux media queries 1100 px devenues inutiles. Le dessin garde sa hauteur calc(100vh − …), le panneau passe dessous. Vérifier ensuite que la barre des temps (.beats) et la palette tiennent à 390 px.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E Playwright à 390, 768 et 1100 px : la largeur de [data-testid=floorplan] dépasse 90 % de celle de main, le panneau commence sous le dessin, documentElement.scrollWidth vaut la largeur de la fenêtre. Captures dans les thèmes papier et encre."
+  },
+  {
+   "title": "Aligner une porte ou une fenêtre sur le mur où on la pose",
+   "kind": "bug",
+   "why": "Constaté : une porte posée sur le mur est (vertical) reste à rot 0. Elle est horizontale et son battant sort de la pièce. Une fenêtre posée sur le mur ouest traverse la pièce sur 1,2 m (capture c-door-wall.png, export.png). addFloorItem crée toujours les ouvertures avec rot: 0, et le seuil OPENING_SNAP n'est utilisé que pour déplacer la pièce. Il faut donc tourner chaque ouverture à la main, à 5° près.",
+   "what": "Dans le domaine, ajouter `fitOpeningToWall(items, p, width)` : chercher le mur le plus proche à moins de 20 cm, projeter le point sur ce mur, prendre rot = angle du mur, et borner la position pour que la largeur tienne sur le mur. Les murs de la pièce étant tracés dans le sens horaire, le côté +y local est toujours l'intérieur : le battant s'ouvre donc dans la pièce. Appeler cette fonction dans addFloorItem pour door/window, et à la fin d'un déplacement d'ouverture (moveFloorItem pour une porte ou une fenêtre seule). Loin d'un mur, rien ne change.",
+   "files": [
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts",
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "Unitaire : pièce 5 × 6 m, porte posée en (500, 300) → rot 90, x = 500, battant côté intérieur ; posée en (500, 590) → décalée pour tenir sur le mur ; posée à 1 m de tout mur → rot 0 et position inchangée. E2E : poser une porte sur le mur est puis vérifier l'attribut transform du groupe."
+  },
+  {
+   "title": "Dessiner les murs sous les portes et fenêtres, quel que soit l'ordre de création",
+   "kind": "bug",
+   "why": "Constaté (capture g-door-before-room.png) : une porte posée avant de créer la pièce disparaît sous le mur. Le dessin suit l'ordre de plan.items, et setRoom ajoute les murs à la fin. Le trait blanc qui ouvre la porte est donc recouvert, à l'écran comme à l'export (même boucle dans floorPlanSvg).",
+   "what": "Ajouter au domaine `drawOrder(items)` : un tri stable par couche (murs et rails, puis portes et fenêtres, puis le reste dans l'ordre d'origine). L'utiliser dans le rendu de FloorPlanPage (items.map → drawOrder(items).map) et dans floorPlanSvg. Aucune donnée n'est modifiée.",
+   "files": [
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts",
+    "src/domain/exports.ts",
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : items [porte, mur] → drawOrder rend [mur, porte] et garde l'ordre relatif des autres sortes. Unitaire sur l'export : dans le SVG produit, le <g> de la porte vient après la <line> du mur."
+  },
+  {
+   "title": "Vider la sélection multiple des éléments disparus après une annulation",
+   "kind": "bug",
+   "why": "Reproduit : poser deux projecteurs, Ctrl+A, puis deux fois Ctrl+Z. Il ne reste aucun élément, mais le panneau affiche toujours « 2 éléments · Retirer » (capture b-stale-multi.png). L'état `multi` n'est jamais confronté au document. `selected` est déjà relu par items.find, `multi` ne l'est pas.",
+   "what": "Calculer `const liveMulti = useMemo(() => multi.filter((id) => items.some((i) => i.id === id)), [multi, items])` et l'utiliser partout à la place de multi : panneau, onKey, glisser de groupe, surbrillance, inventaire. Ne pas toucher au setter.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : deux projecteurs, Ctrl+A, Ctrl+Z ×2 → [data-testid=fp-multi] absent. Puis Ctrl+Y ×2 → de nouveau « 2 éléments »."
+  },
+  {
+   "title": "Largeur de porte ou de fenêtre : champ vidé → 20 cm, 500 m accepté",
+   "kind": "bug",
+   "why": "Reproduit : vider le champ « Largeur (cm) » et le quitter fixe la porte à 20 cm, car Number('') || 0 donne 0, borné à 20, et l'ouverture est perdue sans avertissement. Saisir 50000 est accepté : on obtient une porte de 500 m, qui déborde de l'export.",
+   "what": "Dans le domaine, ajouter OPENING_LIMITS = [20, 1000] (cm). Dans WidthField, une saisie vide ou non numérique remet l'ancienne valeur sans rien enregistrer ; une valeur hors bornes est ramenée dans les bornes. Même borne dans updateFloorItem pour width, ce qui protège aussi l'import IA et l'assistant.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx",
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : porte posée, champ vidé puis Tab → la valeur reste 80. Saisie 50000 puis Entrée → 1000. Unitaire : updateFloorItem avec width 5 donne 20, avec 99999 donne 1000."
+  },
+  {
+   "title": "Repère vidé : puce de caméra vide et « Plan au sol : » sans nom",
+   "kind": "bug",
+   "why": "Reproduit : vider le repère d'une caméra liée au plan 1.1 laisse un bouton de puce vide dans « Plans du découpage ». L'inventaire n'affiche plus que « 1.1 · 24mm », et l'inspecteur du découpage écrit « Plan au sol :  ». Les replis `label ?? 'CAM'` ne réagissent pas à la chaîne vide. Deux caméras sans repère se confondent aussi dans le dédoublonnage des puces (même label).",
+   "what": "Dans LabelField, un repère vide ou fait d'espaces n'est pas enregistré : le champ reprend la valeur précédente. Dans le domaine, remplacer `??` par `||` dans shotCameras, planInventory et choreography, pour les données déjà enregistrées.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx",
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : caméra de label '' liée à un plan → shotCameras renvoie le label 'CAM' et planInventory le nom 'CAM'. E2E : vider le repère puis Entrée → le champ affiche toujours « CAM A »."
+  },
+  {
+   "title": "Échap annule le glisser en cours",
+   "kind": "ergonomie",
+   "why": "Reproduit : saisir la caméra, la glisser de 2 m, presser Échap puis relâcher. La caméra est déplacée (translate 580 320 → 800 420) et la sélection disparaît. Il n'existe aucun moyen de renoncer à un geste commencé, alors que l'aperçu (drag) n'est enregistré qu'au relâchement.",
+   "what": "Au début de onKey, si `drag` est en cours et que la touche est Escape : appeler setDrag(null), libérer la capture du pointeur (svgRef.current?.releasePointerCapture si besoin), preventDefault, puis return sans désélectionner. Le relâchement suivant ne trouve plus de drag et n'enregistre rien. Valable pour déplacer, tourner, tracer, sélectionner au cadre et régler le fond.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : glisser la caméra, Échap, relâcher → l'attribut transform est inchangé, l'élément reste sélectionné et l'historique d'annulation ne gagne aucune étape."
+  },
+  {
+   "title": "Flèches et touche R : un appui maintenu = une seule étape d'annulation",
+   "kind": "ergonomie",
+   "why": "Mesuré : cinq appuis sur → puis Ctrl+Z ne reculent que de 20 cm (600 → 580). Chaque appui fait une étape, et une flèche maintenue en crée des dizaines. Le commentaire de gestureMutate annonce pourtant « touches fléchées = une seule étape », mais onKey appelle mutate.",
+   "what": "Dans onKey, appeler gestureMutate pour les flèches (élément seul et sélection multiple) et pour R. Ajouter onKeyUp={endGesture} et onBlur={endGesture} sur le <svg> pour que l'historique reprenne à coup sûr. Supprimer reste un mutate simple.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : 5 × → (appuis distincts, chacun suivi de son keyup), puis Ctrl+Z → l'élément revient à sa position de départ. Puis une porte posée, Ctrl+Z → seule la porte part."
+  },
+  {
+   "title": "Recentrer tient compte de la palette et des cotes",
+   "kind": "bug",
+   "why": "Constaté (capture e-fit-large.png) : avec une pièce de 30 × 12 m, « Recentrer » cache le mur gauche sous la palette, et la cote « 12 m » sort du cadre. fitView ajoute une marge fixe de 80 unités, qui ne fait que 13 px à ce zoom, et ignore PALETTE_PX ainsi que la place des cotes. applyRoom, à côté, prend ces deux marges en compte.",
+   "what": "Extraire de applyRoom un calcul `frameFor(rect, box, aspect, margins)` qui renvoie la fenêtre de vue. L'utiliser dans fitView avec la boîte englobante (éléments, fond, cônes, déplacements) et les mêmes marges en pixels : palette + cote à gauche, cote en haut, 24 px ailleurs. applyRoom garde sa logique « glisser sans zoomer » en réutilisant ce calcul.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : pièce 30 × 12, clic sur fp-fit → l'abscisse à l'écran du mur ouest dépasse le bord droit de la palette, et la boîte des deux [data-testid=fp-dimension] est entièrement dans le svg."
+  },
+  {
+   "title": "Repères des réflecteurs, diffuseurs et drapeaux : lisibles à l'écran et présents à l'export",
+   "kind": "bug",
+   "why": "Export SVG inspecté : R1 n'y figure pas. Les cas reflector, diffuser et flag de floorPlanSvg ne dessinent aucun texte, alors que l'écran et l'inventaire nomment R1. À l'écran, un réflecteur vertical recouvre son propre repère, posé au milieu à y − 10 (captures a-papier-1440.png et c-door-wall.png : le « R1 » est caché par le trait).",
+   "what": "Ajouter au domaine `segmentLabelAt(seg, gap)` : un point décalé perpendiculairement au segment, du côté haut ou gauche, avec l'ancrage qui convient (même principe que labelBehind). L'utiliser pour le texte à l'écran et, dans floorPlanSvg, écrire le repère de ces trois éléments (font-size 12, #6b7079).",
+   "files": [
+    "src/domain/floorSymbols.ts",
+    "src/domain/floorplan.test.ts",
+    "src/domain/exports.ts",
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : pour un segment vertical (400,100)–(400,220), le point renvoyé est à au moins gap du segment. Unitaire sur l'export : floorPlanSvg d'une vue avec réflecteur R1 contient « >R1< »."
+  },
+  {
+   "title": "Flèche du déplacement d'un comédien à l'export",
+   "kind": "bug",
+   "why": "À l'écran, le déplacement d'un comédien se termine par une flèche (markerEnd fp-arrow). À l'export, il reste un simple pointillé sans sens (export.png : la ligne part de Léa sans flèche). On ne sait plus où va le comédien sur le plan imprimé, qui est pourtant celui qui sert au plateau.",
+   "what": "Dans floorPlanSvg, dessiner au bout de i.to une pointe pleine (#6b7079) orientée par atan2, sous forme de <path> en ligne et non de <marker>, plus sûr dans pdf-lib et dans Word. Même pointe au dernier point des trajectoires de plan-séquence.",
+   "files": [
+    "src/domain/exports.ts",
+    "src/domain/floorplan.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : comédien de (240,300) vers (360,300) → le SVG contient un path dont le sommet est en (360,300). Contrôle visuel du PDF dans les deux orientations."
+  },
+  {
+   "title": "Comédien : un seul nom sur le plan",
+   "kind": "ergonomie",
+   "why": "Capture a-papier-1440.png : un comédien lié à Léa affiche « 1 » au-dessus de la tête, sur les épaules, et « Léa » en dessous, à l'écran comme à l'export. Le repère numérique automatique fait doublon avec le personnage, contre la règle « pas de doublons ». L'inventaire, lui, n'affiche déjà que « Léa ».",
+   "what": "Si le comédien a un personnage, n'écrire que le nom du personnage, à la place du repère (au-dessus de la tête). Garder les deux seulement si le repère a été changé à la main et diffère d'un simple nombre. Mettre la règle dans le domaine (`actorCaption(doc, actor)`), servie à l'écran et à floorPlanSvg.",
+   "files": [
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts",
+    "src/domain/exports.ts",
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : actorCaption → « Léa » pour le label '1' + Léa ; « 1 » sans personnage ; « Doublure · Léa » pour un label personnalisé. Unitaire sur l'export : le SVG ne contient plus « >1< »."
+  },
+  {
+   "title": "Clic simple avec un outil de tracé : poser un segment par défaut",
+   "kind": "ergonomie",
+   "why": "Reproduit : outil Rails, simple clic sur le plan → rien n'est créé, sans aucun retour (onUp abandonne sous GRID). Il en va de même pour Mur, Réflecteur, Diffuseur et Drapeau, alors que tous les autres outils posent au clic. Le domaine prévoit déjà un segment de 160 cm quand `end` est absent.",
+   "what": "Dans onUp en mode line, si le geste fait moins de GRID, appeler addFloorItem(d, planKey, kind, from) sans fin (1,6 m horizontal) et sélectionner l'élément, que les poignées permettent ensuite d'orienter. Le glisser reste inchangé.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : outil Rails, clic simple → un [data-testid=fp-rail] de longueur 1,6 m (fp-length) et les poignées fp-end1 et fp-end2 visibles. Un glisser de 3 m donne toujours 3 m."
+  },
+  {
+   "title": "Déplacer la vue à la main : bouton du milieu, Espace + glisser, deux doigts",
+   "kind": "fonction",
+   "why": "Mesuré : un glisser du bouton du milieu ne bouge pas la vue (le viewBox est identique), et un glisser à un doigt sur tablette non plus. Sur fond, le glisser fait un cadre de sélection, et aucun pincement tactile n'est géré (seulement la molette et les gestes Safari). Sans trackpad, et sur la tablette du plateau, on ne peut donc pas se déplacer dans un grand plan.",
+   "what": "Ajouter un mode de glisser 'pan' qui modifie setView, sans jamais muter le document. Il s'active avec le bouton du milieu (e.button === 1), avec Espace maintenu + bouton principal (le curseur passe en grab), et au toucher dès que deux pointeurs sont actifs : déplacement au point milieu, zoom selon l'écart entre les doigts, borné à ZOOM_MIN et ZOOM_MAX. Le second doigt annule le geste à un doigt en cours.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "E2E : glisser du bouton du milieu de 200 px → view.x change de 200 × (view.w / largeur en px). Espace + glisser → idem, sans cadre de sélection. CDP Input.dispatchTouchEvent à deux points qui s'écartent → view.w diminue. Aucune étape d'annulation ajoutée."
+  },
+  {
+   "title": "Distance caméra → comédiens dans les propriétés de la caméra",
+   "kind": "fonction",
+   "why": "Le plan est à l'échelle (1 unité = 1 cm) et connaît la focale et l'angle de champ, mais pas la distance de mise au point. C'est pourtant ce que demandent l'assistant opérateur (pointeur) et le chef machiniste. Aujourd'hui, il faut la mesurer à la main sur la grille.",
+   "what": "Ajouter au domaine `subjectDistances(doc, cam, items)` : les comédiens dans le cône (écart angulaire ≤ fov/2), du plus proche au plus loin, avec la distance en mètres arrondie à 5 cm. Dans une vue de plan-séquence, seulement ceux du même temps ou fixes. L'afficher sous la ligne de focale dans Properties, au format « Léa 2,4 m · Marc 3,85 m » et sans titre en plus.",
+   "files": [
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts",
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : caméra en (0,0) rot 0, fov 60, comédiens en (240,0), (300,300) et (-100,0) → seul le premier, à 2,4 m. Vue de plan-séquence : un comédien d'un autre temps est exclu. E2E : la ligne apparaît quand la caméra est sélectionnée."
+  },
+  {
+   "title": "Dupliquer la sélection (Ctrl+D)",
+   "kind": "fonction",
+   "why": "Il n'existe aucune copie d'élément : trois Fresnel identiques (modèle, W, portée, ouverture) se créent et se règlent un par un. Le panneau de sélection multiple n'offre que « Retirer ». Dupliquer une vue entière existe déjà (duplicatePlan), mais pas des éléments.",
+   "what": "Ajouter au domaine `duplicateFloorItems(doc, planKey, ids, offset = 40)` : copie profonde décalée de 40 cm, nouveaux identifiants, repères libres suivants via nextLabel (CAM B, L2, R2…), caméras copiées sans shotIds (un plan reste couvert une seule fois), murs de la pièce exclus. La fonction renvoie les nouveaux identifiants, qui deviennent la sélection. Raccourci Ctrl/⌘+D dans onKey (preventDefault), et bouton icône Copy à côté de « Retirer » dans les propriétés et le panneau multiple, à position stable.",
+   "files": [
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts",
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "Unitaire : dupliquer [L1, CAM A liée à 1.1, mur de la pièce] → L2 avec mêmes watts et spread, CAM B sans shotIds, aucun mur ajouté, room inchangée. E2E : Ctrl+D sur un projecteur → deux fp-light, la copie est sélectionnée et Ctrl+Z l'enlève en une étape."
+  },
+  {
+   "title": "Choisir un élément dans la liste le ramène dans le champ",
+   "kind": "ergonomie",
+   "why": "Un clic sur une ligne de « Sur le plan » ou sur une puce de caméra (y compris d'une autre vue) sélectionne l'élément sans bouger la vue. S'il est hors champ (grand plan des locaux, zoom), rien de visible ne se passe et les flèches déplacent un objet qu'on ne voit pas.",
+   "what": "Ajouter `revealItem(id)` : si le point de l'élément (ou son segment) sort du cadre courant, moins la palette et une marge de 40 px, faire glisser la vue au plus court, sans changer le zoom. L'appeler après setSelected depuis l'inventaire et depuis les puces de caméra (une fois la vue changée, au prochain rendu).",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : projecteur posé, vue déplacée à la molette loin de lui, clic sur sa ligne fp-item → son centre est dans la boîte du svg, à droite de la palette, et la largeur du viewBox est inchangée."
+  },
+  {
+   "title": "Export SVG : deux vues de même nom ne s'écrasent plus dans le .zip",
+   "kind": "robustesse",
+   "why": "renamePlan accepte n'importe quel nom, y compris celui d'une autre vue de la séquence, et la purge des caractères interdits peut aussi rendre deux noms identiques (« A/B » et « A:B » → « A-B »). Le zip écrit alors `zip.file(name)` deux fois sous le même nom : la seconde vue remplace la première et une vue manque à l'export, sans avertissement.",
+   "what": "Dans le domaine, ajouter `uniqueFileNames(names)`, qui suffixe « (2) », « (3) »… les noms en double après nettoyage. L'appliquer dans onExport (format svg). En plus, à la validation de RenameField, un nom déjà pris dans la séquence reçoit le premier suffixe libre via firstFreeName (déjà présent dans floorplan.ts).",
+   "files": [
+    "src/domain/floorplan.ts",
+    "src/domain/floorplan.test.ts",
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : uniqueFileNames(['Séquence 1 — Vue 1', 'Séquence 1 — Vue 1', 'A/B', 'A:B']) → quatre noms distincts. Unitaire : renommer « Vue 2 » en « Vue 1 » donne « Vue 1 (2) ». E2E export.spec : le zip contient autant de fichiers que de vues non vides."
+  },
+  {
+   "title": "Export : cadrer la page sur le dessin, pas sur la zone par défaut",
+   "kind": "ergonomie",
+   "why": "export.png : pour une pièce de 5 × 6 m posée en (0,0), le SVG fait 1136 × 826 et sa moitié droite est vide. floorPlanSvg force xs = [0, PLAN_W…] et ys = [0, PLAN_H…]. Le plan, une fois réduit à la page A4, est donc plus petit qu'il ne pourrait l'être. Un plan dessiné loin de l'origine produit aussi un cadre démesuré qui l'écrase.",
+   "what": "Dans floorPlanSvg, n'inclure la zone par défaut que si rien n'est dessiné. Sinon, cadrer sur les éléments, les cônes, les faisceaux, les déplacements et les cotes, avec les marges actuelles pour le titre et les étiquettes, et une largeur minimale (par exemple 400 unités) pour qu'un élément seul ne soit pas agrandi à l'excès.",
+   "files": [
+    "src/domain/exports.ts",
+    "src/domain/floorplan.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : pièce 5 × 6 m en (0,0) → largeur du viewBox < 700. Vue vide → cadre 0–1000 inchangé. Un seul projecteur → largeur ≥ 400. E2E export.spec existant toujours vert, plus contrôle visuel du PDF."
+  },
+  {
+   "title": "Renommer et parcourir les vues au clavier et au toucher",
+   "kind": "accessibilité",
+   "why": "Une vue ne se renomme que par double-clic (onDoubleClick), donc ni au clavier, ni de façon fiable au toucher. Le tooltip « Double-cliquer pour renommer » est le seul indice. Les onglets ont role=tab mais pas de navigation aux flèches ni de tabindex itinérant, et chaque onglet est un arrêt de tabulation.",
+   "what": "Sur les onglets de vue : F2 ou Entrée sur l'onglet déjà actif ouvre RenameField ; ← et → passent à la vue voisine (pickView) ; seul l'onglet actif a tabIndex=0. Un appui long au toucher (500 ms, pointerType touch) ouvre aussi le renommage. Retirer le title d'aide.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : focus sur l'onglet « Vue 1 », F2, saisie « Large », Entrée → l'onglet affiche « Large ». → active la vue suivante, et Tab depuis les onglets atteint directement les actions de vue."
+  },
+  {
+   "title": "Raccourcis d'outil actifs aussi pendant une sélection multiple",
+   "kind": "ergonomie",
+   "why": "Reproduit : après Ctrl+A, presser C ne choisit pas l'outil Caméra (aria-pressed reste false). La branche `multi.length > 1` de onKey se termine par return avant la lecture des HOTKEYS. Échap y vide la sélection sans revenir à l'outil Sélection, contrairement à la sélection simple.",
+   "what": "Dans la branche multiple, ne faire return que pour les flèches, Suppr et Échap. Échap vide aussi la sélection et repasse à l'outil Sélection, comme pour un élément seul. Les lettres suivent le chemin commun des HOTKEYS.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : deux éléments, Ctrl+A, C → tool-camera aria-pressed=true. Échap → fp-multi absent et tool-select actif."
+  },
+  {
+   "title": "Invité en lecture seule : aucun geste qui bouge puis revient",
+   "kind": "robustesse",
+   "why": "En lecture seule, la palette est masquée (data-edit) mais les gestionnaires du <svg> restent actifs : glisser un élément montre l'aperçu puis le remet en place (mutateDoc refuse à canMutate), M ou C basculent le curseur en croix et un glisser trace une ligne fantôme. Les lettres changent même l'outil invisible. L'invité croit donc pouvoir modifier.",
+   "what": "Lire canMutate() (déjà exporté par projectStore) au début de onCanvasDown, onItemDown et des branches de modification de onKey (outils, flèches, Suppr, R, Ctrl+A/D). Le zoom, la molette, le futur glisser de vue et la sélection pour lire les propriétés restent permis.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E share.spec (invité Lire) : glisser une caméra de 100 px → le transform ne change pas pendant le geste ; presser M → la classe .placing est absente ; la molette zoome toujours."
+  },
+  {
+   "title": "Glisser fluide : regrouper les mouvements par image et mémoriser les calculs du panneau",
+   "kind": "performance",
+   "why": "Chaque pointermove appelle setDrag, ce qui rend à nouveau toute la page : panneau, inventaire (planInventory) et liste des plans. shotCameras parcourt toutes les vues deux fois par plan de la séquence. Pendant un déplacement ou une rotation, computeLighting relance aussi jusqu'à 360 rayons par source, croisés avec tous les obstacles, sur deux rebonds. Avec plusieurs projecteurs et réflecteurs, le coût grimpe à la fréquence du pointeur (120 Hz et plus sur trackpad).",
+   "what": "Dans onMove, garder le dernier point dans une ref et ne faire setDrag qu'une fois par requestAnimationFrame. Calculer une seule fois, par useMemo sur [doc, seqId], une table plan → caméras (shotCameras) pour la liste. Isoler le panneau dans un composant mémorisé, qui ne dépend pas de drag sauf pour la surbrillance.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "E2E de mesure : vue avec 8 projecteurs, 4 réflecteurs et une pièce ; glisser un projecteur sur 60 pas avec performance.now() autour → durée par image avant et après, consignée. Les tests existants de lumière (fp-beam, fp-bounce) restent verts."
+  },
+  {
+   "title": "Alt pendant un glisser : placement libre, sans magnétisme",
+   "kind": "ergonomie",
+   "why": "Les déplacements sont toujours aimantés à 20 cm (snap(…)), et les extrémités à 5 cm. Sur un plan des locaux importé, à l'échelle réelle, on ne peut pas poser une caméra contre un pilier ou un projecteur dans un angle de mur qui ne tombe pas sur la grille. Il faut passer par l'import IA ou accepter l'écart.",
+   "what": "Garder e.altKey dans l'état drag (pointerdown et pointermove). Si Alt est maintenu, arrondir au centimètre au lieu de snap() dans preview et dans onUp (move, group, end1/end2, path). Rien d'autre ne change.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : glisser une caméra de 37 cm sans Alt → déplacement de 40. Avec Alt maintenu → 37. Une seule étape d'annulation dans les deux cas."
+  },
+  {
+   "title": "Retirer les derniers textes d'aide du plan au sol",
+   "kind": "ergonomie",
+   "why": "Plusieurs libellés expliquent au lieu de nommer, contre la règle du projet. La case s'intitule « Mur blanc (renvoie un peu la lumière) ». L'infobulle de la corbeille dit « Vider la vue (une séquence garde toujours une vue) ». Celle de « Ajuster » dit « Glisser pour déplacer l'image, molette ou pincement pour l'agrandir ». Le corps de la confirmation, « Son contenu disparaît (annulable avec ⌘Z). », affiche ⌘ même sous Windows.",
+   "what": "Ramener à « Mur blanc », à « Vider la vue » ou « Supprimer la vue » (ce que dit déjà aria-label), et à « Ajuster le fond ». Dans la confirmation, garder le titre et le bouton danger, sans corps. Aucun autre changement.",
+   "files": [
+    "src/features/floorplan/FloorPlanPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E floorplan.spec : les sélecteurs par texte mis à jour (getByLabel('Mur blanc')). Grep, dans FloorPlanPage.tsx, des chaînes « renvoie un peu », « garde toujours » et « ⌘Z » → aucune occurrence."
+  }
+ ]
+}

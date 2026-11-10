@@ -1,0 +1,299 @@
+{
+ "ideas": [
+  {
+   "title": "Dépendances en boucle relues d'un fichier : les dates partent en 2163",
+   "kind": "bug",
+   "why": "normalizeProduction retire les dépendances orphelines et l'auto-dépendance, mais pas les boucles A→B→A. Sonde (vite-node, scratchpad probe1.ts) : un fichier où A dépend de B et B de A, puis un simple setTaskDates sur A, et cascade() tourne 10 000 fois. Résultat : A = 2163-12-04, B = 2163-11-29. Les données sont abîmées sans bruit. L'interface refuse les boucles (dependsOn), mais un fichier abîmé ou fusionné peut en contenir.",
+   "what": "Dans normalizeProduction, après le filtrage des « after » : parcourir les éléments dans l'ordre du tableau et retirer chaque prédécesseur p de t.after quand dependsOn(plan, p, t.id) est vrai, ce qui casse la boucle à son dernier lien. Au même endroit, ramener start et end à 10 caractères (isValidDate accepte « 2027-01-01T10:00 »). Par sécurité dans cascade() : ne pas re-pousser un élément déjà déplacé plus de N fois (N = nombre d'éléments) et sortir.",
+   "files": [
+    "src/domain/production.ts",
+    "src/domain/production.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : migrate() d'un document où A et B dépendent l'un de l'autre. Il ne reste qu'un seul lien, et setTaskDates(A, +1 jour) laisse B au plus quelques jours plus loin, pas en 2163. Une date « 2027-01-01T10:00 » est relue en « 2027-01-01 »."
+  },
+  {
+   "title": "Rendez-vous abîmés dans un fichier : la page Calendrier et le plan de travail plantent",
+   "kind": "robustesse",
+   "why": "migrate() normalise doc.production mais jamais doc.calendar. Sonde : calendar = [{ id: 'x', title: 3, start: 20270101 }], migrate passe, puis calendarItems() lève « e.start.slice is not a function ». Les plantages touchent CalendarPage, SchedulePage (eventsOn) et l'export du dossier (calendarFiles). TIME_RE accepte aussi « 25:99 », que fromMinutes affiche « 02:39 ».",
+   "what": "Ajouter normalizeCalendar(doc) dans domain/calendar.ts, appelé dans migrate() à côté de normalizeProduction. Il ne garde que les objets dont l'id est une chaîne et le start une date valide. Le titre devient une chaîne (« Sans titre » si vide). On retire un end invalide, un kind hors CALENDAR_KINDS et une note qui n'est pas une chaîne. allDay devient un booléen. Les heures hors 00:00–23:59 font passer l'événement en journée entière. Le tableau vide est supprimé.",
+   "files": [
+    "src/domain/calendar.ts",
+    "src/domain/serialize.ts",
+    "src/domain/calendar.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : migrate() d'un document avec des rendez-vous abîmés (start nombre, title absent, heure 25:99, kind inconnu, null). calendarItems() et eventsOn() ne lèvent plus, et les rendez-vous valides sont gardés à l'identique."
+  },
+  {
+   "title": "Tournage de nuit : 20:00–02:00 enregistré 20:00–21:00 sans prévenir",
+   "kind": "bug",
+   "why": "eventFromFields force la fin sur le même jour : si fin ≤ début, la fin devient début + 1 h. Sonde e2e (probe3) : un rendez-vous saisi 20:00 → 02:00 a pour title « Tournage de nuit, 20:00 – 21:00 ». « 22:00 → 00:00 » donne 22:00–23:00. Pour une équipe de tournage (nuits, fins à minuit), c'est une perte d'information. Or eventItem, layoutDay, hourRange, timeOn et l'export .ics savent déjà afficher un élément minuté sur deux jours.",
+   "what": "Dans eventFromFields : si fin ≤ début et fin ≠ début, écrire end = `${addDays(f.date,1)}T${fin}`. La fin à 00:00 devient le lendemain 00:00. eventFields relit ce cas tel quel (heures de début et de fin), si bien qu'un nouvel enregistrement redonne le même événement. Garder l'heure par défaut seulement quand fin = début. Aucun texte ajouté dans la fenêtre.",
+   "files": [
+    "src/domain/calendar.ts",
+    "src/domain/calendar.test.ts",
+    "e2e/calendar.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : eventFromFields(20:00, 02:00) donne end = lendemain T02:00, et eventItem renvoie endDate = lendemain. Aller-retour eventFields → eventFromFields identique. E2E : en vue Semaine, le bloc s'étend jusqu'à 24 h le premier jour et apparaît de 00:00 à 02:00 le lendemain."
+  },
+  {
+   "title": "Une coquille de date ou de durée fige la frise (18 s, 136 000 nœuds)",
+   "kind": "robustesse",
+   "why": "Sonde probe2 (frise de production, modèle rav3). Saisir « 21/05/2207 » au lieu de 2027 en fin de Mixage : la frise fait 330 080 px et 45 521 nœuds en échelle Semaines. Saisir 200000 en durée : 18 257 ms de blocage et 136 186 nœuds. parseFrDate accepte aussi « 1/1/0001 ». NumberField n'a pas de plafond.",
+   "what": "Dans le domaine, setTaskDates refuse une date hors [1970-01-01, 2099-12-31], et setDuration plafonne à 3650 jours (10 ans). Côté interface, NumberField ignore une saisie > 3650 et DateField ignore une date hors bornes : la valeur d'origine revient, comme pour une date inexistante aujourd'hui. Aucun message ajouté.",
+   "files": [
+    "src/domain/production.ts",
+    "src/features/production/ProductionPage.tsx",
+    "src/domain/production.test.ts",
+    "e2e/production.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : setTaskDates(…, '2207-05-21') et setDuration(…, 200000) ne changent rien, ou plafonnent la durée. E2E : saisir 21/05/2207 en fin rétablit l'ancienne date, et la largeur de la frise ne change pas."
+  },
+  {
+   "title": "Calendrier : la période de tournage disparaît dès qu'un seul jour est daté",
+   "kind": "bug",
+   "why": "productionItems masque l'étape liée dès qu'un jour du plan de travail est daté (`dated = some(...)`). Or, tant que tout n'est pas daté, la frise garde la durée prévue. Capture p4-month-partial.png (rav3, 1 jour daté sur 3, modèle) : la frise affiche Tournage du 16/11/2026 au 10/12/2026 (25 j), mais le mois montre seulement « Jour 1 » le 16, puis rien jusqu'au Montage image du 11/12. Le calendrier contredit la production.",
+   "what": "Dans productionItems, ne masquer l'étape liée que si tous les jours sont datés (shootingRange(doc).dated >= total, comme isPinned). Sinon, elle reste visible en étape au trait, à côté des « Jour n » en noir. Mettre à jour le commentaire et le test « montre étapes et jalons… ».",
+   "files": [
+    "src/domain/calendar.ts",
+    "src/domain/production.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : avec 1 jour daté sur 3, productionItems contient « Tournage » sur sa durée prévue. Avec tous les jours datés, il ne le contient plus (le test existant reste valable)."
+  },
+  {
+   "title": "Échap pendant qu'on tire une barre n'annule pas le déplacement",
+   "kind": "ergonomie",
+   "why": "Rien n'écoute Échap pendant un glisser de barre ou de ligne. Sonde probe2 : on tire Casting de 120 px, on appuie sur Échap puis on lâche, et le début passe de 08/12/2026 à 13/12/2026, cascade comprise. Sur un Gantt, Échap qui annule le glisser est le réflexe attendu ; aujourd'hui il faut faire Ctrl+Z.",
+   "what": "Dans ProductionPage, tant que bar ou rowDrag est actif, écouter keydown sur window. Échap appelle setBar(null) ou setRowDrag(null) et libère la capture du pointeur ; le pointerup suivant ne fait alors rien (endBarDrag voit bar = null). L'aperçu revient au plan, rien n'est écrit.",
+   "files": [
+    "src/features/production/ProductionPage.tsx",
+    "e2e/production.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : mouse.down sur une barre, déplacement de 120 px, Échap, puis mouse.up. Le champ « Début : … » garde sa valeur et l'historique d'annulation n'a pas d'étape nouvelle."
+  },
+  {
+   "title": "Vue Semaine sur téléphone : les en-têtes de jours se chevauchent",
+   "kind": "bug",
+   "why": "À 390 px (capture rav3-week-encre-390.png), les en-têtes donnent « mar. 10mer. 11jeu. … » : le libellé déborde sur la colonne voisine. Mesure probe6 : chaque bouton fait 45 px de large pour 48 à 51 px de contenu.",
+   "what": "Dans TimeGrid, mettre le jour abrégé et le numéro dans deux spans. Sous 700 px : en-tête en colonne (initiale L/M/M… au-dessus du numéro, comme la vue Année, constante INITIALS) ou initiale seule, avec un gap réduit. aria-label inchangé. La barre du calendrier n'est pas touchée.",
+   "files": [
+    "src/features/calendar/CalendarPage.tsx",
+    "src/features/calendar/CalendarPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E à 390 px, vue Semaine : chaque bouton d'en-tête a scrollWidth ≤ clientWidth, et les boîtes ne se recouvrent pas. Captures clair et sombre."
+  },
+  {
+   "title": "Frise de production sur écran tactile : le bouton « … » est invisible",
+   "kind": "ergonomie",
+   "why": ".menuBtn et .grip ont opacity 0 et ne s'affichent qu'au survol (.row:hover). Sonde probe6 (isMobile, hasTouch) : matchMedia('(hover: none)') est vrai et le bouton row-menu a une opacité de 0. Sur téléphone et tablette, ajouter, lier, dépendre ou supprimer passe par une zone invisible (capture rav3-prod-encre-390.png).",
+   "what": "Ajouter `@media (hover: none) { .menuBtn { opacity: 1; } }` dans ProductionPage.module.css. Laisser la poignée cachée sur tactile : le rangement se fait par le menu, voir l'idée « Monter / Descendre » si elle est retenue.",
+   "files": [
+    "src/features/production/ProductionPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E en contexte isMobile/hasTouch à 390 px : getComputedStyle(row-menu).opacity === '1', et un tap ouvre production-menu. Captures dans les deux thèmes."
+  },
+  {
+   "title": "Renommer une phase ou une étape est impossible au clavier ou au doigt",
+   "kind": "accessibilité",
+   "why": "Le renommage ne passe que par onDoubleClick sur le span du nom (TableRow, s.name). Ce span n'est pas focalisable et le menu « … » ne propose pas « Renommer ». Au clavier comme sur tactile (pas de double-clic fiable), on ne peut renommer que juste après une création (setRenaming automatique).",
+   "what": "Ajouter « Renommer » en tête du menu de ligne (RowMenu), qui appelle setRenaming(id) puis met le focus dans NameInput. Ce n'est pas un doublon visible : le double-clic est un geste, pas un élément d'interface. Ne pas l'afficher en lecture seule (le menu est déjà masqué).",
+   "files": [
+    "src/features/production/ProductionPage.tsx",
+    "e2e/production.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : Tab jusqu'à « Actions : Casting », Entrée, « Renommer », taper « Casting enfants », Entrée. La ligne affiche le nouveau nom, et Ctrl+Z le rétablit."
+  },
+  {
+   "title": "Menu « … » de la frise : flèches du clavier sans effet",
+   "kind": "accessibilité",
+   "why": "RowMenu a role=\"menu\" et des role=\"menuitem\", mais rien ne gère les flèches. Sonde probe2 : après ouverture, ArrowDown laisse le focus sur « Ajouter une étape ». Tab sort du menu sans le fermer. C'est le cas aussi dans la liste « Dépend de ».",
+   "what": "Dans RowMenu : onKeyDown pour ArrowDown/ArrowUp (circulaire), Home et End entre les boutons [role^=menuitem], et Tab qui ferme le menu en rendant le focus au bouton « … ». Rien de visible ne change.",
+   "files": [
+    "src/features/production/ProductionPage.tsx",
+    "e2e/production.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : ouvrir le menu, ArrowDown met le focus sur « Ajouter un jalon », End sur « Supprimer », ArrowDown revient au premier. Tab ferme le menu et le focus revient sur le bouton « … »."
+  },
+  {
+   "title": "Le menu de ligne reste figé quand la frise défile",
+   "kind": "ergonomie",
+   "why": "RowMenu est en position fixe dans un portail et se ferme seulement sur mousedown ou Échap. Sonde probe2 : menu ouvert, scrollTop de la frise à 200, et le menu reste visible, détaché de sa ligne. Il pointe alors vers une autre étape que celle qu'il modifiera.",
+   "what": "Fermer RowMenu sur scroll : écouteur 'scroll' en capture sur window, et sur 'resize', retiré au démontage, comme pour mousedown. Ne pas fermer quand le défilement vient de la liste interne .menuScroll (ref.current.contains(e.target)).",
+   "files": [
+    "src/features/production/ProductionPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : ouvrir le menu, faire défiler la frise : production-menu est retiré. Faire défiler la liste « Dépend de » : le menu reste ouvert."
+  },
+  {
+   "title": ".ics : rendez-vous et étapes d'une copie de projet écrasent ceux de l'original",
+   "kind": "bug",
+   "why": "Le UID d'un jour de tournage inclut le projet (`jour-${projectId}-…`), mais pas celui d'un rendez-vous (`${eventId}@decoupage-studio`) ni d'une étape (`etape-${taskId}`). projectCopy (serialize.ts) garde les identifiants des rendez-vous et des étapes et ne change que project.id. Si l'on importe dans le même agenda le .ics d'un projet et celui de sa copie (V2, variante), les événements de l'un remplacent ceux de l'autre.",
+   "what": "Porter un uid sur chaque CalendarItem : `rdv-${projectId}-${eventId}` dans calendarItems et eventsOn (qui ont le doc), et `etape-${projectId}-${taskId}` dans productionItems. calendarIcs utilise it.uid en priorité. Une ligne dans DECISIONS.md : un agenda déjà abonné recevra ces éléments une fois en double. Mettre à jour le test qui attend `UID:etape-${taskId}`.",
+   "files": [
+    "src/domain/calendar.ts",
+    "src/domain/calendar.test.ts",
+    "src/domain/production.test.ts"
+   ],
+   "risk": "moyen",
+   "effort": "petit",
+   "test": "Vitest : deux documents qui ne diffèrent que par project.id donnent des UID tous différents. Le UID reste stable quand on change la date ou le titre d'un rendez-vous."
+  },
+  {
+   "title": "Noms des fichiers du calendrier : titre brut au lieu du nom commun aux exports",
+   "kind": "robustesse",
+   "why": "Le Calendrier exporte `${doc.project.title}-calendrier.ics` et la Production `${title}-calendrier-de-production…`, alors que les autres pages utilisent exportBase(doc), qui nettoie et ajoute la version (« rav3-v3-… », vérifié par e2e/export.spec.ts). Un titre avec « / », « : » ou des accents donne des noms irréguliers ou réécrits par le navigateur, et la version manque.",
+   "what": "Utiliser exportBase(doc) dans CalendarPage.exportIcs (`${base}-calendrier.ics`) et dans le fileBase et file.name du TabExport de ProductionPage (`${base}-calendrier-de-production`). Le libellé interne du .ics (X-WR-CALNAME) garde le titre lisible. Pas de changement de disposition de la barre.",
+   "files": [
+    "src/features/calendar/CalendarPage.tsx",
+    "src/features/production/ProductionPage.tsx",
+    "e2e/calendar.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E avec seed rav3 : le téléchargement .ics du calendrier s'appelle « rav3-v3-calendrier.ics », et l'export Word de la production « rav3-v3-calendrier-de-production.doc »."
+  },
+  {
+   "title": "Fenêtre d'un rendez-vous : changer le début ne décale pas la fin",
+   "kind": "ergonomie",
+   "why": "Sonde probe3 : nouveau rendez-vous 09:00–10:00, début mis à 15:00, la fin reste 10:00. À l'enregistrement, la fin devient 16:00 sans qu'on l'ait vue. Il faut toujours retoucher la fin. Même chose en journée entière : avancer la date au-delà de « Jusqu'au » réduit l'événement à un jour au lieu de garder sa durée.",
+   "what": "Petite fonction pure shiftStart(fields, patch) dans domain/calendar.ts. Un nouveau début ou une nouvelle date décale la fin du même écart (durée gardée, minuit franchi si besoin, voir l'idée nuit). EventDialog l'appelle dans les onChange de event-start et event-date. Changer la fin seule ne touche pas au début.",
+   "files": [
+    "src/domain/calendar.ts",
+    "src/features/calendar/EventDialog.tsx",
+    "src/domain/calendar.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : shiftStart(09:00–10:30, début 15:00) donne 15:00–16:30. Journée entière du 10 au 12, date au 20 : jusqu'au 22. E2E : changer le début met à jour la valeur de event-end."
+  },
+  {
+   "title": "Rendez-vous sur plusieurs jours : même continuité que les étapes de production",
+   "kind": "ergonomie",
+   "why": "Capture p3-month-encre.png : « Repérages Bretagne » (4 jours) répète son titre complet dans chaque case, comme quatre événements distincts. Les étapes de production, elles, sont déjà nommées le premier jour et chaque lundi, avec des bords ouverts (contL / contR dans Chip). Deux langages pour la même chose.",
+   "what": "Dans Chip, étendre la condition `span` aux rendez-vous du projet en journée entière dont endDate > date. Adapter le CSS pour qu'une pastille pleine (.pill sans .prod) perde ses arrondis du côté de la suite. aria-label = titre sur les jours de suite (déjà fait pour les étapes). Même rendu dans la rangée « journée » de la vue Semaine.",
+   "files": [
+    "src/features/calendar/CalendarPage.tsx",
+    "src/features/calendar/CalendarPage.module.css",
+    "e2e/calendar.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : rendez-vous du lundi au jeudi. Le texte visible n'est présent que le lundi, les cases mar.–jeu. ont un calendar-item avec aria-label = titre. Captures clair et sombre."
+  },
+  {
+   "title": "Un clic hors de la fenêtre d'un rendez-vous fait perdre la saisie",
+   "kind": "ergonomie",
+   "why": "EventDialog se ferme au mousedown sur le fond (m.backdrop), même quand le titre, les heures ou la note ont été modifiés. Sonde probe3 : on tape « abc », un clic à (5,5), la fenêtre est fermée et rien n'est enregistré. Le geste est fréquent au trackpad, et une note longue est perdue d'un coup.",
+   "what": "Dans EventDialog, ne fermer au clic sur le fond que si f est identique à initial (comparaison superficielle). Sinon, ignorer le clic : Échap et « Annuler » restent les sorties explicites. Pas de confirmation ni de toast.",
+   "files": [
+    "src/features/calendar/EventDialog.tsx",
+    "e2e/calendar.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : ouvrir, taper un titre, cliquer sur le fond : la fenêtre reste avec le titre. Sans saisie, le clic sur le fond la ferme. Échap la ferme dans les deux cas."
+  },
+  {
+   "title": "Fenêtre d'un rendez-vous : focus non piégé, non rendu à la fermeture",
+   "kind": "accessibilité",
+   "why": "EventDialog (aria-modal=\"true\") n'enferme pas Tab : on sort vers la page derrière. À la fermeture, le focus tombe sur body au lieu de revenir au bouton « + » ou à l'élément cliqué, contrairement à DialogHost (ui/Modal.tsx), qui le rend, et au menu de la frise.",
+   "what": "Mémoriser document.activeElement au montage et le refocaliser au démontage, comme DialogHost. Au keydown Tab ou Maj+Tab sur le premier ou le dernier élément focalisable du formulaire, boucler.",
+   "files": [
+    "src/features/calendar/EventDialog.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : focus sur event-add, Entrée, Échap : document.activeElement est event-add. Tab répété dans la fenêtre ne sort jamais de event-dialog."
+  },
+  {
+   "title": "Lecture seule : impossible de lire les heures et la note d'un rendez-vous",
+   "kind": "fonction",
+   "why": "CalendarPage.open : `if (e && !readOnly) setEditing(...)`. En partage en lecture seule, cliquer un rendez-vous ne fait rien. Note et horaire complet ne sont que dans l'attribut title, inaccessible au doigt et au lecteur d'écran. Un membre de l'équipe qui consulte le calendrier partagé sur téléphone ne peut pas lire l'adresse ou la note du rendez-vous.",
+   "what": "En lecture seule, ouvrir EventDialog avec une prop readOnly : champs désactivés (disabled), pas de « Supprimer », un seul bouton « Fermer » au lieu d'« Annuler » et « Enregistrer », onSubmit inactif. Aucune écriture possible : mutateDoc n'est jamais appelé.",
+   "files": [
+    "src/features/calendar/CalendarPage.tsx",
+    "src/features/calendar/EventDialog.tsx",
+    "e2e/calendar.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E en mode partagé lecture seule (même mise en place que les tests de partage existants) : un clic sur un rendez-vous ouvre event-dialog avec des champs désactivés, sans event-save ni event-delete. Le document n'est pas modifié."
+  },
+  {
+   "title": "Frise : calculs du plan de travail refaits à chaque survol de ligne",
+   "kind": "performance",
+   "why": "Chaque pointerenter de ligne fait setHover et re-rend tout ProductionPage. À chaque rendu : calendarItems(doc) (jours de tournage, bandes et décors, étapes) juste pour les repères de rendez-vous, plus isPinned et isHeld appelés deux fois par ligne, chacun relançant shootingRange → scheduleDays. Mesure probe5 (rav3 + modèle) : environ 18 ms par survol et 20 ms par pas de glisser.",
+   "what": "useMemo pour les rendez-vous : (doc.calendar ?? []).map(eventItem) filtré sur l'échelle, sans calendarItems. Calculer shootingRange(doc) une fois par rendu (useMemo sur doc) et en déduire pinned et held par tâche, passés à TableRow. Ajouter des variantes isPinned et isHeld qui reçoivent ce range, ou un paramètre optionnel, dans production.ts.",
+   "files": [
+    "src/features/production/ProductionPage.tsx",
+    "src/domain/production.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Les tests Vitest et e2e production existants passent tels quels. La sonde de survol (51 lignes) passe nettement sous 10 ms par mouvement. Le marqueur de rendez-vous reste cliquable vers #/calendar?date=…"
+  },
+  {
+   "title": "Vue Année : distinguer les jours de tournage des autres jours occupés",
+   "kind": "fonction",
+   "why": "YearView ne marque tout qu'avec le même point de 3 px (busyDates) : rendez-vous, jalons, jours de tournage. Pour une équipe, voir d'un coup d'œil sur l'année où tombent les jours de tournage est l'usage principal de cette vue. Le point n'est pas non plus annoncé aux lecteurs d'écran (aria-label = date seule).",
+   "what": "Calculer un second ensemble shootDates (items de source 'shooting'). Ces jours ont un fond plein discret (color-mix ink 18 %, un gris, cercle comme .today mais plus clair), et le point est gardé pour les autres jours occupés. aria-label complété : « …, jour de tournage » ou « …, occupé ». Rien de plus à l'écran.",
+   "files": [
+    "src/features/calendar/CalendarPage.tsx",
+    "src/features/calendar/CalendarPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : rav3 avec le jour 1 daté. year-<date> a la classe de tournage et un aria-label qui finit par « jour de tournage ». Un jour avec un seul rendez-vous garde le point. Captures clair et sombre."
+  },
+  {
+   "title": "Normaliser l'étape liée relue d'un fichier (une seule, jamais un jalon)",
+   "kind": "robustesse",
+   "why": "normalizeProduction ne vérifie pas linked. Un fichier peut contenir deux étapes liées ou un jalon lié (setLinked les refuse, pas la relecture). cascade() fige alors toutes les étapes liées (pinned = toutes les linked), tandis que syncProduction ne recale que la première : les autres restent figées à des dates périmées et ne peuvent être réglées qu'en passant par « Délier ».",
+   "what": "Dans normalizeProduction : linked !== 'schedule' est supprimé, le linked d'un jalon est supprimé, et seule la première étape liée (ordre des phases) le reste, les autres perdent linked et planned. Écarter aussi les doublons d'identifiant de tâche (garder le premier), qui casseraient findTask et les dépendances.",
+   "files": [
+    "src/domain/production.ts",
+    "src/domain/production.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : migrate() d'un plan avec deux étapes liées, un jalon lié et un id en double. Il reste une seule étape liée, aucun jalon lié, ids uniques, et syncProduction recale l'étape restante sur le plan de travail."
+  },
+  {
+   "title": "Rendez-vous : le déplacer d'un jour à l'autre en vue Mois",
+   "kind": "fonction",
+   "why": "Aujourd'hui, décaler un rendez-vous (repérage reporté, réunion déplacée) oblige à ouvrir la fenêtre et à retaper la date, alors que la frise de production se manipule déjà au glisser. Dans un calendrier, c'est le geste attendu. Les jours de tournage et les étapes restent non déplaçables ici : leurs sources sont le plan de travail et la frise.",
+   "what": "Fonction pure moveEvent(doc, id, days) dans domain/calendar.ts : décale start et end en gardant les heures et la durée, testée. En vue Mois, glisser au pointeur (seuil de 4 px pour garder le clic) sur les Chip de source 'project' seulement, case cible repérée par data-date. Un seul mutateDoc au lâcher (annulable), Échap annule, désactivé en lecture seule.",
+   "files": [
+    "src/domain/calendar.ts",
+    "src/domain/calendar.test.ts",
+    "src/features/calendar/CalendarPage.tsx",
+    "src/features/calendar/CalendarPage.module.css",
+    "e2e/calendar.spec.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : moveEvent sur un rendez-vous minuté, sur une journée entière de plusieurs jours et sur un événement qui passe minuit. E2E : glisser un rendez-vous du 10 au 13, il apparaît le 13 à la même heure. Ctrl+Z le ramène. Un simple clic ouvre toujours la fenêtre."
+  }
+ ]
+}

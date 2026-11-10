@@ -1,0 +1,328 @@
+{
+ "ideas": [
+  {
+   "title": "Assistant : modifications versées dans un autre projet, ou assistant bloqué, si le projet change pendant la réponse",
+   "kind": "bug",
+   "why": "askAssistant calcule ses patches immer sur l'instantané « base », puis les applique dans le finally au projet devenu courant, sans rien vérifier. Prouvé avec une API simulée qui retarde sa réponse : (1) l'utilisateur ouvre RAV3 pendant la réponse et la séquence « SÉQUENCE DE L IA » créée pour La Consigne apparaît dans le découpage de RAV3, Vérifications passe de 6 à 7, avec « Annuler ces modifications » affiché (capture ai-after-switchseq-encre.png) ; (2) l'utilisateur supprime le plan 1.2 pendant que l'assistant le modifie : erreur Immer n°18 non rattrapée (« path doesn't resolve »), aucune modification appliquée, et busy reste à true pour toujours (« … » et bouton Arrêter inopérant) jusqu'à « Nouvelle conversation ».",
+   "what": "Dans le finally de askAssistant : (a) si useProjectStore.getState().doc?.project.id !== base.project.id, ne rien appliquer et ajouter une entrée d'erreur « Projet changé : modifications non appliquées. » ; (b) si le doc courant est encore base, appliquer les patches comme aujourd'hui ; sinon (l'utilisateur a modifié entre-temps), rejouer les appels d'outils en écriture (nom et entrée retenus pendant la boucle) avec runAiTool dans un seul mutateDoc, pour que les ops (addShot, deleteShot…) gardent les invariants au lieu de patches d'index périmés, et recalculer la liste changes ; (c) mettre useAssistant.setState({ busy: false, abort: null }) dans un finally interne pour que l'état occupé ne survive jamais à une exception.",
+   "files": [
+    "src/features/assistant/assistant.ts",
+    "e2e/assistant.spec.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "e2e avec API Anthropic simulée et seconde réponse retenue : (1) supprimer le plan 1.2 pendant l'attente, puis libérer : aucune pageerror, plus d'indicateur « Réponse en cours », la modification est rejouée ; (2) ouvrir un autre projet pendant l'attente : le découpage de RAV3 reste identique (même nombre de séquences) et une entrée d'erreur s'affiche. Unitaire : rejouer les appels sur un doc modifié passe checkInvariants."
+  },
+  {
+   "title": "Assistant : message perdu si l'on appuie sur Entrée pendant une réponse",
+   "kind": "bug",
+   "why": "Pendant une réponse, la touche Entrée de la zone de saisie appelle quand même send(), qui vide le brouillon (setDraft('')) avant que askAssistant ne quitte en silence parce que busy est vrai. Prouvé : texte saisi pendant la réponse puis Entrée, la valeur du champ devient \"\" et le message n'apparaît jamais dans la conversation.",
+   "what": "Dans AssistantPanel, send() ne fait rien tant que busy est vrai (le brouillon reste dans le champ) ; garder la touche Entrée inactive dans ce cas. Le bouton Arrêter reste le seul geste possible pendant la réponse.",
+   "files": [
+    "src/features/assistant/AssistantPanel.tsx",
+    "e2e/assistant.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : pendant une réponse retenue, saisir « Ajoute un insert » puis Entrée : le champ garde le texte, une seule bulle utilisateur ; après la réponse, Entrée envoie bien le message."
+  },
+  {
+   "title": "Assistant : nouvelle conversation à l'ouverture d'un autre projet",
+   "kind": "robustesse",
+   "why": "Le panneau et la session du modèle survivent au changement de projet (capture ai-after-switchseq-encre.png : la conversation sur La Consigne s'affiche dans RAV3). L'historique envoyé au modèle parle alors des séquences et des numéros d'un autre projet, ce qui expose à des modifications au mauvais endroit dans le nouveau projet.",
+   "what": "Dans assistant.ts, s'abonner une fois à useProjectStore et appeler newConversation() (qui interrompt une réponse en cours) quand doc?.project.id change. Ne rien faire sur les simples modifications du même projet.",
+   "files": [
+    "src/features/assistant/assistant.ts",
+    "e2e/assistant.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : une conversation dans La Consigne, puis ouvrir RAV3 depuis l'accueil : le panneau est vide, la requête suivante ne contient qu'un seul message utilisateur."
+  },
+  {
+   "title": "QR code plein écran : il se ferme dès qu'un invité rejoint le partage",
+   "kind": "bug",
+   "why": "QrScreen relance son useEffect quand onClose change ; les parents passent une fonction fléchée nouvelle à chaque rendu (Share.tsx : onClose={() => setQr(false)}, Review.tsx pareil). L'arrivée d'un invité met useShare à jour, ShareButton se rend de nouveau, le nettoyage quitte le plein écran et le nouvel écouteur fullscreenchange referme l'écran. Prouvé : plein écran actif à l'ouverture, puis après l'arrivée de Nina : fullscreenElement à false, share-qr-screen absent (événements [true,false]). Sur un tournage, le premier scan ferme le QR montré à l'équipe.",
+   "what": "Dans QrScreen, garder onClose dans une ref (onCloseRef.current = onClose à chaque rendu) et lancer l'effet du plein écran une seule fois (dépendances []). Le comportement reste le même pour Échap et la sortie du plein écran.",
+   "files": [
+    "src/features/share/QrScreen.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e (serveur PeerJS local) : ouvrir le QR code, faire rejoindre un invité : share-qr-screen reste visible et document.fullscreenElement reste non nul ; Échap le referme toujours."
+  },
+  {
+   "title": "Planche à dessin cachée sous la bulle de commentaire ; un clic sur le fond fait perdre le brouillon",
+   "kind": "bug",
+   "why": "La planche (fond .backdrop z-index 55) s'ouvre sous la bulle (.popover z-index 60). La bulle recouvre le milieu du canevas, sur ordinateur comme sur téléphone, où elle en masque presque tout (captures sketch-1440-encre.png, sketch-390-papier.png). En plus, un mousedown sur le fond de la planche n'est pas exclu par l'écouteur « clic dehors » de la bulle : closeComment() s'exécute, et rouvrir la cellule appelle openComment, qui remet le brouillon à vide.",
+   "what": "Traiter la planche comme le tracé sur la page : CommentPopover ne se rend pas tant que useCommentsUi.sketch est ouvert (comme pour drawing), et son effet « clic dehors / Échap » reste suspendu pendant ce temps. À la fermeture de la planche, la bulle revient avec son brouillon intact.",
+   "files": [
+    "src/features/comments/CommentPopover.tsx",
+    "src/features/comments/SketchPad.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e dans l'aperçu du découpage : ouvrir une bulle, taper un texte, ouvrir « Dessiner un schéma » : la bulle n'est plus visible et un tracé au centre du canevas fonctionne ; cliquer sur le fond : la planche se ferme, la bulle revient avec le texte. Captures 390 et 1440 dans les deux thèmes."
+  },
+  {
+   "title": "Échap ferme la planche à dessin, la fenêtre des commentaires et le panneau Partager",
+   "kind": "accessibilité",
+   "why": "Prouvé à 1440 et 390 px dans les deux thèmes : après Échap, la planche (sketch-pad) et la fenêtre des commentaires (comments-panel) restent ouvertes. Le panneau Partager reste ouvert aussi (capture host-after-comment-papier.png). Ailleurs dans l'application, Échap ferme (bulle de commentaire, assistant, QR code), donc l'usage au clavier n'est pas cohérent.",
+   "what": "Ajouter un écouteur keydown Escape : dans SketchPad (fermer sans joindre), dans CommentsPanel (closeCommentsPanel) et dans ShareButton (setOpen(false), puis focus rendu au bouton Partager). Ignorer Échap dans ShareButton tant que le QR code est ouvert, puisque QrScreen le gère déjà.",
+   "files": [
+    "src/features/comments/SketchPad.tsx",
+    "src/features/comments/CommentsPanel.tsx",
+    "src/features/share/Share.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : ouvrir chacun des trois, appuyer sur Échap : sketch-pad, comments-panel et share-panel ont un compte de 0 ; le focus est sur share-button après la fermeture du panneau."
+  },
+  {
+   "title": "Commentaires écrits en même temps par l'hôte et un invité : l'un des deux disparaît",
+   "kind": "bug",
+   "why": "diff() remplace d'un bloc un tableau dont la longueur change ; ajouter un commentaire envoie donc {p:['comments'], v: toute la liste}. Quand deux participants commentent en même temps, chacun écrase la liste de l'autre. Prouvé (serveur PeerJS local, deux envois simultanés) : au premier essai, une seule cellule commentée chez l'hôte comme chez l'invité au lieu de deux ; au second essai, deux. C'est une perte de données non déterministe, plausible en réunion de relecture à plusieurs.",
+   "what": "Fonction pure mergeComments(local, incoming) dans domain/comments.ts : union par id, ordre de incoming, puis éléments locaux absents de incoming. Les invités d'un partage direct ne suppriment jamais de commentaire (seul l'auteur le peut), donc l'union ne ressuscite rien de leur fait. Dans startHosting, quand une op invitée porte exactement p=['comments'], appliquer la liste fusionnée et la renvoyer à tous les invités, y compris l'émetteur (aujourd'hui l'émetteur est exclu du relais), pour que tout le monde converge.",
+   "files": [
+    "src/domain/comments.ts",
+    "src/domain/comments.test.ts",
+    "src/store/share.ts",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Unitaire : mergeComments([A,C],[A,B]) donne [A,B,C], sans doublon d'id. e2e : cinq envois simultanés hôte et invité sur des cellules différentes : 2 cellules data-commented de chaque côté à chaque essai."
+  },
+  {
+   "title": "Invité « Commenter » du partage en direct : aucun accès à la liste des commentaires",
+   "kind": "fonction",
+   "why": "VersionSwitcher ne propose le bouton « V3 + bulle + compteur », qui ouvre la fenêtre des commentaires, qu'au relecteur Drive (branche drive). L'invité d'un partage direct en mode Commenter tombe dans la branche readOnly : un simple libellé « V3 » (capture guest-review-encre.png). Il ne peut ni relire l'ensemble des remarques ni aller de l'une à l'autre, seulement trouver les petites marques des cellules.",
+   "what": "Dans VersionSwitcher, utiliser la branche « drive » aussi pour useReviewing() (invité en mode review). Elle n'ouvre que la version courante, sans changement de version, ce qui reste compatible avec la garde des modifications. Aucun nouvel élément d'interface : c'est le même bouton que pour le relecteur Drive.",
+   "files": [
+    "src/features/versions/VersionSwitcher.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : hôte en mode Commenter, invité connecté : version-switcher porte le compteur ; un clic ouvre comments-panel avec le commentaire de l'hôte ; un invité en « Lire seulement » garde le libellé simple."
+  },
+  {
+   "title": "Auteur « Moi » enregistré dans le projet et lu ainsi par tous les autres",
+   "kind": "bug",
+   "why": "authorName() se rabat sur 'Moi' sans compte Google ni réalisateur renseigné ; ce texte est enregistré dans comment.author. Capture comments-panel-390-encre.png : « Moi » signe le commentaire. Les invités, les relecteurs Drive et les exports voient donc « Moi » pour un autre qu'eux.",
+   "what": "Remplacer le repli 'Moi' par 'Réalisation' (nom de fonction neutre, juste pour tous les lecteurs) dans commentsUi.authorName. Ne pas réécrire les commentaires existants.",
+   "files": [
+    "src/features/comments/commentsUi.ts",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : projet RAV3 sans réalisateur, commentaire de l'auteur : l'en-tête montre « Réalisation » ; avec project.director renseigné, son nom."
+  },
+  {
+   "title": "Outils de l'assistant : intérieur/extérieur, effet et type de personnage enregistrés sans validation",
+   "kind": "bug",
+   "why": "add_sequence fait un cast direct de int_ext et effect (update_sequence, lui, les vérifie) ; add_character fait de même pour kind. Prouvé par appel direct de runAiTool : add_sequence {int_ext:'Intérieur', effect:'NIGHT'} enregistre intExt='Intérieur', effect='NIGHT' ; add_character {kind:'Rôle principal'} enregistre kind='Rôle principal'. Ces valeurs hors type faussent les en-têtes, les bandes Jour/Nuit du plan de travail et les listes de personnages.",
+   "what": "Valider comme update_sequence : n'accepter que INT / EXT / INT/EXT et JOUR / NUIT / AUBE / CRÉPUSCULE (sinon ne rien poser), et kind dans la liste CharacterKind, avec 'secondaire' par défaut. Une valeur refusée est signalée dans le texte renvoyé au modèle (résultat non bloquant).",
+   "files": [
+    "src/domain/aiTools.ts",
+    "src/domain/aiTools.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaires : add_sequence avec 'Intérieur'/'NIGHT' donne intExt et effect absents ; avec 'INT'/'NUIT', ils sont posés ; add_character avec 'Rôle principal' donne 'secondaire'."
+  },
+  {
+   "title": "Outils de l'assistant : dépouillement sans catégorie rangé dans « personnages », suppression de plans mal comptée",
+   "kind": "bug",
+   "why": "add_breakdown_items avec category absente donne wanted = '' ; startsWith('') étant toujours vrai, l'outil prend la première catégorie. Prouvé : renvoie « 1 élément (personnages, séquence 1) » et rien n'apparaît dans breakdownOf. delete_shots {shots:[1,1]} annonce « 2 plans supprimés » alors qu'un seul l'est (prouvé). Il supprime aussi tout un cadre d'interview, alors que update_shot refuse de toucher ces plans.",
+   "what": "add_breakdown_items : erreur explicite si la catégorie est vide ou si la liste d'éléments est vide. delete_shots : dédoublonner les numéros, refuser les plans d'interview avec le même message que update_shot, compter les plans réellement retirés.",
+   "files": [
+    "src/domain/aiTools.ts",
+    "src/domain/aiTools.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaires : catégorie absente donne isError ; delete_shots [1,1] retire un plan et annonce « 1 plan supprimé » ; sur un plan d'interview, isError et doc inchangé."
+  },
+  {
+   "title": "Assistant : get_scenario sans numéro sur un long métrage sature le contexte",
+   "kind": "robustesse",
+   "why": "get_scenario sans « scene » renvoie tout le scénario, et ce résultat reste dans l'historique de session à chaque tour. Sur un long métrage (plus de 100 pages, de l'ordre de 200 000 caractères), deux ou trois appels suffisent à dépasser la fenêtre du modèle : erreur 400 incompréhensible, puis conversation inutilisable.",
+   "what": "Au-delà d'un seuil (par exemple 40 000 caractères), renvoyer la liste numérotée des séquences du scénario (en-têtes et longueurs) et demander au modèle de lire par numéro. Le texte complet reste servi au-dessous du seuil. Logique pure dans aiTools.ts.",
+   "files": [
+    "src/domain/aiTools.ts",
+    "src/domain/aiTools.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Unitaire : scénario synthétique de 60 000 caractères, get_scenario {} renvoie moins de 10 000 caractères avec les en-têtes numérotés ; get_scenario {scene:2} renvoie bien le texte de la séquence 2."
+  },
+  {
+   "title": "Assistant : « Réessayer » après une erreur de réseau ou de limite, sans doublon dans l'historique",
+   "kind": "fonction",
+   "why": "Après « Limite de requêtes atteinte » ou « Connexion impossible », un fréquent sur un plateau mal couvert, l'utilisateur doit retaper sa demande. Le message en échec reste aussi dans l'historique de session, donc le renvoi crée deux messages utilisateur consécutifs.",
+   "what": "Ajouter rollback(length) aux ChatSession (tronquer messages et contents à la longueur d'avant addUser), l'appeler quand askAssistant échoue avant toute modification (patches vides). Sur l'entrée d'erreur, un lien discret « Réessayer » relance le dernier message. Pas de nouveau bouton hors de l'entrée d'erreur.",
+   "files": [
+    "src/features/assistant/providers.ts",
+    "src/features/assistant/assistant.ts",
+    "src/features/assistant/AssistantPanel.tsx",
+    "src/features/assistant/providers.test.ts",
+    "e2e/assistant.spec.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "e2e : première requête 429, puis réponse normale ; « Réessayer » : la requête suivante contient un seul message utilisateur, la réponse s'affiche, l'erreur disparaît."
+  },
+  {
+   "title": "Pièces jointes des commentaires réduites dès l'ajout",
+   "kind": "performance",
+   "why": "AttachButtons range le fichier d'origine (putBlob sans traitement) : une photo de téléphone de 8 à 12 Mo part entière vers chaque invité du partage direct (ArrayBuffer d'un bloc) et alourdit IndexedDB. Seule la relecture Drive réduit les images (reduceImage dans store/review.ts : JPEG 1600 px, 0,82). Un SVG joint reste aussi un SVG.",
+   "what": "Déplacer reduceImage dans un module partagé (src/ui/reduceImage.ts, réexporté par review.ts pour ne rien casser) et l'appliquer dans AttachButtons avant putBlob ; image illisible ou trop lourde : ne rien joindre. La planche à dessin (PNG 640×400) n'est pas concernée.",
+   "files": [
+    "src/store/review.ts",
+    "src/ui/reduceImage.ts",
+    "src/features/comments/Attachments.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : joindre une image PNG 4000×3000 : le blob rangé est image/jpeg et fait au plus 1600 px de côté ; les tests review-drive des pièces jointes restent verts."
+  },
+  {
+   "title": "Exclure un invité : message juste et mot de passe renouvelé",
+   "kind": "robustesse",
+   "why": "kickGuest ferme la connexion et l'invité exclu voit « Partage fermé par l'hôte. », ce qui est faux. Il peut surtout revenir aussitôt avec le même lien et le même mot de passe : l'exclusion n'a aucun effet durable.",
+   "what": "Nouveau message {t:'bye', reason} envoyé avant la fermeture, affiché par expelled() (« Vous avez été retiré du partage. »). Dans kickGuest, régénérer st.password (randomCode(6)) : les invités déjà connectés ne sont pas touchés, les nouveaux arrivants ont besoin du mot de passe affiché dans le panneau et le QR code.",
+   "files": [
+    "src/store/share.ts",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : exclure Nina : son toast dit « retiré » ; l'ancien mot de passe donne « Mot de passe incorrect. » ; le nouveau, lu dans share-password, la laisse entrer ; Paul, resté connecté, l'est toujours."
+  },
+  {
+   "title": "Hôte : confirmation avant de fermer ou recharger l'onglet quand des invités sont connectés",
+   "kind": "robustesse",
+   "why": "Prouvé : un rechargement de l'hôte renvoie les invités à l'accueil en environ 1 s (« Partage fermé par l'hôte »). Un geste de trop (Cmd+R, fermeture d'onglet) coupe toute l'équipe en pleine séance, sans avertissement.",
+   "what": "Tant que role === 'host' et guests.length > 0, poser un écouteur beforeunload (preventDefault, returnValue) qui déclenche la confirmation native du navigateur ; le retirer à stopHosting. Aucun texte maison.",
+   "files": [
+    "src/store/share.ts",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : avec un invité connecté, page.on('dialog') reçoit une boîte beforeunload au rechargement de l'hôte ; sans invité, aucune boîte."
+  },
+  {
+   "title": "Rejoindre un partage pendant qu'on en héberge un : fermer d'abord le sien",
+   "kind": "robustesse",
+   "why": "joinSession appelle leaveSession(), qui ne fait rien pour un hôte, puis remplace la variable peer et le rôle. Le partage hébergé reste vivant sans être joignable (pair orphelin, invités encore connectés, gardes réinstallées par-dessus). C'est le cas où l'hôte ouvre un lien #/join reçu d'un collègue dans le même onglet. enterDriveReview, lui, appelle déjà stopHosting().",
+   "what": "Au début de joinSession, si role === 'host', appeler stopHosting() comme le fait enterDriveReview.",
+   "files": [
+    "src/store/share.ts",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : A héberge avec un invité B ; A ouvre le lien de partage de C et le rejoint : B revient à l'accueil (partage fermé), A est invité de C."
+  },
+  {
+   "title": "Bandeau de l'invité : le vrai nom de l'hôte, ou rien",
+   "kind": "ergonomie",
+   "why": "hostName vaut doc.project.director ou « l'hôte » : capture guest-review-encre.png, « Projet partagé par l'hôte », une mention vide de sens qui allonge le bandeau, déjà sur deux lignes à 390 px (m-guest-papier.png).",
+   "what": "À l'envoi de welcome, hostName = compte Google (useCloud user.name) ou réalisateur ou vide. GuestBanner omet « par … » quand il est vide : « Projet partagé · relecture ».",
+   "files": [
+    "src/store/share.ts",
+    "src/features/share/Share.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : RAV3 sans réalisateur, le bandeau commence par « Projet partagé · » ; avec un réalisateur renseigné, son nom apparaît. Captures à 390 px, deux thèmes."
+  },
+  {
+   "title": "Invités homonymes indiscernables dans la liste de l'hôte",
+   "kind": "ergonomie",
+   "why": "Prouvé : deux invités nommés « Nina » donnent « N Nina / N Nina » dans share-guests. L'hôte ne sait pas lequel exclure, et les commentaires de l'un et de l'autre sont signés pareil.",
+   "what": "À l'accueil d'un invité (hello), si le nom est déjà pris par un invité connecté (ou par l'hôte), le suffixer « Nina 2 », « Nina 3 » et le renvoyer dans welcome ; l'invité signe ensuite avec ce nom (mis dans ds-guest-name pour la session seulement, ou dans un nom de session gardé par share.ts et lu par authorName).",
+   "files": [
+    "src/store/share.ts",
+    "src/features/comments/commentsUi.ts",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : deux invités « Nina » : la liste de l'hôte montre « Nina » et « Nina 2 » ; un commentaire du second est signé « Nina 2 »."
+  },
+  {
+   "title": "QR code du partage : mot de passe déjà rempli à l'arrivée",
+   "kind": "fonction",
+   "why": "Sur un plateau, le QR code s'affiche avec le mot de passe en grand : chaque membre de l'équipe scanne, puis doit taper six caractères sur son téléphone. Le QR expose déjà le mot de passe à qui le regarde : le mettre aussi dans le lien du QR ne change rien à la sécurité et fait gagner un geste à chacun.",
+   "what": "Le QR code (seulement lui, pas le lien copié) encode `${link}&pw=${password}`. JoinPage initialise le mot de passe depuis params.get('pw'), puis retire pw de l'adresse (navigate('join', { room })), pour qu'il ne reste pas dans l'historique. Le champ reste visible et modifiable.",
+   "files": [
+    "src/features/share/Share.tsx",
+    "src/features/share/QrScreen.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : ouvrir #/join?room=X&pw=Y : le champ Mot de passe vaut Y et l'adresse ne contient plus pw ; « Copier le lien » ne contient pas pw."
+  },
+  {
+   "title": "Assistant : contexte de page juste sur toutes les pages",
+   "kind": "robustesse",
+   "why": "ROUTE_LABEL ne connaît ni calendar, ni production, ni settings : le modèle reçoit « page : calendar », un identifiant anglais. Sur la route vide, `ROUTE_LABEL[''] ?? route ?? 'accueil'` produit « page : » (chaîne vide, pas nulle).",
+   "what": "Compléter ROUTE_LABEL (Calendrier, Calendrier de production, Paramètres) et remplacer le `??` par `||` pour le repli « accueil ».",
+   "files": [
+    "src/features/assistant/assistant.ts",
+    "e2e/assistant.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e avec API simulée : message envoyé depuis #/calendar, le premier message utilisateur commence par « [Contexte — page : Calendrier »."
+  },
+  {
+   "title": "Tracés et planche à dessin : geste interrompu sur tablette",
+   "kind": "robustesse",
+   "why": "SketchPad et MarkLayer ne terminent un trait que sur pointerup. Sur iPad, un pointercancel (paume, geste système, défilement) laisse current/live ouverts : le trait suivant se raccorde au précédent, ou un trait fantôme suit le stylet.",
+   "what": "Gérer onPointerCancel et onLostPointerCapture comme onPointerUp : clore le trait en cours (le garder s'il a au moins deux points dans MarkLayer).",
+   "files": [
+    "src/features/comments/SketchPad.tsx",
+    "src/features/comments/MarkLayer.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : dispatchEvent pointerdown, pointermove, pointercancel puis pointerdown, pointermove, pointerup sur le canevas : deux traits distincts (annuler retire un seul trait) ; même chose sur marks-cut."
+  },
+  {
+   "title": "Marques des commentaires de l'aperçu recalculées à chaque rendu",
+   "kind": "performance",
+   "why": "CutComments recalcule cutComments(doc) (shownComments, recherches de citations dans tout le scénario) et recrée son MutationObserver à chaque rendu (useEffect sans dépendances), avec un querySelectorAll sur tout l'aperçu. Sur un long découpage, chaque frappe dans un autre panneau refait ce travail.",
+   "what": "Mémoriser marks avec useMemo sur doc.comments, doc.versions, doc.activeVersionId, doc.shots, doc.sequences et doc.scenario ; créer l'observateur une fois (dépendances [] avec marksRef) et rappeler apply() quand marks change.",
+   "files": [
+    "src/features/comments/CutComments.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Les e2e existants de relecture (share.spec « relecture : l'invité commente… », review-drive) restent verts ; e2e : commentaire ajouté puis réglé, la marque apparaît puis disparaît sans rechargement."
+  },
+  {
+   "title": "Bulle ouverte : la cellule commentée reste désignée",
+   "kind": "ergonomie",
+   "why": "Dans l'aperçu, la bulle se pose sous la cellule et recouvre les lignes suivantes (capture popover-1440-papier.png) ; rien ne montre quelle cellule est en cause. Pour le scénario, une citation le dit ; pour le découpage, rien.",
+   "what": "Tant que popover.anchor est une cellule ou une séquence, poser data-comment-active sur la cellule (cellOf, déjà dans CutComments) et la retirer à la fermeture ; style : contour 1,5 px var(--ink), dans les deux thèmes, sans couleur.",
+   "files": [
+    "src/features/comments/CutComments.tsx",
+    "src/features/comments/Comments.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : clic sur une cellule de l'aperçu : exactement un élément [data-comment-active], le bon ; Échap : aucun. Captures papier et encre."
+  }
+ ]
+}

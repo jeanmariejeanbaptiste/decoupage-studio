@@ -1,0 +1,295 @@
+{
+ "ideas": [
+  {
+   "title": "« Retirer du dépouillement » sans effet sur un élément déduit du découpage",
+   "kind": "bug",
+   "why": "Prouvé dans l'application (seed fiction, Par séquence) : un clic sur la marque « Léa » ouvre le menu « Retirer du dépouillement », le clic ne change rien (personnages avant [Léa], après [Léa]). Léa vient des plans (characterIds des plans) ; removeBreakdownItem ne peut pas la retirer. Même chose pour la machinerie, la lumière et le son déduits du matériel. Le menu promet une action qui échoue sans rien dire.",
+   "what": "Dans marksIn, marquer chaque repère `removable` (saisi au dépouillement, ou personnage d'addedCharacters) ou `derived` (déduit seulement). Dans SceneText, pour un repère déduit : pas de menu au clic, curseur par défaut et title « Déduit du découpage », comme la puce en italique de la fiche. Garder le menu pour les éléments saisis et les personnages ajoutés à la séquence.",
+   "files": [
+    "src/domain/tagging.ts",
+    "src/domain/tagging.test.ts",
+    "src/features/breakdown/SceneText.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : marksIn(fiction, séquence 1, texte avec « Léa ») renvoie Léa avec derived=true, et un accessoire ajouté renvoie removable=true. Playwright : un clic sur la marque Léa n'ouvre pas [data-tag-pop], un clic sur un accessoire saisi l'ouvre et le retire."
+  },
+  {
+   "title": "Retrait impossible quand la casse diffère d'une séquence à l'autre (vue Scénario entier)",
+   "kind": "bug",
+   "why": "Prouvé dans l'application : « valise » saisi dans la séquence 1, puis « Valise » dans la séquence 2. La liste du film affiche « valise 1 2 ». En séquence 2, le bouton « Retirer valise de cette séquence » ne fait rien : la ligne reste « valise 1 2 ». Le même défaut se vérifie en Node : après addBreakdownItems(['valise']) puis removeBreakdownItem('Valise'), la liste vaut toujours ['valise']. En cause : removeBreakdownItem compare avec `x !== item` alors que breakdownIndex regroupe les variantes par fold(). La surbrillance au survol (hot, comparée par toLocaleLowerCase) a le même défaut d'accents.",
+   "what": "Dans removeBreakdownItem, filtrer avec `fold(x) !== fold(item)`, comme removeBreakdownEquipment. Dans SceneText, comparer hot avec fold() au lieu de toLocaleLowerCase.",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/breakdown.test.ts",
+    "src/features/breakdown/SceneText.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : addBreakdownItems(['valise']) puis removeBreakdownItem('Valise') vide la liste, et « Écharpe » se retire avec « echarpe ». Playwright : reprendre le parcours valise/Valise, le bouton Retirer fait passer la ligne de « 1 2 » à « 1 »."
+  },
+  {
+   "title": "Le choix de catégorie ne s'ouvre pas quand la sélection finit sur un mot repéré",
+   "kind": "bug",
+   "why": "Prouvé avec Playwright (fiction, séquence 1) : en sélectionnant « valise cabossée » de droite à gauche, la sélection est bien faite mais aucun [data-tag-pop] ne s'ouvre. De gauche à droite, il s'ouvre. Cause : chaque <mark> porte `onMouseUp={(e) => e.stopPropagation()}`, donc le mouseup du conteneur n'arrive jamais quand la souris est relâchée sur une marque. Pour la même raison, on ne peut pas sélectionner un groupe de mots qui commence par un élément déjà repéré en le glissant vers la gauche.",
+   "what": "Retirer le stopPropagation des <mark>. Le onMouseUp du conteneur ignore déjà une sélection vide, et le onClick d'une marque ignore déjà le clic quand du texte est sélectionné. Les deux gestes restent donc distincts.",
+   "files": [
+    "src/features/breakdown/SceneText.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright : une sélection arrière de « cabossée » à « valise » ouvre le choix, qui montre « Valise cabossée ». Un simple clic sur une marque saisie ouvre seulement le menu Retirer, sans le choix de catégorie."
+  },
+  {
+   "title": "Suggestions détectées mais jamais soulignées, et faux repères (« en train de », « il lit », « feu rouge »)",
+   "kind": "bug",
+   "why": "Mesuré en Node : detectInText trouve Maquillage et Coiffure dans « se maquille… se coiffe les cheveux », Téléphone et Clés dans « son portable et la clé », Bagues dans « sa bague », Larmes dans « Une larme ». Pourtant marksIn n'en souligne aucun, et « Tout ajouter » ne les propose pas : findTerm cherche le terme canonique (« Téléphone », « Bagues ») au lieu de la forme trouvée. Visible sur rav3, séquence LOGE : « se maquille », « se coiffe », « cils » ne sont pas soulignés. À l'inverse, findTerm souligne « train » dans « en train de », « lit » dans « Il lit » et « feu » dans « feu rouge », alors que la détection les écarte (STOP_PHRASES, AMBIGUOUS).",
+   "what": "Ajouter dans breakdown.ts `detectSpans(text)`, qui renvoie {start, end, cat, canon}. Elle applique les mêmes règles que detectInText sur foldKeepLength(text) : les expressions écartées sont masquées par des espaces de même longueur, et ’ est normalisé en '. detectInText se dérive de detectSpans, ce qui garde une seule source de vérité. marksIn utilise ces positions pour les suggestions, au lieu de findTerm(canon).",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/tagging.ts",
+    "src/domain/tagging.test.ts",
+    "src/domain/breakdown.test.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : marksIn souligne « portable » (Téléphone), « clé » (Clés), « bague » (Bagues), « maquille » (Maquillage), et ne souligne ni « train » dans « en train de », ni « lit » dans « Il lit le journal », ni « feu » dans « feu rouge ». Les tests existants de detectInText restent verts."
+  },
+  {
+   "title": "Dépouillement très lent sur un long métrage : aggregateEquipment recalculé à chaque paragraphe",
+   "kind": "performance",
+   "why": "Mesuré en Node sur la fiction multipliée (123 séquences, 451 plans) : breakdownIndex prend 2 853 ms, breakdownCsv 2 542 ms, et le calcul des suggestions du film (un rendu de la vue Scénario entier) 18 288 ms. Cause : derivedBreakdown appelle aggregateEquipment(doc) (environ 22 ms) pour chaque séquence, et marksIn l'appelle pour chaque paragraphe. La page calcule breakdownIndex deux fois par modification (compteurs et liste du film), puis une troisième fois dans Rapports.",
+   "what": "Ajouter un paramètre optionnel `eq = aggregateEquipment(doc)` à derivedBreakdown. breakdownIndex, breakdownCsv, breakdownDocument et la feuille de service le calculent une seule fois et le passent. Dans tagging.ts, ajouter `tagContext(doc, seqId)` (termes connus triés, ensemble `have`, calculé une fois par séquence) et `marksWith(ctx, text)`. marksIn reste comme enveloppe. Le résultat est inchangé.",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/breakdownReport.ts",
+    "src/domain/tagging.ts",
+    "src/domain/exports.ts",
+    "src/domain/documents.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : breakdownIndex, breakdownCsv et marksIn donnent un résultat identique, avant et après, sur les seeds fiction et rav3. Un test de charge (fiction ×40) vérifie breakdownIndex en moins de 300 ms."
+  },
+  {
+   "title": "Vue Scénario entier : chaque survol et chaque défilement recalculent les suggestions de tout le film",
+   "kind": "performance",
+   "why": "Dans EntryText, `suggestionsFor(doc, entry, paragraphs)` n'est pas mémoïsé. Il est calculé pour chaque séquence du film, même non active, alors qu'il ne sert qu'à la séquence active en vue Par séquence. Le AddAll latéral le recalcule aussi à chaque rendu. Or un survol d'élément dans la liste du film (onHot → setHot) et chaque changement de séquence au défilement (pick) font rendre toute la page. Sur 123 séquences, cela représente environ 18 s de calcul par rendu (mesure précédente). Par ailleurs, l'écouteur de scroll est réabonné à chaque rendu (useEffect sans dépendances) et force une mise en page de tous les [data-entry] à chaque événement.",
+   "what": "Dans EntryText, calculer les suggestions seulement si `active && !full`, avec useMemo([doc, entry, paragraphs]). Mémoïser le AddAll latéral sur [doc, entry.key]. Faire dériver SceneText et les suggestions du même calcul de repères. Limiter onScroll à une fois par frame (requestAnimationFrame) et le mettre dans un effet aux dépendances [view, entries].",
+   "files": [
+    "src/features/breakdown/BreakdownPage.tsx",
+    "src/features/breakdown/SceneText.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright (seed rav3, vue Scénario entier) : le survol d'un élément de la liste du film met encore en surbrillance ses occurrences, « Ajouter les N suggestions soulignées » montre le même N qu'avant, et le défilement change toujours la séquence courante. Un test unitaire vérifie que suggestionsFor n'est pas appelé pour une entrée inactive."
+  },
+  {
+   "title": "Une catégorie ajoutée peut doubler une catégorie existante (« Son », « accessoires »)",
+   "kind": "robustesse",
+   "why": "Dans BreakdownSheet, la création ne dédoublonne que par chaîne exacte : `new Set([...extra, name])`. Saisir « Son » crée « perso:Son », d'où deux cartes SON dans la fiche, deux colonnes « Son » dans le CSV et le PDF, et un outil IA (add_breakdown_items) qui choisit toujours la première. « Décor » et « décor » coexistent aussi. C'est un doublon d'interface.",
+   "what": "Ajouter dans breakdown.ts `addCustomCategory(doc, name)`, qui refuse un nom dont le fold() égale le libellé d'une catégorie de base ou ajoutée et renvoie la catégorie existante. Dans ce cas, l'interface vide le champ et place le curseur dans le champ « Ajouter… » de la catégorie existante, sans message.",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/breakdown.test.ts",
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : addCustomCategory('Son'), puis ('décor') et ('Décor'), donne breakdownExtra = ['décor'] et aucune catégorie « perso:Son ». Playwright : saisir « Son » dans « Nouvelle catégorie… » laisse une seule section [data-testid=breakdown-son]."
+  },
+  {
+   "title": "Lecture seule : suggestions soulignées qui proposent « Ajouter », cases vides inutiles",
+   "kind": "ergonomie",
+   "why": "En partage « Lire » ou « Commenter » (useReadOnly), SceneText souligne toujours les suggestions, avec le curseur main et le title « Ajouter « Valise » (accessoires) », alors que le clic est neutralisé. La fiche affiche aussi les dix catégories, vides comprises, sans champ de saisie : de grandes cases vides sans usage pour l'invité.",
+   "what": "En lecture seule, filtrer les repères `suggested` dans SceneText (passer readOnly au calcul des repères) et masquer AddAll (déjà fait). Dans BreakdownSheet et WholeSheet, ne pas afficher une catégorie vide en lecture seule.",
+   "files": [
+    "src/features/breakdown/SceneText.tsx",
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest et React Testing Library : SceneText avec readOnly ne rend aucun [data-testid=tag-suggestion]. Playwright : invité en mode Lire sur le seed fiction, pas de suggestion soulignée et pas de section Costumes vide."
+  },
+  {
+   "title": "PDF des rapports : libellés « Catégorie » et « Trier » orphelins, titre non échappé, filtre absent",
+   "kind": "bug",
+   "why": "Dans BreakdownReports.print(), le HTML exporté reprend box.innerHTML, qui contient la barre r.opts. La feuille de style ne masque que `select`, si bien que les intitulés « Catégorie » et « Trier » s'impriment seuls, sans leur valeur. Le filtre de catégorie actif n'apparaît pas dans le titre du PDF, qui ressemble alors au rapport complet. Enfin, `${doc.project.title}` est injecté sans échappement, alors que documents.ts utilise esc() : un titre contenant « < » ou « & » casse la mise en page.",
+   "what": "Ajouter un attribut `data-print-hide` sur la barre d'options et la règle `[data-print-hide]{display:none}` dans la feuille d'export. Ne pas utiliser `[data-view]`, que portent aussi les numéros de séquence. Échapper le titre avec le helper esc existant et y ajouter le libellé de la catégorie filtrée (« Dépouillement, éléments — Accessoires »).",
+   "files": [
+    "src/features/breakdown/BreakdownReports.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : extraire la construction du HTML d'export dans une fonction pure, puis vérifier qu'elle ne contient ni « Trier » ni « Catégorie » hors titre, et qu'un titre « A & <B> » est échappé. Playwright : l'export PDF du rapport filtré sur Machinerie se télécharge sans erreur."
+  },
+  {
+   "title": "Orthographe commune du film : reprendre le libellé déjà saisi à l'ajout",
+   "kind": "robustesse",
+   "why": "Dans la fiche, on peut saisir « valise » dans une séquence et « Valise » dans une autre (constaté). La liste du film ne garde que la première graphie, mais la feuille de service (documents.ts, `needs` en Set exact), le CSV et le PDF du dépouillement affichent les deux. Le choix par sélection met une majuscule (cleanTag), la saisie au clavier non : la casse dépend donc du geste.",
+   "what": "Dans addBreakdownItems (hors personnages et figurants), avant d'ajouter, chercher dans doc.breakdown[*][cat] un élément de même fold() et reprendre sa graphie. Dans la feuille de service, dédoublonner les besoins des postes par fold().",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/breakdown.test.ts",
+    "src/domain/documents.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : après addBreakdownItems(seq1, ['Valise']) puis addBreakdownItems(seq2, ['valise']), on a breakdown[seq2].accessoires = ['Valise']. Une feuille de service d'un jour qui réunit les deux séquences ne liste « Valise » qu'une fois."
+  },
+  {
+   "title": "Saisie : proposer les éléments déjà dépouillés dans la même catégorie",
+   "kind": "fonction",
+   "why": "Les champs « Ajouter… » de la fiche et de la liste du film partent de zéro. Pour un long métrage, l'équipe ressaisit « Rails + dolly ou slider » ou « Manteau de Léa » séquence après séquence, avec des fautes qui créent des doublons dans les listes de matériel et la feuille de service.",
+   "what": "Ajouter à chaque champ une <datalist> native avec les éléments du film dans cette catégorie, tirés de breakdownIndex, sans ceux déjà présents dans la séquence. Pour Personnages et Figurants, proposer les noms du registre. Pas de composant maison, pas de texte d'aide.",
+   "files": [
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright : dans la séquence 2 de fiction, le champ Accessoires a un attribut list dont les <option> contiennent un accessoire de la séquence 1 et pas ceux de la séquence 2. Capture claire et sombre de la liste ouverte."
+  },
+  {
+   "title": "Coller une liste dans « Ajouter… » crée un élément par ligne",
+   "kind": "fonction",
+   "why": "Les régies collent souvent une liste depuis un tableur ou un mail. Un <input> remplace les retours à la ligne par des espaces : la liste devient un seul élément, par exemple « Valise Parapluie Billet ».",
+   "what": "Sur les champs de catégorie (Category et AddField), intercepter onPaste : si le texte collé contient des retours à la ligne ou des tabulations, appeler preventDefault et onAdd avec chaque ligne non vide (addBreakdownItems prend déjà un tableau). Sinon, garder le collage normal. Une seule mutateDoc, donc une seule annulation.",
+   "files": [
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright : coller « Valise\\nParapluie\\n\\nBillet » dans Accessoires ajoute trois puces, et un ⌘Z les retire toutes les trois."
+  },
+  {
+   "title": "Changer un élément de catégorie depuis son menu dans le texte",
+   "kind": "fonction",
+   "why": "Une suggestion s'ajoute d'un clic dans la catégorie du lexique (« Lunettes » en Accessoires, « Chapeau » en Costumes). Si l'équipe la range ailleurs, il faut la retirer puis la ressaisir à la main dans l'autre catégorie. Le menu d'une marque saisie ne propose que « Retirer du dépouillement ».",
+   "what": "Dans le menu d'une marque saisie, sous « Retirer », afficher les autres catégories avec la même grille que le choix de catégorie, sans en-tête supplémentaire. Le choix déplace l'élément (removeBreakdownItem puis addBreakdownItems) dans une seule mutateDoc. Exclure personnages et figurants, qui renvoient au registre. Fonction pure `moveBreakdownItem(doc, seqId, from, to, item)`.",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/breakdown.test.ts",
+    "src/features/breakdown/SceneText.tsx",
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : moveBreakdownItem déplace « Lunettes » d'accessoires vers costumes, sans doublon, et ne fait rien pour personnages. Playwright : clic sur la marque, choix « Costumes » : la puce passe d'une section à l'autre, ⌘Z rétablit l'état."
+  },
+  {
+   "title": "Renommer un élément dans tout le film",
+   "kind": "fonction",
+   "why": "Pour corriger « Valize » ou préciser « Valise » en « Valise cabossée », il faut aujourd'hui retirer et ressaisir l'élément dans chaque séquence. La liste du film et les rapports le montrent pourtant comme un seul élément avec ses numéros de séquence.",
+   "what": "Ajouter `renameBreakdownItem(doc, cat, from, to)` dans breakdown.ts : il remplace dans toutes les séquences les éléments de même fold(), sans créer de doublon (fusion si « to » existe déjà). Dans WholeSheet, un double-clic sur le nom ouvre l'édition en place (Entrée valide, Échap annule). Seulement pour les catégories saisies : pas pour personnages et figurants (registre) ni pour les éléments déduits du matériel.",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/breakdown.test.ts",
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : un renommage sur trois séquences remplace tout, une fusion avec un élément existant ne laisse qu'une entrée par séquence, et breakdownIndex compte une seule entrée. Playwright : un double-clic sur « Valise » dans la liste du film puis la saisie de « Valise cabossée » mettent à jour les deux séquences, et ⌘Z annule."
+  },
+  {
+   "title": "Renommer une catégorie ajoutée sans perdre ses éléments",
+   "kind": "fonction",
+   "why": "Une faute dans le nom d'une catégorie ajoutée (« Animaux » écrit « Animeaux ») ne se corrige qu'en supprimant la catégorie, ce qui efface ses éléments de toutes les séquences, puis en ressaisissant tout.",
+   "what": "Ajouter `renameCustomCategory(doc, from, to)` : elle remplace le libellé dans breakdownExtra et déplace la clé `perso:from` vers `perso:to` dans chaque doc.breakdown[seq], avec fusion si la cible existe et refus si elle égale une catégorie de base. Dans la fiche, un double-clic sur le titre d'une catégorie ajoutée l'édite en place.",
+   "files": [
+    "src/domain/breakdown.ts",
+    "src/domain/breakdown.test.ts",
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : après renommage, les éléments sont sous la nouvelle clé dans toutes les séquences, l'ancienne clé n'existe plus, et breakdownCsv a la nouvelle colonne. Playwright : double-clic, saisie, Entrée, puis ⌘Z."
+  },
+  {
+   "title": "La liste des séquences suit la séquence courante (long métrage, mobile)",
+   "kind": "ergonomie",
+   "why": "La colonne des séquences est un bloc fixe qui défile. Au-delà d'une quarantaine de séquences, quand la vue Scénario entier change de séquence courante au défilement, ou quand Rapports ramène à une séquence, la ligne surlignée sort de la colonne. À 390 px, la liste devient une bande horizontale (vérifié en capture) qui ne se cale pas non plus sur la séquence choisie.",
+   "what": "Dans un effet sur entry.key, régler à la main scrollTop (ou scrollLeft à moins de 1000 px) du conteneur nav pour que le bouton aria-current soit visible. Ne pas utiliser scrollIntoView, qui ferait défiler la page et relancerait le suivi au défilement.",
+   "files": [
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright (fiction ×40 injectée par __ds ou seed allongé) : en vue Scénario entier, faire défiler jusqu'à la séquence 80 rend son bouton visible dans la nav (boundingBox dans celle du nav). À 390 px, un clic sur une séquence depuis Rapports la rend visible dans la bande."
+  },
+  {
+   "title": "Clavier : ↑ et ↓ dans la liste des séquences, flèches dans le sélecteur de vue",
+   "kind": "accessibilité",
+   "why": "La liste des séquences ne se parcourt qu'à la souris ou au Tab, bouton par bouton. Le sélecteur Par séquence / Scénario entier / Rapports a role=\"radiogroup\" mais ne réagit pas aux flèches, contrairement au modèle ARIA d'un groupe radio.",
+   "what": "Sur la nav, onKeyDown : ↑ et ↓ (plus Début et Fin) donnent le focus au bouton voisin et appellent goTo. Sur le groupe radio : ← et → changent de vue, tabIndex à 0 sur l'option cochée seulement.",
+   "files": [
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright : focus sur la séquence 1, ↓ deux fois donne aria-current à la séquence 3. Focus sur le groupe de vues, → passe à « Scénario entier » (aria-checked)."
+  },
+  {
+   "title": "Menu de marquage utilisable au clavier et refermé proprement",
+   "kind": "accessibilité",
+   "why": "Le choix de catégorie et le menu Retirer ont role=\"menu\", mais le focus reste dans le texte : il faut ensuite tabuler à travers toute la page pour les atteindre. Échap les ferme sans rendre le focus. Un lecteur d'écran annonce un menu qu'il ne peut pas atteindre.",
+   "what": "À l'ouverture, donner le focus au premier menuitem. ↑, ↓, ← et → parcourent la grille, Échap ferme et rend le focus au conteneur du texte (tabIndex -1). Le focus ne doit pas vider la sélection : le texte est déjà capturé dans picker.text.",
+   "files": [
+    "src/features/breakdown/SceneText.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright : une sélection de « roue » donne le focus à tag-as-personnages, quatre fois → donne le focus à une autre catégorie, Entrée ajoute l'élément, Échap ferme et document.activeElement est dans [data-testid=scene-text]."
+  },
+  {
+   "title": "Barre du dépouillement à 390 px : boutons de vue sur deux lignes",
+   "kind": "ergonomie",
+   "why": "Capture à 390 px, dans les deux thèmes : « Par séquence » et « Scénario entier » passent sur deux lignes et le bouton Exporter est collé au sélecteur. La barre est tassée et irrégulière.",
+   "what": "Ajouter `white-space: nowrap` sur .seg button. À 700 px et moins, réduire le padding (5px 8px) et laisser la barre passer à la ligne (flex-wrap: wrap), sélecteur à gauche et Exporter à droite, toujours à la même place.",
+   "files": [
+    "src/features/breakdown/BreakdownPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright à 390 px : chaque bouton [data-testid^=breakdown-view-] a une hauteur égale à celle d'une ligne (pas de retour à la ligne), sans défilement horizontal de la page. Captures papier et encre."
+  },
+  {
+   "title": "Annuler l'ajout qui a créé une séquence ramène à la première séquence",
+   "kind": "bug",
+   "why": "Quand on étiquette une scène « pas encore au découpage », tagIn crée la séquence et fait `setPicked({ seqId: created })` sans sceneStart. Après ⌘Z, la séquence disparaît : `entries.find(seqId)` échoue, sceneStart est indéfini, et la page saute à entries[0], loin de la scène où l'on travaillait. Le suivi par sceneStart existe pourtant pour ce cas.",
+   "what": "Dans tagIn, écrire `setPicked({ seqId: created, sceneStart: target.scene?.start })`. Dans pick(), garder aussi sceneStart (c'est déjà le cas).",
+   "files": [
+    "src/features/breakdown/BreakdownPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright : ajouter une scène INT. CAVE en tête du scénario via __ds ou le scénario, l'étiqueter (une séquence est créée), ⌘Z : la scène CAVE reste la courante (aria-current), avec « pas encore au découpage »."
+  },
+  {
+   "title": "Rapports : catégorie, tri et type de rapport retenus",
+   "kind": "ergonomie",
+   "why": "Rapport, catégorie et tri sont des useState locaux. Un clic sur un numéro de séquence dans un rapport ramène au texte (onGo). Au retour sur Rapports, on retrouve « Éléments et leurs séquences / Toutes / Par catégorie » : le filtre choisi est perdu à chaque aller-retour, alors que la vue elle-même est retenue (ds-breakdown-view).",
+   "what": "Garder report, cat et sort dans localStorage ('ds-breakdown-report'), en lecture et en écriture sous try/catch comme VIEW_KEY. Si la catégorie retenue n'existe plus (catégorie ajoutée supprimée), revenir à Toutes.",
+   "files": [
+    "src/features/breakdown/BreakdownReports.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright : Rapports, filtre Machinerie et tri « Les plus fréquents », clic sur un numéro, retour sur Rapports : les deux choix sont conservés. Avec une valeur invalide dans le stockage, on revient à Toutes sans erreur."
+  },
+  {
+   "title": "Longueur de chaque séquence en huitièmes de page dans le rapport par séquence",
+   "kind": "fonction",
+   "why": "La fiche de dépouillement d'un tournage indique la longueur de la séquence en huitièmes de page (« 1 3/8 »). Elle sert au plan de travail et à l'estimation de la journée. Le gabarit KIT (scriptLayout, 58 lignes par page, placement par bloc) permet de la calculer, mais elle n'apparaît nulle part.",
+   "what": "Ajouter dans scriptLayout.ts une fonction pure `sceneEighths(blocks)` : pour chaque en-tête numéroté, elle compte les lignes jusqu'à l'en-tête suivant à partir de placement (page*58 + rang) et arrondit au huitième supérieur, avec 1/8 au minimum. L'afficher dans une colonne « Pages » du rapport « Séquences et leurs éléments » et la reprendre dans le CSV du dépouillement. Rien dans la fiche, pour ne pas répéter l'en-tête.",
+   "files": [
+    "src/domain/scriptLayout.ts",
+    "src/domain/scriptLayout.test.ts",
+    "src/features/breakdown/BreakdownReports.tsx",
+    "src/domain/exports.ts"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "Vitest sur src/domain/__fixtures__/kit : une séquence d'exactement 58 lignes donne 8/8, une de 3 lignes donne 1/8, et la somme reste cohérente avec le nombre de pages de scriptOutline. Playwright : la colonne Pages s'affiche sur le seed fiction."
+  }
+ ]
+}

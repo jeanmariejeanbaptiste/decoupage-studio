@@ -1,0 +1,324 @@
+{
+ "ideas": [
+  {
+   "title": "Import CSV : la réplique se répète autant de fois que de plans liés",
+   "kind": "bug",
+   "why": "Reproduit avec vite-node. Un CSV exporté par l'outil, puis réimporté, donne « Bonjour\\nBonjour\\nBonjour » au lieu de « Bonjour ». Le texte « Salut » répété sur 3 lignes à l'action identique donne aussi « Salut\\nSalut\\nSalut ». Cause : importRows écrit la réplique dans le bloc de chaque plan, puis linkAction réunit les blocs et met bout à bout toutes leurs répliques (ops.ts l.357, 375). L'aller-retour export → import abîme donc les données.",
+   "what": "Dans importRows : quand l'action d'une ligne est identique à celle de la précédente, appeler linkAction avant de remplir les cellules. Ensuite, n'écrire que les colonnes propres au plan, jamais les colonnes du bloc (action, dialogue, et tc sauf en mode « duree »). Le bloc commun garde la valeur de la première ligne de la suite.",
+   "files": [
+    "src/domain/csv.ts",
+    "src/domain/csv.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Test Vitest : importRows sur 3 lignes « 1, CUISINE;Elle entre;0:30;Salut ». Attendu : 1 bloc, dialogue === 'Salut'. Second test : toCsv(seed rav3 avec une réplique) → parseDelimited → importRows → toCsv redonne la même colonne Dialogue."
+  },
+  {
+   "title": "Import CSV : décoder les fichiers Excel Windows (Windows-1252)",
+   "kind": "bug",
+   "why": "Capture csv-cp1252.csv-papier-1440.png. Un CSV « séparateur point-virgule » enregistré par Excel sous Windows (ANSI) s'affiche « S�quence », « L�a », « Il se l�ve ». Comme l'en-tête « Séquence » est abîmé, il n'est plus reconnu et passe en « — ignorer — ». ExportPage appelle f.text(), qui décode toujours en UTF-8.",
+   "what": "Ajouter decodeText(buf: ArrayBuffer): string dans src/domain/text.ts. Il essaie TextDecoder('utf-8', { fatal: true }) et, en cas d'échec, utilise TextDecoder('windows-1252'). L'utiliser dans ExportPage (import CSV/TSV) et dans readScenarioFile pour .fountain, .txt et .md.",
+   "files": [
+    "src/domain/text.ts",
+    "src/domain/text.test.ts",
+    "src/features/export/ExportPage.tsx",
+    "src/features/scenario/readScenarioFile.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : decodeText(Uint8Array.from([0x53,0xe9,0x71])) === 'Séq', et un texte UTF-8 avec BOM reste intact. E2E : charger le fichier cp1252 dans import-csv, attendre « Séquence » dans l'aperçu et la première colonne associée à SÉQUENCE."
+  },
+  {
+   "title": "Import CSV : retirer les colonnes abandonnées du choix des correspondances",
+   "kind": "bug",
+   "why": "La liste de chaque colonne propose Personnages, Lumière, Machinerie et Durée, alors que columns.ts les classe en RETIRED_COLUMNS. Choisir Personnages, Machinerie ou Durée n'importe rien (setCellText renvoie false). Lumière écrit shot.light, qui ne s'affiche plus nulle part. Les libellés sont aussi en capitales (« SÉQUENCE ») alors que le reste de la page dit « Séquence » (columnMenuLabel).",
+   "what": "CSV_COLUMNS = activeColumns([...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS]), ou ALL_COLUMNS. Dans CsvImport, afficher columnMenuLabel(c) au lieu de COLUMN_DEFS[c].label.",
+   "files": [
+    "src/domain/csv.ts",
+    "src/features/export/CsvImport.tsx",
+    "src/domain/csv.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : CSV_COLUMNS ne contient aucune colonne de RETIRED_COLUMNS. E2E : les options du premier select de csv-import ne contiennent ni « Machinerie » ni « Personnages »."
+  },
+  {
+   "title": "Aller-retour CSV : reconnaître l'en-tête « Image » (colonne des notes)",
+   "kind": "bug",
+   "why": "La colonne notes est exportée sous l'en-tête « Image » (COLUMN_DEFS.notes.label). guessMapping ne connaît que notes / remarques / commentaires / raccord. À la réimportation de son propre CSV, la colonne est donc ignorée et les notes sont perdues (vérifié : « Image->null », note « Contre-jour, raccord regard » disparue).",
+   "what": "Ajouter 'image' aux alias de notes dans HEADER_ALIASES. La comparaison stricte après pliage garde « Image storyboard » (Plans.csv) hors de la correspondance.",
+   "files": [
+    "src/domain/csv.ts",
+    "src/domain/csv.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : guessMapping(['Image']) → ['notes'] et guessMapping(['Image storyboard']) → [null]. L'aller-retour toCsv(ALL_COLUMNS) → importRows conserve shot.notes."
+  },
+  {
+   "title": "Import CSV : garder les plages de TC d'un découpage en mode piste",
+   "kind": "bug",
+   "why": "Les seeds rav3 et fiction sont en mode piste : le CSV porte « 0:00 - 0:35 ». Un import dans un nouveau projet (mode « duree » par défaut) rejette ces plages (parseTc renvoie autre chose que 'sec'). Le minutage tombe à 0:01–0:04 par plan, sans aucun signal. Vérifié par aller-retour : 53 lignes sur 53 ont un TC différent.",
+   "what": "Pur et testé : tcModeOfColumn(values) renvoie 'piste' si la majorité des valeurs non vides sont des plages lisibles par parseRange. Dans CsvImport, pour la cible « nouveau projet », poser tcMode = 'piste' (et tcModeChosen) avant importRows. Pour le projet courant, ne rien changer à son mode.",
+   "files": [
+    "src/domain/csv.ts",
+    "src/domain/csv.test.ts",
+    "src/features/export/CsvImport.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : tcModeOfColumn(['0:00 - 0:12','0:12 - 0:30']) === 'piste' et tcModeOfColumn(['0:05']) === undefined. L'aller-retour du CSV de rav3 dans un nouveau projet redonne la même colonne TC MIN."
+  },
+  {
+   "title": "Surlignage et notes dans une ligne : remplacés par des blancs dans l'export Final Draft et le PDF du scénario",
+   "kind": "bug",
+   "why": "blankBoneyard (fountain.ts l.75) remplace chaque « [[…]] » par des espaces de même longueur. blocksFromSource renvoie donc « Léa entre           vite      et … ». Conséquences vérifiées : (1) scriptToFdx écrit ces blancs dans le .fdx (fichier seul et dossier .zip) ; (2) layoutScript, qui sert le PDF, garde les blancs dans la ligne imprimée ; (3) après réouverture d'un projet, l'éditeur montre « Le           hall      bruisse » et le surlignage n'est plus visible (capture hl-scenario.png).",
+   "what": "Dans blocksFromSource (ou dans parseFountain pour les éléments d'une seule ligne), remettre dans el.text les marques « [[…]] » tenant sur une ligne, lues dans la source d'origine aux mêmes positions (le masque garde les longueurs). Ne pas toucher aux /* */ ni aux notes seules sur leur ligne. emphasisRuns, parseEmphasis, plainText et la chronométrie ignorent déjà ces marques à l'impression.",
+   "files": [
+    "src/domain/fountain.ts",
+    "src/domain/screenplay.ts",
+    "src/domain/screenplay.test.ts",
+    "src/domain/fdx.test.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : blocksFromSource('INT. A - JOUR\\n\\nLéa [[=jaune]]vite[[=]] part.').blocks[1].text contient '[[=jaune]]'. La ligne de layoutScript vaut 'Léa vite part.'. Le .fdx n'a aucun <Text> contenant deux espaces. Les tests de scriptLayout sur __fixtures__/kit restent verts."
+  },
+  {
+   "title": "Dossier .zip : deux plans au sol de même nom s'écrasent",
+   "kind": "bug",
+   "why": "allFloorPlans nomme les fichiers « Séquence N — <nom> ». renamePlan accepte des doublons, et un nom vidé redevient « Vue ». De plus, safe() ramène « / : * ? » à « - ». JSZip remplace silencieusement un fichier de même chemin : un plan manque alors dans 06 Plans au sol, sans aucun message.",
+   "what": "Ajouter uniqueNames(names) dans exports.ts : il suffixe « (2) », « (3) »… en ignorant la casse. L'appliquer aux SVG des plans au sol et, par précaution, aux images du storyboard dans buildProductionZip.",
+   "files": [
+    "src/domain/exports.ts",
+    "src/domain/exports.test.ts",
+    "src/features/export/productionZip.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : uniqueNames(['Vue','Vue','vue']) → ['Vue','Vue (2)','vue (3)']. Un projet avec deux vues renommées « Plan A » dans une même séquence donne deux noms distincts dans allFloorPlans après dédoublonnage."
+  },
+  {
+   "title": "Page Exporter : boutons Monter / Descendre actifs mais sans effet",
+   "kind": "bug",
+   "why": "Vérifié par Playwright : « Monter N° », « Descendre N° », « Monter Sujet » et « Monter TC MIN » sont actifs. Un clic ne change rien, car moveColumn refuse de franchir une colonne figée. Ce sont des boutons morts dans une liste qui se veut épurée.",
+   "what": "Calculer disabled ainsi : !isMovableColumn(c) || voisin absent || !isMovableColumn(voisin), pour chaque sens. Garder la position des boutons (désactivés, pas retirés), pour ne rien décaler.",
+   "files": [
+    "src/features/export/ExportPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E sur #/export?seed=fiction : « Monter Sujet », « Monter N° » et « Monter TC MIN » sont désactivés ; « Descendre Sujet » est actif et déplace bien la colonne."
+  },
+  {
+   "title": "Exports Découpage et Storyboard (PDF, images) : une erreur ne s'affiche jamais",
+   "kind": "robustesse",
+   "why": "Dans CutExport et StoryboardImaging, la capture tourne dans un useEffect terminé par .finally(), sans .catch. Une erreur de html-to-image ou un « Rendu impossible » devient une promesse rejetée non traitée : rien n'est téléchargé et aucun message n'apparaît. Même chose si waitForPages expire et renvoie [] : finish() sort sans rien dire (imageExport l.71).",
+   "what": "Ajouter un .catch qui appelle recoverStaleChunk, sinon un toast « Export impossible : … » (même texte que ExportPanel). Faire échouer exportNodePages et finish avec une Error quand aucune page n'est produite.",
+   "files": [
+    "src/features/grid/CutExport.tsx",
+    "src/features/storyboard/StoryboardPage.tsx",
+    "src/features/export/imageExport.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest (jsdom) : finish([], …) rejette. E2E : simuler un échec (page.route sur le module html-to-image renvoyant 500) et attendre le toast « Export impossible »."
+  },
+  {
+   "title": "Dossier de production : bouton occupé, erreurs signalées, saisie appliquée",
+   "kind": "robustesse",
+   "why": "Le bouton « Télécharger (.zip) » n'a ni état occupé ni try/catch. Un double clic construit deux archives ; une erreur (police du PDF du scénario introuvable hors ligne, image illisible) se perd en silence. Le toast « Préparation du dossier… » est un toast de plus. Les exports CSV et Excel de la page n'appellent pas non plus flushEditors(), contrairement à ExportPanel.",
+   "what": "État busy local : bouton désactivé, libellé « Préparation… » à la place du toast. Dans un try/catch, appeler flushEditors() puis buildProductionZip ; en cas d'erreur, toast tone 'warn' « Export impossible : … ». Appeler aussi flushEditors() avant CSV et Excel.",
+   "files": [
+    "src/features/export/ExportPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : un double clic sur export-zip ne produit qu'un téléchargement ; le bouton est désactivé pendant la préparation et le toast « Préparation » n'apparaît plus."
+  },
+  {
+   "title": "Panneau Exporter : Échap ne ferme pas, le focus reste dehors",
+   "kind": "accessibilité",
+   "why": "Vérifié dans les deux thèmes, à 1440 et à 390 px : focus sur « Exporter », Entrée ouvre le panneau, mais le focus reste sur le bouton et Échap ne ferme rien. L'écoute onKeyDown est posée sur le panneau seulement. Un utilisateur au clavier doit tabuler à l'aveugle.",
+   "what": "Pendant que le panneau est ouvert : écouter keydown sur window (Échap ferme), placer le focus sur le choix de format coché, puis le rendre au bouton déclencheur à la fermeture. Ajouter aria-haspopup='dialog' au bouton.",
+   "files": [
+    "src/features/export/ExportPanel.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E sur #/breakdown?seed=fiction : focus sur tab-export, Entrée, puis activeElement est dans tab-export-panel ; Échap ferme le panneau et le focus revient sur tab-export."
+  },
+  {
+   "title": "Panneau Exporter : « Format » puis « Format A4 », deux légendes pour deux choses",
+   "kind": "ergonomie",
+   "why": "Capture panel-breakdown-encre-390.png. La première légende « Format » liste PDF / Images A4 / Word / CSV. La seconde, « Format A4 », ne règle que Paysage / Portrait. Le mot et « A4 » reviennent trois fois dans un petit panneau.",
+   "what": "Renommer la seconde légende en « Orientation », sans autre changement.",
+   "files": [
+    "src/features/export/ExportPanel.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : le panneau tab-export-panel contient une légende « Orientation » et une seule légende « Format »."
+  },
+  {
+   "title": "Page Exporter : retirer les textes d'aide",
+   "kind": "ergonomie",
+   "why": "Ces textes vont contre la règle « aucun texte d'aide » : sous les cases, « Titre, version, date, numéro de page. », « Page par page. », « Chaque cellule répétée en entier. » ; le paragraphe sous « Dossier de production » ; « Depuis un tableur : une ligne par plan. » ; la note de l'import « une séquence par libellé distinct · les actions identiques consécutives sont liées », qui est en plus inexacte (une séquence est créée à chaque changement de libellé, pas par libellé distinct).",
+   "what": "Supprimer la prop hint de Check et ces paragraphes. Dans l'import, ne garder que le compte « N lignes ». Garder titres et libellés.",
+   "files": [
+    "src/features/export/ExportPage.tsx",
+    "src/features/export/CsvImport.tsx",
+    "src/features/export/ExportPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Mettre à jour les e2e qui cherchent ces textes. Capture #/export dans les deux thèmes, à 1440 et à 390 px, sans small sous les cases."
+  },
+  {
+   "title": "Dossier .zip : LISEZ-MOI fidèle et pas de fichiers vides",
+   "kind": "fonction",
+   "why": "Pour fiction et rav3, LISEZ-MOI annonce 05 Storyboard, 06 Plans au sol, 09 Feuilles et 11 Calendriers, absents de l'archive. « Plan de travail.csv » est livré avec son seul en-tête (86 octets) quand il n'y a aucun jour. Le texte dit aussi « thème et économie d'encre du projet » pour l'Excel, que buildWorkbook ignore.",
+   "what": "Pur et testé : dossierReadme(doc, presentFolders) qui ne liste que les dossiers effectivement écrits. Ne pas écrire Plan de travail.csv s'il n'y a aucun jour. Corriger la ligne 04 (« tableau Excel fusionné et CSV »).",
+   "files": [
+    "src/domain/exports.ts",
+    "src/domain/exports.test.ts",
+    "src/features/export/productionZip.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : dossierReadme avec ['00','03','04'] ne mentionne ni « Storyboard » ni « Feuilles ». Test JSZip : le zip du seed fiction n'a pas de 08 Plan de travail."
+  },
+  {
+   "title": "Dossier .zip : documents mis en page en Word (feuilles de service, plan de travail, dépouillement, matériel, plans au sol)",
+   "kind": "fonction",
+   "why": "Le dossier ne contient que des CSV pour le dépouillement, le matériel, le plan de travail et les feuilles de service. Une équipe qui reçoit le dossier ne peut ni l'imprimer ni le lire tel quel. Le LISEZ-MOI renvoie à l'application. Pourtant documents.ts produit déjà, sans DOM, le HTML de chaque document (breakdownDocument, scheduleDocument, callSheetDocument, equipmentDocument, floorPlansDocument).",
+   "what": "Extraire de downloadWord une fonction pure wordHtml(page, orientation): string (sans téléchargement). Dans buildProductionZip, ajouter à côté de chaque CSV un « .doc » : Dépouillement, Plan de travail (paysage), « Jour N.doc » par feuille de service (sans la carte), Listes de matériel, Plans au sol (paysage). Mettre le LISEZ-MOI à jour.",
+   "files": [
+    "src/features/export/docExport.ts",
+    "src/features/export/productionZip.ts"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "Vitest : wordHtml(scheduleDocument(doc), 'landscape') contient 'mso-page-orientation: landscape'. Test JSZip : le zip d'un projet à 2 jours contient « 09 Feuilles de service/Jour 1.doc » et « Jour 2.doc »."
+  },
+  {
+   "title": "Dossier .zip : note d'intention mise en forme et scénario en .docx",
+   "kind": "fonction",
+   "why": "01 Intention ne contient que doc.intention en texte brut : la mise en forme et les images de intentionHtml sont perdues. 02 Scénario propose PDF, FDX et Fountain mais pas le .docx, que scriptDocx sait déjà produire.",
+   "what": "Refactoriser downloadNoteWord en noteWordBlob(html, title) (images intégrées) et l'utiliser dans le zip : « Note d'intention.doc », plus le .txt. Ajouter « Scénario.docx » via scriptDocx.",
+   "files": [
+    "src/features/intention/noteExport.ts",
+    "src/features/export/productionZip.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Test JSZip sur le seed fiction : 01 Intention contient un .doc avec les balises de intentionHtml, et 02 Scénario contient Scénario.docx (zip valide avec word/document.xml)."
+  },
+  {
+   "title": "Ouvrir directement un dossier de production .zip",
+   "kind": "fonction",
+   "why": "Le dossier .zip est la sauvegarde la plus naturelle à transmettre, mais « Ouvrir » ne l'accepte pas : parseProjectFile répond « Le fichier n'est pas un JSON valide. ». Il faut décompresser à la main et trouver 00 Projet/*.decoupage.",
+   "what": "Dans openFromFile : si le fichier commence par la signature PK, charger JSZip, chercher le premier « */00 Projet/*.decoupage » et poursuivre avec son texte (même vérification de version plus récente, même restoreMedia). Ajouter .zip à l'accept du sélecteur de secours et aux types du sélecteur natif.",
+   "files": [
+    "src/store/persistence.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : télécharger export-zip du seed rav3, l'ouvrir par le bouton Ouvrir de l'accueil, et vérifier que __ds.doc().project.title === 'RAV3' et que les invariants sont vides."
+  },
+  {
+   "title": "PDF du découpage et du storyboard : titre, version et date en pied de page",
+   "kind": "fonction",
+   "why": "Le PDF généré par l'outil (capture cut-encre, page 1) ne porte que « DÉCOUPAGE TECHNIQUE » et « 1 / 3 » : ni titre du film, ni version, ni date. Une page isolée sur le plateau est donc anonyme. Le réglage « Pied de page » de la page Exporter ne vaut que pour l'impression du navigateur et Excel : le même document n'a pas le même pied selon le chemin.",
+   "what": "Dans finish() (imageExport), si une option footer est donnée, écrire en bas à gauche « Titre · Version · date » à la même taille et dans le même gris que le numéro. La passer depuis CutExport et StoryboardImaging selon settings.exportFooter (vrai par défaut).",
+   "files": [
+    "src/features/export/imageExport.ts",
+    "src/features/grid/CutExport.tsx",
+    "src/features/storyboard/StoryboardPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : export Images A4 du découpage rav3 ; dans la PNG de la page 1, des pixels sombres apparaissent dans le coin bas gauche (zone du pied), et plus aucun quand exportFooter = false."
+  },
+  {
+   "title": "Format A3 : appliquer le choix au PDF de l'outil ou ne pas le proposer comme général",
+   "kind": "bug",
+   "why": "La page Exporter propose « A4 paysage / A3 paysage » (exportPaper). Ce réglage ne vaut que pour l'aperçu imprimé et Excel : le PDF de CutExport monte toujours <ExportTable paper=\"A4\"> et finish() fixe a4(). Un choix « A3 » donne donc un PDF A4 depuis le Découpage, sans prévenir (interdépendance format ↔ export).",
+   "what": "Généraliser a4(o) en paperMm(paper, o) dans imageExport et buildPdf. Passer settings.exportPaper à l'ExportTable hors écran de CutExport et à finish(). Les documents des onglets restent en A4.",
+   "files": [
+    "src/features/export/imageExport.ts",
+    "src/features/grid/CutExport.tsx",
+    "src/domain/pdf.ts",
+    "src/domain/pdf.test.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Vitest : buildPdf avec une page A3 écrit une MediaBox de 1190.55 × 841.89 pt. E2E : avec exportPaper = 'A3', l'export PDF du découpage a une MediaBox A3."
+  },
+  {
+   "title": "Page Exporter : un seul moteur PDF pour le découpage",
+   "kind": "ergonomie",
+   "why": "Le même tableau s'exporte par deux chemins. Le bouton PDF de la page Exporter passe par #/print et window.print() : en-têtes du navigateur, marge Safari de 12 mm. Le panneau Exporter du Découpage assemble le PDF lui-même. Les fichiers diffèrent (pied de page, numérotation, marges), et « Masquer les colonnes vides » et « Sans fusion » figurent aux deux endroits : doublon d'interface.",
+   "what": "Brancher le bouton PDF de la page Exporter sur le rendu hors écran de CutExport (ExportTable + exportNodePages), via un petit composant partagé. Garder « Aperçu » (#/print) pour qui veut imprimer. Laisser les deux cases sur la page Exporter, qui règle tout, et les retirer du panneau du Découpage, ou l'inverse, après accord de l'utilisateur.",
+   "files": [
+    "src/features/export/ExportPage.tsx",
+    "src/features/grid/CutExport.tsx"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "E2E : export-pdf déclenche un téléchargement « *-decoupage-A4-paysage.pdf » sans ouvrir la boîte d'impression, et une seule case « Masquer les colonnes vides » subsiste dans l'application."
+  },
+  {
+   "title": "Excel : titre du film dans l'en-tête et N° en nombre",
+   "kind": "fonction",
+   "why": "Lu avec ExcelJS : la ligne 1 dit seulement « Découpage technique ». Le titre et la version ne figurent qu'au pied, et seulement si exportFooter. La colonne N° est écrite en texte (\"1\"), ce qui donne des triangles « nombre stocké comme texte » et un tri faux dans Excel.",
+   "what": "Ligne 1 : « Découpage technique — <titre> · <version> ». Pour la colonne number, écrire un nombre quand la valeur est un entier, et garder le texte pour « 3A » (interview).",
+   "files": [
+    "src/features/export/xlsx.ts",
+    "src/features/export/xlsx.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest (xlsx.test) : buildWorkbook(seed rav3) → getCell('A1') contient 'RAV3 · V3' ; getCell('B3').value est de type number."
+  },
+  {
+   "title": "Aperçu imprimé : page plus large que l'écran sur téléphone",
+   "kind": "ergonomie",
+   "why": "Mesuré sur #/print?seed=rav3 à 390 px : scrollWidth 1123 px pour 390 px, dans les deux thèmes. La feuille A4 déborde et oblige à défiler horizontalement, contrairement à la règle « pas de défilement horizontal à 390 px ».",
+   "what": "Pour l'écran seulement (@media screen and (max-width: 900px)), réduire .paper à la largeur disponible (zoom calculé ou transform scale avec conteneur à hauteur ajustée). Ne rien changer à @media print.",
+   "files": [
+    "src/features/export/PrintPage.module.css",
+    "src/features/export/PrintPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E à 390 px sur #/print?seed=rav3 : document.documentElement.scrollWidth <= innerWidth. Le PDF imprimé (page.pdf) garde des pages A4 identiques."
+  },
+  {
+   "title": "Déposer un fichier .decoupage sur la fenêtre pour l'ouvrir",
+   "kind": "fonction",
+   "why": "App.tsx intercepte tout fichier lâché hors d'une zone de dépôt et l'ignore (preventDefault). Un .decoupage reçu par mail et glissé sur l'application ne fait rien du tout, alors qu'openFromFile(file) accepte déjà un File et gère le conflit de version.",
+   "what": "Dans le gestionnaire « stray » du drop : si l'unique fichier se termine par .decoupage ou .json (ou .zip, si l'idée d'ouverture du dossier est retenue), appeler openFromFile(file).then(ok => ok && navigate('grid')). Les zones de dépôt existantes (storyboard, inspecteur, note) gardent la main grâce à leur propre gestionnaire.",
+   "files": [
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : dispatchEvent('drop') avec un DataTransfer contenant le .decoupage du seed rav3 ; le titre « RAV3 » apparaît dans la barre du haut."
+  },
+  {
+   "title": "Dossier .zip : cadres d'interview et noms d'images exacts dans Plans.csv",
+   "kind": "fonction",
+   "why": "05 Storyboard ne prend que storyboard et keyframes : les images des cadres d'interview (cameraFrameKey) manquent pour les projets institutionnels. La colonne « Image storyboard » de Plans.csv donne le code (« 1.2 ») et non le nom de fichier réel (« Plan 1.2 K1.png »). Le lien entre tableau et images est donc approximatif.",
+   "what": "Dans buildProductionZip, ajouter les cadres d'interview sous « Interview <cadre> <caméra>.<ext> ». Faire écrire par shotsCsv la liste des fichiers produits : soit via une fonction pure storyboardFileNames(doc, shotId) partagée par le zip et le CSV, qui prend les types MIME en paramètre, soit avec la seule extension connue à l'avance.",
+   "files": [
+    "src/features/export/productionZip.ts",
+    "src/domain/exports.ts",
+    "src/domain/exports.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "Vitest : storyboardFileNames d'un plan avec storyboard et 1 keyframe → ['Plan 1.1 K1', 'Plan 1.1 K2'], repris tel quel dans shotsCsv. Test JSZip sur un projet institutionnel avec cadre : un fichier « Interview … » est présent."
+  }
+ ]
+}

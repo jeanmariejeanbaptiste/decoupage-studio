@@ -1,0 +1,284 @@
+{
+ "ideas": [
+  {
+   "title": "Ne plus perdre la frappe quand on quitte la note sans perdre le focus",
+   "kind": "bug",
+   "why": "Prouvé. Une frappe encore en attente (fenêtre de 600 ms) disparaît si la page change sans événement blur : retour arrière du navigateur, balayage du trackpad, changement de hash. Essai : taper « PERDU » dans le h1, puis location.hash='#/scenario' et revenir : le h1 vaut toujours « La Consigne ». Cause : `useEffect(() => () => commit(), [commit])` s'exécute après que React a détaché la ref (`root.current = null`), si bien que commit() sort aussitôt et que le minuteur est annulé.",
+   "what": "Dans RichEditor, faire le commit au démontage dans une cleanup de useLayoutEffect, qui s'exécute avant le détachement des refs, ou garder le dernier élément dans une ref à part (`lastEl`) que la ref callback ne remet jamais à null, et la lire dans commit(). Garder registerFlush tel quel.",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e intention.spec : taper « GARDE » dans le h1, faire aussitôt page.evaluate(location.hash='#/scenario'), revenir sur #/intention : le h1 contient « GARDE »."
+  },
+  {
+   "title": "Corps choisi sans sélection : la frappe ne doit plus passer en 36 pt",
+   "kind": "bug",
+   "why": "Prouvé. Curseur seul, on choisit 14 dans « Corps » puis on tape : on obtient `<p><font size=\"7\">Corps quatorze</font></p>`, affiché à 48 px, et le sanitizer l'enregistre en 36 pt. Le 36 pt passe aussi au paragraphe suivant. Cause : avec un curseur seul, execCommand('fontSize','7') pose un style de frappe et ne crée la balise `font` qu'à la frappe suivante, donc après que setSize a posé data-pt.",
+   "what": "Dans setSize, si la sélection est réduite à un curseur, insérer un `<span style=\"font-size:Xpt\">` contenant un U+200B et y placer le curseur, plutôt que execCommand. Autre solution : retenir `pendingPt` et, dans onInput, appeler normalize() en convertissant les `font[size=\"7\"]` sans data-pt vers ce corps. Faire de même pour la police, pour plus de cohérence.",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : Entrée, choisir 14, taper « abc » ; le span qui contient « abc » a un font-size de 14pt calculé (18.67px) et aucun `font[size]` ne reste."
+  },
+  {
+   "title": "Texte brut de la note : le texte mis en forme d'une puce n'est plus répété",
+   "kind": "bug",
+   "why": "Prouvé à l'export Texte. Après avoir mis en italique « re. » à la fin d'une puce, le .txt contient « • Lumière naturelle … verrière. » puis une ligne « re. » en trop. Cause : richToText appelle `walk(li)` sur tous les enfants du LI, y compris les balises en ligne (b, i, span), et pousse leur texte une seconde fois. Ce texte faux alimente doc.intention, donc l'export Texte, le dossier ZIP (01 Intention), le pourcentage d'avancement (progress.ts) et l'assistant.",
+   "what": "Dans richToText, à l'intérieur d'un LI, ne descendre que dans les UL/OL enfants (`for (const sub of li.children) if (sub.tagName==='UL'||sub.tagName==='OL') walk({children:[sub]}, prefix+'  ')`) et ignorer les autres éléments. Ajouter un test unitaire.",
+   "files": [
+    "src/domain/richText.ts",
+    "src/domain/richText.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : richToText('<ul><li>Un <i>mot</i></li><li>Deux<ol><li>A <b>b</b></li></ol></li></ul>') === '• Un mot\\n\\n• Deux\\n\\n  1. A b'."
+  },
+  {
+   "title": "Collage depuis Google Docs : ni tout en gras, ni aplati",
+   "kind": "bug",
+   "why": "Prouvé. Google Docs enveloppe tout son HTML dans `<b style=\"font-weight:normal\" id=\"docs-internal-guid-…\">`. Après collage, on obtient un seul `<p><b>Intention<br>Premier paragraphe.<br>…<br>Puce un</b></p>` : tout est en gras, et le titre, les paragraphes et la liste sont fondus dans un seul paragraphe. Cause : cleanInline traite B comme du gras sans regarder font-weight, et cleanBlocks aplatit en <br> les blocs contenus dans un élément en ligne.",
+   "what": "Dans sanitizeRich, traiter comme transparent un B/STRONG dont le style vaut font-weight normal ou 400. Pour tout élément en ligne qui contient des blocs (P, H*, UL, OL, DIV, BLOCKQUOTE), le parcourir avec cleanBlocks au lieu de cleanInline. À l'inverse, un SPAN avec font-weight 700 devient `<b>`, et `font-style: italic` devient `<i>`.",
+   "files": [
+    "src/domain/richText.ts",
+    "src/domain/richText.test.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Vitest avec l'extrait Google Docs réel : on attend `<h2>…Intention</h2><p>Premier paragraphe.</p><p><b>Gras voulu</b> et normal.</p><ul><li>Puce un</li></ul>`, sans `<b>` autour du tout."
+  },
+  {
+   "title": "Collage depuis Word ou LibreOffice : le titre du document ne s'insère plus",
+   "kind": "bug",
+   "why": "Prouvé. Coller le HTML de Word (`<head><title>Document1</title><style>…</style></head>`) insère un paragraphe « Document1 » avant le texte. Cause : TITLE, META, LINK, TEMPLATE, NOSCRIPT, XML et les commentaires conditionnels ne sont pas ignorés, et cleanInline reprend leur texte.",
+   "what": "Ignorer ces balises dans cleanInline et cleanBlocks : SCRIPT, STYLE, TITLE, META, LINK, HEAD, TEMPLATE, NOSCRIPT, IFRAME, OBJECT, SVG, MATH, ainsi que les balises à préfixe (o:p, w:*), avec une seule liste partagée.",
+   "files": [
+    "src/domain/richText.ts",
+    "src/domain/richText.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : sanitizeRich(html Word avec <title>Document1</title>) ne contient pas « Document1 » et garde `<p><span style=\"font-size: 12pt\">Texte Word</span></p>`."
+  },
+  {
+   "title": "Collage d'un tableau : cellules séparées, une ligne par rangée",
+   "kind": "bug",
+   "why": "Prouvé. Coller un tableau (Sheets, Word, page web) Rôle | Comédien / Léa | Anna M. donne `<p>RôleComédienLéaAnna M.</p>`. Les cellules se collent bout à bout et le contenu devient illisible.",
+   "what": "Dans cleanBlocks, transformer TABLE en un paragraphe par TR, avec les cellules (TD/TH) jointes par « · » (ou une tabulation insécable) et le texte de chaque cellule passé par cleanInline. On ne crée pas de vrai tableau, le format reste réduit.",
+   "files": [
+    "src/domain/richText.ts",
+    "src/domain/richText.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : sanitizeRich('<table><tr><td>Rôle</td><td>Comédien</td></tr><tr><td>Léa</td><td>Anna M.</td></tr></table>') === '<p>Rôle · Comédien</p><p>Léa · Anna M.</p>'."
+  },
+  {
+   "title": "Coller une image (capture d'écran) et déposer plusieurs images",
+   "kind": "fonction",
+   "why": "Prouvé. Coller une image du presse-papiers ne fait rien : l'éditeur reste `<p><br></p>`. onPaste appelle preventDefault et ne lit que text/html et text/plain. Pour un dépôt, seule la première image est prise. Or une note d'intention s'illustre surtout par des captures de références.",
+   "what": "Dans onPaste, si clipboardData.files contient des images, appeler insertImage pour chacune, sans lire le texte. Dans onDrop, parcourir toutes les images de dataTransfer.files. insertImage gère déjà l'enregistrement en blob et l'annulation.",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : envoyer un ClipboardEvent('paste') dont le DataTransfer contient un File PNG ; vérifier `img[data-blob]` dans l'éditeur, puis la clé dans richImageKeys(doc.intentionHtml) après le commit."
+  },
+  {
+   "title": "Paragraphe plus long qu'une page : plus de texte coupé ni perdu à l'export",
+   "kind": "bug",
+   "why": "Prouvé, à l'écran et dans l'export Images A4. Un paragraphe de 60 à 70 lignes séparées par `<br>` (cas d'une ancienne note en texte brut convertie par textToRich, ou de Maj+Entrée) déborde dans la marge basse, puis dans l'intervalle entre deux feuilles. Mesure : bas du paragraphe à 1634 px pour une feuille de 1123 px. L'export s'arrête à « Ligne 47 » en bas de la page 2 et la ligne suivante, tombée dans l'intervalle, manque. La pagination ne déplace que des blocs entiers.",
+   "what": "Dans relayout, si une unité dépasse ce qui reste de la page et contient des `<br>`, la scinder dans le DOM au `<br>` qui précède la limite. On trouve ce `<br>` avec Range.getClientRects, puis on crée un second `<p>` qui garde le même style, dans un snapshot annulable. Dans textToRich, transformer les doubles `<br>` existants en paragraphes. Pour un paragraphe continu sans `<br>` plus haut qu'une page (cas rare), compter au moins les pages nécessaires (`ceil`), afin que rien ne sorte de la dernière feuille.",
+   "files": [
+    "src/features/intention/RichEditor.tsx",
+    "src/domain/richText.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "e2e : poser un `<p>` de 70 lignes avec `<br>`, puis vérifier que chaque ligne a getBoundingClientRect().bottom ≤ bas de la zone de texte de sa feuille. Export Images A4 : 70 lignes présentes en tout (somme des lignes par page, ou texte OCR-libre via le DOM cloné)."
+  },
+  {
+   "title": "Export Word : polices de secours pour que l'Inter choisi ne sorte pas en Times",
+   "kind": "bug",
+   "why": "Prouvé dans le .doc exporté. Un passage pour lequel on a choisi la police « Inter » contient `font-family: 'Inter Variable'`, nom qu'aucun traitement de texte ne connaît. Word et LibreOffice l'affichent donc dans leur police par défaut (Times), alors que le corps du document prévoit 'Inter', 'Helvetica Neue', Arial. Même chose pour Source Serif 4 et Cormorant Garamond, et Courier Prime n'a pas de secours.",
+   "what": "Dans downloadNoteWord, remplacer chaque `font-family: '<famille>'` par une pile de secours tirée d'une table RICH_FONTS → fallback : Inter Variable → 'Inter', 'Helvetica Neue', Arial, sans-serif ; Source Serif 4 → 'Source Serif 4', Georgia, serif ; Cormorant Garamond → 'Cormorant Garamond', Garamond, serif ; Courier Prime → 'Courier Prime', 'Courier New', monospace. Fonction pure placée dans richText.ts et testée.",
+   "files": [
+    "src/features/intention/noteExport.ts",
+    "src/domain/richText.ts",
+    "src/domain/richText.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest sur la fonction pure : `<span style=\"font-family: 'Inter Variable'\">` devient une pile qui contient Arial. e2e : le .doc exporté ne contient plus `'Inter Variable'` seul."
+  },
+  {
+   "title": "Export Word : images à la bonne taille, sans déformation",
+   "kind": "bug",
+   "why": "Prouvé avec LibreOffice (soffice --convert-to pdf). Une image 2000×1000 réglée à 50 % ressort étirée en hauteur : pdfimages donne x-ppi 300 et y-ppi 51, soit une bande de 3,5 × 10,4 pouces. Elle est aussi rejetée seule en page 2. Word et LibreOffice gèrent mal une largeur en % sans hauteur.",
+   "what": "Dans downloadNoteWord, lire les dimensions de chaque blob (createImageBitmap ou Image), calculer la largeur en px comme pourcentage de la zone de texte (16 cm ≈ 605 px) et poser `width=\"…\" height=\"…\"` en attributs, en gardant les proportions et en plafonnant la hauteur à 230 mm. Centrer avec `<p align=\"center\">`.",
+   "files": [
+    "src/features/intention/noteExport.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : insérer une image 2000×1000 à 50 %, exporter en Word, puis vérifier dans le .doc les attributs width=\"302\" height=\"151\" (à ±1 près). Contrôle à la main : soffice --convert-to pdf, puis pdfimages -list donne des ppi x et y égaux."
+  },
+  {
+   "title": "Rétablir (⌘⇧Z) ne doit pas s'effacer quand on déplace le curseur",
+   "kind": "bug",
+   "why": "Prouvé. On tape « XY », on annule avec ⌘Z, on appuie sur ←, puis ⌘⇧Z ne rétablit plus rien. Cause : onKeyDown appelle snapshot() pour toute touche sans modificateur (flèches, Maj, Origine…), et snapshot vide redo.current. Ces snapshots sans changement encombrent aussi l'historique, qui est limité à 200 entrées.",
+   "what": "N'appeler snapshot() que pour les touches qui modifient le texte : caractère imprimable (e.key.length === 1), Backspace, Delete, Enter, Tab. Dans snapshot, ignorer un état identique au dernier snapshot (même html). Ne vider redo que si un snapshot est réellement poussé.",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : taper « XY », faire Ctrl+Z, ← puis Ctrl+Shift+Z ; le h1 vaut « La Consigne XY »."
+  },
+  {
+   "title": "Tab et Maj+Tab dans une liste : changer de niveau, sans quitter l'éditeur",
+   "kind": "ergonomie",
+   "why": "Prouvé. Tab dans une puce fait sortir le focus de l'éditeur vers un bouton (activeElement = BUTTON) et la liste reste inchangée. Tous les traitements de texte utilisent Tab pour changer de niveau dans une liste.",
+   "what": "Dans onKeyDown, quand tous les blocs sélectionnés sont des LI, faire preventDefault puis indent(1) pour Tab et indent(-1) pour Maj+Tab. Hors liste, laisser Tab se comporter normalement pour ne pas piéger le focus au clavier, comme le recommande l'accessibilité.",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : cliquer dans la 2e puce et appuyer sur Tab, on obtient `ul > li > ul > li` et le focus reste dans note-editor ; Maj+Tab ramène la puce au premier niveau. Dans un paragraphe, Tab sort de l'éditeur."
+  },
+  {
+   "title": "Surligner : bouton à bascule avec état",
+   "kind": "ergonomie",
+   "why": "Prouvé. Un second clic sur « Surligner » laisse le surlignage en place, et le bouton n'a pas d'aria-pressed (null). On ne peut retirer le surlignage qu'avec « Effacer la mise en forme », qui enlève aussi le gras, l'italique, etc. Les autres marques (gras, italique…) sont pourtant des bascules avec état.",
+   "what": "Dans refreshState, calculer `marks.highlight` : le nœud du curseur ou un ancêtre a un style backgroundColor non transparent. Le bouton reçoit l'état actif ; s'il est actif, exec('hiliteColor','transparent') puis normalize, et le sanitizer laisse déjà tomber le transparent.",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : sélectionner la citation, cliquer sur Surligner (aria-pressed=true, span surligné), cliquer à nouveau (aria-pressed=false, plus aucun `[style*=\"background-color\"]` dans la citation)."
+  },
+  {
+   "title": "Corps affiché avec une virgule décimale (12,5 et non 12.5)",
+   "kind": "ergonomie",
+   "why": "Prouvé. Dans un « Titre 2 » (h3, 12,5 pt), le menu Corps affiche « 12.5 », alors que la liste propose « 10,5 » avec une virgule. L'option cachée affiche `state.size` brut, sans le replace('.', ',') appliqué aux autres options.",
+   "what": "Afficher `state.size.replace('.', ',')` dans l'option cachée du menu Corps, et ajouter 12,5, 13 et 15 à RICH_SIZES pour que les corps des styles (h2 15, h3 12,5, h4 13) soient sélectionnables.",
+   "files": [
+    "src/features/intention/RichEditor.tsx",
+    "src/domain/richText.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : cliquer dans un h3, et le texte de l'option sélectionnée de note-size vaut « 12,5 »."
+  },
+  {
+   "title": "Garder un titre avec le paragraphe qui le suit (pagination)",
+   "kind": "fonction",
+   "why": "Constat sur le code : relayout ne déplace que le bloc qui déborde. Un « Titre 1 » ou « Titre 2 » peut donc rester seul en bas de page, son texte commençant sur la page suivante. Cela se voit dans l'export PDF remis à la production. Word applique « lier au suivant » aux titres.",
+   "what": "Dans relayout, quand une unité saute de page et que l'unité d'avant est un H1, H2, H3 ou H4 qui se trouve déjà sur cette page, reporter le saut sur le titre (recalculer jump depuis le haut du titre). Une seule passe, sans toucher au DOM, seulement aux règles margin-top.",
+   "files": [
+    "src/features/intention/RichEditor.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : remplir une page de paragraphes jusqu'à ce qu'un h2 soit la dernière ligne ; vérifier que le h2 et le paragraphe suivant sont sur la même feuille (même index de page d'après leur top)."
+  },
+  {
+   "title": "Écran étroit : page ajustée à la largeur, barre d'état sur une ligne",
+   "kind": "ergonomie",
+   "why": "Prouvé sur les captures à 390 px (deux thèmes). La feuille A4 de 794 px est coupée à droite au zoom de 100 % et il faut faire défiler horizontalement pour lire chaque ligne. Dans la barre d'état, « Page 1 sur 1 » et « 121 mots » passent sur deux lignes.",
+   "what": "Si aucun zoom n'est enregistré (ds-note-zoom absent) et que la zone fait moins de 794 px, partir d'un zoom ajusté à la largeur : floor((largeur du scroller − 16) / 794 × 10) × 10, minimum 50. Le recalculer au redimensionnement tant que l'utilisateur n'a pas choisi de zoom. Ajouter `white-space: nowrap` aux libellés de la barre d'état, et réduire le curseur de zoom à 70 px sous 700 px.",
+   "files": [
+    "src/features/intention/RichEditor.tsx",
+    "src/features/intention/RichEditor.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright à 390 px sans localStorage : stack.getBoundingClientRect().width ≤ 390 et le scroller n'a pas de défilement horizontal ; note-pages tient sur une ligne (hauteur ≤ 18 px). À 1440 px, le zoom reste à 100 %."
+  },
+  {
+   "title": "Ruban : les groupes d'outils passent à la ligne d'un seul tenant",
+   "kind": "ergonomie",
+   "why": "Capture à 390 px : le bouton Gras reste seul au bout de la première ligne, et Italique, Souligné, etc. commencent la deuxième. Le groupe « caractères » est coupé en deux et la position des boutons varie selon la largeur.",
+   "what": "Mettre chaque groupe (styles, caractères, listes et retraits, alignement et interligne, fin) dans un `span` `display:inline-flex; flex-wrap:nowrap`, à la place des séparateurs isolés. Le ruban passe alors à la ligne entre les groupes. Aucun changement visuel à 1440 px.",
+   "files": [
+    "src/features/intention/RichEditor.tsx",
+    "src/features/intention/RichEditor.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Playwright à 390 px : note-bold et note-sup ont le même offsetTop, ainsi que note-left et note-line ; capture identique à 1440 px."
+  },
+  {
+   "title": "Ruban accessible au clavier : un seul arrêt de tabulation, flèches pour circuler",
+   "kind": "accessibilité",
+   "why": "Le ruban porte role=\"toolbar\" mais chaque contrôle est un arrêt de tabulation : il faut environ 25 appuis sur Tab pour atteindre la page. Le motif ARIA d'une toolbar prévoit un seul arrêt et la navigation aux flèches. Les boutons du zoom ont aussi une zone cliquable d'environ 19 px (icône 13 px + 3 px de marge), sous les 24 px du WCAG 2.2.",
+   "what": "Tabindex itinérant dans le ruban : le contrôle actif a tabIndex 0 et les autres -1. ←/→ passent d'un contrôle à l'autre, Origine et Fin vont au premier et au dernier, et les menus déroulants gardent ↑/↓. Passer les boutons du zoom à 24×24 px.",
+   "files": [
+    "src/features/intention/RichEditor.tsx",
+    "src/features/intention/RichEditor.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : un Tab entre dans le ruban (note-style a le focus), ArrowRight met le focus sur note-font, et un second Tab sort du ruban. Les boutons du zoom mesurent au moins 24 px de côté."
+  },
+  {
+   "title": "Taille et position d'une image depuis le ruban",
+   "kind": "fonction",
+   "why": "Le format stocke déjà une largeur en % (cleanImage la garde entre 5 et 100), mais aucune commande ne la règle : toute image s'insère à 100 % et reste à cette taille. Pour une note illustrée (références, repérages), il faut pouvoir mettre une petite vignette ou deux images côte à côte.",
+   "what": "Quand le curseur est sur une image (clic : on sélectionne le nœud img et on lui ajoute une classe de contour), le menu Corps propose des largeurs : 25, 33, 50, 75, 100 %. Un seul contrôle, pas de nouveau bouton. Les boutons d'alignement agissent sur le paragraphe de l'image. Tout passe par snapshot et afterChange.",
+   "files": [
+    "src/features/intention/RichEditor.tsx",
+    "src/features/intention/RichEditor.module.css"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "e2e : insérer une image, cliquer dessus, choisir 50 : l'img a style width 50 % ; ⌘Z la ramène à 100 % ; l'export Word garde la taille."
+  },
+  {
+   "title": "Dossier ZIP : la note mise en forme (Word) à côté du texte brut",
+   "kind": "fonction",
+   "why": "Le dossier de production (productionZip.ts) ne met que « Note d'intention.txt », tiré du texte brut. Les titres, la mise en forme et les images de la note y manquent, alors que l'export Word les garde. C'est la note que la production transmet.",
+   "what": "Extraire de noteExport une fonction `noteWordBlob(html, title): Promise<Blob>` qui ne télécharge rien ; downloadNoteWord l'utilise. Dans buildProductionZip, si intentionHtml n'est pas vide, ajouter « 01 Intention/Note d'intention.doc » en plus du .txt.",
+   "files": [
+    "src/features/intention/noteExport.ts",
+    "src/features/export/productionZip.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Test du dossier (e2e export.spec ou Vitest avec jszip) : le zip de la seed fiction contient 01 Intention/Note d'intention.doc, qui inclut `<h1>La Consigne</h1>`."
+  },
+  {
+   "title": "L'assistant peut lire la note d'intention",
+   "kind": "fonction",
+   "why": "Le commentaire d'IntentionPage dit que le texte brut sert à l'assistant, mais rien dans aiTools.ts ni dans assistant.ts ne lit doc.intention. Sur la page de la note, l'assistant sait seulement « page : Note d'intention » et ne peut ni la résumer, ni la relire, ni s'en servir pour le découpage.",
+   "what": "Ajouter un outil en lecture seule `lire_note_intention` dans domain/aiTools.ts. Il renvoie doc.intention, plafonné par exemple à 12 000 caractères, avec le nombre de mots. Aucune écriture, pour rester stable. Mettre à jour le commentaire.",
+   "files": [
+    "src/domain/aiTools.ts",
+    "src/domain/aiTools.test.ts",
+    "src/features/intention/IntentionPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : l'outil appliqué à la seed fiction renvoie un texte qui contient « La Consigne » et un compte de mots > 80 ; il ne modifie pas le doc (même référence immer)."
+  },
+  {
+   "title": "Retirer intentionDocument, devenu inutile",
+   "kind": "robustesse",
+   "why": "documents.ts exporte encore intentionDocument, qui imprime la note en texte brut dans un `<p>`. Plus aucun écran ne l'appelle (grep : seul documents.test.ts y fait référence) depuis que la note s'exporte depuis les pages de l'éditeur. Ce code mort pourrait être rebranché par erreur et produire un export sans mise en forme.",
+   "what": "Supprimer intentionDocument et ses deux assertions dans documents.test.ts.",
+   "files": [
+    "src/domain/documents.ts",
+    "src/domain/documents.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "npm run test, tsc et lint passent ; `grep intentionDocument src` ne renvoie rien."
+  }
+ ]
+}

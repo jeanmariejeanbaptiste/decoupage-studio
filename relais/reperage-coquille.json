@@ -1,0 +1,332 @@
+{
+ "ideas": [
+  {
+   "title": "Empêcher la double création de projet dans l'assistant « Nouveau projet »",
+   "kind": "bug",
+   "why": "Prouvé au navigateur (preview :4711) : un double-clic sur « Créer le projet » crée DEUX projets « Doublon », et deux Entrée rapides en créent deux « Entree » (l'accueil passe de 0 à 4 cartes). create() est async (openDoc attend deux flushSave) sans aucun verrou, et chaque appel fait un createProjectDoc avec un nouvel identifiant.",
+   "what": "Dans NewProjectWizard, ajouter un verrou (useRef busy + état) : create() sort tout de suite si une création est déjà en cours, le bouton « Créer le projet » est désactivé pendant ce temps et onSubmit ne relance rien. Donner aussi au formulaire role=\"dialog\" et aria-modal=\"true\" (il n'a qu'un aria-label aujourd'hui).",
+   "files": [
+    "src/features/shell/NewProjectWizard.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e shell : à l'accueil, ouvrir l'assistant, remplir un titre, dblclick sur [data-testid=wizard-next] puis revenir à #/home : [data-testid=project-list] li a une seule carte ; même vérification avec deux Entrée."
+  },
+  {
+   "title": "Téléphone : rendre l'accueil, le thème, l'enregistrement du fichier et Rétablir accessibles depuis le tiroir",
+   "kind": "bug",
+   "why": "En 390 px, Topbar.module.css masque .home et .secondary (Accueil, Rétablir, Enregistrer, Thème), et ni le tiroir ni le menu du projet ne les proposent. Vérifié : les boutons « Tous les projets », « Thème encre », « Enregistrer le fichier » et « Rétablir » sont tous invisibles. Sur un téléphone, il n'y a pas de clavier pour ⌘K : impossible de revenir à la liste des projets (sauf en modifiant l'adresse), de changer de thème ou d'enregistrer un .decoupage (capture drawer-390-*.png).",
+   "what": "Dans le pied du Sidebar, quand onNavigate est fourni (cas du téléphone), ajouter au-dessus de « Paramètres » trois entrées au même style : « Tous les projets » (Home), « Thème papier/encre » (Sun/Moon, switchTheme) et « Enregistrer le fichier » (Save, si canCopy). Rien ne change sur ordinateur, donc pas de doublon : ces entrées ne remplacent que les boutons masqués. Rétablir peut rester dans la barre (retirer .secondary sur ce bouton, place stable à côté d'Annuler).",
+   "files": [
+    "src/features/shell/Sidebar.tsx",
+    "src/features/shell/Sidebar.module.css",
+    "src/features/shell/Topbar.tsx",
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e mobile (390×844, hasTouch) : ouvrir le tiroir, cliquer « Tous les projets » donne #/home ; l'entrée thème bascule html[data-theme] ; à 1440 px, ces entrées n'existent pas dans l'aside."
+  },
+  {
+   "title": "Téléphone : pouvoir supprimer un projet à l'accueil",
+   "kind": "bug",
+   "why": "Le bouton corbeille de chaque carte (.del) est à opacity 0 et ne s'affiche qu'au survol (.item:hover) ou au focus clavier. Mesuré en 390 px tactile : opacity calculée « 0 ». Sur écran tactile, il n'y a ni survol ni focus visible : la suppression est introuvable.",
+   "what": "Dans HomePage.module.css, ajouter @media (hover: none) { .del { opacity: 1; } }. La position est inchangée (coin haut droit) et la suppression reste annulable comme aujourd'hui.",
+   "files": [
+    "src/features/shell/HomePage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e mobile : à #/home avec un projet, getComputedStyle(bouton « Supprimer … »).opacity === '1' ; à 1440 px sans survol, la valeur reste '0'."
+  },
+  {
+   "title": "Rendre le focus à sa place à la fermeture de la palette ⌘K et de l'aide",
+   "kind": "bug",
+   "why": "Prouvé : dans le découpage, après un clic sur une cellule puis ⌘K et Échap, document.activeElement vaut BODY et ArrowDown ne déplace plus la sélection (« Léa » reste sélectionnée). Le clavier de la grille est porté par l'élément (Grid.tsx onKeyDown), donc il faut recliquer. Même perte de focus avec l'aide « ? ». Tab dans la palette fait aussi sortir le focus vers la liste puis vers la page derrière.",
+   "what": "Dans PaletteBody et HelpDialog : garder document.activeElement à l'ouverture, et à la fermeture sans commande (Échap, clic sur le fond) appeler focus({ preventScroll: true }) si l'élément est toujours dans le DOM. Garder le focus dans la palette avec Tab (preventDefault sur Tab dans l'input) ; ne pas poser aria-activedescendant quand la liste est vide ; gérer Début et Fin (Home/End).",
+   "files": [
+    "src/features/shell/CommandPalette.tsx",
+    "src/features/shell/HelpDialog.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e shell : clic sur [data-cell=\"0:subject\"], ⌘K, Échap, ArrowDown : la sélection est passée à la ligne 1 et l'élément actif n'est pas BODY ; idem après « ? » puis Échap."
+  },
+  {
+   "title": "Retirer ?seed= de l'adresse une fois la démonstration ouverte",
+   "kind": "bug",
+   "why": "Prouvé : sur #/grid?seed=fiction, on renomme le projet en « Titre modifié », on attend l'enregistrement et on recharge : le titre redevient « La Consigne ». boot() rappelle openDoc(buildFiction()) avec l'identifiant fixe 'seed-fiction', ce qui écrase sans bruit le projet modifié. Il suffit d'un rechargement ou d'un favori sur l'adresse d'arrivée pour perdre son travail.",
+   "what": "Dans boot(), après openDoc(buildRav3()/buildFiction()), retirer le paramètre seed du hash avec history.replaceState (sans hashchange ni nouvelle entrée d'historique) et garder les autres paramètres. Le comportement des tests e2e ne change pas : ils passent seed à chaque goto.",
+   "files": [
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e persistence : goto #/grid?seed=fiction, l'URL ne contient plus « seed » ; modifier le titre, attendre « Enregistré », recharger : le titre modifié est toujours là."
+  },
+  {
+   "title": "Échec d'enregistrement : nouvel essai automatique et alerte visible à toute largeur",
+   "kind": "robustesse",
+   "why": "Dans flushSave, une erreur (quota, IndexedDB fermé) met saveStatus à 'error', mais pending a déjà été vidé : rien ne réessaie tant qu'on ne modifie plus rien. Les dernières modifications restent alors en mémoire seulement. En plus, « Échec de l'enregistrement » s'affiche dans .status, masqué sous 1100 px (Topbar.module.css) : sur portable étroit, tablette ou téléphone, l'échec est invisible.",
+   "what": "persistence.ts : dans le catch, remettre pending = doc (sauf si un état plus récent attend déjà) et programmer un nouvel essai espacé (2 s, 5 s, 15 s, puis toutes les 30 s), annulé dès qu'un enregistrement réussit. Topbar : en état 'error', afficher à toute largeur une petite icône fine (lucide TriangleAlert, 1.25) avec le libellé en title et aria-label, à la place du texte. Pas de toast.",
+   "files": [
+    "src/store/persistence.ts",
+    "src/features/shell/Topbar.tsx",
+    "src/features/shell/Topbar.module.css",
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "vitest (fake-indexeddb) : saveProject mocké qui échoue une fois puis réussit ; après avance des minuteurs, saveStatus vaut 'saved' et le projet est en base. e2e 900 px : statut forcé à 'error', l'icône est visible."
+  },
+  {
+   "title": "Prévenir avant de fermer l'onglet quand l'enregistrement a échoué",
+   "kind": "robustesse",
+   "why": "Le seul filet à la fermeture est pagehide → flushSave, qui est asynchrone : rien ne garantit que l'écriture IndexedDB finisse. Si le dernier enregistrement a échoué (saveStatus 'error'), fermer l'onglet perd les modifications sans avertissement. Aujourd'hui, seul store/review.ts pose un beforeunload, pour la relecture.",
+   "what": "Dans startAutosave, ajouter un écouteur beforeunload qui appelle preventDefault et fixe returnValue = '' seulement si saveStatus === 'error' (pas pendant l'attente normale de 600 ms, pour ne pas gêner).",
+   "files": [
+    "src/store/persistence.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "vitest : avec saveStatus 'error', l'évènement beforeunload envoyé est defaultPrevented ; avec 'saved', il ne l'est pas."
+  },
+  {
+   "title": "Thème encre : supprimer l'éclair blanc au chargement et accorder theme-color",
+   "kind": "robustesse",
+   "why": "index.html n'a aucun script de thème : data-theme n'est posé que dans un useEffect d'App, après le téléchargement du paquet principal (1,33 Mo). Avec le thème encre, la page s'affiche donc d'abord blanche. Par ailleurs, <meta name=\"theme-color\"> et le manifeste valent #F2ECE1 (beige de l'ancienne charte) : la barre d'état du téléphone et de l'app installée reste beige, en papier comme en encre.",
+   "what": "Ajouter dans <head> d'index.html un court script en ligne (try/catch) qui lit localStorage 'ds-theme' et pose documentElement.dataset.theme avant le rendu. Dans l'effet de thème d'App.tsx, mettre à jour meta[name=theme-color] : #ffffff en papier, #0f1115 en encre. Passer theme_color et background_color du manifeste à #ffffff.",
+   "files": [
+    "index.html",
+    "src/app/App.tsx",
+    "public/manifest.webmanifest"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : addInitScript qui fixe ds-theme='encre', goto avec waitUntil 'domcontentloaded' : html[data-theme] vaut déjà 'encre' et meta theme-color vaut '#0f1115' ; basculer en papier la remet à '#ffffff'."
+  },
+  {
+   "title": "Titre d'onglet au nom du projet et de la page (et nom du PDF imprimé)",
+   "kind": "ergonomie",
+   "why": "document.title n'est jamais modifié (aucune occurrence dans src) : chaque onglet s'appelle « Découpage Studio ». Avec deux projets ou deux pages ouverts, on ne les distingue pas, et l'historique du navigateur est illisible. Surtout, Chrome reprend document.title comme nom proposé pour « Enregistrer en PDF » depuis #/print : le fichier s'appelle « Découpage Studio.pdf ».",
+   "what": "Dans App, ajouter un effet sur [route, doc?.project.title] qui pose « <Titre du projet> — <Page> » (libellés de PREP_STEPS, plus Paramètres, Exporter et Vérifications), et seulement « Découpage Studio » à l'accueil. Sur la route print, mettre « <Titre> — Découpage ».",
+   "files": [
+    "src/app/App.tsx",
+    "src/features/shell/steps.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : #/scenario?seed=fiction donne le titre « La Consigne — Scénario » ; #/home donne « Découpage Studio »."
+  },
+  {
+   "title": "Menu du projet : un titre vidé ne doit pas laisser un champ vide",
+   "kind": "bug",
+   "why": "Prouvé : dans le panneau du projet, vider « Titre » puis Entrée affiche un champ vide alors que le projet garde « La Consigne » (onCommit ignore une valeur vide, mais useDraft a déjà mémorisé '' comme valeur validée). Le champ et la barre se contredisent jusqu'à la réouverture du panneau.",
+   "what": "Dans Field (ProjectMenu), pour le titre : au blur et à Entrée, si la valeur nettoyée est vide, remettre le brouillon au titre actuel au lieu de valider. Par exemple, une prop « required » qui fait setDraft(value) puis flush sans commit.",
+   "files": [
+    "src/features/shell/ProjectMenu.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e shell : ouvrir le menu du projet, remplir Titre avec '', Entrée : le champ affiche « La Consigne » et doc().project.title n'a pas changé."
+  },
+  {
+   "title": "Synchroniser thème, raccourcis et menu réduit entre onglets",
+   "kind": "robustesse",
+   "why": "Les préférences de ce navigateur (ds-theme, ds-shortcuts, ds-sidebar) sont lues une fois au démarrage. Un raccourci modifié dans l'onglet A n'agit pas dans l'onglet B. Pire, persist() dans store/shortcuts.ts réécrit tout l'écart de son propre tableau : un réglage fait ensuite dans B efface celui de A. Le thème changé dans un onglet ne suit pas non plus dans l'autre.",
+   "what": "Ajouter un écouteur window 'storage' : sur 'ds-shortcuts', useShortcuts.setState({ map: load() }) ; sur 'ds-theme', useUi.set({ theme }) ; sur 'ds-sidebar', sur ordinateur seulement, mettre à jour sidebarOpen. Le brancher dans App ou dans les stores.",
+   "files": [
+    "src/store/shortcuts.ts",
+    "src/store/uiStore.ts",
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : deux pages dans le même contexte ; régler un raccourci dans la page 1, la page 2 affiche le nouveau combo dans l'aide ; basculer le thème dans la page 1 change html[data-theme] dans la page 2."
+  },
+  {
+   "title": "Tiroir du menu sur téléphone : Échap le ferme et le focus suit",
+   "kind": "accessibilité",
+   "why": "Vérifié : en 390 px, le tiroir ouvert reste ouvert après Échap. À l'ouverture, le focus reste sur le bouton de la barre ; à la fermeture par le voile, il n'est pas rendu. Clavier externe et lecteur d'écran se perdent sous le voile.",
+   "what": "Dans App, quand phone && sidebarOpen : Échap appelle toggleSidebar(false) et rend le focus à [data-testid=toggle-sidebar]. À l'ouverture, placer le focus sur l'étape active (aria-current=page) du tiroir.",
+   "files": [
+    "src/app/App.tsx",
+    "src/features/shell/Sidebar.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e mobile : ouvrir le tiroir, l'élément actif est l'étape courante ; Échap ferme l'aside et le focus revient sur toggle-sidebar."
+  },
+  {
+   "title": "Palette ⌘K : vocabulaire cohérent et commandes de la page courante en tête",
+   "kind": "ergonomie",
+   "why": "Capture palette-1440 : le groupe s'appelle « Grille » alors que la page s'appelle « Découpage technique » partout ailleurs, et « Accueil — projets » double le « Tous les projets » de la barre. Hors du découpage (et même à l'accueil, 34 commandes relevées), les dix commandes « Grille » passent avant « Aller à » et emmènent dans le découpage. Le fond garde la teinte chaude de l'ancienne charte (rgba(42, 40, 36)).",
+   "what": "commands.ts : renommer le groupe en « Découpage » et le libellé en « Tous les projets ». CommandPalette : sans recherche, mettre « Aller à » en tête hors des routes grid/storyboard, et les commandes de découpage en tête sur ces routes. CommandPalette.module.css : fond et ombre neutres rgba(17, 19, 24, …).",
+   "files": [
+    "src/features/shell/commands.ts",
+    "src/features/shell/CommandPalette.tsx",
+    "src/features/shell/CommandPalette.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e shell : sur #/scenario, la première option de la palette ouverte est dans « Aller à » ; sur #/grid, c'est « Nouveau plan sous le plan courant ». Le test existant (taper « nouveau plan », Entrée) passe toujours."
+  },
+  {
+   "title": "Palette ⌘K : passer d'un projet à l'autre",
+   "kind": "fonction",
+   "why": "Pour changer de projet (court et making-of, plusieurs clients), il faut aujourd'hui passer par l'accueil et son animation. La palette ne propose aucun projet, alors que listProjects() donne déjà la liste triée par date.",
+   "what": "Dans PaletteBody, charger listProjects() à l'ouverture et ajouter un groupe « Projets » : « Ouvrir « Titre » », sauf pour le projet ouvert, avec openStoredProject(id) puis navigate('grid'). Désactivé pour un invité (role guest) et en relecture Drive.",
+   "files": [
+    "src/features/shell/CommandPalette.tsx",
+    "src/features/shell/commands.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : créer deux projets, ouvrir la palette sur le premier, taper le titre du second, Entrée : la barre affiche le second titre et __ds.doc().project.id a changé."
+  },
+  {
+   "title": "Aide et palette exclusives ; pas d'annulation derrière une fenêtre",
+   "kind": "bug",
+   "why": "Prouvé : avec l'aide « ? » ouverte, ⌘K ouvre aussi la palette par-dessus (les deux dialogues aria-modal sont présents, capture help-palette-overlap.png). Le raccourci d'annulation global agit aussi derrière l'aide ouverte : il modifie le projet sans qu'on le voie.",
+   "what": "Dans le gestionnaire clavier d'App : ouvrir la palette ferme l'aide (et inversement) ; tant que paletteOpen ou helpOpen, ignorer annuler et rétablir.",
+   "files": [
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : « ? » puis ⌘K : #help-title n'existe plus et la palette est visible ; aide ouverte, ⌘Z : le nombre de plans ne change pas."
+  },
+  {
+   "title": "Page en erreur : le bouton « Accueil » doit fonctionner, même depuis l'accueil",
+   "kind": "robustesse",
+   "why": "ErrorBoundary est remis à zéro par key={route}. Si c'est l'accueil qui plante (route 'home'), navigate('home') ne change pas la route : le bouton « Accueil » n'a aucun effet et seul « Recharger » marche. Même blocage quand l'erreur vient d'un paramètre de la même route (#/scenario?compare=…).",
+   "what": "Dans ErrorBoundary, le clic sur « Accueil » fait setState({ error: null }) puis onHome(). Ajouter aussi un resetKey (le hash complet) pour réarmer la limite d'erreur quand les paramètres changent.",
+   "files": [
+    "src/ui/ErrorBoundary.tsx",
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "vitest (RTL) : un enfant qui lève une erreur au premier rendu seulement ; clic sur « Accueil » : l'enfant s'affiche de nouveau et onHome a été appelé."
+  },
+  {
+   "title": "Refuser les raccourcis que le navigateur garde pour lui (⌘W, ⌘T, ⌘N…)",
+   "kind": "robustesse",
+   "why": "isReserved (domain/shortcuts.ts) ne bloque que les touches de saisie. On peut donc donner ⌘W, ⌘T, ⌘N, ⌘Q, ⌘⇧T, ⌘⇧N, ⌘L ou ⌘R à « Nouveau plan ». Ces raccourcis ne parviennent jamais à la page, et ⌘W ferme l'onglet au lieu de créer le plan : l'enregistrement en attente n'a peut-être pas fini.",
+   "what": "Ajouter isBrowserReserved(combo) dans domain/shortcuts.ts (Mod+W/T/N/Q/L/R, Mod+Shift+T/N/W, Mod+Tab) et, dans ShortcutsSection, afficher l'erreur « ⌘W est réservé par le navigateur. » sur le même modèle que les conflits. Pas de nouveau texte permanent.",
+   "files": [
+    "src/domain/shortcuts.ts",
+    "src/domain/shortcuts.test.ts",
+    "src/features/shell/SettingsPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "vitest : isBrowserReserved('Mod+W') est vrai, isBrowserReserved('Mod+D') est faux. e2e Paramètres > Raccourcis : capturer Ctrl+W sur « Nouveau plan » affiche l'erreur et garde ⌘↵."
+  },
+  {
+   "title": "Raccourcis affichés selon la plateforme (Ctrl sous Windows et Linux)",
+   "kind": "ergonomie",
+   "why": "formatCombo affiche toujours ⌘, ⌥ et ⇧, y compris sous Windows : les infobulles de la barre (« Annuler (⌘Z) »), la palette, l'aide et les Paramètres montrent des touches absentes du clavier. Deux textes d'aide compensent : « ⌘ = Ctrl sous Windows et Linux », dans HelpDialog et dans les Paramètres. C'est précisément le genre d'astuce que l'utilisateur ne veut pas.",
+   "what": "formatCombo(combo, mac = isMacPlatform()) : sur Mac, garder les glyphes ; ailleurs, écrire « Ctrl+Maj+Z », « Alt+↑ ». Retirer les deux mentions « ⌘ = Ctrl… » et la ligne fixe « ⌘C / ⌘V » de HelpDialog, qui passe par formatCombo. Les ⌘ écrits en dur hors de la coquille restent aux zones concernées.",
+   "files": [
+    "src/domain/shortcuts.ts",
+    "src/domain/shortcuts.test.ts",
+    "src/features/shell/HelpDialog.tsx",
+    "src/features/shell/SettingsPage.tsx"
+   ],
+   "risk": "moyen",
+   "effort": "petit",
+   "test": "vitest : formatCombo('Mod+Shift+Z', true) === '⌘⇧Z' et formatCombo('Mod+Shift+Z', false) === 'Ctrl+Maj+Z'. Adapter finitions.spec.ts (attend '⌘D' alors que Chromium tourne sous Linux), par exemple en forçant navigator.platform par addInitScript."
+  },
+  {
+   "title": "Accueil : ouvrir un .decoupage en le déposant sur la page",
+   "kind": "fonction",
+   "why": "Un fichier reçu par mail ou par WeTransfer ne s'ouvre que par « Ouvrir un fichier… » et le sélecteur. App bloque volontairement le dépôt de fichiers hors des zones prévues (stray handler), si bien qu'un glisser-déposer sur l'accueil ne produit rien.",
+   "what": "Sur .home, gérer onDragOver (preventDefault si dataTransfer contient des Files) et onDrop : le premier fichier .decoupage ou .json est passé à openFromFile(file), puis navigate('grid'). Pendant le survol, un simple filet sur le cadre, sans texte. L'écouteur global d'App reste tel quel.",
+   "files": [
+    "src/features/shell/HomePage.tsx",
+    "src/features/shell/HomePage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : à #/home, envoyer un évènement drop avec un DataTransfer contenant un .decoupage (sérialisé depuis la démonstration fiction) : on arrive sur #/grid avec le titre du fichier."
+  },
+  {
+   "title": "Accueil : dupliquer un projet",
+   "kind": "fonction",
+   "why": "Une équipe repart souvent d'un projet existant (même client institutionnel, même gabarit de colonnes, même vocabulaire, mêmes réglages). Il faut aujourd'hui enregistrer un .decoupage puis le rouvrir « comme copie », un détour qui n'est même pas proposé sans conflit. projectCopy (domain/serialize) et sharedMediaOwners (db.deleteProject) gèrent déjà les copies et leurs médias partagés.",
+   "what": "Sur chaque carte, une icône Copy (fine, 13 px) à côté de la corbeille, même affichage au survol et même règle tactile. Au clic : loadProject, puis projectCopy(doc, newId()) avec createdAt et updatedAt à maintenant, puis saveProject, puis rafraîchir la liste, sans ouvrir la copie. La copie est annulable par la suppression habituelle.",
+   "files": [
+    "src/features/shell/HomePage.tsx",
+    "src/features/shell/HomePage.module.css",
+    "src/store/db.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "vitest (fake-indexeddb) : dupliquer donne deux projets aux identifiants différents ; supprimer l'original garde les images de la copie (getBlob résolu). e2e : la carte « La Consigne (copie) » apparaît."
+  },
+  {
+   "title": "Sauvegarder tous les projets en une archive .zip",
+   "kind": "robustesse",
+   "why": "L'application est locale d'abord : tout le travail de l'équipe vit dans l'IndexedDB d'un seul navigateur (Safari peut l'effacer, navigator.storage.persist n'est qu'une demande). Pour se protéger, il faut aujourd'hui ouvrir chaque projet et faire ⌘S un par un. jszip est déjà dans les dépendances.",
+   "what": "Dans persistence.ts, ajouter saveAllToZip() : pour chaque projet de db.projects, serializeDoc(doc, undefined, await collectMedia(doc)) sous fileNameFor(doc), avec un suffixe -2, -3 en cas de nom en double, puis downloadBlob('decoupage-studio-AAAA-MM-JJ.zip'). L'exposer en commande de palette « Enregistrer tous les projets (.zip) », groupe Fichier, refusée à l'invité (copies: true). Chargement de jszip à la demande.",
+   "files": [
+    "src/store/persistence.ts",
+    "src/features/shell/commands.ts"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "vitest (fake-indexeddb) : deux projets dont un avec une image ; l'archive contient deux .decoupage et chacun se relit avec parseProjectFile, image comprise."
+  },
+  {
+   "title": "Accueil : liste toujours juste (autre onglet, stockage indisponible)",
+   "kind": "robustesse",
+   "why": "HomePage ne se rafraîchit qu'après une suppression (rev) ou une synchronisation Drive. Un projet créé ou modifié dans un autre onglet n'apparaît pas, alors que persistence.ts annonce déjà chaque enregistrement sur le BroadcastChannel « ds-projects ». Si IndexedDB est refusé (cookies bloqués, profil restreint), listProjects() échoue sans rattrapage : l'accueil affiche « 00 » et une étagère vide, sans rien dire.",
+   "what": "Exposer un abonnement onProjectsChanged(cb) sur le canal existant et l'utiliser dans HomePage pour rafraîchir. Dans refresh, ajouter un catch qui met un état d'erreur et afficher à la place de la liste une seule ligne : « Le stockage du navigateur est indisponible : les projets ne peuvent pas être enregistrés ici. »",
+   "files": [
+    "src/store/persistence.ts",
+    "src/features/shell/HomePage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e : deux pages, créer un projet dans la seconde ; la première (à #/home) l'affiche sans recharger. vitest : listProjects mocké en rejet, le message s'affiche à la place de la liste."
+  },
+  {
+   "title": "Accueil : année affichée sur les projets anciens",
+   "kind": "ergonomie",
+   "why": "dateFmt (day + month: 'short') affiche « 10 nov. » sans l'année : un projet de l'an dernier et un d'aujourd'hui portent la même date, ce qui gêne pour trier ses tournages.",
+   "what": "Si l'année de updatedAt diffère de l'année en cours, utiliser un second format { day, month: 'short', year: 'numeric' }. Sinon, rien ne change.",
+   "files": [
+    "src/features/shell/HomePage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "vitest (RTL) ou e2e : un projet dont updatedAt est en 2025 affiche « 2025 » dans .cardMeta ; un projet de l'année affiche « 10 nov. »."
+  },
+  {
+   "title": "Route #/print sans droit de copie : retomber sur le découpage, pas sur « arrive bientôt »",
+   "kind": "bug",
+   "why": "App ne rend PrintPage que si canCopy. Pour un invité sans copie qui suit un lien #/print (ou la commande mémorisée), Page n'a aucune branche 'print' et tombe dans le reste du code : « Cette étape arrive bientôt — Le découpage technique est déjà prêt à l'emploi. » Ce message est faux, et cette branche n'est atteignable que par cette voie.",
+   "what": "Dans Page, traiter 'print' comme 'export' : GridPage pour un invité sans copie. Remplacer le repli générique par <GridPage doc={doc} /> pour qu'aucune route ne puisse afficher un texte d'étape fictive.",
+   "files": [
+    "src/app/App.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "e2e share : invité en lecture sans copie, goto #/print : le découpage s'affiche et le texte « arrive bientôt » est absent du DOM."
+  },
+  {
+   "title": "Service worker : purger les anciennes versions et précharger toute l'application",
+   "kind": "robustesse",
+   "why": "public/sw.js est un fichier fixe (CACHE 'decoupage-studio-v2'). Comme ses octets ne changent jamais, il ne se réinstalle pas et activate ne purge rien : chaque mise en ligne ajoute ses fichiers /assets/ hachés au même cache, qui grossit sans fin. Les modules chargés à la demande (export, Excel, PDF) ne sont en cache qu'une fois utilisés : hors ligne sur un tournage, un premier export échoue.",
+   "what": "Ajouter un petit plugin Vite (closeBundle) qui écrit sw.js avec un identifiant de build et la liste des fichiers produits. install précharge cette liste (cache par build), activate supprime les autres caches. La logique de récupération reste identique (réseau d'abord pour la page, cache d'abord pour les fichiers).",
+   "files": [
+    "public/sw.js",
+    "vite.config.ts"
+   ],
+   "risk": "moyen",
+   "effort": "moyen",
+   "test": "Build puis preview : caches.keys() contient un seul cache, nommé avec l'identifiant de build ; après un second build modifié et un rechargement, l'ancien cache a disparu ; en mode hors ligne (context.setOffline), l'export PDF se charge."
+  }
+ ]
+}

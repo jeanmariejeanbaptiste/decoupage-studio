@@ -1,0 +1,298 @@
+{
+ "ideas": [
+  {
+   "title": "Glisser une bande ne déplace plus les plans qui n'y figurent que par une reprise",
+   "kind": "bug",
+   "why": "Preuve (script vite-node sur rav3) : le plan 1.1 est placé le jour 1, fractionné, et sa reprise est envoyée au jour 2. Si l'on glisse la bande du jour 2 vers le jour 3, `SchedulePage.onDragEnd` passe `strip.shotIds` (la reprise comprise) à `assignShots`. Résultat : shootingDay passe de 1 à 3, le créneau 08:00 du jour 1 et la reprise du jour 2 sont effacés (`clearShotSlots`). On perd donc en silence la préparation d'un autre jour.",
+   "what": "Dans `onDragEnd`, ne garder que les plans dont le jour principal est le jour de départ : `strip.shotIds.filter((id) => (doc.shots[id]?.shootingDay ?? 0) === fromDay)`. Si la liste est vide (bande faite de reprises seulement), ne rien faire. Pour garder la logique dans le domaine, ajouter `stripOwnShots(doc, day, strip)` dans schedule.ts.",
+   "files": [
+    "src/features/schedule/SchedulePage.tsx",
+    "src/domain/schedule.ts",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : plan placé le jour 1 avec une reprise au jour 2, puis assignShots(stripOwnShots(jour 2)) vers le jour 3. Le jour du plan reste 1, son créneau et sa reprise existent toujours. E2E schedule.spec : la scène actuelle reste verte."
+  },
+  {
+   "title": "Compte « n / N pl. » des bandes faussé par les plans abandonnés",
+   "kind": "bug",
+   "why": "`StripRow` calcule `totalInSeq = seq.shotIds.length`, abandonnés compris, alors que `stripsByDay` les exclut. Preuve : sur fiction, une séquence de 4 plans tous affectés au jour 1, dont un abandonné, affiche « 3 / 4 pl. » comme s'il manquait un plan au plan de travail.",
+   "what": "Exporter depuis schedule.ts un `liveShotCount(doc, seqId)` (le `liveShots` existe déjà en privé) et l'utiliser pour `totalInSeq`.",
+   "files": [
+    "src/domain/schedule.ts",
+    "src/features/schedule/SchedulePage.tsx",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : liveShotCount ignore un plan abandonné. E2E : la bande d'une séquence complète avec un plan abandonné affiche « 3 pl. », sans « / 4 »."
+  },
+  {
+   "title": "Bilan « x plans planifiés sur y » sans double compte des reprises",
+   "kind": "bug",
+   "why": "Le total additionne les `shotIds` de toutes les bandes. Un plan fractionné sur deux jours y figure deux fois. Preuve : fiction (11 plans), une reprise envoyée au lendemain, et le calcul donne 12. L'écran affiche alors « 12 plans planifiés sur 12 ».",
+   "what": "Compter des identifiants uniques : `new Set([...strips.values()].flat().flatMap(x => x.shotIds))` pour le total. Pour les planifiés, compter les plans dont `shootingDay` est défini (non abandonnés). Le mieux est d'en faire une petite fonction pure `scheduleProgress(doc)` → { planned, total }.",
+   "files": [
+    "src/domain/schedule.ts",
+    "src/features/schedule/SchedulePage.tsx",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : avec 11 plans dont 1 a une reprise un autre jour, scheduleProgress donne { planned: 11, total: 11 }."
+  },
+  {
+   "title": "Invité en lecture seule : pouvoir changer de jour sur la feuille de service",
+   "kind": "bug",
+   "why": "Constaté dans le navigateur avec `data-readonly` posé : le sélecteur « Jour de tournage » a `pointer-events: none` (règle de paper.css, faute de `data-view`). L'invité reste bloqué sur le jour 1 et ne peut lire aucune autre feuille. Pour la même raison, le chevron « Détail des plans » des bandes est masqué, alors qu'il ne modifie rien.",
+   "what": "Ajouter `data-view` au `<select>` du jour de CallSheetPage et au bouton `.toggle` de StripRow. Tous deux ne font que changer l'affichage. Le champ « Durée prévue » et les sélecteurs de jour par plan restent bloqués, car ils n'ont pas `data-view`.",
+   "files": [
+    "src/features/callsheet/CallSheetPage.tsx",
+    "src/features/schedule/SchedulePage.tsx",
+    "e2e/share.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E share.spec (mode Lire seulement) : l'invité ouvre #/callsheet, choisit Jour 2 et voit « Jour 2 ». Sur #/schedule, il déplie le détail d'une bande, et aucun champ éditable n'y est utilisable."
+  },
+  {
+   "title": "Feuille de service : une date mal formée ne fait plus planter la page",
+   "kind": "robustesse",
+   "why": "CallSheetPage formate `new Date(`${day.date}T12:00`)` avec Intl.DateTimeFormat. Preuve : avec une date « 16/11/2026 », format() lève « RangeError: Invalid time value » et la page entière tombe. Une telle date peut venir d'un JSON importé ou modifié à la main, sans validation des jours. L'export PDF affiche, lui, « Invalid Date ». calendar.ts a déjà `isValidDate`, et schedule.ts a `longDate`, qui est sûr.",
+   "what": "Remplacer `dateFmt` par `longDate(day.date)` (avec repli sur « date à préciser »). Dans `callSheetDocument`, utiliser `longDate(d?.date) || 'Date à préciser'`, et faire de même pour la date du lendemain.",
+   "files": [
+    "src/features/callsheet/CallSheetPage.tsx",
+    "src/domain/documents.ts",
+    "src/domain/documents.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : callSheetDocument avec date « 16/11/2026 » ne contient ni « Invalid Date » ni d'exception. E2E : un projet importé avec cette date ouvre #/callsheet sans erreur de page."
+  },
+  {
+   "title": "Plan de travail fluide sur un long métrage (calculs quadratiques)",
+   "kind": "performance",
+   "why": "Mesuré sur rav3 grossi à 689 plans et 36 jours : un rendu du plan de travail coûte 342 ms de calculs du domaine (dayStats, stripsByTime, dayAgenda), plus 420 ms pour mapPlaces, recalculé à chaque frappe même carte masquée. Cause : `shotSlot` appelle `scheduleDays(doc)`, qui parcourt tous les plans, pour chaque plan, et le comparateur de tri de `stripsByTime` recalcule `stripRange` à chaque comparaison. En lisant `doc.schedule?.days` directement dans shotSlot et en calculant les débuts une fois avant le tri, on descend à 61 ms (essai sur une copie).",
+   "what": "Dans schedule.ts : `shotSlot`, `shotSlotsText`, `firstSlot` et `timelineOf` lisent `doc.schedule?.days.find(...)`. C'est équivalent, car les jours déduits des plans n'ont ni créneau ni reprise. `stripsByTime` précalcule une Map seqId → début. Dans SchedulePage, passer `strips.get(d.n)` à `dayStats`, qui accepte déjà le paramètre.",
+   "files": [
+    "src/domain/schedule.ts",
+    "src/features/schedule/SchedulePage.tsx",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Toute la suite schedule.test.ts reste verte, résultats identiques. Ajouter un test de non-régression : sur un projet de 600 plans et 30 jours, la boucle dayAgenda sur tous les jours reste sous un seuil large (par exemple 150 ms)."
+  },
+  {
+   "title": "Emploi du temps : la grille s'étend aux créneaux hors de l'amplitude",
+   "kind": "bug",
+   "why": "Constaté (capture papier-1440-timeline-overflow.png) : une séquence de 6 plans déposée à 20:00 s'enchaîne jusqu'à 23:00. La grille s'arrête à 21:00 (amplitude par défaut), et les blocs de 21:00 à 23:00 sortent du cadre, écrasés à 18 px, par-dessus le jour suivant. Le cas est fréquent : assignShots enchaîne d'office après le dernier créneau, et un RDV avant 07:00 ou un tournage de nuit produit la même chose.",
+   "what": "Dans DayTimeline, calculer l'amplitude affichée : début = min(dayStart, RDV, premier créneau), arrondi à l'heure inférieure ; fin = max(dayEnd, dernière fin), arrondie à l'heure supérieure. On ne modifie pas `dayStart`/`dayEnd` stockés : seul l'affichage change. Placer ce calcul dans une fonction pure `timelineRange(doc, day)`.",
+   "files": [
+    "src/domain/schedule.ts",
+    "src/features/schedule/DayTimeline.tsx",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : timelineRange couvre un créneau 22:30–23:00 et un RDV 05:30. E2E : après un dépôt à 20:00, chaque timeline-block est contenu dans la boîte de la grille."
+  },
+  {
+   "title": "Plan de travail à 390 px : barre d'outils et en-tête du jour lisibles",
+   "kind": "ergonomie",
+   "why": "Capture encre-390-schedule.png : « Ajouter un jour » est coupé à droite (`.toolbar` sans retour à la ligne), et le titre se casse en « Jour / 1 sur / 3 » sur trois lignes, parce que la colonne d'outils du jour prend toute la largeur.",
+   "what": "`.toolbar { flex-wrap: wrap }`. Dans une requête de conteneur étroite (<520 px) sur `.dayHead`, passer les outils sous le titre (grid-row 2, alignés à droite) et `white-space: nowrap` sur `strong`. Les boutons gardent leur ordre et leur place relative.",
+   "files": [
+    "src/features/schedule/SchedulePage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile (390×900, deux thèmes) : add-day visible et cliquable, scrollWidth égal à la largeur, « Jour 1 » tient sur une ligne."
+  },
+  {
+   "title": "Bandeaux utilisables sur téléphone (supprimer, déplacer)",
+   "kind": "bug",
+   "why": "Capture encre-390-schedule.png : la ligne de bandeau (heure, fin, type, précision, durée, outils) ne passe pas à la ligne. La durée est rognée et les boutons Avancer / Reculer / Supprimer sont hors champ : impossible de retirer un bandeau à 390 px.",
+   "what": "`.banner { flex-wrap: wrap }`. Sous 520 px de conteneur, la précision prend toute la ligne (`flex-basis: 100%`, `order` après le type) et les outils restent en fin de première ligne.",
+   "files": [
+    "src/features/schedule/SchedulePage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile : ajouter un repas au jour 1, cliquer « Supprimer : Repas », et le bandeau disparaît."
+  },
+  {
+   "title": "Bandes étroites : l'horaire ne chevauche plus l'intitulé",
+   "kind": "ergonomie",
+   "why": "Capture encre-390-schedule.png : à 390 px, « 07:30–10:30 » est dessiné sur « CHAMBRE ADMIRATRICE ». La grille 30 + 84 + 90 + 56 px, avec ses écarts et 34 px de marge pour le chevron, ne laisse plus de place à l'intitulé, qui déborde dans la colonne voisine.",
+   "what": "Ajouter `@container bands (max-width: 480px)` : masquer `.ie` (INT/EXT reste lisible par le ton de la bande), colonnes `26px minmax(0,1fr) auto auto`, horaire en 11 px, intitulé avec `overflow-wrap: anywhere`.",
+   "files": [
+    "src/features/schedule/SchedulePage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile : pour chaque bande, les boîtes de .label et .when ne se recouvrent pas (comparaison des boundingBox)."
+  },
+  {
+   "title": "Feuille de service à 390 px : repères, carte et horaires lisibles",
+   "kind": "ergonomie",
+   "why": "Captures encre-390-callsheet*.png : l'horaire « 07:30 – 10:30 » (`.code` en nowrap) déborde sur la colonne Décor. Les champs Repas font environ 30 px de large dans la grille à 3 colonnes. La carte du jour, en deux colonnes, donne une légende d'une lettre par ligne qui dépasse la page A4.",
+   "what": "Requête de conteneur sur `.sheet` (<520 px) : `.keys` en 1 colonne (2 entre 520 et 680 px), `.dayMap` en une colonne (dans PlacesMap.module.css, via un conteneur), et la cellule horaire de l'itinéraire peut revenir à la ligne après le tiret (classe dédiée, sans toucher `.code` des plans).",
+   "files": [
+    "src/features/callsheet/CallSheetPage.module.css",
+    "src/features/callsheet/CallSheetPage.tsx",
+    "src/features/map/PlacesMap.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile (deux thèmes) : les champs Début du repas et Fin du repas font au moins 90 px, la boîte de la cellule horaire ne recouvre pas celle du décor, scrollWidth égal à 390."
+  },
+  {
+   "title": "Feuille de service : le jour choisi vit dans l'adresse (#/callsheet?day=n)",
+   "kind": "fonction",
+   "why": "Le jour est un simple `useState(days[0])` : on retombe sur le jour 1 après un aller-retour vers une autre page ou un rechargement. Après suppression d'un jour, l'état pointe en silence sur le jour renuméroté. Le plan de travail accepte déjà `?day=` (lien du calendrier), mais rien ne mène à la feuille d'un jour précis.",
+   "what": "Lire `useLocation().params.get('day')` et, au changement du sélecteur, appeler `navigate('callsheet', { day })` en mode remplacement. Dans l'en-tête de chaque jour du plan de travail, ajouter un bouton icône FileText (« Feuille de service du jour n », aria-label seul, sans texte) dans `.dayTools`, avant la corbeille, pour garder la position stable.",
+   "files": [
+    "src/features/callsheet/CallSheetPage.tsx",
+    "src/features/schedule/SchedulePage.tsx",
+    "e2e/schedule.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : sur #/schedule, l'icône du jour 2 ouvre #/callsheet?day=2 avec « Jour 2 ». Après rechargement, toujours Jour 2. Un day inexistant retombe sur le premier jour."
+  },
+  {
+   "title": "Sélecteur de jour de la feuille : flèches précédent / suivant, dates lisibles, sans libellé redondant",
+   "kind": "ergonomie",
+   "why": "Capture papier-1440-callsheet.png : le libellé « Jour » surmonte un sélecteur dont l'option dit déjà « Jour 1 », ce qui fait doublon. Les options affichent la date ISO brute (« Jour 1 — 2026-11-16 »). Passer au jour suivant demande d'ouvrir la liste à chaque fois, alors que c'est le geste courant de la régie.",
+   "what": "Retirer le `<span>Jour</span>` (garder l'aria-label). Ajouter deux boutons icônes ChevronLeft / ChevronRight, fins (strokeWidth 1.25), de part et d'autre du sélecteur, désactivés aux extrémités, toujours à la même place. Options au format court « Jour 1 · lun. 16 nov. » (Intl, avec garde de validité).",
+   "files": [
+    "src/features/callsheet/CallSheetPage.tsx",
+    "src/features/callsheet/CallSheetPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : « Jour suivant » passe de Jour 1 à Jour 2 et se désactive au dernier jour. L'option contient « lun. 16 nov. » pour la date 2026-11-16."
+  },
+  {
+   "title": "Itinéraire de la feuille : la colonne Séquence ne répète plus le décor",
+   "kind": "ergonomie",
+   "why": "Capture papier-1440-callsheet.png : chaque ligne montre « CHAMBRE ADMIRATRICE » dans Décor puis « 1, CHAMBRE ADMIRATRICE » dans Séquence. Le doublon prend une colonne sur la feuille la plus lue du tournage. Le plan de travail applique déjà la règle inverse (décor masqué s'il égale l'intitulé).",
+   "what": "Colonne Séquence : le numéro (`sequenceNumber`) en gras, suivi de l'intitulé seulement s'il diffère, en casse pliée, du nom du décor.",
+   "files": [
+    "src/features/callsheet/CallSheetPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : sur rav3, la ligne de la séquence 1 de l'itinéraire contient une seule fois « CHAMBRE ADMIRATRICE », et la colonne Séquence vaut « 1 »."
+  },
+  {
+   "title": "CSV de la feuille de service aussi complet que l'écran et le PDF",
+   "kind": "fonction",
+   "why": "`callSheetCsv` n'exporte des comédiens que la convocation simple : ni Départ, HMC, Costume, Sur le plateau (présents à l'écran et dans le PDF), ni le numéro de rôle, et l'ordre n'est pas trié. Il omet aussi la météo, le lever et le coucher du soleil et l'hôpital. Une régie qui passe par le tableur perd ces informations.",
+   "what": "Bloc Comédiens : colonnes N°, Rôle, Interprète, Départ, Convocation, HMC, Costume, Sur le plateau, triées par `characterNumbers`. Ajouter les lignes Météo, Lever du soleil, Coucher du soleil, Hôpital dans le bloc Horaires (seulement si renseignées).",
+   "files": [
+    "src/domain/exports.ts",
+    "src/domain/exports.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : un jour avec callDetails.makeup = '06:30', météo et hôpital donne un CSV qui contient '06:30', la météo et l'hôpital, et les comédiens dans l'ordre de leurs numéros."
+  },
+  {
+   "title": "Convocations effacées proprement (pas de clés vides)",
+   "kind": "robustesse",
+   "why": "Vider une convocation enregistre `calls[id] = ''`, et les détails gardent des objets `{}` ou des valeurs `undefined`. Preuve : `updateDay(doc, n, { calls: { x: '' } })` suffit à faire répondre `dayHasData` true. Supprimer ce jour, pourtant vide, déclenche alors une confirmation inutile, et le projet se charge de clés mortes (partage, relecture Drive).",
+   "what": "Ajouter dans schedule.ts `setCall(doc, day, charId, time)` et `setCallDetail(doc, day, charId, key, time)` qui suppriment la clé quand la valeur est vide et retirent l'objet du personnage quand il est vide. CallSheetPage les appelle via mutateDoc. Rendre `dayHasData` insensible aux enregistrements vides.",
+   "files": [
+    "src/domain/schedule.ts",
+    "src/features/callsheet/CallSheetPage.tsx",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : saisir puis effacer une convocation laisse `calls` absent, et dayHasData est faux pour un jour sans autre donnée."
+  },
+  {
+   "title": "Emploi du temps : placer un plan à la suite sans glisser (clavier, téléphone)",
+   "kind": "accessibilité",
+   "why": "DayTimeline n'a que le PointerSensor : rien ne se place au clavier. Sous 1000 px, la réserve passe au-dessus d'une grille de 14 heures (capture encre-390-timeline.png), et glisser une fiche jusqu'à 15:00 sur téléphone est presque impossible.",
+   "what": "Sur une fiche de la réserve (et sur la pastille de séquence), Entrée ou double-clic place le ou les plans à la suite du dernier créneau du jour (sinon au RDV, sinon au début de l'amplitude), avec `placeSequence`. Fonction pure `nextFreeStart(doc, day)`. Les fiches restent focusables (attributs dnd-kit), sans bouton ni texte en plus.",
+   "files": [
+    "src/features/schedule/DayTimeline.tsx",
+    "src/domain/schedule.ts",
+    "src/domain/schedule.test.ts",
+    "e2e/finitions.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "moyen",
+   "test": "Vitest : nextFreeStart renvoie la fin du dernier créneau, sinon le RDV. E2E : focus sur la première pool-shot puis Entrée donne 1 timeline-block à l'heure attendue, et une deuxième Entrée l'enchaîne."
+  },
+  {
+   "title": "« Retirer de l'emploi du temps » garde le plan dans son jour",
+   "kind": "bug",
+   "why": "Le bouton X d'un bloc (aria-label « Retirer de l'emploi du temps ») et le glisser vers la réserve appellent `unplaceShot`, qui efface aussi `shootingDay`. Le plan quitte le jour et retombe dans « Non planifié » du plan de travail, ce que ni le libellé ni le geste n'annoncent. La réserve de l'emploi du temps est pourtant faite pour montrer les plans du jour « à placer » (`free` inclut le jour même).",
+   "what": "Ajouter `clearSlot(doc, day, shotId)`, qui supprime seulement le créneau, et l'utiliser pour le X et le dépôt sur la réserve. Garder `unplaceShot` pour un vrai retrait du jour (sélecteur « non planifié »).",
+   "files": [
+    "src/domain/schedule.ts",
+    "src/features/schedule/DayTimeline.tsx",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "moyen",
+   "effort": "petit",
+   "test": "Vitest : placer puis clearSlot laisse shootingDay au jour, timelineOf vide et le plan dans stripsByDay de ce jour. E2E : après X, la bande du jour garde « 6 pl. » et la fiche revient dans la réserve."
+  },
+  {
+   "title": "Libellés accessibles distincts pour les boutons répétés",
+   "kind": "accessibilité",
+   "why": "Chaque bande a un bouton nommé « Détail des plans », et chaque bandeau a « Avancer » et « Reculer » (seul « Supprimer » précise le bandeau). Un lecteur d'écran annonce donc des dizaines de boutons identiques sur la page.",
+   "what": "aria-label : « Détail des plans de la séquence n », « Avancer : Repas » et « Reculer : Repas » (même nom que `bannerLabel`, avec la précision si elle existe). Aucun texte visible ajouté.",
+   "files": [
+    "src/features/schedule/SchedulePage.tsx",
+    "e2e/schedule.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : getByRole('button', { name: 'Détail des plans de la séquence 2' }) est unique. Vérifier les sélecteurs existants des tests (« Détail des plans » ou getByLabel exact) et les mettre à jour."
+  },
+  {
+   "title": "Jours de la carte : boutons à bascule au lieu d'onglets incomplets",
+   "kind": "accessibilité",
+   "why": "ScheduleMap déclare `role=tablist` et `role=tab`, sans `tabpanel`, sans `aria-controls` et sans navigation aux flèches. Un lecteur d'écran annonce des onglets qui ne se comportent pas comme tels.",
+   "what": "Remplacer par des boutons `aria-pressed` dans un `role=group aria-label=\"Jour\"`, sans changer le rendu. La section porte déjà `data-view`, donc les invités en lecture seule gardent l'accès.",
+   "files": [
+    "src/features/map/PlacesMap.tsx",
+    "e2e/map.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E map.spec : getByRole('button', { name: 'J2', pressed: false }) puis clic, et pressed passe à true. En lecture seule, le bouton reste cliquable."
+  },
+  {
+   "title": "Ajouter un jour : daté au lendemain du dernier jour daté",
+   "kind": "fonction",
+   "why": "« Ajouter un jour » crée un jour sans date, même quand tous les jours précédents sont datés. La régie doit rouvrir le sélecteur de date à chaque nouveau jour. Le calendrier et le calendrier de production (syncProduction) ignorent les jours sans date tant que ce n'est pas fait.",
+   "what": "Dans `addDay`, si le dernier jour existant a une date valide, donner au nouveau jour la date du lendemain (calcul en UTC à midi pour éviter les décalages d'heure d'été). Sinon, pas de date. Pas de saut de week-end implicite.",
+   "files": [
+    "src/domain/schedule.ts",
+    "src/domain/schedule.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : le dernier jour au 2026-10-24 donne un nouveau jour au 2026-10-25 (passage à l'heure d'hiver). Si le dernier jour n'a pas de date, aucune date. Le test existant « ajoute des jours » reste vert."
+  },
+  {
+   "title": "« Plans / jour » retenu par le navigateur",
+   "kind": "ergonomie",
+   "why": "La capacité de « Répartir » est un `useState(20)` : chaque retour sur la page la remet à 20. Une régie qui répartit à 12 plans par jour doit la ressaisir avant chaque répartition, et oublier entraîne un plan de travail refait à 20 par jour.",
+   "what": "Mémoriser la valeur dans localStorage (`ds-schedule-capacity`), lecture et écriture sous try/catch, sur le modèle de `features/map/visibility.ts`. C'est un réglage par personne, et le projet n'est pas modifié.",
+   "files": [
+    "src/features/schedule/SchedulePage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : saisir 12, aller sur #/callsheet puis revenir, et le champ « Plans par jour au maximum » vaut 12. En navigation privée, aucune erreur et la valeur par défaut est 20."
+  }
+ ]
+}

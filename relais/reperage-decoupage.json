@@ -1,0 +1,346 @@
+{
+ "ideas": [
+  {
+   "title": "⌘⇧↓ (recopier vers le bas) renomme les autres séquences",
+   "kind": "bug",
+   "why": "Constaté sur ?seed=fiction : sélection de la colonne SÉQUENCE de la ligne 0 à la ligne 4, puis Ctrl+Maj+↓. La séquence 2 « GARE — CONSIGNE » devient « GARE — HALL ». fillDown (actions.ts) applique setCellText(…, 'sequence') à chaque plan, et la séquence entière est donc renommée. clearSelection exclut déjà 'sequence', mais pasteMatrix et fillDown ne le font pas. Avec pasteMatrix, une colonne collée sur 3 plans d'une même séquence donne au libellé la dernière valeur.",
+   "what": "Dans fillDown, ignorer la colonne 'sequence' (même règle que clearSelection). Dans pasteMatrix, n'écrire une cellule 'sequence' que sur le premier plan de chaque séquence et ignorer les autres lignes. Sortir cette règle dans une fonction pure de src/domain/cells.ts (writableForRow(doc, shotId, col)) pour pouvoir la tester.",
+   "files": [
+    "src/features/grid/actions.ts",
+    "src/domain/cells.ts",
+    "src/domain/cells.test.ts",
+    "e2e/grid.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : writableForRow renvoie faux pour 'sequence' hors du premier plan. E2E : sélection SÉQUENCE sur deux séquences puis ⌘⇧↓, les deux libellés restent distincts. Collage de 3 lignes dans SÉQUENCE : le libellé prend la première valeur, pas la dernière."
+  },
+  {
+   "title": "La focale d'un zoom ne peut pas être effacée",
+   "kind": "bug",
+   "why": "Sur fiction, plan 2.4 (« 50 → 85mm », zoom avant) : Suppr laisse « → 85mm » dans la cellule. Ensuite, l'éditeur s'ouvre vide et on ne peut plus rien retirer. Cause : setCellText 'focal' avec un texte vide fait shot.focal = { to: shot.focal.to }, et formatFocal affiche « → 85mm » quand le mouvement est un zoom.",
+   "what": "Dans setCellText, quand le texte est vide, écrire shot.focal = {} (la fin du zoom n'a pas de sens sans le début). Vérifier qu'editableText et formatFocal ne produisent jamais une focale d'arrivée seule.",
+   "files": [
+    "src/domain/cells.ts",
+    "src/domain/cells.test.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : sur un plan {from:50,to:85} avec mouvement 'Zoom avant', setCellText(…, 'focal', '') donne focal {} et formatFocal ''. E2E : Suppr sur 2.4 FOCALE donne une cellule vide."
+  },
+  {
+   "title": "Téléphone : la puce de personnage efface le texte du dialogue",
+   "kind": "bug",
+   "why": "Constaté à 390 px avec la colonne Dialogue affichée : on saisit « Il fait beau, non » et les puces GUICHETIER :, LÉA :, MARC : apparaissent (repli suggest('') quand il y a 0 ou 1 correspondance). Un toucher sur la première donne « Il fait beau, GUICHETIER : », enregistré aussitôt : « non » est perdu. Field.pick (MobileCut.tsx) coupe aux virgules et remplace le dernier morceau par sg.value, alors que pour le dialogue (et la focale) sg.value est déjà la valeur complète.",
+   "what": "Dans Field.pick : si la suggestion porte une value (valeur complète), elle remplace tout le brouillon. Le découpage aux virgules reste réservé aux jetons (sujet, angle, mouvement). Ne plus proposer la liste entière en repli pour le dialogue : pas de puce quand suggest(texte) ne renvoie rien.",
+   "files": [
+    "src/features/grid/MobileCut.tsx",
+    "e2e/mobile.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile (390 px, colonne Dialogue cochée) : saisir « Il fait beau, non », aucune puce. Saisir « Bonjour. L » puis toucher LÉA, la valeur vaut « Bonjour. LÉA : »."
+  },
+  {
+   "title": "Saisies perdues sans signe : plan-séquence et plan d'interview sur téléphone et dans l'inspecteur",
+   "kind": "bug",
+   "why": "setCellText refuse les colonnes de cadrage d'un plan-séquence (BEAT_COLUMNS) et toutes les colonnes d'un plan d'interview, sauf 'sequence'. Ces champs restent pourtant modifiables : sur téléphone, Field est readOnly seulement si !isEditable(c). Dans l'inspecteur, Son, Lumière, Image et Jour d'un plan d'interview passent par setCellText. La saisie revient en arrière en quittant le champ, sans aucun signal (sur ordinateur, la grille ouvre la fiche ou affiche « Saisie non reconnue »).",
+   "what": "Ajouter dans src/domain/cells.ts une fonction pure lockedCell(doc, shotId, col) qui reprend exactement les refus de setCellText, et l'utiliser dans setCellText. Sur téléphone : readOnly={readOnly || !isEditable(c) || lockedCell(...)}. Dans l'inspecteur : Draft en lecture seule pour ces champs. Aucun texte ajouté.",
+   "files": [
+    "src/domain/cells.ts",
+    "src/domain/cells.test.ts",
+    "src/features/grid/MobileCut.tsx",
+    "src/features/inspector/Inspector.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Vitest : lockedCell vaut vrai exactement quand setCellText renvoie faux, sur un plan-séquence et sur une caméra d'interview. E2E mobile : sur un plan-séquence, le champ Sujet est readonly."
+  },
+  {
+   "title": "Plans d'interview : laisser saisir notes, lumière, statut et jour",
+   "kind": "fonction",
+   "why": "La fiche d'interview ne pilote que le sujet, la valeur, l'axe, la focale, le son et l'action (syncInterviewShots, interview.ts). setCellText refuse pourtant aussi Lumière, Image (notes), Statut et Jour sur une caméra d'interview, et dans un projet institutionnel la grille ouvre la fiche pour n'importe quelle colonne. Une équipe ne peut donc pas noter « tourné » ni affecter un jour à une caméra d'interview depuis le tableau. Le plan de travail et la feuille de service s'appuient pourtant sur shootingDay.",
+   "what": "Définir dans interview.ts INTERVIEW_SOURCE_COLUMNS = ['subject','value','angle','focal','sound','action'] (plus 'movement' si la fiche le fixe). setCellText ne refuse que ces colonnes. Dans Grid.startEdit, la fiche ne s'ouvre que pour ces colonnes. lockedCell (idée précédente) suit la même liste. Rien ne change dans la fiche.",
+   "files": [
+    "src/domain/interview.ts",
+    "src/domain/cells.ts",
+    "src/domain/cells.test.ts",
+    "src/features/grid/Grid.tsx",
+    "e2e/interview.spec.ts"
+   ],
+   "risk": "moyen",
+   "effort": "petit",
+   "test": "Vitest : sur une caméra d'interview, setCellText(…, 'notes', 'x') et (…, 'shootingDay', '2') réussissent, (…, 'value', 'GP') échoue. Après syncInterviewShots, notes et jour sont conservés. E2E institutionnel : double-clic sur Statut d'une caméra, l'éditeur de cellule s'ouvre et la fiche ne s'ouvre pas."
+  },
+  {
+   "title": "Dessin : « Enregistrer » sans trait remplace l'esquisse par une image blanche",
+   "kind": "bug",
+   "why": "Sur fiction, storyboard : carte 1.1 → Dessiner → Enregistrer sans rien tracer. Avant : shot-sketch = 1, img = 0. Après : shot-sketch = 0, img = 1 (capture sketch-blank-after-save.png : case blanche, même en thème sombre). L'esquisse automatique est perdue et une image vide est stockée dans IndexedDB. Par ailleurs, save() n'a pas de catch : en cas d'échec (toBlob, image illisible), rien n'est signalé et la promesse est rejetée sans être traitée.",
+   "what": "Dans SketchEditor.save : si !dirty.current, fermer sans écrire. Si items est vide et qu'il n'y a pas de baseKey, retirer le dessin (removeFrame, ou ne rien faire s'il n'y avait rien). Ajouter un catch qui affiche un seul toast d'avertissement « Dessin non enregistré » et laisse l'éditeur ouvert.",
+   "files": [
+    "src/features/storyboard/SketchEditor.tsx",
+    "e2e/storyboard.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : Dessiner puis Enregistrer sans trait, la carte garde [data-testid=shot-sketch] et n'a aucune img. Tracer un trait puis Enregistrer, une img apparaît."
+  },
+  {
+   "title": "⌘⌫ sur une grande sélection supprime tous les plans sans garde-fou",
+   "kind": "robustesse",
+   "why": "Sur fiction : sélection des lignes 0 à 10 puis Ctrl+Retour arrière. Les 11 plans disparaissent sans confirmation ni retour (pied de tableau : « 0 plan »). Supprimer une séquence de 10 plans ou plus demande pourtant une confirmation renforcée (BIG_SEQUENCE dans deleteSequenceOf). Les deux voies sont incohérentes et un geste de clavier peut vider le découpage.",
+   "what": "Dans deleteCurrentShots : à partir de BIG_SEQUENCE plans (en comptant les groupes d'interview), utiliser le même ask() que deleteSequenceOf (« Supprimer N plans ? », case « Oui, je supprime ces N plans »). En dessous, rien ne change. Aucun toast ajouté.",
+   "files": [
+    "src/features/grid/actions.ts",
+    "e2e/grid.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : sélection de 11 lignes puis ⌘⌫, la boîte de confirmation s'ouvre. Annuler laisse 11 lignes. Avec 2 lignes, la suppression est directe et ⌘Z les rétablit."
+  },
+  {
+   "title": "Téléphone : les icônes Inspecteur et Scénario ne font rien",
+   "kind": "ergonomie",
+   "why": "À 390 px, la barre du découpage affiche Colonnes, Inspecteur et Scénario. Un clic sur Inspecteur ne montre rien (constaté : [data-testid=inspector] absent), car GridPage rend MobileCut à la place de la zone de travail, panneaux compris. Ce sont des boutons morts.",
+   "what": "Dans GridPage, n'afficher les deux boutons de panneau que si !isMobile. Garder le menu Colonnes, qui agit sur les champs du téléphone. La position des autres contrôles ne change pas.",
+   "files": [
+    "src/features/grid/GridPage.tsx",
+    "e2e/mobile.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile : les boutons nommés « Inspecteur » et « Scénario » n'existent pas, « Colonnes » reste présent. À 1440 px, les trois sont présents."
+  },
+  {
+   "title": "Téléphone : le menu Colonnes sort de l'écran",
+   "kind": "ergonomie",
+   "why": "À 390 px, le menu ouvert a pour boîte x = −182, largeur 230 : 80 % du menu est hors écran et Playwright ne peut pas cocher « Dialogue » (« element is outside of the viewport »). En cause : .menu { right: 0 }, alors que le bouton est à gauche de la barre sur téléphone.",
+   "what": "Ancrer le menu du côté où il y a de la place : en CSS (@media (max-width: 640px) { .menu { left: 0; right: auto; max-width: calc(100vw - 32px) } }) ou par une mesure au moment de l'ouverture. Limiter sa hauteur à la fenêtre (overflow: auto).",
+   "files": [
+    "src/features/grid/GridPage.module.css",
+    "src/features/grid/GridPage.tsx",
+    "e2e/mobile.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile : après ouverture, la boîte de [role=menu] vérifie x ≥ 0 et x + largeur ≤ 390, et la case Dialogue se coche par un vrai clic."
+  },
+  {
+   "title": "Téléphone : barre du storyboard trop large, « Exporter » coupé",
+   "kind": "ergonomie",
+   "why": "Capture fiction-storyboard-papier-390.png : la barre (Format, Par ligne, V1, Exporter) dépasse à droite, « Exporte » est tronqué, et la mesure confirme que le bouton Exporter déborde de la fenêtre. « Par ligne » passe sur deux lignes et n'a pas d'effet utile sur un téléphone (une carte par ligne).",
+   "what": "Dans StoryboardPage.module.css, autoriser le retour à la ligne de .toolbar sous 640 px. Masquer PerRowPicker sous cette largeur (même règle que le tableau sur téléphone). Garder Exporter à droite, à position stable.",
+   "files": [
+    "src/features/storyboard/StoryboardPage.module.css",
+    "src/features/storyboard/StoryboardPage.tsx",
+    "e2e/mobile.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile #/storyboard : le bord droit du bouton Exporter est ≤ 390 et document.scrollWidth vaut 390. Captures clair et sombre."
+  },
+  {
+   "title": "Hauteur de la grille : espace perdu, ou total caché en mode piste",
+   "kind": "ergonomie",
+   "why": ".wrap a max-height: calc(100vh − topbar − 220px), une constante qui ne tient pas compte de ce qui est au-dessus. Mesures à 1440×900 : fiction, le pied (total) finit à 792 px, soit 108 px vides en bas. rav3 (mode piste, TrackBar au-dessus), le pied finit à 932 px > 900 : le total, la couverture et l'écart sont hors écran.",
+   "what": "Mesurer le haut réel de la grille (useLayoutEffect + ResizeObserver dans GridPage), le poser en variable CSS --grid-top et écrire max-height: calc(100dvh − var(--grid-top) − hauteur du pied − marge), en gardant min-height: 240px. Aucune autre mise en page ne change.",
+   "files": [
+    "src/features/grid/GridPage.tsx",
+    "src/features/grid/Grid.module.css",
+    "src/features/grid/GridPage.module.css",
+    "e2e/timing.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E à 1440×900 : sur rav3, le bas de grid-footer est ≤ 900. Sur fiction, la marge sous le pied est ≤ 32 px. À 1440×700, le pied reste visible."
+  },
+  {
+   "title": "Commandes au survol invisibles mais actives sur écran tactile",
+   "kind": "accessibilité",
+   "why": "Sur les cartes du storyboard, Dessiner, Recadrer, + keyframe et Ouvrir/Supprimer ont opacity: 0 hors survol mais restent cliquables. Sur téléphone ou tablette (pas de survol), un toucher en bas à gauche d'une image ouvre l'éditeur de dessin sans qu'aucun bouton soit visible (capture 390 px : seul « Importer » apparaît). .cropBtn n'a pas non plus de règle :focus-visible, il reste invisible au clavier.",
+   "what": "Ajouter @media (hover: none) { .draw, .addFrame, .icons, .cropBtn { opacity: 1 } } (traits fins, sans autre changement) et .cropBtn:focus-visible { opacity: 1 }. Appliquer la même règle aux boutons de ligne de la grille (.rowDel) si on les rend utilisables au toucher.",
+   "files": [
+    "src/features/storyboard/StoryboardPage.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E en émulation mobile (hasTouch) : getComputedStyle du bouton storyboard-draw donne opacity '1'. Sur ordinateur sans survol : '0'. Au clavier, Tab jusqu'au bouton de recadrage le rend visible."
+  },
+  {
+   "title": "Éditeurs de cellule nommés en anglais pour les lecteurs d'écran",
+   "kind": "accessibilité",
+   "why": "CellEditor.tsx : aria-label={`Modifier ${col}`} donne « Modifier subject », « Modifier tc », et TokenEditor donne « Ajouter un jeton (angle) ». L'interface doit être en français, et ces identifiants de code sont lus tels quels.",
+   "what": "Employer columnMenuLabel(col) de domain/columns.ts : « Modifier Sujet », « Modifier TC MIN », « Ajouter un terme (Angle) ».",
+   "files": [
+    "src/features/grid/CellEditor.tsx",
+    "e2e/smart-input.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : double-clic sur une cellule Sujet, getByLabel('Modifier Sujet') est visible. Aucun libellé d'éditeur ne contient de clé anglaise."
+  },
+  {
+   "title": "Grille : la cellule active n'est pas annoncée",
+   "kind": "accessibilité",
+   "why": "Le focus reste sur le conteneur div[data-testid=grid] et les flèches ne déplacent qu'une classe CSS. Sans aria-activedescendant, un lecteur d'écran n'annonce rien quand on se déplace. Par ailleurs aria-rowcount = model.rows.length, alors que le tableau contient aussi l'en-tête et les lignes « + plan » et « + séquence », d'où un nombre incohérent.",
+   "what": "Donner aux cellules un id stable (`cell-${row}-${col}`) et poser aria-activedescendant sur le conteneur selon selection.focus. Retirer aria-rowcount (ou le corriger) et marquer aria-hidden les lignes d'insertion purement graphiques.",
+   "files": [
+    "src/features/grid/Grid.tsx",
+    "src/features/grid/SequenceBody.tsx",
+    "e2e/grid.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : après ↓, l'aria-activedescendant de [data-testid=grid] est l'id de la cellule focus et cet élément existe. Contrôle axe sans erreur aria sur la grille."
+  },
+  {
+   "title": "Plans abandonnés non distingués dans le tableau",
+   "kind": "ergonomie",
+   "why": "Le storyboard grise les plans « abandonné » (s.dropped) et le plan de travail les écarte (timelineOf). Le tableau du découpage les affiche comme les autres, sauf si l'on ajoute la colonne Statut. Sur le plateau, on ne voit donc pas d'un coup d'œil ce qui ne se tourne plus.",
+   "what": "Ajouter data-status sur DroppableRow et une règle CSS qui passe le texte des cellules en --ink-soft (sans opacité sur la sélection), dans les deux thèmes. Même traitement dans la vue d'ensemble du téléphone. Rien ne change à l'export.",
+   "files": [
+    "src/features/grid/SequenceBody.tsx",
+    "src/features/grid/Grid.module.css",
+    "src/features/grid/MobileCut.tsx",
+    "src/features/grid/MobileCut.module.css"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : statut mis à « abandonné » dans l'inspecteur, la ligne porte data-status=\"abandonné\" et la couleur calculée d'une cellule diffère de celle d'une ligne normale. Captures clair et sombre."
+  },
+  {
+   "title": "En-tête « TC MIN » faux en mode durée",
+   "kind": "fonction",
+   "why": "En mode 'duree', la colonne tc contient la durée propre de chaque plan (setCellText → shot.durationSec), et le pied affiche « durée totale ». L'en-tête reste « TC MIN » (COLUMN_DEFS, libellé unique), dans la grille comme à l'export : une équipe lit un timecode là où il y a une durée.",
+   "what": "Ajouter dans columns.ts columnLabel(settings, col), qui renvoie « DURÉE » pour tc en mode durée et COLUMN_DEFS sinon. L'utiliser dans HeadLabel (Grid), columnMenuLabel, ExportTable et l'export Excel, pour que la grille et les exports restent cohérents.",
+   "files": [
+    "src/domain/columns.ts",
+    "src/domain/columns.test.ts",
+    "src/features/grid/Grid.tsx",
+    "src/features/export/ExportTable.tsx",
+    "src/features/export/xlsx.ts"
+   ],
+   "risk": "moyen",
+   "effort": "petit",
+   "test": "Vitest : columnLabel({tcMode:'duree'}, 'tc') = 'DURÉE', ailleurs 'TC MIN'. E2E timing : passer en mode durée, l'en-tête de la grille et la première ligne de l'aperçu affichent « DURÉE »."
+  },
+  {
+   "title": "Téléphone : pas de saisie de la durée du plan en mode durée",
+   "kind": "fonction",
+   "why": "MobileCut exclut toujours la colonne tc (filter c !== 'tc'). En mode 'duree', la durée de chaque plan est pourtant la donnée principale du minutage, et elle ne peut pas être saisie sur le plateau au téléphone. Elle n'est affichée qu'en lecture dans le titre.",
+   "what": "Quand tcMode === 'duree', garder tc dans les champs du téléphone, avec le libellé « Durée », saisie numérique. setCellText gère déjà l'analyse et le refus. Comportement inchangé dans les autres modes.",
+   "files": [
+    "src/features/grid/MobileCut.tsx",
+    "e2e/mobile.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E mobile en mode durée : le champ « Durée » existe, saisir 0:07 puis quitter le champ, le titre du plan affiche 0:07. En mode cumulatif, le champ est absent."
+  },
+  {
+   "title": "Impression ⌘P du storyboard : l'orientation choisie est ignorée",
+   "kind": "bug",
+   "why": "StoryboardPage injecte toujours @page { size: A4 landscape } et rend <Sheets> sans orientation, donc avec la grille paysage de sheetDims. L'Aperçu et l'export lisent exportPrefs.storyboard.orientation. Avec « portrait » choisi, l'aperçu montre des planches portrait et ⌘P imprime en paysage, avec une autre répartition.",
+   "what": "Passer orientation = prefs?.orientation ?? 'landscape' à Sheets dans le rendu d'impression et générer la règle @page selon cette orientation. Ne pas utiliser de page nommée, Safari les ignore.",
+   "files": [
+    "src/features/storyboard/StoryboardPage.tsx",
+    "e2e/storyboard.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : orientation mise en portrait, page.emulateMedia({media:'print'}) donne un --sheet-w de 210mm sur les planches et une balise style contenant « A4 portrait »."
+  },
+  {
+   "title": "Piste : un simple clic sur la forme d'onde écrase la plage calée",
+   "kind": "robustesse",
+   "why": "TrackBar.onDown/onUp : un clic sans mouvement appelle dragRange(a, a), qui renvoie une plage d'une seconde écrite aussitôt dans block.tc. Sur rav3, la sélection existe toujours (ligne 0 par défaut) : un clic pour se repérer sur la piste détruit le calage soigné de l'action courante. Par ailleurs, il n'y a pas de onPointerCancel : un geste interrompu laisse la plage « live » affichée.",
+   "what": "Sous 4 px de déplacement, onUp ne modifie rien. Le clic place seulement la tête de lecture (audio.currentTime si la piste est chargée). Ajouter onPointerCancel={() => setDrag(null)}.",
+   "files": [
+    "src/features/grid/TrackBar.tsx",
+    "e2e/timing.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E rav3 : on lit le TC de l'action sélectionnée, on clique au milieu de [data-testid=waveform], le TC est inchangé. Un glisser de 100 px change la plage."
+  },
+  {
+   "title": "Inspecteur : minutage et vérifications recalculés en double",
+   "kind": "performance",
+   "why": "Inspector.tsx exécute computeTiming(doc) puis runChecks(doc, timing) à chaque modification du projet, alors que GridPage vient de faire le même calcul dans buildGridModel (model.issues, model.timing). Sur un long découpage (rav3), chaque validation de cellule paie donc deux fois le minutage et l'ensemble des vérifications quand l'inspecteur est ouvert.",
+   "what": "Passer à Inspector, depuis GridPage, issues={model.issues.get(selectedShot)}. Inspector ne recalcule que s'il est monté ailleurs sans modèle (prop facultative). Rien ne change à l'affichage.",
+   "files": [
+    "src/features/inspector/Inspector.tsx",
+    "src/features/grid/GridPage.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E inspector.spec existant inchangé et vert. Mesure : sur rav3, temps de validation d'une cellule avec l'inspecteur ouvert, avant et après (performance.now autour de commitCell)."
+  },
+  {
+   "title": "Retirer les derniers textes d'aide de la zone",
+   "kind": "ergonomie",
+   "why": "Contraires à la préférence « pas de textes d'aide » : dans l'inspecteur vide, « pour voir son angle de champ, son matériel et ses notes. » et « Renseignez la focale pour calculer l'angle de champ. ». Dans le storyboard vide, « Le storyboard se remplit à partir du découpage. ». Dans TrackBar, « sélectionnez un plan puis glissez sur la piste… » et « Importez la piste (ou indiquez sa durée dans les Réglages)… », plus le toast « Sélectionnez d'abord un plan… ». Dans la marge de ligne, title « Clic droit : plan-séquence ». Aucun test e2e ne dépend de ces textes (vérifié par grep).",
+   "what": "Remplacer par un état neutre : « Aucun plan sélectionné », un « — » discret pour l'angle de champ, rien pour le storyboard vide hormis le titre, une piste vide sans phrase. Retirer le toast de TrackBar et le title de la marge (l'entrée reste dans l'inspecteur).",
+   "files": [
+    "src/features/inspector/Inspector.tsx",
+    "src/features/storyboard/StoryboardPage.tsx",
+    "src/features/grid/TrackBar.tsx",
+    "src/features/grid/SequenceBody.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : grep dans le DOM des pages découpage, storyboard et inspecteur : aucune des phrases citées. Captures clair et sombre de l'inspecteur vide et du storyboard vide."
+  },
+  {
+   "title": "Saisie de jetons : doublons acceptés (« Face, Face »)",
+   "kind": "bug",
+   "why": "TokenEditor.withDraft ajoute le terme sans vérifier s'il est déjà là, alors que domain/tokens.ts fournit addToken, qui déduplique par mergeKey. Choisir deux fois la même suggestion, ou retaper un terme, donne « Face, Face » dans la grille et à l'export.",
+   "what": "Utiliser addToken(tokens, t) dans withDraft et dans onPick du TokenEditor.",
+   "files": [
+    "src/features/grid/CellEditor.tsx",
+    "e2e/smart-input.spec.ts"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "E2E : dans ANGLE, taper « Face, face » puis Entrée, la cellule affiche « Face ». Le test Vitest d'addToken existe déjà."
+  },
+  {
+   "title": "Angle de champ : chiffre posé sur l'arc, décimale anglaise",
+   "kind": "ergonomie",
+   "why": "Capture inspector-encre.png : le libellé « 54° » (text y=14) chevauche le haut de l'arc (cy − r = 12) quand l'angle est étroit. L'aria-label vaut « Angle de champ horizontal 54.4 degrés », avec un point au lieu de la virgule.",
+   "what": "Placer le chiffre à l'intérieur du cône (y ≈ cy − r × 0,55) ou réduire r de la hauteur du texte. Formater l'aria-label avec une virgule, comme la liste voisine (toFixed(1).replace('.', ',')).",
+   "files": [
+    "src/features/inspector/FovCone.tsx"
+   ],
+   "risk": "faible",
+   "effort": "petit",
+   "test": "Capture de l'inspecteur à 24, 35 et 85 mm dans les deux thèmes : aucun chevauchement. E2E : l'aria-label de l'svg contient « , »."
+  },
+  {
+   "title": "Alt+↑ / Alt+↓ ne fait pas passer un plan dans la séquence voisine",
+   "kind": "fonction",
+   "why": "moveCurrentShot sort (return) quand j < 0 ou j ≥ longueur de la séquence. Au clavier, un plan ne peut donc pas changer de séquence, alors que le glisser-déposer le permet (dropShot avec confirmation « Son action liée sera détachée »). Le clavier est la voie principale de la grille.",
+   "what": "Au bord d'une séquence, appeler dropShot(cur, séquence voisine, 0 ou fin) : même confirmation, même option « ne plus demander », même découpage des groupes d'interview. Il n'y a pas de séquence voisine en tête ou en fin de découpage : rien ne se passe.",
+   "files": [
+    "src/features/grid/actions.ts",
+    "e2e/grid.spec.ts"
+   ],
+   "risk": "moyen",
+   "effort": "petit",
+   "test": "E2E : plan 1.4 sélectionné, Alt+↓ ouvre la confirmation. Après Déplacer, le plan devient 2.1 et la sélection le suit. ⌘Z le ramène en 1.4."
+  },
+  {
+   "title": "Mode durée : les plans abandonnés comptent dans la durée totale",
+   "kind": "fonction",
+   "why": "computeTiming ignore le statut : en mode 'duree', la durée saisie d'un plan « abandonné » s'ajoute au total, à l'écart avec l'estimée et aux exports. Le plan de travail l'écarte pourtant (timelineOf filtre 'abandonné') et le storyboard le grise. Le total annoncé est donc trop long.",
+   "what": "En mode 'duree' seulement, exclure de la somme perShot les plans 'abandonné' (la part d'action d'un plan abandonné n'est pas comptée non plus). Les modes cumulatif et piste ne changent pas, puisque l'action reste au film. À confirmer avec l'utilisateur avant de livrer, car le total visible change.",
+   "files": [
+    "src/domain/timing.ts",
+    "src/domain/timing.test.ts"
+   ],
+   "risk": "moyen",
+   "effort": "petit",
+   "test": "Vitest : séquence de 3 plans de 5 s en mode durée, dont un abandonné : totalSec = 10. En cumulatif, total inchangé. Les tests de timing existants restent verts."
+  }
+ ]
+}
