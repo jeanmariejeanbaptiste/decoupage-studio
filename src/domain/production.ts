@@ -210,12 +210,17 @@ export function linkedSpan(range: ShootingRange, days: number): Span {
 
 /** Étape dont les dates sont tenues par le plan de travail (liée, et tous ses jours y sont datés). */
 export function isPinned(doc: ProjectDoc, t: ProductionTask): boolean {
-  const r = t.linked && shootingRange(doc);
-  return !!r && r.dated >= r.total;
+  return !!t.linked && pinnedBy(shootingRange(doc), t);
 }
 
 /** Étape liée dont le début est tenu par le plan de travail (au moins un jour daté) ; la fin reste libre tant que tout n'est pas daté. */
 export const isHeld = (doc: ProjectDoc, t: ProductionTask) => !!t.linked && !!shootingRange(doc);
+
+/** `isPinned` d'après une étendue déjà calculée (frise : une fois par rendu, pas une fois par ligne). */
+export const pinnedBy = (range: ShootingRange | undefined, t: ProductionTask) => !!t.linked && !!range && range.dated >= range.total;
+
+/** `isHeld` d'après une étendue déjà calculée. */
+export const heldBy = (range: ShootingRange | undefined, t: ProductionTask) => !!t.linked && !!range;
 
 /**
  * Pousse les successeurs de `ids` qui commenceraient avant la fin de leurs prédécesseurs, et ainsi de

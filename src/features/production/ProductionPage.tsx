@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { produce } from 'immer';
 import { Check, ChevronDown, ChevronRight, GripVertical, Link2, MoreHorizontal, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
-import { addDays, calendarIcs, calendarItems, isWeekend, productionItems, timeOn, todayIso } from '../../domain/calendar';
+import { addDays, calendarIcs, eventItem, isWeekend, productionItems, timeOn, todayIso, type CalendarItem } from '../../domain/calendar';
 import { productionDocument, productionWordDocument } from '../../domain/documents';
 import {
   addDependency,
@@ -16,12 +16,14 @@ import {
   ensureProduction,
   findTask,
   formatFrDate,
-  isHeld,
-  isPinned,
+  heldBy,
+  isPlanDate,
+  MAX_DAYS,
   moveTask,
   parseFrDate,
   phaseDays,
   phaseSpan,
+  pinnedBy,
   placePhase,
   placeTask,
   removeDependency,
@@ -35,9 +37,11 @@ import {
   setTaskDates,
   shootingRange,
   type Production,
+  type ShootingRange,
   type ProductionTask,
 } from '../../domain/production';
 import { barGeometry, chartRange, dayX, dependencyLinks, ganttRows, GANTT_ZOOMS, nextZoom, timeScale, zoomInfo, type GanttRow, type GanttZoom } from '../../domain/productionChart';
+import { exportBase } from '../../domain/serialize';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useReadOnly } from '../../store/share';
@@ -132,6 +136,13 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
   const range = useMemo(() => chartRange(plan, today, info.pad), [plan, today, info.pad]);
   const scale = useMemo(() => timeScale(range.from, range.to, info.dayWidth), [range, info.dayWidth]);
   const links = useMemo(() => dependencyLinks(rows, scale, RH), [rows, scale]);
+  // Plan de travail lu une fois par document, pas à chaque ligne ni à chaque survol.
+  const shoot = useMemo(() => shootingRange(doc), [doc]);
+  // Rendez-vous du calendrier, repérés sur la frise (un clic ouvre leur jour dans le calendrier).
+  const appointments = useMemo(
+    () => (doc.calendar ?? []).map((e) => eventItem(e)).filter((it): it is CalendarItem => !!it && it.date >= scale.from && it.date <= scale.to),
+    [doc.calendar, scale.from, scale.to],
+  );
 
   const tableBody = useRef<HTMLDivElement>(null);
   const chart = useRef<HTMLDivElement>(null);
@@ -236,7 +247,7 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
 
   const startBarDrag = (e: ReactPointerEvent, t: ProductionTask, mode: BarDrag['mode']) => {
     // Étape liée au plan de travail : figée s'il est tout daté, sinon seule sa fin se tire.
-    if (readOnly || e.button !== 0 || isPinned(doc, t) || (isHeld(doc, t) && mode !== 'end')) return;
+    if (readOnly || e.button !== 0 || pinnedBy(shoot, t) || (heldBy(shoot, t) && mode !== 'end')) return;
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -253,6 +264,21 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
     setBar(null);
     if (done.days) mutateDoc((d) => applyBarDrag(d, done));
   };
+
+  // Échap pendant un glisser : tout revient comme avant, rien n'est écrit.
+  const dragging = !!bar || !!rowDrag;
+  useEffect(() => {
+    if (!dragging) return;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setBar(null);
+      setRowDrag(null);
+    };
+    window.addEventListener('keydown', esc, true);
+    return () => window.removeEventListener('keydown', esc, true);
+  }, [dragging]);
 
   // --- Ranger une ligne du tableau ----------------------------------------------------------------
 
@@ -304,8 +330,7 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
   }
 
   const title = doc.project.title || 'projet';
-  // Rendez-vous du calendrier, repérés sur la frise (un clic ouvre leur jour dans le calendrier).
-  const appointments = calendarItems(doc).filter((it) => it.source === 'project' && it.date >= scale.from && it.date <= scale.to);
+  const base = `${exportBase(doc)}-calendrier-de-production`;
   const clearAll = async () => {
     const r = await ask({ title: 'Effacer le calendrier de production ?', body: 'Toutes les phases, étapes et jalons.', confirmLabel: 'Effacer', danger: true });
     if (r.ok) mutateDoc((d) => void delete d.production);
@@ -338,11 +363,11 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
             orientation="landscape"
             doc={() => productionDocument(useProjectStore.getState().doc ?? doc)}
             word={() => productionWordDocument(useProjectStore.getState().doc ?? doc)}
-            fileBase={`${title}-calendrier-de-production`}
+            fileBase={base}
             file={{
               label: 'iCalendar',
               hint: 'Étapes et jalons, pour un agenda (.ics).',
-              name: `${title}-calendrier-de-production.ics`,
+              name: `${base}.ics`,
               type: 'text/calendar;charset=utf-8',
               content: () => calendarIcs(productionItems(useProjectStore.getState().doc ?? doc, { withLinked: true }), `${title} · production`),
             }}
@@ -376,8 +401,8 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
               return (
                 <TableRow
                   key={id}
-                  doc={doc}
                   row={row}
+                  shoot={shoot}
                   readOnly={readOnly}
                   collapsed={collapsed.has(row.phase.id)}
                   renaming={renaming === id}
@@ -478,8 +503,8 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
                 }
                 const t = r.task;
                 const g = barGeometry(scale, t);
-                const pinned = isPinned(doc, t);
-                const held = isHeld(doc, t);
+                const pinned = pinnedBy(shoot, t);
+                const held = heldBy(shoot, t);
                 const tip = t.milestone ? `${t.name} · ${formatFrDate(t.start)}` : `${t.name} · ${formatFrDate(t.start)} – ${formatFrDate(t.end)} · ${durationDays(t)} j`;
                 return (
                   <div key={id} className={rowCls} style={{ top }} onPointerEnter={() => setHover(id)}>
@@ -531,6 +556,7 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
           onDeps={() => setMenu({ ...menu, deps: true })}
           onAdd={(m) => add(menu.row, m)}
           onAddPhase={() => addPhaseAfter(menu.row.phase.id)}
+          onRename={() => setRenaming(menu.row.type === 'task' ? menu.row.task.id : menu.row.phase.id)}
           onRemove={() => void remove(menu.row)}
         />
       )}
@@ -578,8 +604,8 @@ function dropRow(plan: Production, rows: readonly GanttRow[], row: GanttRow, gap
 // --- Ligne du tableau ------------------------------------------------------------------------------
 
 interface RowProps {
-  doc: ProjectDoc;
   row: GanttRow;
+  shoot: ShootingRange | undefined;
   readOnly: boolean;
   collapsed: boolean;
   renaming: boolean;
@@ -596,7 +622,7 @@ interface RowProps {
   onMenu: (x: number, y: number, button: HTMLElement) => void;
 }
 
-function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragged, menuOpen, onHover, onToggle, onRename, onStartRename, onCancelRename, onGrip, onMenu }: RowProps) {
+function TableRow({ row, shoot, readOnly, collapsed, renaming, hover, focus, dragged, menuOpen, onHover, onToggle, onRename, onStartRename, onCancelRename, onGrip, onMenu }: RowProps) {
   const isPhase = row.type === 'phase';
   const name = isPhase ? row.phase.name : row.task.name;
   const id = isPhase ? row.phase.id : row.task.id;
@@ -657,11 +683,11 @@ function TableRow({ doc, row, readOnly, collapsed, renaming, hover, focus, dragg
   }
 
   const t = row.task;
-  const pinned = isPinned(doc, t);
+  const pinned = pinnedBy(shoot, t);
   const locked = readOnly || pinned;
   // Plan de travail daté en partie : le début le suit, la fin reste réglable.
-  const startLocked = locked || isHeld(doc, t);
-  const range = t.linked ? shootingRange(doc) : undefined;
+  const startLocked = locked || heldBy(shoot, t);
+  const range = t.linked ? shoot : undefined;
   const linkTip = range && range.dated < range.total ? `Suit le plan de travail (${range.dated} ${range.dated > 1 ? 'jours' : 'jour'} sur ${range.total} datés)` : 'Suit le plan de travail';
   return (
     <div className={[cls, t.done ? s.isDone : ''].join(' ')} role="row" onPointerEnter={onHover} data-row={id} data-testid="task-row">
@@ -732,7 +758,8 @@ function DateField({ value, locked, label, onCommit }: { value: string; locked: 
     if (draft === null) return;
     const iso = parseFrDate(draft, value);
     setDraft(null);
-    if (iso && iso !== value) onCommit(iso);
+    // Date hors de la frise (coquille « 2207 ») : l'ancienne revient, comme pour une date inexistante.
+    if (iso && iso !== value && isPlanDate(iso)) onCommit(iso);
   };
   return (
     <input
@@ -761,7 +788,7 @@ function NumberField({ value, locked, label, onCommit }: { value: number; locked
     if (draft === null) return;
     const n = Number(draft.replace(',', '.'));
     setDraft(null);
-    if (Number.isFinite(n) && n >= 1 && Math.round(n) !== value) onCommit(n);
+    if (Number.isFinite(n) && n >= 1 && n <= MAX_DAYS && Math.round(n) !== value) onCommit(n);
   };
   return (
     <input
@@ -793,10 +820,11 @@ interface MenuProps {
   onDeps: () => void;
   onAdd: (milestone: boolean) => void;
   onAddPhase: () => void;
+  onRename: () => void;
   onRemove: () => void;
 }
 
-function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRemove }: MenuProps) {
+function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRename, onRemove }: MenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: menu.x, top: menu.y });
   useLayoutEffect(() => {
@@ -812,13 +840,41 @@ function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRemove }: Me
       if (e.type === 'mousedown' && ref.current?.contains(e.target as Node)) return;
       onClose(e.type === 'keydown');
     };
+    // La frise défile ou la fenêtre change de taille : le menu, détaché de sa ligne, se ferme
+    // (sauf quand c'est sa propre liste qui défile).
+    const away = (e: Event) => {
+      if (e.type === 'scroll' && e.target instanceof Node && ref.current?.contains(e.target)) return;
+      onClose(false);
+    };
     window.addEventListener('mousedown', close);
     window.addEventListener('keydown', close);
+    window.addEventListener('scroll', away, true);
+    window.addEventListener('resize', away);
     return () => {
       window.removeEventListener('mousedown', close);
       window.removeEventListener('keydown', close);
+      window.removeEventListener('scroll', away, true);
+      window.removeEventListener('resize', away);
     };
   }, [onClose, menu.deps]);
+  // Flèches, Début et Fin d'un article à l'autre ; Tab referme le menu.
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    const go = (n: number) => {
+      e.preventDefault();
+      items[(n + items.length) % items.length].focus();
+    };
+    if (e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowUp') go(i < 0 ? items.length - 1 : i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(items.length - 1);
+    else if (e.key === 'Tab') {
+      e.preventDefault();
+      onClose(true);
+    }
+  };
   const act = (fn: () => void) => () => {
     onClose(true);
     fn();
@@ -865,6 +921,10 @@ function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRemove }: Me
   } else {
     body = (
       <>
+        <button type="button" role="menuitem" onClick={() => (onClose(false), onRename())} data-testid="menu-rename">
+          Renommer
+        </button>
+        <hr />
         <button type="button" role="menuitem" onClick={act(() => onAdd(false))}>
           Ajouter une étape
         </button>
@@ -897,7 +957,7 @@ function RowMenu({ menu, doc, onClose, onDeps, onAdd, onAddPhase, onRemove }: Me
     );
   }
   return createPortal(
-    <div ref={ref} className={s.menu} role="menu" style={pos} onMouseDown={(e) => e.stopPropagation()} data-testid="production-menu">
+    <div ref={ref} className={s.menu} role="menu" style={pos} onMouseDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown} data-testid="production-menu">
       {body}
     </div>,
     document.body,

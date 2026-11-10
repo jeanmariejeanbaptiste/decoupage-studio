@@ -14,6 +14,7 @@ import {
   durationDays,
   findTask,
   formatFrDate,
+  heldBy,
   isHeld,
   isLate,
   isPinned,
@@ -21,6 +22,7 @@ import {
   normalizeProduction,
   parseFrDate,
   phaseDays,
+  pinnedBy,
   phaseSpan,
   placePhase,
   placeTask,
@@ -386,6 +388,12 @@ describe('modèle et plan de travail', () => {
     });
     expect(dates(all, shootId)).toEqual(['2027-03-01', '2027-03-04']);
     expect(isPinned(all, task(all, shootId))).toBe(true);
+    // Variantes d'après une étendue calculée une fois : mêmes réponses.
+    for (const d of [one, all]) {
+      const t = task(d, shootId);
+      expect(pinnedBy(shootingRange(d), t)).toBe(isPinned(d, t));
+      expect(heldBy(shootingRange(d), t)).toBe(isHeld(d, t));
+    }
   });
 });
 
