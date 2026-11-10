@@ -128,6 +128,20 @@ test('palette : passer d’un projet à l’autre', async ({ page }) => {
   expect((await page.evaluate(getDoc)).project.id).not.toBe(before);
 });
 
+test('thème et raccourcis suivis d’un onglet à l’autre', async ({ page, context }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await expect(page.locator(ROWS).first()).toBeVisible();
+  const other = await context.newPage();
+  await other.goto('/#/grid');
+  await expect(other.locator(ROWS).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Thème encre' }).click();
+  await expect(other.locator('html')).toHaveAttribute('data-theme', 'encre');
+  await page.evaluate(() => localStorage.setItem('ds-shortcuts', JSON.stringify({ duplicate: 'Mod+J' })));
+  await other.locator('[data-cell="0:subject"]').click();
+  await other.keyboard.press('?');
+  await expect(other.getByRole('dialog', { name: 'Raccourcis clavier' })).toContainText('⌘J');
+});
+
 test('raccourcis : une combinaison gardée par le navigateur est refusée', async ({ page }) => {
   await page.goto('/#/settings?seed=fiction');
   await page.getByTestId('settings-raccourcis').click();
