@@ -75,10 +75,17 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     [selIds, doc],
   );
   const multi = selIds.length > 1;
-  // Aperçu : une séquence sans plan n'y figure (comme à l'export) que si un commentaire la vise.
-  const commentedSeqs = useMemo(
-    () => new Set([...cutComments(storeDoc).values()].flatMap((l) => (l[0].anchor.kind === 'sequence' ? [l[0].anchor.seqId] : []))),
-    [storeDoc],
+  // Aperçu : une séquence sans plan n'y figure (comme à l'export) que si un commentaire la vise. Le
+  // relecteur et l'invité en lecture seule les voient toutes, réduites à leur en-tête : on peut viser
+  // (commenter) une séquence pas encore découpée.
+  const keepEmpty = useMemo(
+    () =>
+      new Set(
+        readOnly
+          ? storeDoc.project.sequenceIds.filter((id) => !storeDoc.sequences[id]?.shotIds.length)
+          : [...cutComments(storeDoc).values()].flatMap((l) => (l[0].anchor.kind === 'sequence' ? [l[0].anchor.seqId] : [])),
+      ),
+    [storeDoc, readOnly],
   );
 
   // Après la création de la première séquence, la grille prend le focus.
@@ -284,7 +291,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         <div className={[s.printPreview, 'paper-light'].join(' ')}>
           {/* Aperçu : les pages A4 de l'export (paysage par défaut), sur papier quel que soit le thème. */}
           <CutComments doc={storeDoc}>
-            <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} keepEmpty={commentedSeqs} />
+            <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} keepEmpty={keepEmpty} />
           </CutComments>
         </div>
       ) : isMobile ? (
