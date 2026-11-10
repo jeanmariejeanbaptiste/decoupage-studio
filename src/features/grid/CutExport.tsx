@@ -47,6 +47,8 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
       .finally(() => setCutImaging(null));
   }, [cutImaging]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pied de page selon le réglage du projet (titre, version, date), comme l'aperçu imprimé.
+  const footer = () => (doc.project.settings.exportFooter ? { footer: exportFooterText(doc) } : {});
   const contents = { value: content, options: CONTENTS, onChange: (v: string) => setContent(v as CutContent) };
   const busy = !!cutImaging || !!sbImaging;
 
@@ -61,7 +63,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
           noNumbers
           disabled={nShots === 0 || busy}
           unavailable={nShots === 0 ? ['pdf', 'images'] : undefined}
-          onExport={({ format, orientation, numbers }) => setSbImaging({ format: format as 'pdf' | 'images', orientation, numbers })}
+          onExport={({ format, orientation, numbers }) => setSbImaging({ format: format as 'pdf' | 'images', orientation, numbers, ...footer() })}
         >
           <StoryboardExportOptions doc={doc} />
         </ExportPanel>
@@ -94,8 +96,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
           }
           onExport={async ({ format, orientation, numbers }) => {
             try {
-              // Pied de page selon le réglage du projet (titre, version, date), comme l'aperçu imprimé.
-              if (format === 'pdf' || format === 'images') setCutImaging({ format, orientation, numbers, ...(doc.project.settings.exportFooter ? { footer: exportFooterText(doc) } : {}) });
+              if (format === 'pdf' || format === 'images') setCutImaging({ format, orientation, numbers, ...footer() });
               else if (format === 'annex') await exportDocumentPages(oneShotAnnexDocument(doc).html, `${base}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
               else {
                 const { exportXlsx } = await import('../export/xlsx');
