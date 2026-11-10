@@ -121,6 +121,8 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   const lastSnap = useRef(0);
   const savedRange = useRef<Range | null>(null);
   const imgUrls = useRef(new Map<string, string>());
+  const loading = useRef(new Set<string>());
+  const alive = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
@@ -191,8 +193,12 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
         if (img.getAttribute('src') !== known) img.src = known;
         continue;
       }
+      // Une seule lecture par image ; aucune adresse créée si l'éditeur est déjà fermé.
+      if (loading.current.has(key)) continue;
+      loading.current.add(key);
       void getBlob(key).then((b) => {
-        if (!b) return;
+        loading.current.delete(key);
+        if (!b || !alive.current) return;
         const url = URL.createObjectURL(b);
         imgUrls.current.set(key, url);
         el.querySelectorAll<HTMLImageElement>(`img[data-blob="${CSS.escape(key)}"]`).forEach((i) => (i.src = url));
@@ -217,7 +223,12 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
 
   useEffect(() => {
     const urls = imgUrls.current;
-    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.clear();
+    };
   }, []);
 
   // Police chargée, fenêtre redimensionnée : la pagination suit.
