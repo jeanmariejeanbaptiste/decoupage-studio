@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { serializeDoc } from '../domain/serialize';
 import { db, getBlob, loadProject, saveProject } from './db';
-import { flushSave, onTabMessage, restoreMedia, RETRY_DELAYS, startAutosave, warnUnsaved } from './persistence';
+import { flushSave, onTabMessage, openFromFile, restoreMedia, RETRY_DELAYS, startAutosave, warnUnsaved } from './persistence';
 import { mutateDoc, useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
 
@@ -94,5 +94,18 @@ describe('médias d’un fichier ouvert', () => {
     expect(await restoreMedia(text, doc.project.id)).toBe(1);
     expect(await getBlob('m:bon', false)).toBeDefined();
     expect(await getBlob('m:abime', false)).toBeUndefined();
+  });
+
+  it('stockage du navigateur indisponible : un message en français, jamais le texte technique', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(db.projects, 'get').mockRejectedValueOnce(new Error('DatabaseClosedError: UnknownError Internal error opening backing store'));
+    // jsdom ne connaît pas File.text().
+    const fileOf = (text: string) => Object.assign(new File([text], 'film.decoupage'), { text: async () => text });
+    const file = fileOf(serializeDoc(buildFiction()));
+    expect(await openFromFile(file)).toBe(false);
+    const last = useUi.getState().toasts.at(-1)!;
+    expect(last.message).toBe('Ce fichier n’a pas pu être ouvert dans ce navigateur.');
+    expect(await openFromFile(fileOf('{"doc": tronqué'))).toBe(false);
+    expect(useUi.getState().toasts.at(-1)!.message).toBe('Le fichier n’est pas un JSON valide.');
   });
 });

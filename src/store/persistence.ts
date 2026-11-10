@@ -1,4 +1,4 @@
-import { mediaKeys, mediaOfFile, migrate, parseProjectFile, projectCopy, serializeDoc, fileNameFor, FILE_EXTENSION, type MediaEntry } from '../domain/serialize';
+import { mediaKeys, mediaOfFile, migrate, parseProjectFile, ProjectFileError, projectCopy, serializeDoc, fileNameFor, FILE_EXTENSION, type MediaEntry } from '../domain/serialize';
 import { newId } from '../domain/factory';
 import type { ProjectDoc } from '../domain/types';
 import { ask } from '../ui/dialogStore';
@@ -308,7 +308,15 @@ export async function saveToFile(): Promise<void> {
   const doc = useProjectStore.getState().doc;
   if (!doc) return;
   await flushSave();
-  const blob = new Blob([serializeDoc(doc, undefined, await collectMedia(doc))], { type: 'application/json' });
+  let blob: Blob;
+  try {
+    blob = new Blob([serializeDoc(doc, undefined, await collectMedia(doc))], { type: 'application/json' });
+  } catch (e) {
+    // Médias illisibles (stockage du navigateur indisponible) : dit clairement, jamais en silence.
+    console.error(e);
+    useUi.getState().toast({ message: 'Le fichier n’a pas pu être préparé : images et sons illisibles dans ce navigateur.', tone: 'warn' });
+    return;
+  }
   const name = fileNameFor(doc);
   const w = window as unknown as FilePickerWindow;
   if (w.showSaveFilePicker) {
@@ -374,7 +382,9 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
     if (lost) useUi.getState().toast({ message: lost > 1 ? `${lost} médias du fichier n’ont pas pu être relus.` : 'Un média du fichier n’a pas pu être relu.', tone: 'warn' });
     return true;
   } catch (e) {
-    useUi.getState().toast({ message: (e as Error).message, tone: 'warn' });
+    // Fichier illisible : son message ; panne du navigateur (stockage indisponible) : jamais de texte technique.
+    if (!(e instanceof ProjectFileError)) console.error(e);
+    useUi.getState().toast({ message: e instanceof ProjectFileError ? e.message : 'Ce fichier n’a pas pu être ouvert dans ce navigateur.', tone: 'warn' });
     return false;
   }
 }
