@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { breakdownCategories, breakdownLabel, type BreakdownCategory } from '../../domain/breakdown';
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { breakdownCategories, breakdownLabel, isCharacterCategory, type BreakdownCategory } from '../../domain/breakdown';
 import { blocksFromSource, type BlockType } from '../../domain/screenplay';
-import { categoryAbbr, cleanTag, marksIn, type TagMark } from '../../domain/tagging';
+import { categoryAbbr, cleanTag, marksWith, tagContext, type TagMark } from '../../domain/tagging';
+import { fold } from '../../domain/text';
 import type { ID, ProjectDoc } from '../../domain/types';
 import s from './SceneText.module.css';
 
@@ -26,20 +27,63 @@ interface Props {
   hot?: string | null;
   onTag: (cat: BreakdownCategory, item: string) => void;
   onUntag: (cat: BreakdownCategory, item: string) => void;
+  /** Range un élément saisi dans une autre catégorie. */
+  onMove?: (from: BreakdownCategory, to: BreakdownCategory, item: string) => void;
   readOnly?: boolean;
+}
+
+/** Repères de chaque paragraphe (le contexte de la séquence est calculé une fois). Lecture seule : sans suggestions. */
+export function paragraphMarks(doc: ProjectDoc, seqId: ID, paragraphs: readonly Paragraph[], readOnly?: boolean): TagMark[][] {
+  const ctx = tagContext(doc, seqId);
+  return paragraphs.map((p) => {
+    const ms = marksWith(ctx, p.text);
+    return readOnly ? ms.filter((m) => !m.suggested) : ms;
+  });
+}
+
+/** Grille d'un menu : les flèches passent d'une entrée à l'autre (deux colonnes), Début et Fin aux extrémités. */
+function menuKeys(e: ReactKeyboardEvent<HTMLElement>, cols: number) {
+  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  const i = items.indexOf(document.activeElement as HTMLElement);
+  const same = (a: number, b: number) => !!items[a] && !!items[b] && items[a].parentElement === items[b].parentElement;
+  let next: number | undefined;
+  if (i < 0 && e.key.startsWith('Arrow')) next = 0;
+  else if (e.key === 'ArrowRight') next = i + 1;
+  else if (e.key === 'ArrowLeft') next = i - 1;
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const dir = e.key === 'ArrowDown' ? 1 : -1;
+    next = i + dir * cols;
+    // Hors de la grille (« Retirer » au-dessus des catégories) : l'entrée voisine hors de ce bloc.
+    if (!same(i, next)) {
+      next = i + dir;
+      while (same(i, next)) next += dir;
+    }
+  } else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = items.length - 1;
+  if (next !== undefined && !items[next]) next = i;
+  if (next === undefined) return;
+  e.preventDefault();
+  items[next]?.focus();
 }
 
 /**
  * Le texte de la séquence, actif : les éléments dépouillés y sont repérés ; une sélection ouvre le
  * choix de la catégorie ; une suggestion (soulignée) s'ajoute d'un clic.
  */
-export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, readOnly }: Props) {
+export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, onMove, readOnly }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
   const [picker, setPicker] = useState<{ x: number; y: number; text: string } | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; mark: TagMark } | null>(null);
   const cats = breakdownCategories(doc);
-  const marks = useMemo(() => paragraphs.map((p) => marksIn(doc, seqId, p.text)), [doc, seqId, paragraphs]);
-  const hotKey = hot?.toLocaleLowerCase('fr');
+  const marks = useMemo(() => paragraphMarks(doc, seqId, paragraphs, readOnly), [doc, seqId, paragraphs, readOnly]);
+  const hotKey = hot ? fold(hot) : '';
+  const open = !!picker || !!menu;
+
+  // Le menu ouvert reçoit le focus (la sélection est déjà retenue dans picker.text).
+  useEffect(() => {
+    if (open) pop.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true });
+  }, [open]);
 
   useEffect(() => {
     if (!picker && !menu) return;
@@ -51,6 +95,8 @@ export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, readOnl
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Le focus revient au texte s'il était dans le menu.
+        if (pop.current?.contains(document.activeElement)) root.current?.focus({ preventScroll: true });
         setPicker(null);
         setMenu(null);
       }
@@ -82,18 +128,22 @@ export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, readOnl
     let pos = 0;
     ms.forEach((m, i) => {
       if (m.start > pos) out.push(<Fragment key={`t${i}`}>{text.slice(pos, m.start)}</Fragment>);
-      const isHot = !!hotKey && m.item.toLocaleLowerCase('fr') === hotKey;
+      const isHot = !!hotKey && fold(m.item) === hotKey;
+      // Déduit du découpage (plans, matériel) : se retire là où il est né, pas d'ici.
+      const fixed = !m.suggested && m.derived;
       out.push(
         <mark
           key={`m${i}`}
-          className={[m.suggested ? s.sugg : s.tag, isHot ? s.hot : ''].join(' ')}
-          title={m.suggested ? `Ajouter « ${m.item} » (${breakdownLabel(m.cat).toLowerCase()})` : `${breakdownLabel(m.cat)} · ${m.item}`}
+          className={[m.suggested ? s.sugg : s.tag, fixed ? s.fixed : '', isHot ? s.hot : ''].join(' ')}
+          title={m.suggested ? `Ajouter « ${m.item} » (${breakdownLabel(m.cat).toLowerCase()})` : fixed ? `${breakdownLabel(m.cat)} · ${m.item} · déduit du découpage` : `${breakdownLabel(m.cat)} · ${m.item}`}
           data-cat={categoryAbbr(m.cat)}
-          onMouseUp={(e) => e.stopPropagation()}
           onClick={(e) => {
-            if (readOnly || window.getSelection()?.toString()) return;
+            if (readOnly || fixed || window.getSelection()?.toString()) return;
             if (m.suggested) onTag(m.cat, m.item);
-            else setMenu({ ...at(e), mark: m });
+            else {
+              setPicker(null);
+              setMenu({ ...at(e), mark: m });
+            }
           }}
           data-testid={m.suggested ? 'tag-suggestion' : 'tag-mark'}
         >
@@ -106,8 +156,14 @@ export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, readOnl
     return out;
   };
 
+  const close = () => {
+    setPicker(null);
+    setMenu(null);
+  };
+  const others = menu && !isCharacterCategory(menu.mark.cat) && onMove ? cats.filter((c) => c !== menu.mark.cat && !isCharacterCategory(c)) : [];
+
   return (
-    <div ref={root} className={s.text} onMouseUp={onMouseUp} data-testid="scene-text">
+    <div ref={root} className={s.text} onMouseUp={onMouseUp} tabIndex={-1} data-testid="scene-text">
       {paragraphs.length === 0 && <p className={s.empty}>Aucun texte pour cette séquence.</p>}
       {paragraphs.map((p, i) => (
         <p key={p.key} className={s[`t_${p.type}`] ?? ''}>
@@ -115,7 +171,7 @@ export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, readOnl
         </p>
       ))}
       {picker && (
-        <div className={s.pop} style={{ left: picker.x, top: picker.y }} data-tag-pop role="menu" aria-label={`Ajouter « ${picker.text} » au dépouillement`}>
+        <div ref={pop} className={s.pop} style={{ left: picker.x, top: picker.y }} data-tag-pop role="menu" aria-label={`Ajouter « ${picker.text} » au dépouillement`} onKeyDown={(e) => menuKeys(e, 2)}>
           <p className={s.popTitle}>{picker.text}</p>
           <div className={s.popGrid}>
             {cats.map((c) => (
@@ -137,7 +193,7 @@ export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, readOnl
         </div>
       )}
       {menu && (
-        <div className={s.pop} style={{ left: menu.x, top: menu.y }} data-tag-pop role="menu">
+        <div ref={pop} className={s.pop} style={{ left: menu.x, top: menu.y }} data-tag-pop role="menu" aria-label={menu.mark.item} onKeyDown={(e) => menuKeys(e, others.length ? 2 : 1)}>
           <p className={s.popTitle}>
             {menu.mark.item} <em>{breakdownLabel(menu.mark.cat).toLowerCase()}</em>
           </p>
@@ -147,11 +203,30 @@ export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, readOnl
             className={s.popRemove}
             onClick={() => {
               onUntag(menu.mark.cat, menu.mark.item);
-              setMenu(null);
+              close();
             }}
           >
             Retirer du dépouillement
           </button>
+          {others.length > 0 && (
+            <div className={[s.popGrid, s.popMove].join(' ')}>
+              {others.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="menuitem"
+                  aria-label={`Ranger dans ${breakdownLabel(c)}`}
+                  onClick={() => {
+                    onMove?.(menu.mark.cat, c, menu.mark.item);
+                    close();
+                  }}
+                  data-testid={`move-to-${c}`}
+                >
+                  {breakdownLabel(c)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

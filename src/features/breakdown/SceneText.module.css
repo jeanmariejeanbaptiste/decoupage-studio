@@ -1,5 +1,6 @@
 /* Texte d'une séquence, mis en forme comme un scénario, pour le dépouillement. */
 .text { position: relative; font-family: var(--font-script); font-size: 13.5px; line-height: 1.6; color: var(--ink); }
+.text:focus { outline: none; }
 .text p { margin: 0 0 12px; white-space: pre-wrap; }
 .t_heading { font-weight: 600; text-transform: uppercase; }
 .t_character { margin: 14px 0 0 36% !important; text-transform: uppercase; }
@@ -15,6 +16,7 @@
 .tag, .sugg { color: inherit; background: none; border-radius: 2px; cursor: pointer; }
 .tag { background: var(--selected); box-shadow: inset 0 -1.5px 0 var(--ink-soft); }
 .tag:hover, .hot { background: color-mix(in srgb, var(--ink) 16%, transparent) !important; }
+.fixed { cursor: default; }
 .sugg { text-decoration: underline dotted var(--ink-soft); text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
 .sugg:hover { background: var(--hover); text-decoration-style: solid; }
 
@@ -30,3 +32,4 @@
 .popGrid button, .popRemove { border: 0; background: none; text-align: left; padding: 5px 7px; border-radius: 4px; font-size: 12.5px; color: var(--ink); }
 .popGrid button:hover, .popRemove:hover { background: var(--selected); }
 .popRemove { width: 100%; }
+.popMove { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--rule); }
