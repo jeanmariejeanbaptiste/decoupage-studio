@@ -457,7 +457,14 @@ function setTombstones(list: Tomb[]) {
 
 /** Projet supprimé : ses fichiers quittent le Drive, une marque datée prévient les autres appareils. */
 async function buryRemote(projectId: string, at: string, files: DriveFile[]): Promise<void> {
-  for (const f of files) if (f.appProperties?.projectId === projectId && f.appProperties.kind !== 'tombstone') await removeFile(f.id);
+  // Images rangées sous ce projet mais utilisées par un autre (copie, duplication) : elles restent.
+  const used = new Set<string>();
+  for (const p of await db.projects.toArray()) if (p.id !== projectId) for (const k of mediaKeys(p.doc)) used.add(k);
+  for (const f of files) {
+    const a = f.appProperties;
+    if (a?.projectId !== projectId || a.kind === 'tombstone' || (a.kind === 'blob' && used.has(a.key))) continue;
+    await removeFile(f.id);
+  }
   const old = files.find((f) => f.appProperties?.kind === 'tombstone' && f.appProperties.projectId === projectId);
   await upload(
     { name: `deleted-${projectId}`, ...(old ? {} : { parents: ['appDataFolder'] }), appProperties: { kind: 'tombstone', projectId, deletedAt: at } },
