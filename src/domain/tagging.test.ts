@@ -33,6 +33,45 @@ describe('dépouillement depuis le texte', () => {
   });
 });
 
+describe('repères du lexique, à la place du mot trouvé', () => {
+  const corpus = [
+    'Elle prend l’affiche et enlève ses lunettes ; il pleut, un taxi passe. Rouge à lèvres, robe.',
+    'Elle est en train de chanter. Ève lit. Elle livre le colis au feu rouge.',
+    'Il pose un livre sur le lit, prend le train.',
+    'Elle se maquille, se coiffe les cheveux. Son portable et la clé. Sa bague. Une larme.',
+    '  —  la ,  valise   ; les CLÉS !! Une   cigarette… au café, au lit.\n\nLe vent, un vent.',
+    'Ça prend feu ! Mettre le feu, un feu de camp, les feux verts, le TGV, l’auto, une auto 🚗 rouge.',
+  ];
+
+  it('mêmes termes que la détection, aux bonnes positions', async () => {
+    const { detectInText, detectSpans } = await import('./breakdown');
+    const { buildRav3 } = await import('../../seed/rav3');
+    for (const t of [...corpus, buildFiction().scenario!, buildRav3().scenario ?? '']) {
+      const fromSpans: Record<string, string[]> = {};
+      for (const sp of detectSpans(t)) if (!fromSpans[sp.cat]?.includes(sp.canon)) (fromSpans[sp.cat] ??= []).push(sp.canon);
+      const expected = detectInText(t) as Record<string, string[]>;
+      expect(Object.fromEntries(Object.entries(fromSpans).map(([c, l]) => [c, [...l].sort()]))).toEqual(Object.fromEntries(Object.entries(expected).map(([c, l]) => [c, [...l].sort()])));
+    }
+    const t = corpus[4];
+    const words = detectSpans(t).map((sp) => t.slice(sp.start, sp.end));
+    expect(words).toEqual(['valise', 'CLÉS', 'cigarette', 'vent', 'vent']);
+    expect(detectSpans(corpus[5]).map((sp) => corpus[5].slice(sp.start, sp.end))).toEqual(['feu', 'TGV', 'auto']);
+  });
+
+  it('souligne la forme trouvée, pas les faux repères', () => {
+    const doc = buildFiction();
+    const seqId = doc.project.sequenceIds[0];
+    const words = (t: string) => marksIn(doc, seqId, t).filter((m) => m.suggested).map((m) => `${t.slice(m.start, m.end)}=${m.item}`);
+    expect(words(corpus[3])).toEqual(['maquille=Maquillage', 'coiffe=Coiffure', 'cheveux=Coiffure', 'portable=Téléphone', 'clé=Clés', 'bague=Bagues', 'larme=Larmes']);
+    expect(words('Il est en train de lire. Il lit le journal au feu rouge.')).toEqual(['journal=Journal']);
+    // Déjà dépouillés : « Train » et « Lit » ne ressortent que là où la détection les retient.
+    addBreakdownItems(doc, seqId, 'vehicules', ['Train']);
+    addBreakdownItems(doc, seqId, 'accessoires', ['Lit', 'Téléphone']);
+    const t = 'Il est en train de lire au lit. Il lit. Le train part. Son portable sonne.';
+    expect(marksIn(doc, seqId, t).map((m) => `${t.slice(m.start, m.end)}=${m.item}${m.suggested ? '?' : ''}`)).toEqual(['train=Train', 'portable=Téléphone']);
+  });
+});
+
 describe('repères : déduits ou saisis', () => {
   it('un personnage nommé par les plans est déduit ; un élément saisi se retire', () => {
     const doc = buildFiction();

@@ -2,7 +2,7 @@
  * Dépouillement depuis le texte : passage du scénario propre à une séquence, repérage des éléments
  * déjà dépouillés dans ce texte (sans accents ni casse), nettoyage d'une sélection avant ajout.
  */
-import { addedCharacters, breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown, detectInText, type BreakdownCategory } from './breakdown';
+import { addedCharacters, breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown, detectSpans, isLexiconTerm, type BreakdownCategory } from './breakdown';
 import { fold } from './text';
 import { matchSequence, scenesOf } from './fountain';
 import type { ID, ProjectDoc } from './types';
@@ -106,11 +106,23 @@ export function tagContext(doc: ProjectDoc, seqId: ID): TagContext {
 export function marksWith(ctx: TagContext, text: string): TagMark[] {
   const marks: TagMark[] = [];
   const taken = (a: number, b: number) => marks.some((m) => a < m.end && b > m.start);
-  const add = (cat: BreakdownCategory, item: string, extra: Partial<TagMark>) => {
-    for (const [a, b] of findTerm(text, item)) if (!taken(a, b)) marks.push({ start: a, end: b, cat, item, ...extra });
-  };
-  for (const k of ctx.known) add(k.cat, k.item, k.derived ? { derived: true } : {});
-  for (const [cat, items] of Object.entries(detectInText(text)) as Array<[BreakdownCategory, string[]]>) for (const item of items) if (!ctx.have.has(foldKeepLength(item))) add(cat, item, { suggested: true });
+  const spans = detectSpans(text);
+  for (const k of ctx.known) {
+    // Un terme du lexique (« train », « lit ») ne compte pas là où la détection l'écarte (« en train de », « il lit »).
+    const strict = isLexiconTerm(k.item);
+    for (const [a, b] of findTerm(text, k.item)) {
+      if (taken(a, b) || (strict && !spans.some((s) => a < s.end && b > s.start))) continue;
+      marks.push({ start: a, end: b, cat: k.cat, item: k.item, ...(k.derived ? { derived: true } : {}) });
+    }
+  }
+  // Ce que repère le lexique, à la place même du mot trouvé (« portable » pour Téléphone) : déjà dépouillé, ou suggéré.
+  const byFold = new Map(ctx.known.map((k) => [foldKeepLength(k.item), k]));
+  for (const sp of spans) {
+    if (taken(sp.start, sp.end)) continue;
+    const k = byFold.get(foldKeepLength(sp.canon));
+    if (k) marks.push({ start: sp.start, end: sp.end, cat: k.cat, item: k.item, ...(k.derived ? { derived: true } : {}) });
+    else marks.push({ start: sp.start, end: sp.end, cat: sp.cat, item: sp.canon, suggested: true });
+  }
   return marks.sort((x, y) => x.start - y.start);
 }
 
