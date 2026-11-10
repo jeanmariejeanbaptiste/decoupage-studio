@@ -294,3 +294,17 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Revue approfondie (73 défauts confirmés, 59 corrigés, le reste déjà réglé) : scénario (pages et minutage de l'impression), versions et commentaires, dépouillement et registre, plan au sol, production (déroulé unique plan de travail / feuille de service, nuit « (+1) », repas vers midi), coquille et paramètres.
 - Ouvert : sur un scénario annoté, le numéro de page écrit sur une feuille de l'éditeur peut dépasser celui du PDF (notes comptées à l'écran). Pré-remplir la pièce depuis le plan des locaux écarté : l'échelle réelle n'est pas enregistrée.
 - Tests : 587 unitaires, 161 parcours de bout en bout (1 capture sur demande ignorée).
+
+## Suite 2.9.x — 2026-11-10 (publié, puis pause)
+- Matériel : page centrée, recherche, postes en cartes, ajout en ligne avec focus, poste supprimable.
+- Calendrier et Production : une seule page (Jour / Semaine / Mois / Année / Production), une barre commune.
+- Plan au sol : section Pièce repliée en une ligne de résumé ; température de couleur (bleu à orange) sur faisceaux, lampes, liste et export, gris sans température.
+- Découpage : séquence sans plan refaite (en-tête, aperçu du texte, premier plan d'un clic ou au clavier, Suppr la retire), absente de l'export PDF.
+- Vérifications : chaque ligne mène à l'endroit exact (`domain/checkTarget.ts`, `features/checks/openCheck.ts`), sautes consécutives en une ligne, contrôle d'angle incompatible.
+- Tests : 614 unitaires, 179 parcours de bout en bout.
+
+## File d'attente (à reprendre dans cet ordre)
+1. Scénario : refonte complète des sous-sections (barre trop compacte, « pas épurée » : plus d'air, moins de boutons tassés) et séquencier façon John Truby (« tissage des séquences » : une phrase par séquence, vue d'ensemble du film, lisible avant et après l'écriture).
+2. Retirer le Registre en déplaçant ce qui n'existe que là : nature et fusion des personnages (`mergeCharacters`) vers les fiches du Scénario ; durée estimée, écart et avancement vers l'en-tête de séquence du découpage ; personnages manuels de séquence vers le Dépouillement ; tableaux et CSV vers Exporter. La cible `registry` de `checkTarget` (écart estimé) passe alors à l'en-tête de séquence.
+3. Vérifications : la cellule visée s'ouvre directement en saisie (comme un double-clic), un test par type de contrôle.
+4. Cent améliorations (ergonomie, fonctions, robustesse), par lots indépendants, stabilité d'abord : un lot qui casse un test est écarté.
