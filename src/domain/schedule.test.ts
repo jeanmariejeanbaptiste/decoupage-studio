@@ -388,3 +388,141 @@ describe('supprimer un jour : confirmation', () => {
     expect(dayHasData(produce(empty, (d) => assignShots(d, [id], 1)), 1)).toBe(true);
   });
 });
+
+describe('plan de travail : bandes, bilan et emploi du temps', async () => {
+  const S = await import('./schedule');
+  const seq0 = (doc: ReturnType<typeof buildRav3>) => doc.sequences[doc.project.sequenceIds[0]].shotIds;
+
+  it('glisser une bande ne déplace pas un plan qui n’y figure que par une reprise', () => {
+    const doc = buildRav3();
+    const s1 = seq0(doc);
+    const id = s1[0];
+    const next = produce(doc, (d) => {
+      S.placeShot(d, 1, id, '08:00', 60);
+      S.splitShot(d, 1, id);
+      S.movePartToDay(d, 1, id, 1, 2);
+      S.assignShots(d, [s1[1]], 2);
+    });
+    const strip = S.stripsByDay(next).get(2)![0];
+    expect(strip.shotIds).toEqual([id, s1[1]]);
+    const own = S.stripOwnShots(next, 2, strip);
+    expect(own).toEqual([s1[1]]);
+    const moved = produce(next, (d) => S.assignShots(d, own, 3));
+    expect(moved.shots[id].shootingDay).toBe(1);
+    expect(S.shotSlot(moved, 1, id)).toEqual({ start: '08:00', end: '08:30' });
+    expect(S.partDays(moved, id)).toEqual([2]);
+    expect(moved.shots[s1[1]].shootingDay).toBe(3);
+  });
+
+  it('compte des plans : abandonnés exclus, reprises comptées une fois', () => {
+    const doc = buildRav3();
+    const seqId = doc.project.sequenceIds[0];
+    const s1 = seq0(doc);
+    const total = doc.project.sequenceIds.reduce((n, x) => n + doc.sequences[x].shotIds.length, 0);
+    const next = produce(doc, (d) => {
+      d.shots[s1[5]].status = 'abandonné';
+      S.placeShot(d, 1, s1[0], '08:00', 60);
+      S.splitShot(d, 1, s1[0]);
+      S.movePartToDay(d, 1, s1[0], 1, 2);
+    });
+    expect(S.liveShotCount(next, seqId)).toBe(s1.length - 1);
+    expect(S.scheduleProgress(next)).toEqual({ planned: 1, total: total - 1 });
+  });
+
+  it('retirer un créneau garde le plan dans son jour (à placer)', () => {
+    const doc = buildRav3();
+    const id = seq0(doc)[0];
+    const next = produce(doc, (d) => {
+      S.placeShot(d, 1, id, '09:00');
+      S.clearSlot(d, 1, id);
+    });
+    expect(next.shots[id].shootingDay).toBe(1);
+    expect(S.timelineOf(next, 1)).toEqual([]);
+    expect(S.stripsByDay(next).get(1)![0].shotIds).toContain(id);
+  });
+
+  it('début libre : fin du dernier créneau, sinon le RDV, sinon le début de journée', () => {
+    const doc = buildRav3();
+    const s1 = seq0(doc);
+    expect(S.nextFreeStart(produce(doc, (d) => void S.addDay(d)), 1)).toBe('07:00');
+    const call = produce(doc, (d) => S.updateDay(d, 1, { callTime: '06:30' }));
+    expect(S.nextFreeStart(call, 1)).toBe('06:30');
+    const placed = produce(call, (d) => {
+      S.placeShot(d, 1, s1[0], '08:00', 45);
+      S.placeShot(d, 1, s1[1], '10:00', 30);
+    });
+    expect(S.nextFreeStart(placed, 1)).toBe('10:30');
+  });
+
+  it('amplitude affichée : couvre un RDV matinal et un créneau tardif', () => {
+    const doc = buildRav3();
+    const id = seq0(doc)[0];
+    const base = produce(doc, (d) => void S.addDay(d));
+    expect(S.timelineRange(base, 1)).toEqual({ start: 7 * 60, end: 21 * 60 });
+    const late = produce(base, (d) => {
+      S.updateDay(d, 1, { callTime: '05:30' });
+      S.placeShot(d, 1, id, '22:30', 30);
+    });
+    expect(S.timelineRange(late, 1)).toEqual({ start: 5 * 60, end: 23 * 60 });
+  });
+
+  it('ajouter un jour : daté au lendemain du dernier jour daté', () => {
+    const doc = buildRav3();
+    const dated = produce(doc, (d) => {
+      S.addDay(d);
+      S.updateDay(d, 1, { date: '2026-10-24' });
+      S.addDay(d);
+    });
+    expect(S.scheduleDays(dated)[1].date).toBe('2026-10-25');
+    const undated = produce(doc, (d) => {
+      S.addDay(d);
+      S.addDay(d);
+    });
+    expect(S.scheduleDays(undated)[1].date).toBeUndefined();
+    expect(S.nextDate('2026-12-31')).toBe('2027-01-01');
+    expect(S.nextDate('16/11/2026')).toBeUndefined();
+    // Un jour seulement daté se supprime sans confirmation.
+    expect(S.dayHasData(dated, 2)).toBe(false);
+  });
+
+  it('convocations effacées : ni clé vide ni objet vide', () => {
+    const doc = buildRav3();
+    const c = Object.keys(doc.characters)[0];
+    const next = produce(doc, (d) => {
+      S.addDay(d);
+      S.setCall(d, 1, c, '07:00');
+      S.setCallDetail(d, 1, c, 'makeup', '06:30');
+    });
+    const day = (x: typeof next) => x.schedule!.days[0];
+    expect(day(next).calls).toEqual({ [c]: '07:00' });
+    expect(day(next).callDetails).toEqual({ [c]: { makeup: '06:30' } });
+    const cleared = produce(next, (d) => {
+      S.setCall(d, 1, c, '');
+      S.setCallDetail(d, 1, c, 'makeup', undefined);
+    });
+    expect(day(cleared).calls).toBeUndefined();
+    expect(day(cleared).callDetails).toBeUndefined();
+    expect(S.dayHasData(cleared, 1)).toBe(false);
+    // Anciens enregistrements vides : sans effet sur la confirmation.
+    expect(S.dayHasData(produce(cleared, (d) => S.updateDay(d, 1, { calls: { [c]: '' }, callDetails: { [c]: {} } })), 1)).toBe(false);
+  });
+
+  it('long métrage : le déroulé de tous les jours reste rapide', () => {
+    const doc = produce(buildRav3(), (d) => {
+      const seqIds = [...d.project.sequenceIds];
+      const proto = d.shots[d.sequences[seqIds[0]].shotIds[0]];
+      for (let i = 0; i < 600; i++) {
+        const id = `perf-${i}`;
+        d.shots[id] = { ...proto, id };
+        d.sequences[seqIds[i % seqIds.length]].shotIds.push(id);
+      }
+      S.suggestSchedule(d, 20);
+      for (const day of S.scheduleDays(d)) S.placeSequence(d, day.n, Object.keys(d.shots).filter((id) => d.shots[id].shootingDay === day.n), '08:00');
+    });
+    const days = S.scheduleDays(doc);
+    expect(days.length).toBeGreaterThanOrEqual(30);
+    const t0 = performance.now();
+    for (const day of days) S.dayAgenda(doc, day.n);
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
+});
