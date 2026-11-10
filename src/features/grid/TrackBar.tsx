@@ -32,7 +32,8 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
   const [url, setUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState<number | null>(null);
-  const [drag, setDrag] = useState<{ a: number; b: number } | null>(null);
+  // Glissement en cours ; `moved` : au-delà de quelques pixels (en deçà, c'est un clic sur la piste).
+  const [drag, setDrag] = useState<{ a: number; b: number; x0: number; moved: boolean } | null>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -102,16 +103,25 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
   const importAudio = async () => {
     const f = await pickFile('audio/*', false);
     if (!f) return;
+    let buf: AudioBuffer;
     try {
-      const buf = await decode(f);
-      const key = await putBlob(doc.project.id, f.name, f);
-      mutateDoc((d) => {
-        d.project.settings.audioTrack = { name: f.name, durationSec: Math.round(buf.duration), blobKey: key };
-      });
-      toast({ message: `Piste « ${f.name} » importée (${formatTc(buf.duration)}).` });
+      buf = await decode(f);
     } catch {
       toast({ message: 'Ce fichier audio n’a pas pu être lu.', tone: 'warn' });
+      return;
     }
+    let key: string;
+    try {
+      key = await putBlob(doc.project.id, f.name, f);
+    } catch (e) {
+      const quota = (e as { name?: string; inner?: { name?: string } } | null)?.name === 'QuotaExceededError' || (e as { inner?: { name?: string } } | null)?.inner?.name === 'QuotaExceededError';
+      toast({ message: quota ? 'Stockage du navigateur plein : piste non importée.' : 'Piste non importée : le navigateur n’a pas pu l’enregistrer.', tone: 'warn' });
+      return;
+    }
+    mutateDoc((d) => {
+      d.project.settings.audioTrack = { name: f.name, durationSec: Math.round(buf.duration), blobKey: key };
+    });
+    toast({ message: `Piste « ${f.name} » importée (${formatTc(buf.duration)}).` });
   };
 
   const secAt = (e: PointerEvent) => {
@@ -120,19 +130,27 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
   };
 
   const onDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (!blockId || duration <= 0) {
-      toast({ message: 'Sélectionnez d’abord un plan dans la grille pour caler son action.', tone: 'warn' });
-      return;
-    }
+    if (duration <= 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const t = secAt(e);
-    setDrag({ a: t, b: t });
+    setDrag({ a: t, b: t, x0: e.clientX, moved: false });
   };
-  const onMove = (e: PointerEvent) => drag && setDrag({ ...drag, b: secAt(e) });
+  const onMove = (e: PointerEvent) => drag && setDrag({ ...drag, b: secAt(e), moved: drag.moved || Math.abs(e.clientX - drag.x0) >= 4 });
   const onUp = () => {
-    if (!drag || !blockId) return;
-    const r = dragRange(drag.a, drag.b, duration);
+    if (!drag) return;
     setDrag(null);
+    // Simple clic : la tête de lecture se place, la plage calée ne change pas.
+    if (!drag.moved) {
+      const a = audioRef.current;
+      if (a && url) {
+        a.currentTime = drag.a;
+        setPlayhead(drag.a);
+      }
+      return;
+    }
+    // Glisser sans plan sélectionné : rien à caler.
+    if (!blockId) return;
+    const r = dragRange(drag.a, drag.b, duration);
     mutateDoc((d) => {
       if (d.blocks[blockId]) d.blocks[blockId].tc = r;
     });
@@ -152,7 +170,7 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
     else if (block.tc.in !== undefined) play(block.tc.in, block.tc.out ?? null);
   };
 
-  const live = drag ? dragRange(drag.a, drag.b, duration) : null;
+  const live = drag?.moved && blockId ? dragRange(drag.a, drag.b, duration) : null;
 
   return (
     <section className={s.bar} aria-label="Piste audio" data-testid="track-bar">
@@ -196,6 +214,7 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
+          onPointerCancel={() => setDrag(null)}
           data-testid="waveform"
           role="slider"
           aria-label="Plage de l’action dans la piste"
