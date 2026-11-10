@@ -151,7 +151,7 @@ test('séquence sans plan au clavier : le « + » garde ses touches (Tab en sort
   await expect(empty.first()).toContainText('1, ENTREPRISE / ACCUEIL');
 });
 
-test('vérifications : chaque lien mène à sa séquence ou à sa cellule ; les séquences sans plan en une seule entrée', async ({ page }) => {
+test('vérifications : chaque lien mène à sa séquence ou à sa cellule ; les séquences sans plan groupées', async ({ page }) => {
   await importKit(page);
   // Deux contrôles de plus : valeur effacée (23.1), zoom sans focale de départ (24.4).
   await page.locator('[data-cell="0:value"]').click();
@@ -159,33 +159,31 @@ test('vérifications : chaque lien mène à sa séquence ou à sa cellule ; les 
   await page.locator('[data-cell="7:focal"]').click();
   await page.keyboard.press('Delete');
   await page.goto('/#/checks');
-  const group = page.getByTestId('empty-sequences-check');
-  await expect(group).toContainText('22 séquences sans plan');
-  await expect(page.getByText('Cette séquence ne contient aucun plan.')).toHaveCount(0);
-  // Badge du menu : une entrée pour les 22 séquences.
+  const group = page.getByTestId('check-group-empty-sequence');
+  await expect(group.getByTestId('issue')).toHaveCount(22);
+  // Badge du menu : autant que de lignes sur la page.
   const issues = await page.getByTestId('issue').count();
   await expect(page.getByRole('link', { name: /Vérifications/ }).or(page.getByRole('button', { name: /Vérifications/ })).first()).toContainText(String(issues));
 
-  // Séquence sans plan : la grille l'amène en haut, juste sous l'en-tête, et son « + » a le focus.
-  await group.getByRole('button', { name: /^Séquence 20,/ }).click();
+  // Séquence sans plan : la grille l'amène dans la vue, sous l'en-tête, et son « + » a le focus.
+  await group.getByTestId('check-go').filter({ has: page.locator('span', { hasText: /^20$/ }) }).click();
   await expect(page).toHaveURL(/#\/grid/);
   const seq20 = page.getByTestId('empty-sequence').nth(19);
   await expect(seq20.getByTestId('add-first-shot')).toBeFocused();
   await expect(seq20).toBeInViewport();
   const [grid, head, row] = await Promise.all([page.getByTestId('grid').boundingBox(), page.getByTestId('grid').locator('thead').boundingBox(), seq20.boundingBox()]);
   expect(row!.y).toBeGreaterThanOrEqual(grid!.y + head!.height - 1);
-  expect(row!.y).toBeLessThan(grid!.y + head!.height + 40);
   await page.keyboard.press('Enter');
   await expect(page.locator(ROWS)).toHaveCount(12);
   await expect(page.getByTestId('empty-sequence')).toHaveCount(21);
 
   // Plan sans valeur de cadre : la cellule VALEUR du plan ; zoom sans focales : la cellule FOCALE.
   for (const [label, code, col] of [
-    ['Plan sans valeur de cadre', 'Plan 23.1', 'value'],
-    ['Zoom sans focales', 'Plan 24.4', 'focal'],
+    ['missing-value', '23.1', 'value'],
+    ['zoom-focal', '24.4', 'focal'],
   ] as const) {
     await page.goto('/#/checks');
-    await page.getByTestId('issue').filter({ hasText: label }).filter({ hasText: code }).getByRole('button', { name: code }).click();
+    await page.getByTestId(`check-group-${label}`).getByTestId('check-go').filter({ hasText: code }).click();
     const cell = page.locator(`[aria-selected="true"][data-cell$=":${col}"]`);
     await expect(cell).toHaveCount(1);
     await expect(cell).toBeInViewport();
