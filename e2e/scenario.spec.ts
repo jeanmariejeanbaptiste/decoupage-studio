@@ -249,12 +249,8 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await reports.getByRole('button', { name: /GARE DU NORD — HALL/ }).first().click();
   await expect(views.getByRole('tab', { name: 'Continuité dialoguée' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('script-editor')).toBeVisible();
-  await page.getByTestId('scenario-tab-research').click();
-  // La logline et le synopsis sont dans la recherche, pas dans le séquencier.
-  await page.getByTestId('research-add-doc').click();
-  await page.getByTestId('scenario-research').getByLabel('Logline').fill('Une valise, une décision.');
-  await page.getByTestId('scenario-research').getByLabel('Synopsis').click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __ds: { doc: () => { research?: { logline?: string } } } }).__ds.doc().research?.logline)).toBe('Une valise, une décision.');
+  // Plus d'onglet Recherche dans le panneau du texte.
+  await expect(page.getByTestId('scenario-tab-research')).toHaveCount(0);
   await page.goto('/#/registry?tab=characters');
   await expect(page.getByText('Alice Martin')).toBeVisible();
   // Panneau latéral masqué (bouton ou ⌘\), et retenu au rechargement.
@@ -436,28 +432,6 @@ test('versions : la V2 part de la V1 ; on passe de l’une à l’autre, le déc
   await page.getByTestId('version-item').filter({ hasText: 'V2' }).getByRole('menuitemradio').click();
   await page.getByRole('button', { name: /^Scénario$/ }).first().click();
   await expect(page.getByTestId('scenario-outline')).toContainText('QUAI');
-});
-
-test('recherche : ce qui est tapé reste, même panneau masqué au clavier ou page quittée sans clic', async ({ page }) => {
-  await page.goto('/#/scenario?seed=fiction');
-  const research = () => page.evaluate(() => (window as unknown as { __ds: { doc: () => { research?: Record<string, string> } } }).__ds.doc().research ?? {});
-  await page.getByTestId('scenario-tab-research').click();
-  await page.getByLabel('Genre').fill('Drame');
-  await page.keyboard.press('Control+Backslash');
-  await expect(page.getByLabel('Navigation du scénario')).toHaveCount(0);
-  await expect.poll(async () => (await research()).genre).toBe('Drame');
-  await page.keyboard.press('Control+Backslash');
-  await expect(page.getByLabel('Genre')).toHaveValue('Drame');
-  await page.getByLabel('Année').fill('2026');
-  await page.evaluate(() => (location.hash = '#/grid'));
-  await expect(page.locator('[data-testid="shot-row"]').first()).toBeVisible();
-  await expect.poll(async () => (await research()).year).toBe('2026');
-  // La logline, quittée sans clic, reste aussi.
-  await page.goto('/#/scenario');
-  await page.getByTestId('scenario-tab-research').click();
-  await page.getByTestId('scenario-research').getByLabel('Logline').fill('Une valise, une décision.');
-  await page.evaluate(() => (location.hash = '#/grid'));
-  await expect.poll(async () => (await research()).logline).toBe('Une valise, une décision.');
 });
 
 test('vue Découpage : le panneau suit la version choisie ; la bascule du panneau ne bouge pas d’une vue à l’autre', async ({ page }) => {

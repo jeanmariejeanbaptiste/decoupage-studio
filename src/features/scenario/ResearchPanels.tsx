@@ -248,7 +248,6 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
   );
 }
 
-/** Recherche : genre, année, logline, synopsis et documents libres du projet. */
 export function ResearchPanel({ doc, readOnly }: { doc: ProjectDoc; readOnly: boolean }) {
   const r = doc.research ?? {};
   const set = (patch: Partial<NonNullable<ProjectDoc['research']>>) => mutateDoc((d) => void Object.assign((d.research ??= {}), patch));
