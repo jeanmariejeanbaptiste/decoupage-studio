@@ -18,6 +18,8 @@ import { renderTokens } from './tokens';
 import { safeCell } from './csv';
 import type { ID, ProjectDoc } from './types';
 import { isZoom } from './vocabulary';
+import { framesOf } from './keyframes';
+import { cameraShotId } from './interview';
 import { calendarIcs, calendarItems, productionItems, todayIso } from './calendar';
 import { productionSvgPages } from './productionChart';
 
@@ -25,6 +27,49 @@ const esc = (v: string | number | undefined) => {
   const s = v === undefined ? '' : typeof v === 'number' ? String(v) : safeCell(v);
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
+
+/**
+ * Noms de fichiers sans doublon dans une même archive : « Vue », « Vue (2) », « vue (3) »…
+ * (la casse est ignorée, comme sur les disques de macOS et Windows).
+ */
+export function uniqueNames(names: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return names.map((name) => {
+    let out = name;
+    for (let n = 2; seen.has(out.toLowerCase()); n++) out = `${name} (${n})`;
+    seen.add(out.toLowerCase());
+    return out;
+  });
+}
+
+/** Dossiers du dossier de production, dans l'ordre, et ce que chacun contient. */
+export const DOSSIER_FOLDERS: ReadonlyArray<readonly [string, string]> = [
+  ['00 Projet', 'fichier .decoupage (projet complet, à rouvrir dans l’application)'],
+  ['01 Intention', 'note d’intention (Word mis en forme, et texte brut)'],
+  ['02 Scénario', 'scénario en PDF (mis en page), Word (.docx), Final Draft (.fdx) et Fountain'],
+  ['03 Dépouillement', 'éléments par séquence (Word et CSV)'],
+  ['04 Découpage', 'tableau Excel fusionné et CSV'],
+  ['05 Storyboard', 'images des plans, nommées par code de plan'],
+  ['06 Plans au sol', 'un SVG par vue (s’ouvre dans tout navigateur)'],
+  ['07 Matériel', 'listes par chef de poste (Word et CSV)'],
+  ['08 Plan de travail', 'jours, séquences et durées (Word et CSV)'],
+  ['09 Feuilles de service', 'une feuille de service par jour (Word et CSV)'],
+  ['10 Registre', 'séquences, personnages, décors, plans'],
+  ['11 Calendriers', 'calendrier et étapes du film (.ics, pour un agenda), frise du calendrier de production (SVG)'],
+];
+
+/** LISEZ-MOI du dossier de production : seuls les dossiers réellement écrits sont annoncés. */
+export function dossierReadme(doc: ProjectDoc, present: ReadonlySet<string>, now = new Date()): string {
+  const width = Math.max(...DOSSIER_FOLDERS.map(([f]) => f.length)) + 2;
+  const lines = DOSSIER_FOLDERS.filter(([f]) => present.has(f)).map(([f, what]) => `${f.padEnd(width)}${what}`);
+  return `DOSSIER DE PRODUCTION — ${doc.project.title} (${doc.project.version})\nExporté le ${now.toLocaleString('fr-FR')}.\n\n${lines.join('\n')}\n`;
+}
+
+/** Pied de page des exports : « Titre · Version · jj/mm/aaaa » (comme l'aperçu imprimé). */
+export function exportFooterText(doc: ProjectDoc, date = new Date()): string {
+  const day = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  return [doc.project.title, doc.project.version, day].filter((x) => x?.trim()).join(' · ');
+}
 
 /** CSV « ; » avec BOM, lisible directement par Excel en français. */
 export function csv(rows: ReadonlyArray<ReadonlyArray<string | number | undefined>>): string {
@@ -75,12 +120,40 @@ export function decorsCsv(doc: ProjectDoc): string {
   ]);
 }
 
+/**
+ * Images du storyboard d'un plan et leur nom dans le dossier de production (sans extension) :
+ * « Plan 1.2 », ou « Plan 1.2 K1 », « Plan 1.2 K2 »… quand le plan a plusieurs images clés.
+ */
+export function storyboardFiles(doc: ProjectDoc, shotId: ID): Array<{ key: string; name: string }> {
+  const shot = doc.shots[shotId];
+  if (!shot) return [];
+  const frames = framesOf(shot);
+  const code = shotCode(doc, shotId);
+  return frames.flatMap((f, k) => (f.blobKey ? [{ key: f.blobKey, name: `Plan ${code}${frames.length > 1 ? ` K${k + 1}` : ''}` }] : []));
+}
+
+/**
+ * Images des cadres d'interview restés en annexe (un cadre placé a son image dans le storyboard de
+ * ses plans) : « Interview <intervenant> <cadre> <caméra> ».
+ */
+export function interviewFrameFiles(doc: ProjectDoc): Array<{ key: string; name: string }> {
+  return (doc.interview?.subjects ?? []).flatMap((subject, i) =>
+    subject.setups.flatMap((setup, j) =>
+      setup.cameras.flatMap((cam) =>
+        cam.frame && !cameraShotId(doc, setup.id, cam.id)
+          ? [{ key: cam.frame, name: ['Interview', subject.name.trim() || `${i + 1}`, setup.name.trim() || `cadre ${j + 1}`, cam.name].filter(Boolean).join(' ') }]
+          : [],
+      ),
+    ),
+  );
+}
+
 export function shotsCsv(doc: ProjectDoc): string {
   const rows: Array<Array<string | number | undefined>> = [['Plan', 'Séquence', 'Sujet', 'Valeur', 'Angle', 'Mouvement', 'Focale', 'Action', 'Statut', 'Jour', 'Image storyboard']];
   for (const seqId of doc.project.sequenceIds)
     for (const id of doc.sequences[seqId]?.shotIds ?? []) {
       const s = doc.shots[id];
-      rows.push([shotCode(doc, id), sequenceHeading(doc, seqId), s.subject, s.value, renderTokens(s.angle), renderTokens(s.movement, s.movementSep), formatFocal(s.focal, isZoom(s.movement)), doc.blocks[s.actionBlockId]?.text, s.status, s.shootingDay !== undefined ? `J${s.shootingDay}` : '', s.storyboard ? `${shotCode(doc, id)}` : '']);
+      rows.push([shotCode(doc, id), sequenceHeading(doc, seqId), s.subject, s.value, renderTokens(s.angle), renderTokens(s.movement, s.movementSep), formatFocal(s.focal, isZoom(s.movement)), doc.blocks[s.actionBlockId]?.text, s.status, s.shootingDay !== undefined ? `J${s.shootingDay}` : '', storyboardFiles(doc, id).map((f) => f.name).join(', ')]);
     }
   return csv(rows);
 }

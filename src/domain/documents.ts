@@ -78,6 +78,15 @@ export interface DocPage {
   html: string;
 }
 
+/** Document Word (.doc) : le HTML du document, que Word, Pages et LibreOffice ouvrent directement. */
+export function wordHtml(page: DocPage, orientation?: 'portrait' | 'landscape'): string {
+  let html = page.html.replace('<html lang="fr">', '<html lang="fr" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">');
+  // Word ne lit pas `@page { size }` seul : la section reçoit aussi son orientation (mso).
+  if (orientation === 'landscape')
+    html = html.replace('</style>', '@page WordSection { size: 29.7cm 21cm; mso-page-orientation: landscape; margin: 1.5cm; } body { page: WordSection; } div.WordSection { page: WordSection; }</style>').replace(/<body([^>]*)>/, '<body$1><div class="WordSection">').replace('</body>', '</div></body>');
+  return html;
+}
+
 function shell(doc: ProjectDoc, kicker: string, title: string, body: string, landscape = false): DocPage {
   const date = new Date().toLocaleDateString('fr-FR');
   void kicker; // l'étape n'apparaît plus dans les documents (titre seul)
