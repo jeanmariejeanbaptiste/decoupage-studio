@@ -73,6 +73,8 @@
 
 .menuBtn { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--ink-soft); opacity: 0; }
 .row:hover .menuBtn, .menuBtn:focus-visible, .menuBtn[aria-expanded='true'] { opacity: 1; }
+/* Écran tactile : pas de survol, le bouton reste visible. */
+@media (hover: none) { .menuBtn { opacity: 1; } }
 .menuBtn:hover { background: var(--hover); color: var(--ink); }
 .dropLine { position: absolute; left: 0; right: 0; height: 2px; background: var(--ink); pointer-events: none; z-index: 3; }
 
