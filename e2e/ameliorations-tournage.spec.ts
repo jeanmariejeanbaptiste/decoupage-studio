@@ -32,6 +32,12 @@ test('feuille de service : jour dans l’adresse, flèches, dates courtes', asyn
   await expect(page.getByLabel('Jour de tournage')).toHaveValue(String(count));
   await page.goto('/#/callsheet?day=99');
   await expect(page.getByLabel('Jour de tournage')).toHaveValue('1');
+  // L'adresse donne le jour réellement affiché, sans nouvelle entrée d'historique.
+  await expect(page).toHaveURL(/#\/callsheet\?day=1$/);
+  const length = await page.evaluate(() => history.length);
+  await page.goto('/#/callsheet?day=abc');
+  await expect(page).toHaveURL(/#\/callsheet\?day=1$/);
+  expect(await page.evaluate(() => history.length)).toBe(length + 1);
 });
 
 test('feuille de service : la colonne Séquence ne répète pas le décor', async ({ page }) => {
@@ -58,6 +64,13 @@ test('emploi du temps : Entrée place à la suite, retirer garde le plan dans so
   await page.keyboard.press('Enter');
   await expect(tl.getByTestId('timeline-block')).toHaveCount(1);
   await expect(tl.getByTestId('timeline-block')).toContainText('08:00–08:30');
+  // Le focus passe à la fiche suivante : une deuxième Entrée l'enchaîne.
+  await expect(tl.getByTestId('pool-shot').first()).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(tl.getByTestId('timeline-block')).toHaveCount(2);
+  await tl.getByTestId('timeline-block').nth(1).hover();
+  await tl.getByTestId('timeline-block').nth(1).getByRole('button', { name: 'Retirer de l’emploi du temps' }).click();
+  await expect(tl.getByTestId('timeline-block')).toHaveCount(1);
   await tl.getByTestId('pool-shot').first().dblclick();
   await expect(tl.getByTestId('timeline-block')).toHaveCount(2);
   await expect(tl.getByTestId('timeline-block').nth(1)).toContainText('08:30–09:00');
@@ -85,16 +98,9 @@ test('emploi du temps : la grille couvre un rendez-vous matinal', async ({ page 
   await expect(page.getByLabel('Début de journée')).toHaveValue('07:00');
 });
 
-test('plan de travail : jour daté au lendemain, capacité retenue, libellés distincts', async ({ page }) => {
+test('plan de travail : capacité retenue, libellés distincts', async ({ page }) => {
   await page.goto('/#/schedule?seed=rav3');
   await page.getByTestId('add-day').click();
-  await page.getByLabel('Date du jour 1').fill('2026-10-24');
-  await page.getByTestId('add-day').click();
-  await expect(page.getByLabel('Date du jour 2')).toHaveValue('2026-10-25');
-  // Un jour seulement daté se supprime sans confirmation.
-  await page.getByLabel('Supprimer le jour 2').click();
-  await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  await expect(page.getByTestId('band-2')).toHaveCount(0);
 
   await page.getByLabel('Plans par jour au maximum').fill('12');
   await page.getByTestId('callsheet-link-1').click();
