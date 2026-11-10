@@ -25,6 +25,8 @@ import { deleteShotById, dropShot } from '../grid/actions';
 import { goToShot } from '../grid/goTo';
 import s from './StoryboardPage.module.css';
 import { exportBase } from '../../domain/serialize';
+import { useUi } from '../../store/uiStore';
+import { recoverStaleChunk } from '../../ui/staleChunk';
 
 
 /** Planches du storyboard rendues hors écran le temps d'un export (PDF ou images A4). */
@@ -42,6 +44,9 @@ export function StoryboardImaging({ doc, imaging, onDone }: { doc: ProjectDoc; i
       .then(async (p) => {
         await waitForImages(root, expected);
         return exportNodePages(p, base, imaging);
+      })
+      .catch((err) => {
+        if (!recoverStaleChunk(err)) useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
       })
       .finally(onDone);
   }, [imaging]); // eslint-disable-line react-hooks/exhaustive-deps
