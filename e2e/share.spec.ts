@@ -146,6 +146,67 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await expect(guest.getByTestId('project-list').locator('li')).toHaveCount(0);
 });
 
+/** Fiche du projet enregistrée dans ce navigateur (le premier projet). */
+const storedDoc = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<{ review?: unknown; title?: string } | null>((ok) => {
+        const r = indexedDB.open('decoupage-studio');
+        r.onsuccess = () => {
+          const c = r.result.transaction('projects').objectStore('projects').getAll();
+          c.onsuccess = () => ok((c.result[0] as { doc?: { review?: unknown; project: { title: string } } } | undefined)?.doc ? { review: c.result[0].doc.review, title: c.result[0].doc.project.title } : null);
+        };
+      }),
+  );
+
+test('copie gardée par un invité : sans la relecture en ligne de l’hôte', async ({ browser }) => {
+  const host = await participant(browser);
+  await host.goto('/#/grid?seed=rav3');
+  await expect(host.getByTestId('shot-row').first()).toBeVisible();
+  // L'hôte a publié une relecture en ligne (lien, état) : on la pose dans sa fiche, puis on la rouvre.
+  await expect.poll(async () => (await storedDoc(host))?.title).toBeTruthy();
+  await host.evaluate(
+    () =>
+      new Promise<void>((ok) => {
+        const r = indexedDB.open('decoupage-studio');
+        r.onsuccess = () => {
+          const t = r.result.transaction('projects', 'readwrite');
+          const st = t.objectStore('projects');
+          const g = st.getAll();
+          g.onsuccess = () => {
+            const rec = g.result[0] as { doc: Record<string, unknown> };
+            rec.doc.review = { fileId: 'hostfile123', resourceKey: 'rk-host', publishedVersionId: 'v', publishedAt: '2026-11-09T10:00:00Z', dismissed: ['cmt1'] };
+            st.put(rec);
+          };
+          t.oncomplete = () => ok();
+        };
+      }),
+  );
+  await host.goto('/#/grid');
+  await host.reload();
+  await expect(host.getByTestId('shot-row').first()).toBeVisible();
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-start').click();
+  const link = await host.getByTestId('share-link').textContent();
+  const password = await host.getByTestId('share-password').textContent();
+  const guest = await participant(browser);
+  await guest.goto(link!);
+  await guest.getByLabel('Votre nom').fill('Nina');
+  await guest.getByLabel('Mot de passe').fill(password!);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('guest-banner')).toContainText('modification');
+  // Copie accordée : enregistrée chez l'invité, sans le lien ni l'état de la relecture.
+  await host.getByTestId('share-panel').getByText('Ils gardent une copie du projet').click();
+  await expect.poll(async () => (await storedDoc(guest))?.title, { timeout: 10_000 }).toBeTruthy();
+  expect((await storedDoc(guest))?.review).toBeUndefined();
+  await host.getByTestId('share-stop').click();
+  await expect(guest.getByTestId('home')).toBeVisible();
+  await expect(guest.getByTestId('project-list').locator('li')).toHaveCount(1);
+  expect((await storedDoc(guest))?.review).toBeUndefined();
+  // Chez l'hôte, la relecture reste.
+  expect((await storedDoc(host))?.review).toMatchObject({ fileId: 'hostfile123' });
+});
+
 test('QR code du partage en plein écran : lien et mot de passe en grand, Échap referme', async ({ browser }) => {
   const host = await participant(browser);
   await host.goto('/#/grid?seed=rav3');
