@@ -208,7 +208,6 @@
 .roomField input { min-width: 0; width: 100%; padding: 5px 7px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; }
 .roomField em { font-style: normal; }
 .roomSize { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.roomClear { border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
 .specs { font-size: 0.82em; fill: var(--ink-soft); font-weight: 400; }
 
 /* Panneau latéral : pleine hauteur, sections empilées (sélection, plans du découpage, éléments, pièce). */
@@ -216,7 +215,6 @@
 .panel { padding: 0; display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h) - 96px); min-height: 380px; max-height: none; overflow-y: auto; }
 .section { padding: 14px 16px; }
 .section + .section { border-top: 1px solid var(--rule); }
-.roomSection { margin-top: auto; }
 .sectionHead { margin: 0 0 6px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
 .sectionHead span { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
 .shotList { gap: 0; }
@@ -243,11 +241,27 @@
 .itemIcon svg { width: 15px; height: 15px; }
 .itemName { font-weight: 500; white-space: nowrap; }
 .itemDetail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ink-soft); }
-.presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.presets button { padding: 2px 3px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+/* Pièce : largeur × longueur, hauteur ; modèles avec leurs dimensions ; cotes sur le plan. */
+.room { gap: 10px; }
+.roomGrid { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: end; }
+.roomTimes { padding-bottom: 6px; font-size: 13px; color: var(--ink-soft); }
+.roomGrid .roomField { grid-template-columns: minmax(0, 1fr); }
+.roomGrid .roomField:last-child { margin-left: 8px; }
+.roomGrid .roomField input { grid-row: 2; grid-column: 1; padding-right: 22px; }
+.roomGrid .roomField em { grid-row: 2; grid-column: 1; justify-self: end; padding-right: 8px; pointer-events: none; }
+.presets { display: flex; flex-direction: column; margin: 0 -8px; }
+.presets button { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-height: 26px; padding: 3px 8px; border: 0; border-radius: var(--radius); background: none; font: inherit; font-size: 12.5px; color: var(--ink); text-align: left; cursor: pointer; }
+.presets button:hover { background: var(--hover); }
+.presets button > span:last-child { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.presets .presetOn { background: var(--selected); font-weight: 600; }
+.presets .presetOn > span:last-child { color: var(--ink); font-weight: 400; }
+.roomFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.dim line { stroke: var(--ink-soft); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.dim path { fill: none; stroke: var(--ink); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.dim text { font-family: var(--font-ui); font-weight: 500; fill: var(--ink); text-anchor: middle; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--paper-card); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.dim { pointer-events: none; }
 .thumb { flex: none; width: 44px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 3px; border: 1px solid var(--rule); }
 .decor { margin: 6px 0 0; font-size: 12px; color: var(--ink-soft); }
 @media (max-width: 1100px) {
   .panel { height: auto; min-height: 0; overflow: visible; }
-  .roomSection { margin-top: 0; }
 }

@@ -4,7 +4,7 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, DIMENSION_FONT, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
@@ -236,8 +236,8 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
     }
   }
   // Cadre : la zone par défaut, élargie à tout ce qui est dessiné (éléments, cônes des caméras,
-  // faisceaux, déplacements), avec une marge pour les étiquettes et une bande pour le titre au-dessus.
-  // Le fond (plan des locaux) n'est pas exporté.
+  // faisceaux, déplacements, cotes de la pièce), avec une marge pour les étiquettes et une bande
+  // pour le titre au-dessus. Le fond (plan des locaux) n'est pas exporté.
   const drawn = [
     ...items.flatMap((i) => [{ x: i.x, y: i.y }, ...('x2' in i ? [{ x: i.x2, y: i.y2 }] : []), ...(i.kind === 'actor' && i.to ? [i.to] : [])]),
     ...items.flatMap((i) => (i.kind === 'camera' ? cameraCone(doc, i).points : [])),
@@ -245,6 +245,21 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
   ];
   const xs = [0, PLAN_W, ...drawn.map((q) => q.x)];
   const ys = [0, PLAN_H, ...drawn.map((q) => q.y)];
+  // Cotes de la pièce : traits fins et valeurs en mètres, comme à l'écran ; le texte grandit avec le
+  // cadre exporté pour rester lisible une fois la page réduite.
+  const span = (vs: number[]) => Math.max(...vs) - Math.min(...vs);
+  const dims = roomDimensions(planOf(doc, key), Math.max(1, Math.max(span(xs), span(ys)) / (70 * DIMENSION_FONT)));
+  for (const d of dims) {
+    const t = d.tick;
+    const ticks = [[d.x1, d.y1], [d.x2, d.y2]].map(([x, y]) => `M ${x - t} ${y + t} L ${x + t} ${y - t}`).join(' ');
+    out.push(
+      `<g stroke="#6b7079" stroke-width="0.8" fill="none">${d.ext.map(([a, b, c, e]) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${e}"/>`).join('')}<line x1="${d.x1}" y1="${d.y1}" x2="${d.x2}" y2="${d.y2}"/><path d="${ticks}" stroke-width="1.2"/></g><text x="${d.tx}" y="${d.ty}" font-size="${+d.font.toFixed(1)}" text-anchor="middle" fill="#3a3e45"${d.rot ? ` transform="rotate(${d.rot} ${d.tx} ${d.ty})"` : ''}>${xml(d.label)}</text>`,
+    );
+  }
+  for (const d of dims) {
+    xs.push(d.rot ? d.tx - d.font : d.x1);
+    ys.push(d.rot ? d.y1 : d.ty - d.font);
+  }
   const x0 = Math.min(...xs) - 40;
   const y0 = Math.min(...ys) - 80;
   const w = Math.max(...xs) + 40 - x0;
