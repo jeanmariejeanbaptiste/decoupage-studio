@@ -14,8 +14,6 @@ import {
   insertText,
   isEmptyBlock,
   locationsOf,
-  mergeWithNext,
-  mergeWithPrevious,
   parseTitlePage,
   rangeText,
   replaceRange,
@@ -26,7 +24,6 @@ import {
   setTitlePage,
   sourceToCaret,
   speakersOf,
-  splitBlock,
   type BlockType,
   type Caret,
   type Edit,
@@ -36,6 +33,8 @@ import {
   TITLE_FIELDS,
 } from '../../domain/screenplay';
 import { titleFromBlocks } from '../../domain/scenarioImport';
+import { mergeBackwardVisible, mergeForwardVisible, outlinePhraseIds, splitPastPhrase, visibleCaret } from '../../domain/editorPhrase';
+import type { SourceEdit } from '../../domain/outline';
 import { SCRIPT_COLUMNS, SCRIPT_PAGE, emphasisRuns, paginateItems, plainText, scriptOutline, setHighlight, titlePageLines, type HighlightColor, type OutlineItem } from '../../domain/scriptLayout';
 import { blockTypeDigit } from '../../domain/shortcuts';
 import { fold } from '../../domain/text';
@@ -150,6 +149,12 @@ export interface ScriptEditorApi {
   emphasis: (mark: '**' | '*' | '_') => void;
   /** Surlignage de révision de la sélection (ou du mot) ; `undefined` le retire. */
   highlight: (color: HighlightColor | undefined) => void;
+  /**
+   * Annonce une modification du scénario faite hors de l'éditeur (après `flush`, avant `mutateDoc`) :
+   * au prochain rechargement du texte, le curseur et la sélection sont replacés par `map` au lieu
+   * d'être perdus. Avec `source`, seul ce texte-là est attendu ; l'attente tombe d'elle-même après 2 s.
+   */
+  expectExternal: (map: SourceEdit['map'], source?: string) => void;
 }
 
 // --- Lecture et écriture du DOM ----------------------------------------------------------------
@@ -291,7 +296,9 @@ function readSelection(root: HTMLElement): Sel | null {
 function tidySelection(sel: Sel): Sel {
   if (sel.start.id === sel.end.id || sel.end.offset > 0) return sel;
   const el = document.querySelector<HTMLElement>(`[data-bid="${sel.end.id}"]`);
-  const prev = el?.previousElementSibling as HTMLElement | null;
+  // Les blocs cachés (phrase du séquencier) ne comptent pas : la sélection n'y finit jamais.
+  let prev = el?.previousElementSibling as HTMLElement | null;
+  while (prev?.hidden) prev = prev.previousElementSibling as HTMLElement | null;
   if (!prev?.dataset.bid) return sel;
   const end = { id: prev.dataset.bid, offset: readText(prev).length };
   // Seul le saut de paragraphe était sélectionné : l'effacer joint bien les deux blocs.
@@ -329,12 +336,21 @@ function domRange(root: HTMLElement, a: Caret, b: Caret): Range | null {
   return r;
 }
 
+/** Pose une sélection (ou le curseur si `a` = `z`) sans voler le focus. */
+function selectRange(root: HTMLElement, a: Caret, z: Caret) {
+  const r = domRange(root, a, z);
+  const sl = window.getSelection();
+  if (!r || !sl) return;
+  sl.removeAllRanges();
+  sl.addRange(r);
+}
+
 // --- Bloc ----------------------------------------------------------------------------------------
 
 /** Éléments des blocs, tenus par React : de quoi remettre en place ce que le navigateur aurait retiré. */
 type Register = (id: string, el: HTMLDivElement | null) => void;
 
-const Block = memo(function Block({ b, mt, n, reg }: { b: SBlock; mt?: number; n?: number; reg: Register }) {
+const Block = memo(function Block({ b, mt, n, reg, hidden }: { b: SBlock; mt?: number; n?: number; reg: Register; hidden?: boolean }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const setRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -359,7 +375,18 @@ const Block = memo(function Block({ b, mt, n, reg }: { b: SBlock; mt?: number; n
       }
     }
   }, [b.text]);
-  return <div ref={setRef} data-bid={b.id} data-type={b.type} data-n={n} data-empty={isEmptyBlock(b) || undefined} className={[s.b, s[`t_${b.type}`]].join(' ')} style={mt === undefined ? undefined : { marginTop: mt }} />;
+  return (
+    <div
+      ref={setRef}
+      data-bid={b.id}
+      data-type={b.type}
+      data-n={n}
+      data-empty={isEmptyBlock(b) || undefined}
+      hidden={hidden || undefined}
+      className={[s.b, s[`t_${b.type}`]].join(' ')}
+      style={mt === undefined || hidden ? undefined : { marginTop: mt }}
+    />
+  );
 });
 
 /** Lignes de la page de garde, à leur rang (celles de l'export : `titlePageLines`). */
@@ -551,6 +578,15 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   const [acClosed, setAcClosed] = useState<string | null>(null);
   const [titleOpen, setTitleOpen] = useState(false);
   const titleFound = useMemo(() => (titleOpen ? titleFromBlocks(sdocRef.current.blocks) : null), [titleOpen]);
+  // Phrases du séquencier : hors de la feuille, de la pagination et du chemin du curseur.
+  const hidden = useMemo(() => outlinePhraseIds(sdoc.blocks), [sdoc.blocks]);
+  /** Dernière sélection connue dans le texte (positions dans la source), et dernier bloc du curseur. */
+  const lastSel = useRef<{ start: number; end: number } | null>(null);
+  const lastCaretIndex = useRef(-1);
+  /** Modification annoncée par `expectExternal`, et sélection à rendre quand le texte reprend le focus. */
+  const expected = useRef<{ map: SourceEdit['map']; source?: string; at: number; sel: { start: number; end: number } | null } | null>(null);
+  const pendingSel = useRef<{ a: Caret; z: Caret } | null>(null);
+  const parked = useRef<{ a: Caret; z: Caret } | null>(null);
 
   // --- Enregistrement (débouncé) et rechargement quand le scénario change ailleurs ---
   const flush = useCallback(() => {
@@ -569,10 +605,27 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
   useEffect(() => {
     if (external === synced.current) return;
     synced.current = external;
+    const exp = expected.current;
+    expected.current = null;
     if (external === serRef.current.source) return;
-    setSdoc(withOneBlock(blocksFromSource(external)));
+    const next = withOneBlock(blocksFromSource(external));
+    setSdoc(next);
     undoStack.current = [];
     redoStack.current = [];
+    // Modification annoncée : la sélection suit le texte au lieu de se perdre.
+    if (exp?.sel && (exp.source === undefined || exp.source === external) && Date.now() - exp.at < 2000) {
+      const start = exp.map(exp.sel.start, 'start');
+      const end = Math.max(start, exp.map(exp.sel.end, 'end'));
+      const { spans } = serialize(next);
+      const hid = outlinePhraseIds(next.blocks);
+      const a = sourceToCaret(next.blocks, spans, start);
+      const z = sourceToCaret(next.blocks, spans, end);
+      if (!a || !z) return;
+      const sel = { a: visibleCaret(next.blocks, a, hid, -1), z: visibleCaret(next.blocks, z, hid, -1) };
+      lastSel.current = { start, end };
+      if (root.current && document.activeElement === root.current) pendingSel.current = sel;
+      else parked.current = sel;
+    }
   }, [external]);
 
   useEffect(() => {
@@ -606,7 +659,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const next = withOneBlock(e.doc);
     sdocRef.current = next;
     setSdoc(next);
-    pendingCaret.current = next.blocks.some((b) => b.id === e.caret.id) ? e.caret : { id: next.blocks[0].id, offset: 0 };
+    pendingCaret.current = next.blocks.some((b) => b.id === e.caret.id) ? visibleCaret(next.blocks, e.caret, outlinePhraseIds(next.blocks), -1) : { id: next.blocks[0].id, offset: 0 };
   };
 
   /** Ajoute ou retire une marque d'emphase autour de la sélection (bloc par bloc), ou du mot courant. */
@@ -805,14 +858,14 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
           d = r.doc;
           c = r.caret;
         }
-        apply(splitBlock(d, c));
+        apply(splitPastPhrase(d, c));
         return;
       }
       if (t === 'insertLineBreak') {
         e.preventDefault();
         const b = blockOf(sel.start.id);
         // Pas de ligne vide dans un bloc : un second retour crée un nouveau paragraphe.
-        if (b && sel.collapsed && (b.text.slice(0, sel.start.offset).endsWith('\n') || sel.start.offset === 0)) return apply(splitBlock(sdocRef.current, sel.start));
+        if (b && sel.collapsed && (b.text.slice(0, sel.start.offset).endsWith('\n') || sel.start.offset === 0)) return apply(splitPastPhrase(sdocRef.current, sel.start));
         apply(replaceRange(sdocRef.current, sel.start, sel.end, '\n'));
         return;
       }
@@ -828,14 +881,15 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         const b = blockOf(sel.start.id);
         if (!b) return;
         const backward = t.includes('Backward');
+        // Jonction de deux blocs : par-dessus la phrase cachée, avec le bloc visible voisin.
         if (backward && sel.start.offset === 0) {
           e.preventDefault();
-          apply(mergeWithPrevious(sdocRef.current, b.id));
+          apply(mergeBackwardVisible(sdocRef.current, b.id, outlinePhraseIds(sdocRef.current.blocks)));
           return;
         }
         if (!backward && sel.start.offset >= b.text.length) {
           e.preventDefault();
-          apply(mergeWithNext(sdocRef.current, b.id));
+          apply(mergeForwardVisible(sdocRef.current, b.id, outlinePhraseIds(sdocRef.current.blocks)));
           return;
         }
         // Ce que le navigateur s'apprête à effacer : s'il sort du bloc ou le vide, on l'efface nous-mêmes
@@ -882,8 +936,16 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       placeCaret(el, pendingCaret.current, !readOnly);
       pendingCaret.current = null;
     }
+    if (pendingSel.current) {
+      const { a, z } = pendingSel.current;
+      pendingSel.current = null;
+      selectRange(el, a, z);
+    }
     if (!paged) return;
-    const items = Array.from(el.querySelectorAll<HTMLElement>('[data-bid]')).map((b) => ({ id: b.dataset.bid!, type: b.dataset.type as BlockType, h: b.offsetHeight }));
+    // Les blocs cachés (phrase du séquencier) ne prennent aucune place : la page reste celle du PDF.
+    const items = Array.from(el.querySelectorAll<HTMLElement>('[data-bid]'))
+      .filter((b) => !b.hidden)
+      .map((b) => ({ id: b.dataset.bid!, type: b.dataset.type as BlockType, h: b.offsetHeight }));
     const next = editorLayout(items);
     const same = next.pages === layout.pages && next.offset === layout.offset && items.every((it) => Math.abs((next.margins[it.id] ?? 0) - (layout.margins[it.id] ?? 0)) < 0.5);
     if (!same) setLayout(next);
@@ -895,6 +957,15 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     if (!el) return;
     const sel = readSelection(el);
     if (!sel) return;
+    const blocks = sdocRef.current.blocks;
+    const hid = outlinePhraseIds(blocks);
+    if (sel.collapsed && hid.has(sel.end.id)) {
+      // Curseur arrivé dans la phrase cachée : il continue jusqu'au bloc visible voisin, dans le sens de sa marche.
+      const i = blocks.findIndex((x) => x.id === sel.end.id);
+      placeCaret(el, visibleCaret(blocks, sel.end, hid, lastCaretIndex.current > i ? -1 : 1), false);
+      return;
+    }
+    lastCaretIndex.current = blocks.findIndex((x) => x.id === sel.end.id);
     const bel = el.querySelector<HTMLElement>(`[data-bid="${sel.end.id}"]`);
     const b = blockOf(sel.end.id);
     setActive(bel && b ? { id: b.id, offset: sel.end.offset, top: bel.offsetTop, left: bel.offsetLeft, height: bel.offsetHeight } : null);
@@ -904,6 +975,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     const a = caretToSource(sdocRef.current.blocks, spans, sel.start);
     const z = caretToSource(sdocRef.current.blocks, spans, sel.end);
     const range = !sel.collapsed && a !== null && z !== null && z > a ? { start: a, end: z } : null;
+    if (a !== null && z !== null) lastSel.current = { start: Math.min(a, z), end: Math.max(a, z) };
     const prev = useScriptUi.getState();
     if (prev.activeType !== (b?.type ?? null) || JSON.stringify(prev.selection) !== JSON.stringify(range)) useScriptUi.setState({ activeType: b?.type ?? null, selection: range });
     if (onCaretAnchor) {
@@ -984,6 +1056,13 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
     onComment(hit.id, rect);
   };
 
+  /** Sélection mise de côté pendant une modification venue d'ailleurs : rendue au retour dans le texte. */
+  const restoreParked = () => {
+    const p = parked.current;
+    parked.current = null;
+    if (p && root.current) selectRange(root.current, p.a, p.z);
+  };
+
   // --- API pour la barre d'outils ---
   useEffect(() => {
     if (!apiRef) return;
@@ -1013,6 +1092,11 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
       },
       emphasis: (mark) => toggleEmphasis(mark),
       highlight: (color) => applyHighlight(color),
+      expectExternal: (map, source) => {
+        // Sélection du moment si le texte a le focus, sinon la dernière connue.
+        if (root.current && document.activeElement === root.current) updateActive();
+        expected.current = { map, source, at: Date.now(), sel: lastSel.current };
+      },
     };
   });
 
@@ -1149,6 +1233,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
         onCopy={(e) => onCopy(e)}
         onCut={(e) => onCopy(e, true)}
         onBlur={flush}
+        onFocus={restoreParked}
         onDrop={(e) => e.preventDefault()}
         onMouseUp={onCommentClick}
       >
@@ -1156,7 +1241,7 @@ export function ScriptEditor({ doc, readOnly = false, anchors, hot, onCaretAncho
           b.type === 'title' ? (
             <TitleBlock key={b.id} reg={register} b={b} paged={paged} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} onEdit={readOnly ? undefined : () => setTitleOpen(true)} />
           ) : (
-            <Block key={b.id} reg={register} b={b} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} n={numbers.get(b.id)} />
+            <Block key={b.id} reg={register} b={b} mt={paged ? (layout.margins[b.id] ?? 0) : undefined} n={numbers.get(b.id)} hidden={hidden.has(b.id)} />
           ),
         )}
       </div>
