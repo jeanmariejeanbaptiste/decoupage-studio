@@ -132,6 +132,15 @@ test('paramètres : Annuler et Enregistrer à la même place dans chaque rubriqu
   expect(new Set(ys).size).toBe(1);
 });
 
+test('accueil : Échap ferme la fenêtre « Nouveau projet »', async ({ page }) => {
+  await page.goto('/#/');
+  await page.getByTestId('new-project').click();
+  const title = page.getByLabel('Titre du projet');
+  await expect(title).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(title).toHaveCount(0);
+});
+
 test('états vides et lien d’évitement', async ({ page }) => {
   await page.goto('/#/');
   await expect(page.getByText('Aucun projet pour l’instant')).toBeVisible();
