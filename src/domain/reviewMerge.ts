@@ -97,7 +97,12 @@ export function checkAnchor(doc: ProjectDoc, versionId: ID | undefined, a: unkno
     const text = v.scenario;
     if (start !== null && end !== null && start <= end && end <= text.length && (!quote || norm(text.slice(start, end)) === norm(quote))) return { kind: 'script', start, end, quote };
     const found = locateQuote(text, quote, start ?? 0);
-    return found ? { kind: 'script', ...found, quote } : null;
+    if (found) return { kind: 'script', ...found, quote };
+    // Passage réécrit ici depuis la publication : la citation reste lisible, posée là où il était
+    // (le renvoi aux relecteurs la retrouve dans le texte publié).
+    if (!quote || start === null) return null;
+    const at = Math.min(start, text.length);
+    return { kind: 'script', start: at, end: at, quote };
   }
   if (x.kind === 'shot' && typeof x.shotId === 'string' && v.shots[x.shotId]) {
     return { kind: 'shot', shotId: x.shotId, ...(typeof x.col === 'string' && COLUMNS.has(x.col) ? { col: x.col as ColumnKey } : {}) };

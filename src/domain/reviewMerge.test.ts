@@ -4,7 +4,7 @@ import { buildFiction } from '../../seed/fiction';
 import { addComment, deleteComment, replyComment, type ReviewComment } from './comments';
 import { driveAttachmentKeys, LIMITS, mergeDriveComments, mergeSnapshotComments, WITHDRAWN, type DriveComment, type MergeOptions } from './reviewMerge';
 import { encodeComment } from './reviewTrailer';
-import { parseReviewSnapshot, reviewSnapshot } from './reviewSnapshot';
+import { parseReviewSnapshot, reviewSnapshot, withComments } from './reviewSnapshot';
 import type { ProjectDoc } from './types';
 import { createVersion, ensureVersions } from './versions';
 
@@ -102,9 +102,23 @@ describe('retours de la relecture en ligne', () => {
     expect(a.anchor).toEqual({ kind: 'sequence', seqId: doc.project.sequenceIds[0] });
     expect(a.marks!.paths).toHaveLength(LIMITS.paths);
     expect(a.marks!.paths.every((p) => /^M\d+ 0 L10 10$/.test(p))).toBe(true);
-    expect(b.anchor.kind).toBe('sequence');
+    // Citation introuvable : gardée, posée au plus près (jamais jetée pour la première séquence).
+    expect(b.anchor).toEqual({ kind: 'script', start: len, end: len, quote: 'introuvable' });
     expect(c.anchor.kind === 'script' && r.next.scenario!.slice(c.anchor.start, c.anchor.end)).toBe('valise cabossée');
     expect(d.anchor).toEqual({ kind: 'shot', shotId: Object.keys(doc.shots)[0] });
+  });
+
+  it('passage réécrit par l’auteur depuis la publication : la citation reste, et repart recalée sur le texte publié', () => {
+    const doc = base();
+    const word = 'cabossée';
+    const start = doc.scenario!.indexOf(word);
+    const published = reviewSnapshot(doc, {});
+    const edited = produce(doc, (d) => void (d.scenario = d.scenario!.replace(word, 'neuve')));
+    const r = merge(edited, [dc('d1', encodeComment('Pourquoi cabossée ?', { i: 'loc777', v: doc.activeVersionId, a: { kind: 'script', start, end: start + word.length, quote: word } }))]);
+    expect(r.next.comments![0].anchor).toEqual({ kind: 'script', start, end: start, quote: word });
+    // Renvoyé aux relecteurs : retrouvé dans le texte publié, à sa place.
+    const back = withComments(published, r.next, {}).doc.comments![0].anchor;
+    expect(back).toEqual({ kind: 'script', start, end: start + word.length, quote: word });
   });
 
   it('commentaire écrit dans Drive (sans traîne) : texte brut sur la première séquence de la version publiée', () => {
