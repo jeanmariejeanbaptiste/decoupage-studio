@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { produce } from 'immer';
-import { Check, ChevronDown, ChevronRight, GripVertical, Link2, Minus, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, GripVertical, Link2, MoreHorizontal, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { addDays, calendarIcs, calendarItems, isWeekend, productionItems, timeOn, todayIso } from '../../domain/calendar';
 import { productionDocument, productionWordDocument } from '../../domain/documents';
@@ -285,11 +285,7 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
   if (!plan?.phases.length) {
     return (
       <div className={s.page} data-testid="production">
-        <header className={s.bar}>
-          <div className={s.barStart} />
-          {seg}
-          <div className={s.barEnd} />
-        </header>
+        <header className={s.bar}>{seg}</header>
         <div className="card empty">
           <span className="hand">Aucune étape</span>
           {!readOnly && (
@@ -321,22 +317,22 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
 
   return (
     <div className={s.page} data-testid="production">
+      {/* Même barre que les autres vues du calendrier : vue, temps (aujourd'hui, échelle), actions. */}
       <header className={s.bar}>
-        <div className={s.barStart}>
-          {!readOnly && <Button variant="icon" aria-label="Effacer le calendrier de production" title="Effacer le calendrier de production" icon={<Trash2 {...ICON} />} onClick={() => void clearAll()} data-edit data-testid="production-clear" />}
-        </div>
         {seg}
-        <div className={s.barEnd} data-view>
-          <div className={s.zoom} role="group" aria-label="Zoom">
-            <Button variant="icon" size="sm" aria-label="Éloigner" title="Éloigner" icon={<Minus {...ICON} />} disabled={zoom === 'quarters'} onClick={() => setZoom(nextZoom(zoom, -1))} data-testid="zoom-out" />
-            <span className={s.zoomLabel} data-testid="zoom-label">
-              {info.label}
-            </span>
-            <Button variant="icon" size="sm" aria-label="Rapprocher" title="Rapprocher" icon={<Plus {...ICON} />} disabled={zoom === 'weeks'} onClick={() => setZoom(nextZoom(zoom, 1))} data-testid="zoom-in" />
-          </div>
+        <div className={s.barTime} data-view>
           <Button variant="outline" size="sm" className={s.todayBtn} onClick={() => scrollToDate(today)}>
             Aujourd’hui
           </Button>
+          <div className={s.zoom} role="group" aria-label={`Échelle : ${info.label.toLowerCase()}`} data-zoom={zoom}>
+            <Button variant="icon" size="sm" aria-label="Éloigner" title="Éloigner" icon={<ZoomOut {...ICON} />} disabled={zoom === 'quarters'} onClick={() => setZoom(nextZoom(zoom, -1))} data-testid="zoom-out" />
+            <Button variant="icon" size="sm" aria-label="Rapprocher" title="Rapprocher" icon={<ZoomIn {...ICON} />} disabled={zoom === 'weeks'} onClick={() => setZoom(nextZoom(zoom, 1))} data-testid="zoom-in" />
+            <span className="visually-hidden" data-testid="zoom-label">
+              {info.label}
+            </span>
+          </div>
+        </div>
+        <div className={s.barEnd} data-view>
           <TabExport
             id="production"
             orientation="landscape"
@@ -351,6 +347,8 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
               content: () => calendarIcs(productionItems(useProjectStore.getState().doc ?? doc, { withLinked: true }), `${title} · production`),
             }}
           />
+          {/* Destructif : en dernier, à l'écart. */}
+          {!readOnly && <Button variant="icon" aria-label="Effacer le calendrier de production" title="Effacer le calendrier de production" icon={<Trash2 {...ICON} />} onClick={() => void clearAll()} data-edit data-testid="production-clear" className={s.clear} />}
         </div>
       </header>
 

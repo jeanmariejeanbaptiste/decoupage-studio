@@ -161,27 +161,24 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
 
   return (
     <div className={s.page} data-testid="calendar">
+      {/* Une barre pour toutes les vues : la vue à gauche (fixe), le temps ensuite, les actions à droite. */}
       <header className={s.bar}>
-        <div className={s.barStart}>
-          <Button variant="icon" aria-label="Nouvel événement" title="Nouvel événement" icon={<Plus {...ICON} />} onClick={() => create(view === 'year' || view === 'month' ? (sameMonth(anchor, today) ? today : anchor) : anchor)} data-edit data-testid="event-add" />
-        </div>
         {seg}
-        <div className={s.barEnd} data-view>
-          <Button variant="icon" aria-label="Exporter le calendrier (.ics)" title="Exporter le calendrier (.ics)" icon={<CalendarArrowDown {...ICON} />} disabled={!items.length} onClick={exportIcs} data-export data-testid="calendar-ics" />
-        </div>
-      </header>
-      <div className={s.head}>
-        <h1 className={s.title} data-testid="calendar-title">
-          <strong>{title.main}</strong> {title.sub}
-        </h1>
         <div className={s.nav} data-view>
-          <Button variant="icon" size="sm" aria-label="Précédent" title="Précédent" icon={<ChevronLeft {...ICON} />} onClick={() => setAnchor(shiftAnchor(anchor, view, -1))} />
           <Button variant="outline" size="sm" className={s.todayBtn} onClick={() => setAnchor(today)}>
             Aujourd’hui
           </Button>
+          <Button variant="icon" size="sm" aria-label="Précédent" title="Précédent" icon={<ChevronLeft {...ICON} />} onClick={() => setAnchor(shiftAnchor(anchor, view, -1))} />
           <Button variant="icon" size="sm" aria-label="Suivant" title="Suivant" icon={<ChevronRight {...ICON} />} onClick={() => setAnchor(shiftAnchor(anchor, view, 1))} />
+          <h1 className={s.title} data-testid="calendar-title">
+            <strong>{title.main}</strong> {title.sub}
+          </h1>
         </div>
-      </div>
+        <div className={s.barEnd} data-view>
+          <Button variant="icon" aria-label="Nouvel événement" title="Nouvel événement" icon={<Plus {...ICON} />} onClick={() => create(view === 'year' || view === 'month' ? (sameMonth(anchor, today) ? today : anchor) : anchor)} data-edit data-testid="event-add" />
+          <Button variant="icon" aria-label="Exporter le calendrier (.ics)" title="Exporter le calendrier (.ics)" icon={<CalendarArrowDown {...ICON} />} disabled={!items.length} onClick={exportIcs} data-export data-testid="calendar-ics" />
+        </div>
+      </header>
       {view === 'month' && <MonthView {...props} />}
       {view === 'week' && <TimeGrid {...props} dates={weekDays(anchor)} />}
       {view === 'day' && <TimeGrid {...props} dates={[anchor]} />}
