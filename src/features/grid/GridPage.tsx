@@ -84,7 +84,8 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   // Vue choisie : le storyboard a son adresse (#/storyboard), le tableau et l'aperçu celle du découpage.
   const toGrid = () => board && navigate('grid');
   const views = (
-    <div className={s.views} role="radiogroup" aria-label="Affichage">
+    // Tableau et storyboard servent à regarder : ils restent en lecture seule (relecteur, invité).
+    <div className={s.views} role="radiogroup" aria-label="Affichage" data-view>
       {institutional ? (
         <>
           <button
