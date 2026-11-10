@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
-import { serializeDoc } from '../domain/serialize';
+import { projectCopy, serializeDoc } from '../domain/serialize';
 import { db, getBlob, loadProject, saveProject } from './db';
-import { flushSave, onTabMessage, openFromFile, restoreMedia, RETRY_DELAYS, startAutosave, warnUnsaved } from './persistence';
+import { flushSave, onTabMessage, openDoc, openFromFile, openStoredProject, restoreMedia, RETRY_DELAYS, startAutosave, warnUnsaved } from './persistence';
 import { mutateDoc, useProjectStore } from './projectStore';
 import { useUi } from './uiStore';
 
@@ -28,6 +28,27 @@ describe('échec d’enregistrement', () => {
     await vi.waitFor(() => expect(status()).toBe('saved'));
     expect(put).toHaveBeenCalledTimes(2);
     expect((await loadProject(doc.project.id))?.project.title).toBe(doc.project.title);
+  });
+
+  it('enregistrement en échec : on reste sur le projet plutôt que de perdre sa saisie en en ouvrant un autre', async () => {
+    const stop = startAutosave();
+    const a = buildFiction();
+    useProjectStore.getState().loadDoc(a);
+    await flushSave();
+    const b = projectCopy(buildFiction(), 'projet-b');
+    await saveProject(b);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mutateDoc((d) => void (d.project.director = 'Saisie de A'));
+    vi.spyOn(db.projects, 'put').mockRejectedValue(new Error('QuotaExceededError'));
+    expect(await openStoredProject('projet-b')).toBe(false);
+    expect(await openDoc(projectCopy(buildFiction(), 'projet-c'))).toBe(false);
+    expect(useProjectStore.getState().doc?.project.id).toBe(a.project.id);
+    expect(status()).toBe('error');
+    // Stockage rétabli : la saisie de A est enregistrée, puis B s'ouvre.
+    vi.mocked(db.projects.put).mockRestore();
+    expect(await openStoredProject('projet-b')).toBe(true);
+    expect((await loadProject(a.project.id))?.project.director).toBe('Saisie de A');
+    stop();
   });
 
   it('prévient avant de fermer l’onglet seulement après un échec', () => {
