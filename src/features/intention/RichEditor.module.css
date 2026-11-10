@@ -75,8 +75,11 @@
 .zoom button:hover { color: var(--ink); background: var(--hover); }
 .zoom input { width: 110px; accent-color: var(--ink); }
 .zoomValue { min-width: 42px; text-align: right; }
+.status > span { white-space: nowrap; }
 
 @media (max-width: 700px) {
   .ribbon { position: static; }
   .selFont { width: 120px; }
+  .status { gap: 12px; }
+  .zoom input { width: 70px; }
 }

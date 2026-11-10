@@ -137,15 +137,18 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
   const [words, setWords] = useState(0);
-  const [zoom, setZoom] = useState(() => {
+  const storedZoom = () => {
     try {
-      return Number(localStorage.getItem('ds-note-zoom')) || 100;
+      return Number(localStorage.getItem('ds-note-zoom')) || 0;
     } catch {
-      return 100;
+      return 0;
     }
-  });
+  };
+  const [zoom, setZoom] = useState(() => storedZoom() || 100);
+  // Zoom jamais choisi : la page s'ajuste à la largeur disponible (écran étroit).
+  const zoomChosen = useRef(storedZoom() > 0);
+  const scroller = useRef<HTMLDivElement>(null);
   const [state, setState] = useState({ style: 'p' as ParagraphStyle, font: 'Inter Variable', size: '11', align: 'left', line: '', marks: {} as Record<string, boolean> });
-  const margins = useRef(new Map<HTMLElement, number>());
 
   // --- Pagination : chaque bloc qui déborderait passe en haut de la page suivante ---
   const relayout = useCallback(() => {
@@ -155,7 +158,6 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     const top0 = el.getBoundingClientRect().top / k + (parseFloat(getComputedStyle(el).paddingTop) || 0);
     const list = units(el);
     const rules: string[] = [];
-    const next = new Map<HTMLElement, number>();
     let applied = 0;
     let pageStart = 0;
     let n = 1;
@@ -163,9 +165,13 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     let caretPage = 1;
     const sel = window.getSelection();
     const anchor = sel?.rangeCount && el.contains(sel.anchorNode) ? sel.anchorNode : null;
+    // Unité d'avant (titre gardé avec ce qui le suit).
+    let prev: { u: HTMLElement; top: number; jumped: boolean } | null = null;
     for (const u of list) {
       const r = u.getBoundingClientRect();
-      const own = margins.current.get(u) ?? 0;
+      // Marge de saut réellement appliquée (les blocs n'ont pas de marge haute à eux) : juste même
+      // quand le contenu vient d'être remplacé et que les règles de la passe d'avant s'appliquent encore.
+      const own = parseFloat(getComputedStyle(u).marginTop) || 0;
       applied += own;
       // Position dans le texte continu (sans les sauts de page déjà posés).
       const top = r.top / k - top0 - applied;
@@ -174,18 +180,25 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
       if (u.tagName === 'HR' && u.classList.contains('page-break')) {
         forced = true;
       } else if ((forced || bottom - pageStart > CONTENT_H) && top > pageStart + 0.5) {
-        jump = pageStart + CONTENT_H - top + JUMP;
-        pageStart = top;
+        // Un titre ne reste pas seul en bas de page : il passe à la page suivante avec son texte.
+        if (!forced && prev && /^H[1-4]$/.test(prev.u.tagName) && !prev.jumped && prev.top > pageStart + 0.5) {
+          const hj = pageStart + CONTENT_H - prev.top + JUMP;
+          rules.push(`[data-note] ${selectorOf(el, prev.u)} { margin-top: ${hj.toFixed(2)}px !important; }`);
+          pageStart = prev.top;
+          if (anchor && prev.u.contains(anchor)) caretPage = n + 1;
+        } else {
+          jump = pageStart + CONTENT_H - top + JUMP;
+          pageStart = top;
+        }
         n++;
         forced = false;
       } else forced = false;
       if (jump > 0) {
-        next.set(u, jump);
         rules.push(`[data-note] ${selectorOf(el, u)} { margin-top: ${jump.toFixed(2)}px !important; }`);
       }
       if (anchor && u.contains(anchor)) caretPage = n;
+      prev = { u, top, jumped: jump > 0 };
     }
-    margins.current = next;
     if (styleEl.current) styleEl.current.textContent = rules.join('\n');
     setPages(n);
     setPage(caretPage);
@@ -252,6 +265,16 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     };
   }, [relayout]);
   useLayoutEffect(relayout, [zoom, relayout]);
+  useLayoutEffect(() => {
+    const fit = () => {
+      const w = scroller.current?.clientWidth ?? 0;
+      if (zoomChosen.current || !w) return;
+      setZoom(w >= NOTE_PAGE.w + 16 ? 100 : Math.max(30, Math.floor(((w - 16) / NOTE_PAGE.w) * 10) * 10));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
 
   // --- Enregistrement (différé pendant la frappe) ---
   const commitTimer = useRef<number | null>(null);
@@ -569,7 +592,8 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   );
 
   const setZoomKept = (z: number) => {
-    const v = Math.max(50, Math.min(200, Math.round(z / 10) * 10));
+    const v = Math.max(30, Math.min(200, Math.round(z / 10) * 10));
+    zoomChosen.current = true;
     setZoom(v);
     try {
       localStorage.setItem('ds-note-zoom', String(v));
@@ -617,7 +641,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
           {btn('strike', 'Barré', <Strikethrough {...IC} />, () => exec('strikeThrough'), state.marks.strikeThrough)}
           {btn('sub', 'Indice', <Subscript {...IC} />, () => exec('subscript'), state.marks.subscript)}
           {btn('sup', 'Exposant', <Superscript {...IC} />, () => exec('superscript'), state.marks.superscript)}
-          {btn('highlight', 'Surligner', <Highlighter {...IC} />, () => exec('hiliteColor', 'rgba(17, 19, 24, 0.12)'))}
+          {btn('highlight', 'Surligner', <Highlighter {...IC} />, () => (state.marks.highlight ? unhighlight() : exec('hiliteColor', 'rgba(17, 19, 24, 0.12)')), state.marks.highlight)}
           {btn('clear', 'Effacer la mise en forme', <RemoveFormatting {...IC} />, () => exec('removeFormat'))}
           <span className={s.sep} />
           {btn('bullets', 'Liste à puces', <List {...IC} />, () => exec('insertUnorderedList'), state.marks.insertUnorderedList)}
@@ -731,7 +755,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
           <button type="button" onClick={() => setZoomKept(zoom - 10)} aria-label="Zoom arrière" title="Zoom arrière">
             <Minus size={13} strokeWidth={1.25} />
           </button>
-          <input type="range" min={50} max={200} step={10} value={zoom} onChange={(e) => setZoomKept(Number(e.target.value))} aria-label="Zoom" />
+          <input type="range" min={30} max={200} step={10} value={zoom} onChange={(e) => setZoomKept(Number(e.target.value))} aria-label="Zoom" />
           <button type="button" onClick={() => setZoomKept(zoom + 10)} aria-label="Zoom avant" title="Zoom avant">
             <Plus size={13} strokeWidth={1.25} />
           </button>

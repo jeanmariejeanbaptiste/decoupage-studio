@@ -117,3 +117,64 @@ test('note : une capture collée s’insère, réduite, et garde ses proportions
   expect(content).toMatch(/<img [^>]*width="605" height="303"/);
   expect(content).toContain('src="data:image/');
 });
+
+test('note : Surligner est une bascule', async ({ page }) => {
+  await page.goto('/#/intention?seed=fiction');
+  const ed = page.getByTestId('note-editor');
+  const hl = page.getByTestId('note-highlight');
+  await ed.locator('blockquote').click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+Home');
+  await expect(hl).toHaveAttribute('aria-pressed', 'false');
+  await hl.click();
+  await expect(ed.locator('blockquote [style*="background-color"]')).not.toHaveCount(0);
+  await expect(hl).toHaveAttribute('aria-pressed', 'true');
+  await hl.click();
+  await expect(ed.locator('blockquote [style*="background-color"]')).toHaveCount(0);
+  await expect(hl).toHaveAttribute('aria-pressed', 'false');
+});
+
+for (const zoom of [100, 60])
+test(`note : un titre ne reste jamais seul en bas de page (zoom ${zoom} %)`, async ({ page }) => {
+  await page.addInitScript((z) => localStorage.setItem('ds-note-zoom', String(z)), zoom);
+  await page.goto('/#/intention?seed=fiction');
+  await expect(page.getByTestId('note-editor').locator('h1')).toHaveText('La Consigne');
+  const res = await page.evaluate(() => {
+    const ed = document.querySelector<HTMLElement>('[data-testid="note-editor"]')!;
+    const out: { k: number; h: number; p: number }[] = [];
+    for (let k = 28; k <= 48; k++) {
+      ed.innerHTML = Array.from({ length: k }, (_, i) => `<p>Ligne ${i + 1}</p>`).join('') + '<h2>Titre de partie</h2><p>Premier paragraphe de la partie.</p>';
+      ed.dispatchEvent(new Event('input', { bubbles: true }));
+      // Feuilles posées par React après coup : on compte depuis la première (A4 + 24 px d'intervalle).
+      const r0 = document.querySelector('[data-testid="note-stack"] [aria-hidden="true"] > div')!.getBoundingClientRect();
+      const stepPx = r0.height * (1 + 24 / ((297 * 96) / 25.4));
+      const pg = (e: Element) => Math.floor((e.getBoundingClientRect().top - r0.top) / stepPx);
+      out.push({ k, h: pg(ed.querySelector('h2')!), p: pg(ed.querySelector('h2 + p')!) });
+    }
+    return out;
+  });
+  expect(res.filter((r) => r.h !== r.p || r.h < 0)).toEqual([]);
+  // Le cas s'est bien présenté : le titre passe en page 2 avec son texte.
+  expect(res.some((r) => r.h === 1)).toBe(true);
+  expect(res.some((r) => r.h === 0)).toBe(true);
+});
+
+test('note : écran étroit, la page s’ajuste à la largeur et la barre d’état tient sur une ligne', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/#/intention?seed=fiction');
+  const stack = page.getByTestId('note-stack');
+  await expect(page.getByTestId('note-editor').locator('h1')).toHaveText('La Consigne');
+  const m = await stack.evaluate((s) => {
+    const sc = s.parentElement!;
+    return { w: s.getBoundingClientRect().width, cw: sc.clientWidth, sw: sc.scrollWidth };
+  });
+  expect(m.w).toBeLessThanOrEqual(m.cw);
+  expect(m.sw).toBeLessThanOrEqual(m.cw + 1);
+  const h = await page.getByTestId('note-pages').evaluate((e) => e.getBoundingClientRect().height);
+  expect(h).toBeLessThanOrEqual(18);
+});
+
+test('note : grand écran, zoom à 100 %', async ({ page }) => {
+  await page.goto('/#/intention?seed=fiction');
+  await expect(page.getByRole('slider', { name: 'Zoom' })).toHaveValue('100');
+});
