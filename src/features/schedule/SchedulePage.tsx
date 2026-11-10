@@ -341,6 +341,8 @@ function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number
       <div className={s.stripMain} {...listeners} {...attributes} aria-label={`Séquence ${sequenceNumber(doc, strip.seqId)}, glisser vers un autre jour`}>
         <span className={s.num}>{sequenceNumber(doc, strip.seqId)}</span>
         <span className={s.ie}>{[seq?.intExt, seq?.effect].filter(Boolean).join(' · ')}</span>
+        {/* Forme courte (« INT · N ») pour les bandes étroites. */}
+        <span className={s.ieShort}>{[seq?.intExt, seq?.effect?.[0]].filter(Boolean).join(' · ')}</span>
         <span className={s.label}>{seq?.label.toUpperCase()}</span>
         <span className={s.decor}>{decor && decor.name.toUpperCase() !== seq?.label.toUpperCase() ? decor.name : ''}</span>
         <span className={s.cast}>{cast}</span>

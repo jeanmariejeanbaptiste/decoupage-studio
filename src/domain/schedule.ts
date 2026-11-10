@@ -92,6 +92,16 @@ export function scheduleDays(doc: ProjectDoc): ShootingDay[] {
   return [...map.values()].sort((a, b) => a.n - b.n);
 }
 
+/**
+ * Jour déclaré n (sans les jours déduits des plans). Jours en double (même numéro) : le dernier
+ * l'emporte, comme dans `scheduleDays`.
+ */
+export function declaredDay(doc: ProjectDoc, n: number): ShootingDay | undefined {
+  const days = doc.schedule?.days ?? [];
+  for (let i = days.length - 1; i >= 0; i--) if (days[i].n === n) return days[i];
+  return undefined;
+}
+
 /** Bandes de chaque jour (0 = non planifié) : une par séquence, dans l'ordre du plan de travail. */
 export function stripsByDay(doc: ProjectDoc): Map<number, Strip[]> {
   const out = new Map<number, Strip[]>();
@@ -163,8 +173,11 @@ export function dayHasData(doc: ProjectDoc, n: number): boolean {
   const d = doc.schedule?.days.find((x) => x.n === n);
   // Enregistrements vides (convocation effacée, détail sans heure) : rien à perdre.
   const filled = (v: unknown): boolean => v !== undefined && v !== null && v !== '' && (typeof v !== 'object' || Object.values(v).some(filled));
-  // La date seule (souvent posée d'office par « Ajouter un jour ») ne demande pas de confirmation.
-  if (d && Object.entries(d).some(([k, v]) => k !== 'n' && k !== 'id' && k !== 'date' && filled(v))) return true;
+  // Date posée d'office par « Ajouter un jour » (lendemain du jour précédent) : pas de confirmation ;
+  // une date saisie à la main compte.
+  const prev = scheduleDays(doc).filter((x) => x.n < n).at(-1);
+  const autoDate = !!d?.date && !!prev && d.date === nextDate(prev.date);
+  if (d && Object.entries(d).some(([k, v]) => k !== 'n' && k !== 'id' && !(k === 'date' && autoDate) && filled(v))) return true;
   return [doc.shots, ...(doc.versions ?? []).map((v) => v.slice?.shots ?? {})].some((m) => Object.values(m).some((s) => s.shootingDay === n));
 }
 
@@ -497,7 +510,7 @@ export function placeSequence(doc: ProjectDoc, day: number, shotIds: readonly ID
 
 /** Retire le créneau d'un plan dans l'emploi du temps : le plan reste du jour (« à placer »). */
 export function clearSlot(doc: ProjectDoc, day: number, shotId: ID): void {
-  const d = doc.schedule?.days.find((x) => x.n === day);
+  const d = declaredDay(doc, day);
   if (d?.timeline?.[shotId]) delete d.timeline[shotId];
 }
 
@@ -530,7 +543,7 @@ export interface TimelineEntry {
 /** Créneaux du jour (plans encore affectés à ce jour), triés, avec colonnes de chevauchement. */
 export function timelineOf(doc: ProjectDoc, day: number): TimelineEntry[] {
   // Jours déclarés seulement : un jour porté par les plans seuls n'a ni créneau ni reprise.
-  const d = doc.schedule?.days.find((x) => x.n === day);
+  const d = declaredDay(doc, day);
   const entries = Object.entries(d?.timeline ?? {})
     .filter(([id]) => doc.shots[id]?.shootingDay === day && doc.shots[id]?.status !== 'abandonné')
     .map(([shotId, s]) => ({ shotId, part: 0, start: toMin(s.start), end: toMin(s.end), lane: 0 }))
@@ -555,7 +568,7 @@ export function shotSlot(
   shotId: ID,
 ): { start: string; end: string } | undefined {
   return doc.shots[shotId]?.shootingDay === day
-    ? doc.schedule?.days.find((x) => x.n === day)?.timeline?.[shotId]
+    ? declaredDay(doc, day)?.timeline?.[shotId]
     : undefined;
 }
 
@@ -564,7 +577,7 @@ export function shotSlot(
  * l'heure ronde pour couvrir le rendez-vous, les créneaux et les bandeaux qui en sortent.
  */
 export function timelineRange(doc: ProjectDoc, day: number): { start: number; end: number } {
-  const d = doc.schedule?.days.find((x) => x.n === day);
+  const d = declaredDay(doc, day);
   const s0 = toMin(d?.dayStart ?? DEFAULT_DAY_START);
   const e0 = Math.max(s0 + 60, dayEndMin(fromMin(s0), d?.dayEnd ?? DEFAULT_DAY_END));
   const entries = timelineOf(doc, day);
@@ -581,7 +594,7 @@ export function timelineRange(doc: ProjectDoc, day: number): { start: number; en
 export function nextFreeStart(doc: ProjectDoc, day: number): string {
   const entries = timelineOf(doc, day);
   if (entries.length) return fromMin(Math.max(...entries.map((e) => e.end)));
-  const d = doc.schedule?.days.find((x) => x.n === day);
+  const d = declaredDay(doc, day);
   return d?.callTime ?? d?.dayStart ?? DEFAULT_DAY_START;
 }
 
@@ -1012,11 +1025,11 @@ export function partDays(doc: ProjectDoc, shotId: ID): number[] {
 /** Tous les créneaux d'un plan pour un jour donné (principal puis reprises), « 10:00 – 12:00, 16:00 – 17:00 ». */
 export function shotSlotsText(doc: ProjectDoc, day: number, shotId: ID): string {
   const main = shotSlot(doc, day, shotId);
-  const parts = doc.schedule?.days.find((x) => x.n === day)?.parts?.[shotId] ?? [];
+  const parts = declaredDay(doc, day)?.parts?.[shotId] ?? [];
   return [...(main ? [main] : []), ...parts].map((s) => `${showTime(s.start)} – ${showTime(s.end)}`).join(', ');
 }
 
 /** Premier créneau d'un plan ce jour-là (principal, sinon première reprise). */
 export function firstSlot(doc: ProjectDoc, day: number, shotId: ID): { start: string; end: string } | undefined {
-  return shotSlot(doc, day, shotId) ?? doc.schedule?.days.find((x) => x.n === day)?.parts?.[shotId]?.[0];
+  return shotSlot(doc, day, shotId) ?? declaredDay(doc, day)?.parts?.[shotId]?.[0];
 }
