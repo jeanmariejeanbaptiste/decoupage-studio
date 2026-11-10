@@ -202,12 +202,25 @@ function cleanBlocks(node: Node): string {
     }
     if (tag === 'UL' || tag === 'OL') {
       flush();
-      const items = Array.from(el.children)
-        .filter((li) => li.tagName === 'LI')
-        .map((li) => {
-          const nested = Array.from(li.children).filter((x) => x.tagName === 'UL' || x.tagName === 'OL');
+      // Sous-liste posée à côté d'une puce (c'est ainsi que Chrome indente) : rattachée à la puce d'avant.
+      const groups: { li: Element | null; extra: Element[] }[] = [];
+      for (const x of Array.from(el.children)) {
+        if (x.tagName === 'LI') {
+          groups.push({ li: x, extra: [] });
+          // Puce rangée dans une autre (désindentation de Chrome) : elle la suit.
+          for (const inner of Array.from(x.children)) if (inner.tagName === 'LI') groups.push({ li: inner, extra: [] });
+        }
+        else if (x.tagName === 'UL' || x.tagName === 'OL') {
+          if (!groups.length) groups.push({ li: null, extra: [] });
+          groups[groups.length - 1].extra.push(x);
+        }
+      }
+      const items = groups
+        .map(({ li: item, extra }) => {
+          const li = item ?? el.ownerDocument.createElement('li');
+          const nested = [...Array.from(li.children).filter((x) => x.tagName === 'UL' || x.tagName === 'OL'), ...extra];
           const own = li.cloneNode(true) as Element;
-          own.querySelectorAll(':scope > ul, :scope > ol').forEach((x) => x.remove());
+          own.querySelectorAll(':scope > ul, :scope > ol, :scope > li').forEach((x) => x.remove());
           const st = blockStyle(li);
           return `<li${st ? ` style="${st}"` : ''}>${cleanInline(own) || '<br>'}${nested.map((n) => cleanBlocks({ childNodes: [n] } as unknown as Node)).join('')}</li>`;
         });

@@ -393,6 +393,26 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
       while (f.firstChild) span.appendChild(f.firstChild);
       f.replaceWith(span);
     }
+    // Sous-liste posée à côté d'une puce (indentation de Chrome) : rangée dans la puce d'avant, comme à l'enregistrement.
+    const strays = Array.from(el.querySelectorAll('ul > ul, ul > ol, ol > ul, ol > ol')).filter((x) => x.previousElementSibling?.tagName === 'LI');
+    // Puce rangée dans une autre (désindentation de Chrome) : elle passe juste après.
+    const inner = Array.from(el.querySelectorAll('li > li'));
+    if (strays.length || inner.length) {
+      const sel = window.getSelection();
+      const range = sel?.rangeCount && el.contains(sel.anchorNode) ? sel.getRangeAt(0) : null;
+      const at = range ? [textOffset(el, range.startContainer, range.startOffset), textOffset(el, range.endContainer, range.endOffset)] : null;
+      for (const x of strays) x.previousElementSibling!.appendChild(x);
+      for (const x of inner.reverse()) x.parentElement!.after(x);
+      if (at && sel) {
+        const [a, ao] = pointAt(el, at[0]);
+        const [b, bo] = pointAt(el, at[1]);
+        const r = document.createRange();
+        r.setStart(a, ao);
+        r.setEnd(b, bo);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    }
   };
 
   const setSize = (pt: string) => {

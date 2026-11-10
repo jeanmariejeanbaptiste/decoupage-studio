@@ -88,4 +88,12 @@ describe('note d’intention mise en forme', () => {
     expect(shrunkImageSize(2400, 1000)).toBeNull();
     expect(shrunkImageSize(0, 0)).toBeNull();
   });
+
+  it('une puce indentée par le navigateur (sous-liste à côté de la puce) n’est pas perdue', () => {
+    const chrome = '<ul><li>Un</li><ul><li>Deux</li></ul><li>Trois</li></ul>';
+    expect(sanitizeRich(chrome)).toBe('<ul><li>Un<ul><li>Deux</li></ul></li><li>Trois</li></ul>');
+    expect(richToText(sanitizeRich(chrome))).toBe('• Un\n\n  • Deux\n\n• Trois');
+    // Désindentation : la puce rangée dans une autre la suit.
+    expect(sanitizeRich('<ul><li>Un<ul><li>Deux</li></ul><li>Trois</li></li><li>Quatre</li></ul>')).toBe('<ul><li>Un<ul><li>Deux</li></ul></li><li>Trois</li><li>Quatre</li></ul>');
+  });
 });
