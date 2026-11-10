@@ -24,6 +24,18 @@ test.describe('téléphone', () => {
     expect(box!.y + box!.height).toBeLessThanOrEqual(PHONE.height);
   });
 
+  test('storyboard : barre dans l’écran, commandes des cartes visibles', async ({ page }) => {
+    await page.goto('/#/storyboard?seed=fiction');
+    const exp = page.getByTestId('storyboard-export');
+    await expect(exp).toBeVisible();
+    const box = (await exp.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(PHONE.width);
+    await expect(page.getByTestId('storyboard-per-row')).toBeHidden();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    await expect(page.getByTestId('storyboard-draw').first()).toHaveCSS('opacity', '1');
+  });
+
   test('dialogue : la puce de personnage complète le texte sans l’effacer', async ({ page }) => {
     await page.goto('/#/grid?seed=fiction');
     await page.getByRole('button', { name: 'Colonnes' }).click();
@@ -135,4 +147,62 @@ test('dessin : enregistrer sans trait ne pose pas d’image blanche', async ({ p
   await ed.getByTestId('sketch-save').click();
   await expect(ed).toHaveCount(0);
   await expect(card.getByRole('img', { name: /Storyboard du plan/ })).toHaveCount(0);
+});
+
+test('storyboard : ⌘P suit l’orientation choisie à l’export', async ({ page }) => {
+  await page.goto('/#/storyboard?seed=rav3');
+  await page.getByTestId('storyboard-export').click();
+  await page.getByTestId('storyboard-export-panel').getByText('Portrait', { exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.emulateMedia({ media: 'print' });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __ds: { doc: () => { project: { settings: { exportPrefs?: { storyboard?: { orientation?: string } } } } } } }).__ds.doc().project.settings.exportPrefs
+            ?.storyboard?.orientation,
+      ),
+    )
+    .toBe('portrait');
+  await expect(page.getByText(/^planche 1 \//)).toBeVisible();
+  const pdf = (await page.pdf({ preferCSSPageSize: true })).toString('latin1');
+  expect(pdf).toMatch(/\/MediaBox \[0 0 59\d/);
+});
+
+test('plan abandonné : texte estompé dans le tableau', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByRole('button', { name: 'Inspecteur' }).click();
+  await page.locator('[data-cell="1:subject"]').click();
+  const subject = page.locator('[data-cell="1:subject"]');
+  const normal = await subject.evaluate((el) => getComputedStyle(el).color);
+  await page.getByTestId('inspector').getByLabel('Statut').selectOption('abandonné');
+  await expect(page.locator(ROWS).nth(1)).toHaveAttribute('data-status', 'abandonné');
+  await page.locator('[data-cell="0:subject"]').click();
+  await expect.poll(() => subject.evaluate((el) => getComputedStyle(el).color)).not.toBe(normal);
+});
+
+test('Alt + ↓ sur le dernier plan d’une séquence le fait passer dans la suivante', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  type D = { project: { sequenceIds: string[] }; sequences: Record<string, { shotIds: string[] }>; shots: Record<string, { sequenceId: string }> };
+  const read = () => page.evaluate(() => (window as unknown as { __ds: { doc: () => D } }).__ds.doc());
+  const d0 = await read();
+  const [s1, s2] = d0.project.sequenceIds;
+  const last = d0.sequences[s1].shotIds.at(-1)!;
+  const row = d0.sequences[s1].shotIds.length - 1;
+  await page.locator(`[data-cell="${row}:subject"]`).click();
+  await page.keyboard.press('Alt+ArrowDown');
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Déplacer' }).click();
+  await expect.poll(async () => (await read()).sequences[s2].shotIds[0]).toBe(last);
+  expect((await read()).shots[last].sequenceId).toBe(s2);
+});
+
+test('mode piste : un simple clic sur la piste garde la plage calée', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  await page.locator('[data-cell="3:subject"]').click();
+  const tc = page.locator('[data-cell="3:tc"]');
+  const before = await tc.textContent();
+  const box = (await page.getByTestId('waveform').boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.6, box.y + box.height / 2);
+  await expect(tc).toHaveText(before ?? '');
+  await expect(page.getByTestId('toast')).toHaveCount(0);
 });
