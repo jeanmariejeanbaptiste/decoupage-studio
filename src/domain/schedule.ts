@@ -131,9 +131,21 @@ export function ensureSchedule(doc: ProjectDoc): Schedule & { order?: ID[] } {
 
 export function addDay(doc: ProjectDoc): number {
   const sch = ensureSchedule(doc);
-  const n = Math.max(0, ...scheduleDays(doc).map((d) => d.n)) + 1;
-  sch.days.push({ n, id: newId() });
+  const all = scheduleDays(doc);
+  const n = Math.max(0, ...all.map((d) => d.n)) + 1;
+  // Dernier jour daté : le nouveau jour prend le lendemain (sans saut de week-end implicite).
+  const date = nextDate(all.at(-1)?.date);
+  sch.days.push({ n, id: newId(), ...(date ? { date } : {}) });
   return n;
+}
+
+/** Lendemain d'une date « AAAA-MM-JJ » (calcul en UTC à midi : pas de décalage d'heure d'été) ; vide si invalide. */
+export function nextDate(date?: string): string | undefined {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return undefined;
+  const t = new Date(`${date}T12:00:00Z`);
+  if (Number.isNaN(t.getTime())) return undefined;
+  t.setUTCDate(t.getUTCDate() + 1);
+  return t.toISOString().slice(0, 10);
 }
 
 export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay>): void {
@@ -149,9 +161,35 @@ export function updateDay(doc: ProjectDoc, n: number, patch: Partial<ShootingDay
  */
 export function dayHasData(doc: ProjectDoc, n: number): boolean {
   const d = doc.schedule?.days.find((x) => x.n === n);
-  const filled = (v: unknown) => v !== undefined && v !== '' && !(typeof v === 'object' && v !== null && Object.keys(v).length === 0);
-  if (d && Object.entries(d).some(([k, v]) => k !== 'n' && k !== 'id' && filled(v))) return true;
+  // Enregistrements vides (convocation effacée, détail sans heure) : rien à perdre.
+  const filled = (v: unknown): boolean => v !== undefined && v !== null && v !== '' && (typeof v !== 'object' || Object.values(v).some(filled));
+  // La date seule (souvent posée d'office par « Ajouter un jour ») ne demande pas de confirmation.
+  if (d && Object.entries(d).some(([k, v]) => k !== 'n' && k !== 'id' && k !== 'date' && filled(v))) return true;
   return [doc.shots, ...(doc.versions ?? []).map((v) => v.slice?.shots ?? {})].some((m) => Object.values(m).some((s) => s.shootingDay === n));
+}
+
+export type CallDetailKey = 'pickup' | 'makeup' | 'costume' | 'onSet';
+
+/** Convocation d'un personnage ce jour-là ; une heure effacée retire la clé (pas d'enregistrement vide). */
+export function setCall(doc: ProjectDoc, day: number, charId: ID, time: string | undefined): void {
+  const d = dayOf(doc, day);
+  const next = { ...(d.calls ?? {}) };
+  if (time) next[charId] = time;
+  else delete next[charId];
+  if (Object.keys(next).length) d.calls = next;
+  else delete d.calls;
+}
+
+/** Convocation détaillée (départ, HMC, costume, plateau) ; les heures effacées ne laissent ni clé ni objet vide. */
+export function setCallDetail(doc: ProjectDoc, day: number, charId: ID, key: CallDetailKey, time: string | undefined): void {
+  const d = dayOf(doc, day);
+  const all = { ...(d.callDetails ?? {}) };
+  const one = { ...(all[charId] ?? {}), [key]: time || undefined };
+  for (const k of Object.keys(one) as CallDetailKey[]) if (!one[k]) delete one[k];
+  if (Object.keys(one).length) all[charId] = one;
+  else delete all[charId];
+  if (Object.keys(all).length) d.callDetails = all;
+  else delete d.callDetails;
 }
 
 /** Supprime un jour : ses plans redeviennent non planifiés, les jours suivants sont renumérotés (« jour n sur N » sans trou). */
@@ -183,6 +221,31 @@ export function assignShots(doc: ProjectDoc, shotIds: readonly ID[], day: number
   if (!placed.length) return;
   const last = Math.max(...placed.map((id) => toMin(tl[id].end)));
   placeSequence(doc, target, shotIds.filter((id) => doc.shots[id] && !tl[id]), fromMin(last));
+}
+
+/**
+ * Plans d'une bande dont c'est le jour principal : glisser la bande ne déplace pas un plan qui n'y
+ * figure que par une reprise (son jour, son créneau et ses autres reprises restent).
+ */
+export function stripOwnShots(doc: ProjectDoc, day: number, strip: Strip): ID[] {
+  return strip.shotIds.filter((id) => (doc.shots[id]?.shootingDay ?? 0) === day);
+}
+
+/** Plans non abandonnés d'une séquence. */
+export function liveShotCount(doc: ProjectDoc, seqId: ID): number {
+  return liveShots(doc, seqId).length;
+}
+
+/** Avancement du plan de travail : plans (non abandonnés) affectés à un jour, sur l'ensemble. */
+export function scheduleProgress(doc: ProjectDoc): { planned: number; total: number } {
+  let planned = 0;
+  let total = 0;
+  for (const seqId of doc.project.sequenceIds)
+    for (const id of liveShots(doc, seqId)) {
+      total++;
+      if (doc.shots[id].shootingDay !== undefined) planned++;
+    }
+  return { planned, total };
 }
 
 /** Retire les créneaux (et reprises) d'un plan sur les jours autres que `keep`. */
@@ -364,10 +427,10 @@ export function setSlot(
 }
 
 /** Bandes du jour triées par premier créneau de l'emploi du temps (les bandes sans horaire à la fin). */
-export function stripsByTime(doc: ProjectDoc, day: number): Strip[] {
-  const list = stripsByDay(doc).get(day) ?? [];
-  const first = (s: Strip) => stripRange(doc, day, s)?.start ?? '99:99';
-  return [...list].sort((a, b) => first(a).localeCompare(first(b)));
+export function stripsByTime(doc: ProjectDoc, day: number, list: readonly Strip[] = stripsByDay(doc).get(day) ?? []): Strip[] {
+  // Débuts calculés une fois (pas à chaque comparaison du tri).
+  const first = new Map(list.map((s) => [s, stripRange(doc, day, s)?.start ?? '99:99']));
+  return [...list].sort((a, b) => first.get(a)!.localeCompare(first.get(b)!));
 }
 
 // --- Emploi du temps horaire ---------------------------------------------------------------
@@ -432,6 +495,13 @@ export function placeSequence(doc: ProjectDoc, day: number, shotIds: readonly ID
   }
 }
 
+/** Retire le créneau d'un plan dans l'emploi du temps : le plan reste du jour (« à placer »). */
+export function clearSlot(doc: ProjectDoc, day: number, shotId: ID): void {
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  if (d?.timeline?.[shotId]) delete d.timeline[shotId];
+}
+
+/** Retire un plan du jour (créneau compris) : il redevient non planifié. */
 export function unplaceShot(doc: ProjectDoc, day: number, shotId: ID): void {
   const d = ensureSchedule(doc).days.find((x) => x.n === day);
   if (d?.timeline) delete d.timeline[shotId];
@@ -459,7 +529,8 @@ export interface TimelineEntry {
 
 /** Créneaux du jour (plans encore affectés à ce jour), triés, avec colonnes de chevauchement. */
 export function timelineOf(doc: ProjectDoc, day: number): TimelineEntry[] {
-  const d = scheduleDays(doc).find((x) => x.n === day);
+  // Jours déclarés seulement : un jour porté par les plans seuls n'a ni créneau ni reprise.
+  const d = doc.schedule?.days.find((x) => x.n === day);
   const entries = Object.entries(d?.timeline ?? {})
     .filter(([id]) => doc.shots[id]?.shootingDay === day && doc.shots[id]?.status !== 'abandonné')
     .map(([shotId, s]) => ({ shotId, part: 0, start: toMin(s.start), end: toMin(s.end), lane: 0 }))
@@ -484,8 +555,34 @@ export function shotSlot(
   shotId: ID,
 ): { start: string; end: string } | undefined {
   return doc.shots[shotId]?.shootingDay === day
-    ? scheduleDays(doc).find((x) => x.n === day)?.timeline?.[shotId]
+    ? doc.schedule?.days.find((x) => x.n === day)?.timeline?.[shotId]
     : undefined;
+}
+
+/**
+ * Amplitude affichée de l'emploi du temps, en minutes : celle du jour (ou par défaut), étendue à
+ * l'heure ronde pour couvrir le rendez-vous, les créneaux et les bandeaux qui en sortent.
+ */
+export function timelineRange(doc: ProjectDoc, day: number): { start: number; end: number } {
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  const s0 = toMin(d?.dayStart ?? DEFAULT_DAY_START);
+  const e0 = Math.max(s0 + 60, dayEndMin(fromMin(s0), d?.dayEnd ?? DEFAULT_DAY_END));
+  const entries = timelineOf(doc, day);
+  const banners = (d?.banners?.length ? dayAgenda(doc, day) : []).filter((it) => it.type === 'banner' && it.start && it.end);
+  const starts = [s0, ...entries.map((e) => e.start), ...banners.map((b) => toMin(b.start!))];
+  if (d?.callTime) starts.push(toMin(d.callTime));
+  const ends = [e0, ...entries.map((e) => e.end), ...banners.map((b) => toMin(b.end!))];
+  const start = Math.floor(Math.min(...starts) / 60) * 60;
+  const end = Math.min(48 * 60, Math.ceil(Math.max(...ends) / 60) * 60);
+  return { start, end: Math.max(start + 60, end) };
+}
+
+/** Début libre pour placer un plan à la suite : fin du dernier créneau du jour, sinon le RDV, sinon le début de journée. */
+export function nextFreeStart(doc: ProjectDoc, day: number): string {
+  const entries = timelineOf(doc, day);
+  if (entries.length) return fromMin(Math.max(...entries.map((e) => e.end)));
+  const d = doc.schedule?.days.find((x) => x.n === day);
+  return d?.callTime ?? d?.dayStart ?? DEFAULT_DAY_START;
 }
 
 /** Créneau couvert par une bande (du premier début au dernier fin de ses plans). */
@@ -915,11 +1012,11 @@ export function partDays(doc: ProjectDoc, shotId: ID): number[] {
 /** Tous les créneaux d'un plan pour un jour donné (principal puis reprises), « 10:00 – 12:00, 16:00 – 17:00 ». */
 export function shotSlotsText(doc: ProjectDoc, day: number, shotId: ID): string {
   const main = shotSlot(doc, day, shotId);
-  const parts = scheduleDays(doc).find((x) => x.n === day)?.parts?.[shotId] ?? [];
+  const parts = doc.schedule?.days.find((x) => x.n === day)?.parts?.[shotId] ?? [];
   return [...(main ? [main] : []), ...parts].map((s) => `${showTime(s.start)} – ${showTime(s.end)}`).join(', ');
 }
 
 /** Premier créneau d'un plan ce jour-là (principal, sinon première reprise). */
 export function firstSlot(doc: ProjectDoc, day: number, shotId: ID): { start: string; end: string } | undefined {
-  return shotSlot(doc, day, shotId) ?? scheduleDays(doc).find((x) => x.n === day)?.parts?.[shotId]?.[0];
+  return shotSlot(doc, day, shotId) ?? doc.schedule?.days.find((x) => x.n === day)?.parts?.[shotId]?.[0];
 }
