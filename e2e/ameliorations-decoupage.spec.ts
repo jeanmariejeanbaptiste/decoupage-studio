@@ -65,6 +65,29 @@ test('téléphone, mode durée : la durée du plan se saisit', async ({ page }) 
   expect(Object.values(d.shots).some((s) => s.durationSec === 12)).toBe(true);
 });
 
+test('téléphone, mode durée : la durée calculée reste lisible sur un plan d’interview', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  await page.getByTestId('project-menu').click();
+  await page.getByTestId('project-panel').getByText('Institutionnel', { exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.getByTestId('tab-interview').click();
+  const itw = page.getByTestId('interview');
+  await itw.getByTestId('setup-placement').getByRole('radio', { name: 'Séq. 2' }).click();
+  await expect(itw).toContainText('Plans 2.9A, 2.9B');
+  await page.getByTestId('view-table').click();
+  await page.goto('/#/settings?section=minutage');
+  await page.getByRole('radiogroup', { name: 'Mode de TC' }).getByText('Durée de chaque plan').click();
+  await page.getByTestId('settings-save').click();
+  await page.setViewportSize(PHONE);
+  await page.goto('/#/grid');
+  await page.getByTestId('mobile-overview').click();
+  await page.getByTestId('mobile-list-shot').filter({ hasText: '2.9A' }).click();
+  await expect(page.getByTestId('mobile-cut')).toContainText('Plan 2.9A');
+  const field = page.getByLabel('Durée', { exact: true });
+  await expect(field).toHaveAttribute('readonly', '');
+  await expect(field).toHaveAttribute('placeholder', /\d+:\d\d/);
+});
+
 const ROWS = '[data-testid="shot-row"]';
 const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
 

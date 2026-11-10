@@ -158,7 +158,10 @@ export function Inspector({ doc, shotId, issues: given }: { doc: ProjectDoc; sho
             </ul>
           </div>
         ) : (
-          <p className={s.muted} aria-label="Focale non renseignée">—</p>
+          <p className={s.muted}>
+            <span aria-hidden="true">—</span>
+            <span className="visually-hidden">Focale non renseignée</span>
+          </p>
         )}
         {camerasForShot(doc, shot.id).length > 0 && (
           <p className={s.muted} data-testid="inspector-cameras">

@@ -35,9 +35,12 @@ async function shrink(file: File): Promise<Blob> {
   }
 }
 
-function isQuota(e: unknown): boolean {
+const QUOTA = ['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED'];
+
+/** Stockage plein (Chrome, Safari : QuotaExceededError ; Firefox : NS_ERROR_DOM_QUOTA_REACHED), éventuellement enveloppé par Dexie. */
+export function isQuota(e: unknown): boolean {
   const err = e as { name?: string; inner?: { name?: string } } | null;
-  return err?.name === 'QuotaExceededError' || err?.inner?.name === 'QuotaExceededError';
+  return QUOTA.includes(err?.name ?? '') || QUOTA.includes(err?.inner?.name ?? '');
 }
 
 /** Range l'image et renvoie sa clé, ou `undefined` (message affiché) si le navigateur la refuse. */

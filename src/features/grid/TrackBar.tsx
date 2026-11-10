@@ -4,6 +4,7 @@ import { formatRange, formatTc } from '../../domain/timecode';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { computePeaks, dragRange, secToX, ticks, xToSec } from '../../domain/waveform';
 import { getBlob, putBlob } from '../../store/db';
+import { isQuota } from '../storyboard/storeImage';
 import { pickFile } from '../../store/persistence';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -114,8 +115,7 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
     try {
       key = await putBlob(doc.project.id, f.name, f);
     } catch (e) {
-      const quota = (e as { name?: string; inner?: { name?: string } } | null)?.name === 'QuotaExceededError' || (e as { inner?: { name?: string } } | null)?.inner?.name === 'QuotaExceededError';
-      toast({ message: quota ? 'Stockage du navigateur plein : piste non importée.' : 'Piste non importée : le navigateur n’a pas pu l’enregistrer.', tone: 'warn' });
+      toast({ message: isQuota(e) ? 'Stockage du navigateur plein : piste non importée.' : 'Piste non importée : le navigateur n’a pas pu l’enregistrer.', tone: 'warn' });
       return;
     }
     mutateDoc((d) => {

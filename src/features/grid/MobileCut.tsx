@@ -327,7 +327,8 @@ function Field({
   const common = {
     value: draft,
     readOnly,
-    placeholder: readOnly ? '' : placeholder || '—',
+    // Indicatif (durée calculée…) gardé même en lecture seule : c'est la seule trace de la valeur.
+    placeholder: placeholder || (readOnly ? '' : '—'),
     onFocus: () => setFocused(true),
     onBlur: () => {
       setFocused(false);
