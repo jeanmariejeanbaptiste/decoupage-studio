@@ -1,19 +1,20 @@
 import { useMemo } from 'react';
-import { CHECK_LABELS, runChecks, type Issue } from '../../domain/lint';
-import { sequenceHeading } from '../../domain/numbering';
+import { CHECK_LABELS, groupIssues, runChecks, type Issue } from '../../domain/lint';
+import { sequenceHeading, sequenceNumber } from '../../domain/numbering';
 import { computeTiming } from '../../domain/timing';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
-import { goToShot } from '../registry/RegistryPage';
+import { goToIssue } from '../grid/goTo';
 import s from './ChecksPage.module.css';
 
 /** Panneau « Vérifications » (§9) : tous les avertissements de la scripte, cliquables. */
 export function ChecksPage({ doc }: { doc: ProjectDoc }) {
   const issues = useMemo(() => runChecks(doc, computeTiming(doc)), [doc]);
+  // Les séquences sans plan (souvent nombreuses après l'import d'un scénario) : une seule entrée.
+  const { rest, empty, count, warn } = groupIssues(issues);
   const bySeq = new Map<string, Issue[]>();
-  for (const i of issues) bySeq.set(i.sequenceId, [...(bySeq.get(i.sequenceId) ?? []), i]);
-  const warn = issues.filter((i) => i.level === 'warn').length;
+  for (const i of rest) bySeq.set(i.sequenceId, [...(bySeq.get(i.sequenceId) ?? []), i]);
   return (
     <div className="page">
       <header className="page-head">
@@ -31,7 +32,7 @@ export function ChecksPage({ doc }: { doc: ProjectDoc }) {
       ) : (
         <>
           <p className={s.summary}>
-            {warn} avertissement{warn > 1 ? 's' : ''} · {issues.length - warn} rappel{issues.length - warn > 1 ? 's' : ''}
+            {warn} avertissement{warn > 1 ? 's' : ''} · {count - warn} rappel{count - warn > 1 ? 's' : ''}
           </p>
           {doc.project.sequenceIds
             .filter((id) => bySeq.has(id))
@@ -41,7 +42,7 @@ export function ChecksPage({ doc }: { doc: ProjectDoc }) {
                 <ul className={s.list}>
                   {bySeq.get(seqId)!.map((i) => (
                     <li key={i.id} className={i.level === 'info' ? s.info : s.warn} data-testid="issue">
-                      <button type="button" className={s.where} data-view onClick={() => goToShot(doc, i.shotId ?? doc.sequences[seqId]?.shotIds[0])}>
+                      <button type="button" className={s.where} data-view onClick={() => goToIssue(doc, i)}>
                         {i.where}
                       </button>
                       <span className={s.label}>{CHECK_LABELS[i.code]}</span>
@@ -54,6 +55,27 @@ export function ChecksPage({ doc }: { doc: ProjectDoc }) {
                 </ul>
               </section>
             ))}
+          {empty.length > 0 && (
+            <section className={['card', s.group].join(' ')} data-testid="empty-sequences-check">
+              <h2 className={s.h2}>
+                {empty.length} séquence{empty.length > 1 ? 's' : ''} sans plan
+              </h2>
+              <ul className={s.list}>
+                <li className={[s.warn, s.grouped].join(' ')} data-testid="issue">
+                  <span className={s.seqLinks}>
+                    {empty.map((i) => (
+                      <button key={i.id} type="button" className={s.where} data-view title={sequenceHeading(doc, i.sequenceId)} aria-label={`Séquence ${sequenceHeading(doc, i.sequenceId)}`} onClick={() => goToIssue(doc, i)}>
+                        {sequenceNumber(doc, i.sequenceId)}
+                      </button>
+                    ))}
+                  </span>
+                  <button type="button" className={s.ignore} onClick={() => mutateDoc((d) => void d.ignoredChecks.push(...empty.map((i) => i.id)))}>
+                    ignorer
+                  </button>
+                </li>
+              </ul>
+            </section>
+          )}
         </>
       )}
     </div>

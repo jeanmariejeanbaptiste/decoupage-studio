@@ -416,3 +416,46 @@ test('invité qui a déjà un projet ouvert : il rejoint le partage, rien ne se 
   await host.getByTestId('share-button').click();
   await host.getByTestId('share-stop').click();
 });
+
+test('relecture : les séquences pas encore découpées figurent dans l’aperçu de l’invité, qui peut les commenter', async ({ browser }) => {
+  const host = await participant(browser);
+  // Scénario importé : trois séquences sans plan, avant les trois séquences découpées.
+  await host.goto('/#/scenario?seed=fiction');
+  const chooser = host.waitForEvent('filechooser');
+  await host.getByRole('button', { name: /^Importer/ }).click();
+  await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('INT. ENTREPRISE / ACCUEIL - JOUR\n\nFlora entre.\n\nEXT. RUE - NUIT\n\nUne voiture passe.\n') });
+  await host.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
+  await host.getByRole('radiogroup', { name: 'Affichage du scénario' }).getByRole('radio', { name: 'Découpage' }).click();
+  await host.getByTestId('scenario-tab-shots').click();
+  await host.getByTestId('import-scenes').click();
+  await host.evaluate(() => void (window.location.hash = '#/grid'));
+  await expect(host.getByTestId('empty-sequence')).toHaveCount(2);
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-panel').getByText('Commenter').click();
+  await host.getByTestId('share-start').click();
+  const link = await host.getByTestId('share-link').textContent();
+  const password = await host.getByTestId('share-password').textContent();
+  await host.getByTestId('share-button').click();
+
+  const guest = await participant(browser);
+  await guest.goto(link!);
+  await guest.getByLabel('Votre nom').fill('Nina');
+  await guest.getByLabel('Mot de passe').fill(password!);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('guest-banner')).toContainText('relecture');
+  const table = guest.getByTestId('export-table').first();
+  await expect(table).toContainText('1, ENTREPRISE / ACCUEIL');
+  await expect(table).toContainText('2, RUE');
+  await expect(table).toContainText('3, GARE — HALL');
+  // On vise une séquence vide : « la séquence 2 manque ».
+  await table.locator('tbody').filter({ hasText: '2, RUE' }).locator('td[data-col="sequence"]').click();
+  await guest.getByTestId('comment-text').fill('La séquence 2 manque.');
+  await guest.getByTestId('comment-send').click();
+  await guest.keyboard.press('Escape');
+  await expect(guest.locator('td[data-commented]')).toHaveCount(1);
+  // Chez l'auteur, l'aperçu ne garde que la séquence vide commentée.
+  await host.getByTestId('toggle-print').click();
+  const own = host.getByTestId('export-table').first();
+  await expect(own).toContainText('2, RUE');
+  await expect(own).not.toContainText('ACCUEIL');
+});

@@ -2,7 +2,7 @@ import { shotCode } from './numbering';
 import { fold, mergeKey } from './text';
 import type { Timing } from './timing';
 import { tokensKey } from './tokens';
-import type { ID, ProjectDoc } from './types';
+import type { ColumnKey, ID, ProjectDoc } from './types';
 import { isZoom, matchVocab, MOVEMENTS, valueRank, WIDE_VALUE_KEYS, SHOT_VALUES } from './vocabulary';
 
 export type CheckCode =
@@ -24,6 +24,8 @@ export interface Issue {
   level: 'warn' | 'info';
   sequenceId: ID;
   shotId?: ID;
+  /** Cellule à montrer dans la grille (sur le plan, ou sur le premier plan de la séquence) ; sans elle, la séquence. */
+  col?: ColumnKey;
   where: string;
   message: string;
 }
@@ -73,14 +75,14 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
       const first = doc.shots[broll[0]];
       const last = doc.shots[broll[broll.length - 1]];
       if (first && !isWide(first.value))
-        push({ code: 'doc-open-wide', level: 'warn', sequenceId: seqId, shotId: first.id, where: at(first.id), message: 'La séquence ne s’ouvre pas sur un plan large (général, ensemble ou moyen).' });
+        push({ code: 'doc-open-wide', level: 'warn', sequenceId: seqId, shotId: first.id, col: 'value', where: at(first.id), message: 'La séquence ne s’ouvre pas sur un plan large (général, ensemble ou moyen).' });
       if (last && !isWide(last.value))
-        push({ code: 'doc-close-wide', level: 'warn', sequenceId: seqId, shotId: last.id === first?.id ? undefined : last.id, where: at(last.id === first?.id ? undefined : last.id), message: 'La séquence ne se ferme pas sur un plan large (général, ensemble ou moyen).' });
+        push({ code: 'doc-close-wide', level: 'warn', sequenceId: seqId, shotId: last.id === first?.id ? undefined : last.id, col: 'value', where: at(last.id === first?.id ? undefined : last.id), message: 'La séquence ne se ferme pas sur un plan large (général, ensemble ou moyen).' });
     }
 
     const gap = timing.sequences.get(seqId)?.gap;
     if (gap && Math.abs(gap.pct) > 25) {
-      push({ code: 'estimate-gap', level: 'warn', sequenceId: seqId, where, message: `Écart de ${Math.round(gap.pct)}\u202f% entre durée estimée et durée calculée.` });
+      push({ code: 'estimate-gap', level: 'warn', sequenceId: seqId, col: 'tc', where, message: `Écart de ${Math.round(gap.pct)}\u202f% entre durée estimée et durée calculée.` });
     }
 
     seq.shotIds.forEach((shotId, i) => {
@@ -89,9 +91,9 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
       const at = shotCode(doc, shotId);
       const base = { sequenceId: seqId, shotId, where: `Plan ${at}` };
       if (isZoom(shot.movement) && (shot.focal.from === undefined || shot.focal.to === undefined))
-        push({ ...base, code: 'zoom-focal', level: 'warn', message: 'Zoom présent dans le mouvement : renseigner la focale de départ et d’arrivée.' });
-      if (!shot.value.trim()) push({ ...base, code: 'missing-value', level: 'warn', message: 'Valeur de cadre manquante.' });
-      if (!shot.subject.trim()) push({ ...base, code: 'missing-subject', level: 'warn', message: 'Sujet manquant.' });
+        push({ ...base, code: 'zoom-focal', level: 'warn', col: 'focal', message: 'Zoom présent dans le mouvement : renseigner la focale de départ et d’arrivée.' });
+      if (!shot.value.trim()) push({ ...base, code: 'missing-value', level: 'warn', col: 'value', message: 'Valeur de cadre manquante.' });
+      if (!shot.subject.trim()) push({ ...base, code: 'missing-subject', level: 'warn', col: 'subject', message: 'Sujet manquant.' });
       const prev = i > 0 ? doc.shots[seq.shotIds[i - 1]] : undefined;
       if (
         prev &&
@@ -101,13 +103,25 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
         mergeKey(prev.subject) === mergeKey(shot.subject) &&
         tokensKey(prev.movement) === tokensKey(shot.movement)
       ) {
-        push({ ...base, code: 'jump-cut', level: 'warn', message: `Identique au plan précédent en valeur, angle et sujet : risque de saute.` });
+        push({ ...base, code: 'jump-cut', level: 'warn', col: 'value', message: `Identique au plan précédent en valeur, angle et sujet : risque de saute.` });
       }
       const moves = shot.movement.map((m) => matchVocab(m, MOVEMENTS)?.key ?? fold(m));
-      if (moves.some((m) => m.includes('drone'))) push({ ...base, code: 'drone', level: 'info', message: DRONE_MSG });
+      if (moves.some((m) => m.includes('drone'))) push({ ...base, code: 'drone', level: 'info', col: 'movement', message: DRONE_MSG });
       if (moves.some((m) => m === 'epaule' || m === 'steadicam' || m.includes('epaule') || m.includes('steadicam')))
-        push({ ...base, code: 'stabilizer-safety', level: 'info', message: SAFETY_MSG });
+        push({ ...base, code: 'stabilizer-safety', level: 'info', col: 'movement', message: SAFETY_MSG });
     });
   }
   return issues;
+}
+
+/**
+ * Vérifications telles qu'on les lit : les séquences sans plan (nombreuses après l'import d'un
+ * scénario) forment une seule entrée ; `count` est le nombre d'entrées (badge du menu), `warn` celui
+ * des avertissements parmi elles.
+ */
+export function groupIssues(issues: readonly Issue[]): { rest: Issue[]; empty: Issue[]; count: number; warn: number } {
+  const empty = issues.filter((i) => i.code === 'empty-sequence');
+  const rest = issues.filter((i) => i.code !== 'empty-sequence');
+  const warn = rest.filter((i) => i.level === 'warn').length + (empty.length ? 1 : 0);
+  return { rest, empty, count: rest.length + (empty.length ? 1 : 0), warn };
 }

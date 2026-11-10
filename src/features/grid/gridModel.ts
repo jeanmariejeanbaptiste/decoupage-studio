@@ -5,6 +5,8 @@ import type { MergeMap, MergeRow } from '../../domain/merge';
 import { repeatedFlags } from '../../domain/merge';
 import { sequenceMerges } from '../../domain/rows';
 import { computeTiming, type Timing } from '../../domain/timing';
+import { parseFountain, type ScriptElement } from '../../domain/fountain';
+import { sequenceExcerpt, sequencePassages } from '../../domain/scriptToShot';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
 
 export interface FlatRow {
@@ -21,6 +23,8 @@ export interface SeqModel {
   rows: MergeRow[];
   merges: MergeMap;
   repeated: Partial<Record<ColumnKey, boolean[]>>;
+  /** Séquence sans plan : aperçu de son texte et nombre de plans que ce texte donnerait. */
+  empty?: { excerpt: string; passages: number };
 }
 
 export interface GridModel {
@@ -32,11 +36,19 @@ export interface GridModel {
   timing: Timing;
 }
 
+/** Scénario lu une fois par texte, et seulement s'il sert (séquences sans plan). */
+let parsed: { source: string; elements: ScriptElement[] } | null = null;
+function parsedScript(source: string): ScriptElement[] {
+  if (parsed?.source !== source) parsed = { source, elements: parseFountain(source) };
+  return parsed.elements;
+}
+
 export function buildGridModel(doc: ProjectDoc): GridModel {
   const timing = computeTiming(doc);
   const columns = tcLast(doc.project.settings.gridColumns);
   const rows: FlatRow[] = [];
   const seqs: SeqModel[] = [];
+  const script = () => parsedScript(doc.scenario ?? '');
   doc.project.sequenceIds.forEach((seqId, seqIndex) => {
     const seq = doc.sequences[seqId];
     if (!seq) return;
@@ -45,7 +57,8 @@ export function buildGridModel(doc: ProjectDoc): GridModel {
     const { rows: mrows, merges } = sequenceMerges(doc, timing, seqId, columns);
     const repeated: SeqModel['repeated'] = {};
     for (const c of columns) repeated[c] = repeatedFlags(merges.get(c) ?? [], mrows.length);
-    seqs.push({ seqId, firstRow, rows: mrows, merges, repeated });
+    const empty = seq.shotIds.length ? undefined : { excerpt: sequenceExcerpt(doc, seqId, script()), passages: sequencePassages(doc, seqId, script()).length };
+    seqs.push({ seqId, firstRow, rows: mrows, merges, repeated, empty });
   });
   const issues = new Map<ID, Issue[]>();
   for (const issue of runChecks(doc, timing)) {

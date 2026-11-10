@@ -22,6 +22,7 @@ import {
 } from '../../domain/ops';
 import type { ColumnKey, ID, ProjectDoc } from '../../domain/types';
 import { detectInText } from '../../domain/breakdown';
+import { shotsFromSequenceText } from '../../domain/scriptToShot';
 import { fold } from '../../domain/text';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
 import { useUi, type CellPos } from '../../store/uiStore';
@@ -132,9 +133,10 @@ export function newShotBelow(): void {
   if (!cur) {
     const seqId = d.project.sequenceIds.at(-1);
     if (!seqId) return newSequenceAfter();
+    // Dernière séquence encore vide (scénario importé) : son premier plan.
     const id = mutateDoc((x) => {
       const last = x.sequences[seqId].shotIds.at(-1);
-      return last ? addShotAfter(x, last) : undefined;
+      return last ? addShotAfter(x, last) : addShot(x, seqId);
     });
     return select(id, 'subject');
   }
@@ -161,6 +163,45 @@ export function insertShotAfter(shotId: ID): void {
 /** Insère un plan en tête ou en fin de séquence (lignes « + plan »). */
 export function insertShotAt(seqId: ID, index: number): void {
   select(mutateDoc((x) => addShot(x, seqId, { index })), 'subject');
+}
+
+/** La grille reprend le focus (après un bouton qui disparaît) : la saisie peut commencer aussitôt. */
+function focusGrid() {
+  requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="grid"]')?.focus({ preventScroll: true }));
+}
+
+/** Premier plan d'une séquence vide. */
+export function addFirstShot(seqId: ID): void {
+  insertShotAt(seqId, 0);
+  focusGrid();
+}
+
+/**
+ * Séquence sans plan supprimée depuis son « + » (Suppr au clavier) : le focus passe au « + » de la
+ * séquence qui prend sa place, sinon à la grille. Annulable.
+ */
+export async function deleteEmptySequence(seqId: ID): Promise<void> {
+  const d = doc();
+  if (!d || d.sequences[seqId]?.shotIds.length) return;
+  const i = d.project.sequenceIds.indexOf(seqId);
+  await deleteSequenceOf(undefined, seqId);
+  const after = doc();
+  const next = after?.project.sequenceIds[i] ?? after?.project.sequenceIds[i - 1];
+  requestAnimationFrame(() => {
+    const add = next ? document.querySelector<HTMLElement>(`tbody[data-seq="${next}"] [data-testid="add-first-shot"]`) : null;
+    if (add) add.focus();
+    else document.querySelector<HTMLElement>('[data-testid="grid"]')?.focus({ preventScroll: true });
+  });
+}
+
+/** Plans d'une séquence créés d'un coup depuis son texte (un par paragraphe d'action et par réplique). */
+export function shotsFromText(seqId: ID): void {
+  const d = doc();
+  if (!d) return;
+  const dialogueShown = d.project.settings.gridColumns.includes('dialogue');
+  const ids = mutateDoc((x) => shotsFromSequenceText(x, seqId, { dialogueShown }));
+  select(ids?.[0], 'subject');
+  focusGrid();
 }
 
 /** Insère une séquence à cette position (bouton entre les séquences). */
@@ -225,6 +266,8 @@ export async function deleteSequenceOf(shotId?: ID, seqIdArg?: ID): Promise<void
   const order = d.project.sequenceIds;
   const i = order.indexOf(seqId);
   mutateDoc((x) => deleteSequence(x, seqId));
+  // Séquence sans plan : aucune ligne ne bouge, la sélection reste telle quelle.
+  if (n === 0) return;
   const after = doc();
   const next = after ? (after.project.sequenceIds[i] ?? after.project.sequenceIds[i - 1]) : undefined;
   const shot = next ? after?.sequences[next]?.shotIds[0] : undefined;

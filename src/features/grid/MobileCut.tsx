@@ -4,7 +4,9 @@ import { ChevronLeft, ChevronRight, Copy, List, Plus, Trash2, X } from 'lucide-r
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
 import { editableText, isEditable, setCellText } from '../../domain/cells';
 import { sequenceHeading, sequenceNumber, shotCode } from '../../domain/numbering';
-import { addSequence, addShotAfter, deleteShot, duplicateShot } from '../../domain/ops';
+import { addSequence, addShot as addShotTo, addShotAfter, deleteShot, duplicateShot } from '../../domain/ops';
+import { parseFountain } from '../../domain/fountain';
+import { sequenceExcerpt } from '../../domain/scriptToShot';
 import { suggestionSource } from './suggestions';
 import type { Suggestion } from '../../ui/SuggestList';
 import { computeTiming, shotTcLabel } from '../../domain/timing';
@@ -33,8 +35,21 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const order = useMemo(() => doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []), [doc]);
   const timing = useMemo(() => computeTiming(doc), [doc]);
+  // Aperçu du texte des séquences sans plan (scénario lu une fois).
+  const excerpts = useMemo(() => {
+    const empty = doc.project.sequenceIds.filter((id) => !doc.sequences[id]?.shotIds.length);
+    const elements = empty.length ? parseFountain(doc.scenario ?? '') : [];
+    return new Map(empty.map((id) => [id, sequenceExcerpt(doc, id, elements, 160)]));
+  }, [doc]);
   const [current, setCurrent] = useState<ID | undefined>(() => order[0]);
   const [list, setList] = useState(false);
+  // Séquence sans plan touchée dans la barre : la vue d'ensemble s'ouvre sur elle.
+  const [jumpSeq, setJumpSeq] = useState<ID | null>(null);
+  useEffect(() => {
+    if (!list || !jumpSeq) return;
+    document.querySelector(`[data-mobile-seq="${jumpSeq}"]`)?.scrollIntoView({ block: 'start' });
+    setJumpSeq(null);
+  }, [list, jumpSeq]);
   const idx = current ? order.indexOf(current) : -1;
   const shotId = idx >= 0 ? current : order[0];
   const i = shotId ? order.indexOf(shotId) : -1;
@@ -95,9 +110,36 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
           </button>
         )}
         {doc.project.sequenceIds.map((seqId) => (
-          <section key={seqId} className={s.listSeq}>
+          <section key={seqId} className={s.listSeq} data-mobile-seq={seqId}>
             <h2>{sequenceHeading(doc, seqId)}</h2>
             <ul>
+              {/* Séquence sans plan : une ligne fantôme, « + » à la place du numéro et l'aperçu de son texte. */}
+              {!doc.sequences[seqId]?.shotIds.length && (
+                <li>
+                  <button
+                    type="button"
+                    className={s.listGhost}
+                    disabled={readOnly}
+                    onClick={() => {
+                      const id = mutateDoc((d) => addShotTo(d, seqId));
+                      if (id) setCurrent(id);
+                      setList(false);
+                      window.scrollTo({ top: 0 });
+                    }}
+                    aria-label={`Ajouter un plan à la séquence ${sequenceNumber(doc, seqId)}`}
+                    data-testid="mobile-add-first-shot"
+                  >
+                    <span className={s.listNum}>
+                      <Plus size={16} strokeWidth={1.25} />
+                    </span>
+                    {excerpts.get(seqId) && (
+                      <span className={s.listBody}>
+                        <span>{excerpts.get(seqId)}</span>
+                      </span>
+                    )}
+                  </button>
+                </li>
+              )}
               {(doc.sequences[seqId]?.shotIds ?? []).map((id) => {
                 const sh = doc.shots[id];
                 const action = doc.blocks[sh.actionBlockId]?.text ?? '';
@@ -150,11 +192,14 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
           <button
             key={id}
             type="button"
-            className={id === shot.sequenceId ? s.seqTabOn : ''}
+            className={id === shot.sequenceId ? s.seqTabOn : doc.sequences[id]?.shotIds.length ? '' : s.seqTabEmpty}
             onClick={() => {
               const first = doc.sequences[id]?.shotIds[0];
-              if (first) setCurrent(first);
+              if (first) return setCurrent(first);
+              setJumpSeq(id);
+              setList(true);
             }}
+            data-testid="mobile-seq-tab"
           >
             {sequenceHeading(doc, id)}
           </button>

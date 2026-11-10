@@ -1,20 +1,22 @@
 import { SeqMeta } from './SeqMeta';
-import { Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
 import { toggleOneShot } from '../../domain/oneshot';
-import { Fragment, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { displayLines, displaySpan } from '../../domain/merge';
 import {
+  addFirstShot,
+  deleteEmptySequence,
   deleteSequenceOf,
   deleteShotById,
   insertSequenceAt,
   insertShotAfter,
   insertShotAt,
   rowOfShot,
+  shotsFromText,
 } from './actions';
 import { DroppableBody, DroppableRow, NumberHandle, SeqHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
-import { addShot } from '../../domain/ops';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { sequenceNumber } from '../../domain/numbering';
@@ -125,28 +127,61 @@ export function SequenceBody({
   const seqNumber = sequenceNumber(doc, seq.seqId);
 
   if (n === 0) {
+    // Séquence sans plan (scénario importé) : même en-tête que les autres, puis une ligne fantôme —
+    // le « + » à la place du N° et l'aperçu du texte ; « depuis le texte » au survol, à droite.
+    const passages = seq.empty?.passages ?? 0;
+    const excerpt = seq.empty?.excerpt ?? '';
+    // Suppr / Retour arrière sur le « + » : la séquence vide s'en va (annulable).
+    const onAddKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      e.preventDefault();
+      void deleteEmptySequence(seq.seqId);
+    };
     return (
-      <DroppableBody seqId={seq.seqId} className={s.seq}>
-        <tr>
-          <td className={s.emptySeq} colSpan={columns.length + 1}>
-            <strong>
-              {sequenceNumber(doc, seq.seqId)}, {sequence?.label.toUpperCase()}
-            </strong>{' '}
-            — <span className="hand">séquence vide</span>{' '}
-            <button
-              type="button"
-              className={s.addInEmpty}
-              onClick={() => mutateDoc((d) => void addShot(d, seq.seqId))}
-            >
-              Ajouter un plan
-            </button>{' '}
-            <button
-              type="button"
-              className={s.addInEmpty}
-              onClick={() => void deleteSequenceOf(undefined, seq.seqId)}
-            >
-              Supprimer la séquence
-            </button>
+      <DroppableBody seqId={seq.seqId} className={[s.seq, s.emptyBody].join(' ')} style={color ? ({ '--seq-color': color } as CSSProperties) : undefined}>
+        <tr className={s.emptyRow} data-testid="empty-sequence">
+          <td className={[s.cell, s.c_sequence].join(' ')} title={sequence?.label ? `${seqNumber}, ${sequence.label.toUpperCase()}` : undefined}>
+            <div className={s.seqCell}>
+              <SeqHandle seqId={seq.seqId} label={`${seqNumber}`} />
+              <button
+                type="button"
+                className={s.seqDel}
+                aria-label={`Supprimer la séquence ${seqNumber}`}
+                title="Supprimer cette séquence"
+                onClick={() => void deleteSequenceOf(undefined, seq.seqId)}
+                tabIndex={-1}
+                data-testid="delete-sequence"
+              >
+                <Trash2 size={13} strokeWidth={1.4} />
+              </button>
+              <span className={s.seqLabel}>
+                {seqNumber}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
+              </span>
+              <SeqMeta doc={doc} seqId={seq.seqId} />
+            </div>
+          </td>
+          <td className={s.gutter} aria-hidden="true" />
+          <td className={s.emptyCell} colSpan={columns.length - 1} data-empty-cell>
+            <div className={s.emptyLine}>
+              <button
+                type="button"
+                className={s.emptyAdd}
+                onClick={() => addFirstShot(seq.seqId)}
+                onKeyDown={onAddKey}
+                aria-label={`Ajouter un plan à la séquence ${seqNumber}`}
+                data-testid="add-first-shot"
+              >
+                <span className={s.emptyPlus} aria-hidden="true">
+                  <Plus size={14} strokeWidth={1.25} />
+                </span>
+                {excerpt && <span className={s.excerpt}>{excerpt}</span>}
+              </button>
+              {passages > 0 && (
+                <button type="button" className={s.fromText} onClick={() => shotsFromText(seq.seqId)} data-testid="shots-from-text">
+                  {passages} plan{passages > 1 ? 's' : ''} depuis le texte
+                </button>
+              )}
+            </div>
           </td>
         </tr>
         <SeqAddRows

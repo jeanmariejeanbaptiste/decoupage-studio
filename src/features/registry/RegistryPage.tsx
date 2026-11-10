@@ -13,11 +13,10 @@ import type { Character, CharacterKind, Decor, Effect, FilmingLocation, ID, IntE
 import { decorLocation, setDecorLocation } from '../../domain/locations';
 import { isZoom } from '../../domain/vocabulary';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
-import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { DataTable, type Column } from '../../ui/DataTable';
 import { ask } from '../../ui/dialogStore';
-import { rowOfShot } from '../grid/actions';
+import { goToSequence, goToShot } from '../grid/goTo';
 import s from './RegistryPage.module.css';
 import { TabExport } from '../export/TabExport';
 import { registryDocument } from '../../domain/documents';
@@ -42,16 +41,6 @@ const LOCATION_FIELDS: Array<[keyof FilmingLocation, string]> = [
   ['access', 'Accès'],
   ['contact', 'Contact'],
 ];
-
-/** Saute au plan dans la grille. */
-export function goToShot(doc: ProjectDoc, shotId: ID | undefined) {
-  // On arrive sur la grille d'édition (pas l'aperçu, ni l'onglet Interview d'un institutionnel).
-  useUi.getState().set({ printView: false, itwTab: 'broll', editing: null });
-  if (!shotId) return navigate('grid');
-  const row = rowOfShot(doc, shotId);
-  if (row >= 0) useUi.getState().setSelection({ row, col: 'subject' });
-  navigate('grid');
-}
 
 /** « V1 et V2 s'en servent encore. » */
 const stillUsedIn = (names: readonly string[]) => `${names.join(' et ')} ${names.length > 1 ? 's’en servent' : 's’en sert'} encore.`;
@@ -155,7 +144,7 @@ function SequencesTab({ doc, timing, search }: { doc: ProjectDoc; timing: Return
       label: 'N°',
       width: '48px',
       render: (q) => (
-        <button type="button" className={s.jump} onClick={() => goToShot(doc, q.shotIds[0])} title="Ouvrir dans la grille" data-view>
+        <button type="button" className={s.jump} onClick={() => goToSequence(doc, q.id)} title="Ouvrir dans la grille" data-view>
           {sequenceNumber(doc, q.id)}
         </button>
       ),
@@ -367,7 +356,7 @@ function CharactersTab({ doc, search }: { doc: ProjectDoc; search: string }) {
       render: (c) => (
         <span className={s.chips}>
           {(stats.get(c.id)?.sequenceIds ?? []).map((id) => (
-            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])} data-view>
+            <button key={id} type="button" className={s.seqLink} onClick={() => goToSequence(doc, id)} data-view>
               {sequenceNumber(doc, id)}
             </button>
           ))}
@@ -485,7 +474,7 @@ function DecorsTab({ doc, timing, search }: { doc: ProjectDoc; timing: ReturnTyp
       render: (d) => (
         <span className={s.chips}>
           {(stats.get(d.id)?.sequenceIds ?? []).map((id) => (
-            <button key={id} type="button" className={s.seqLink} onClick={() => goToShot(doc, doc.sequences[id]?.shotIds[0])} data-view>
+            <button key={id} type="button" className={s.seqLink} onClick={() => goToSequence(doc, id)} data-view>
               {sequenceNumber(doc, id)}
             </button>
           ))}

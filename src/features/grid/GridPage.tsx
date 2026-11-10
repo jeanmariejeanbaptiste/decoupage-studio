@@ -13,6 +13,7 @@ import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ExportTable } from '../export/ExportTable';
 import { CutComments } from '../comments/CutComments';
+import { cutComments } from '../../domain/comments';
 import { linkSelection, newSequenceAfter, rowOfShot, unlinkSelection } from './actions';
 import { CutExport } from './CutExport';
 import { VersionSwitcher } from '../versions/VersionSwitcher';
@@ -51,7 +52,8 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     }
   };
   const rightPanel = useUi((u) => u.rightPanel);
-  const focusRow = useUi((u) => u.selection?.focus.row);
+  // Sélection posée d'office : l'inspecteur n'y voit aucun plan choisi.
+  const focusRow = useUi((u) => (u.selection?.auto ? undefined : u.selection?.focus.row));
   const selectedShot = focusRow !== undefined ? model.rows[focusRow]?.shotId : undefined;
   const setUi = useUi((u) => u.set);
   const nSeq = doc.project.sequenceIds.length;
@@ -73,6 +75,18 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     [selIds, doc],
   );
   const multi = selIds.length > 1;
+  // Aperçu : une séquence sans plan n'y figure (comme à l'export) que si un commentaire la vise. Le
+  // relecteur et l'invité en lecture seule les voient toutes, réduites à leur en-tête : on peut viser
+  // (commenter) une séquence pas encore découpée.
+  const keepEmpty = useMemo(
+    () =>
+      new Set(
+        readOnly
+          ? storeDoc.project.sequenceIds.filter((id) => !storeDoc.sequences[id]?.shotIds.length)
+          : [...cutComments(storeDoc).values()].flatMap((l) => (l[0].anchor.kind === 'sequence' ? [l[0].anchor.seqId] : [])),
+      ),
+    [storeDoc, readOnly],
+  );
 
   // Après la création de la première séquence, la grille prend le focus.
   const hadRows = useRef(model.rows.length > 0);
@@ -199,8 +213,10 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     );
   }
 
+  // Tableau : la page tient dans la fenêtre, la grille défile seule et le pied reste en bas, entier.
+  const fill = !itwSelected && !printView && !isMobile && nSeq > 0;
   return (
-    <div className="page page--wide">
+    <div className={['page page--wide', fill ? s.fill : ''].join(' ')}>
       <header className="page-head">
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
           {/* Gauche : ce qu'on regarde (tableau, storyboard ou aperçu), puis l'action liée à la sélection. */}
@@ -275,7 +291,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         <div className={[s.printPreview, 'paper-light'].join(' ')}>
           {/* Aperçu : les pages A4 de l'export (paysage par défaut), sur papier quel que soit le thème. */}
           <CutComments doc={storeDoc}>
-            <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} />
+            <ExportTable doc={doc} theme="papier" paper="A4" orientation={doc.project.settings.exportPrefs?.grid?.orientation ?? 'landscape'} safety={0} keepEmpty={keepEmpty} />
           </CutComments>
         </div>
       ) : isMobile ? (

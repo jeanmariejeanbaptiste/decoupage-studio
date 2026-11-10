@@ -8,4 +8,7 @@
 .label { font-weight: 600; }
 .msg { color: var(--ink-soft); }
 .ignore { border: 0; background: none; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; padding: 0; white-space: nowrap; }
-@media (max-width: 1100px) { .list li { grid-template-columns: 80px 1fr auto; } .msg { grid-column: 1 / -1; } }
+/* Séquences sans plan : une ligne de numéros, chacun mène à sa séquence. */
+.list li.grouped { grid-template-columns: 1fr auto; }
+.seqLinks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+@media (max-width: 1100px) { .list li { grid-template-columns: 80px 1fr auto; } .list li.grouped { grid-template-columns: 1fr auto; } .msg { grid-column: 1 / -1; } }
