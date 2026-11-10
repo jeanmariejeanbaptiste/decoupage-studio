@@ -68,3 +68,19 @@ export function labelBehind(x: number, y: number, rot: number, dist = 30): { x: 
   const d = anchor === 'middle' ? dist : dist - 10;
   return { x: x - c * d, y: y - Math.sin(a) * d + 4, anchor };
 }
+
+/**
+ * Place du repère d'un élément tracé (réflecteur, diffuseur, drapeau) : au milieu, écarté de `gap`
+ * perpendiculairement au segment, au-dessus ou, pour un segment vertical, à gauche, pour ne jamais
+ * être recouvert par son trait.
+ */
+export function segmentLabelAt(seg: { x: number; y: number; x2: number; y2: number }, gap = 12): { x: number; y: number; anchor: 'middle' | 'end' } {
+  const [dx, dy] = [seg.x2 - seg.x, seg.y2 - seg.y];
+  const len = Math.hypot(dx, dy) || 1;
+  let [nx, ny] = [-dy / len, dx / len];
+  // Normale tournée vers le haut, ou vers la gauche pour un segment vertical.
+  if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) [nx, ny] = [-nx, -ny];
+  const [mx, my] = [(seg.x + seg.x2) / 2, (seg.y + seg.y2) / 2];
+  const side = Math.abs(nx) > 0.5;
+  return { x: mx + nx * gap, y: my + ny * gap + (side ? 4 : 0), anchor: side ? 'end' : 'middle' };
+}
