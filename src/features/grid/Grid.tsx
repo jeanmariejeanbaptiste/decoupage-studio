@@ -103,7 +103,7 @@ export function Grid({ doc, model, animate = false }: Props) {
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [selection]);
 
-  // Séquence demandée (vérification, registre…) : amenée en haut, juste sous l'en-tête collant ; sans
+  // Séquence demandée (vérification, lien…) : amenée en haut, juste sous l'en-tête collant ; sans
   // plan, son « + » prend le focus (Entrée crée le premier plan).
   const focusSeq = useUi((u) => u.focusSeq);
   useEffect(() => {

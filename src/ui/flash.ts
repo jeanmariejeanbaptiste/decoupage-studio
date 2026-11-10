@@ -1,5 +1,5 @@
 /**
- * Met brièvement en évidence l'arrivée d'un lien interne (vérifications → découpage, registre…). La
+ * Met brièvement en évidence l'arrivée d'un lien interne (vérifications → découpage, durée estimée…). La
  * page cible peut ne pas être encore rendue : on attend qu'un des sélecteurs (dans l'ordre de
  * préférence) trouve un élément, puis on le fait venir dans la vue et on marque tous les éléments
  * de ce sélecteur (`data-flash`, lu par la feuille de style ; un attribut que React ne réécrit pas).

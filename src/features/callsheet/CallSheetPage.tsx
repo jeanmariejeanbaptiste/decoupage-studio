@@ -215,7 +215,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                           aria-label={`Adresse pour ${sequenceHeading(doc, stop.seqIds[0])}`}
                           data-testid="stop-address"
                           onChange={(e) => {
-                            // Champ vidé : l'adresse du décor (Registre) reprend sa place.
+                            // Champ vidé : l'adresse du décor reprend sa place.
                             const next = { ...day.seqAddresses, [stop.seqIds[0]]: e.target.value };
                             if (!e.target.value) delete next[stop.seqIds[0]];
                             set({ seqAddresses: next });

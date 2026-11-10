@@ -25,7 +25,7 @@ export interface UiState {
   menu: { x: number; y: number; items: MenuItem[] } | null;
   /** `auto` : posée d'office à l'arrivée (aucun choix de l'utilisateur) ; elle ne fait pas défiler la grille. */
   selection: { anchor: CellPos; focus: CellPos; auto?: boolean } | null;
-  /** Séquence à montrer à l'arrivée sur la grille (lien d'une vérification, du registre…). */
+  /** Séquence à montrer à l'arrivée sur la grille (lien d'une vérification, d'une autre page…). */
   focusSeq: ID | null;
   editing: { pos: CellPos; initial?: string } | null;
   toasts: Toast[];

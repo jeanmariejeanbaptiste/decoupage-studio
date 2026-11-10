@@ -183,7 +183,7 @@ export function breakdownSuggestions(doc: ProjectDoc, seqId: ID): Partial<Record
 }
 
 /**
- * Personnages et figurants ne sont pas du texte libre : ils renvoient aux fiches du registre
+ * Personnages et figurants ne sont pas du texte libre : ils renvoient aux fiches du projet
  * (doc.characters) et à la séquence (characterIds). Renommages, fusions, plan de travail et feuille
  * de service suivent ainsi ce qu'on saisit au dépouillement.
  */
@@ -206,7 +206,7 @@ export function characterForName(doc: ProjectDoc, raw: string, cat: BreakdownCat
 const fromShots = (seq: Sequence, shots: Record<ID, Shot>) => new Set(seq.shotIds.flatMap((id) => shots[id]?.characterIds ?? []));
 
 /**
- * Personnages et figurants ajoutés à la séquence (au registre ou au dépouillement), hors ceux que
+ * Personnages et figurants ajoutés à la séquence (au dépouillement), hors ceux que
  * nomment ses plans : ceux-là se retirent depuis le dépouillement.
  */
 export function addedCharacters(doc: ProjectDoc, seqId: ID): Partial<Record<BreakdownCategory, string[]>> {
@@ -246,7 +246,7 @@ export function removeBreakdownItem(doc: ProjectDoc, seqId: ID, cat: BreakdownCa
 }
 
 /**
- * Projets d'avant le lien au registre : les noms rangés en texte dans les catégories Personnages et
+ * Projets d'avant le lien aux fiches : les noms rangés en texte dans les catégories Personnages et
  * Figurants deviennent des fiches (existantes ou neuves) rattachées à la séquence, dans chaque
  * version qui la garde.
  */
