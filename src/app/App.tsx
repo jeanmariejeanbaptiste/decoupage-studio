@@ -68,13 +68,28 @@ const SAVE_LABEL: Record<string, string> = {
   idle: '',
 };
 
+/** Retire un paramètre de l'adresse, sans nouvelle entrée d'historique ni hashchange. */
+function dropHashParam(name: string): void {
+  const [path, query = ''] = window.location.hash.split('?');
+  const params = new URLSearchParams(query);
+  if (!params.has(name)) return;
+  params.delete(name);
+  const q = params.toString();
+  history.replaceState(history.state, '', `${window.location.pathname}${window.location.search}${path}${q ? `?${q}` : ''}`);
+}
+
 async function boot(): Promise<void> {
   const { route } = parseHash(window.location.hash);
   // Lien de relecture : la page d'arrivée l'ouvre elle-même.
   if (route === 'review') return;
   const seed = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('seed');
-  if (seed === 'rav3') return void (await openDoc(buildRav3()));
-  if (seed === 'fiction') return void (await openDoc(buildFiction()));
+  const build = seed === 'rav3' ? buildRav3 : seed === 'fiction' ? buildFiction : null;
+  if (build) {
+    await openDoc(build());
+    // Démonstration ouverte : un rechargement ou un favori ne doit plus l'écraser.
+    dropHashParam('seed');
+    return;
+  }
   // Rechargement pendant une relecture en ligne : elle se rouvre (l'accueil la referme).
   if (route === 'home') forgetReviewSession();
   else if (await resumeReview()) return;
