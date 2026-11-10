@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import {
   addBreakdownItems,
@@ -16,6 +16,8 @@ import { createSequenceForScene } from '../../domain/scriptToShot';
 import { marksIn } from '../../domain/tagging';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { registerFlush } from '../../store/persistence';
+import { setSequenceDecorByName } from '../../domain/registry';
 import { useReadOnly } from '../../store/share';
 import { useUi } from '../../store/uiStore';
 import { ask } from '../../ui/dialogStore';
@@ -256,6 +258,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           {view === 'full' ? (
             <>
               <p className={s.sideHead}>{entryLabel(doc, entry, numbers.byKey.get(entry.key))}</p>
+              {entry.seqId && <DecorField key={entry.seqId} doc={doc} seqId={entry.seqId} readOnly={readOnly} />}
               {!readOnly && <AddAll suggestions={suggestionsFor(doc, entry, paragraphsFor(doc, entry))} onAdd={(items) => tagIn(entry, items)} />}
               <WholeSheet
                 doc={doc}
@@ -424,6 +427,72 @@ function WholeSheet({
   );
 }
 
+/**
+ * Décor de la séquence : un décor existant (proposé à la saisie) ou un nouveau, créé à son nom. Il
+ * range la séquence au plan de travail et donne son lieu à la feuille de service. Appliqué en
+ * quittant le champ ou avec Entrée, et avant un enregistrement.
+ */
+function DecorField({ doc, seqId, readOnly }: { doc: ProjectDoc; seqId: ID; readOnly: boolean }) {
+  const decorId = doc.sequences[seqId]?.decorId;
+  const value = decorId ? (doc.decors[decorId]?.name ?? '') : '';
+  const [draft, setDraftState] = useState(value);
+  const draftRef = useRef(value);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const setDraft = (v: string) => {
+    draftRef.current = v;
+    setDraftState(v);
+  };
+  useEffect(() => {
+    draftRef.current = value;
+    setDraftState(value);
+  }, [value]);
+  const commit = useCallback(() => {
+    if (readOnly || draftRef.current.trim() === valueRef.current.trim()) return;
+    valueRef.current = draftRef.current;
+    mutateDoc((d) => setSequenceDecorByName(d, seqId, draftRef.current));
+  }, [readOnly, seqId]);
+  useEffect(() => {
+    const project = useProjectStore.getState().doc?.project.id;
+    const off = registerFlush(commit);
+    return () => {
+      off();
+      if (useProjectStore.getState().doc?.project.id === project) commit();
+    };
+  }, [commit]);
+  const names = useMemo(() => Object.values(doc.decors).map((d) => d.name).sort((a, b) => a.localeCompare(b, 'fr')), [doc.decors]);
+  const listId = `decors-${seqId}`;
+  if (readOnly && !value) return null;
+  return (
+    <section className={[s.cat, value ? '' : s.catEmpty].join(' ')} data-testid="breakdown-decor">
+      <h3>
+        <label htmlFor={`decor-${seqId}`}>Décor</label>
+      </h3>
+      <input
+        id={`decor-${seqId}`}
+        value={draft}
+        readOnly={readOnly}
+        list={listId}
+        placeholder="Ajouter…"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') {
+            setDraft(valueRef.current);
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      <datalist id={listId}>
+        {names.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+    </section>
+  );
+}
+
 function AddField({ label, onAdd }: { label: string; onAdd: (v: string) => void }) {
   const [draft, setDraft] = useState('');
   return (
@@ -461,6 +530,7 @@ function BreakdownSheet({
   const [newCat, setNewCat] = useState('');
   return (
     <div className={s.cats}>
+      {seqId && <DecorField doc={doc} seqId={seqId} readOnly={readOnly} />}
       {breakdownCategories(doc).map((cat) => (
         <Category
           key={cat}
