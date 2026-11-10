@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fdxToFountain, parseFdx, scriptToFdx } from './fdx';
 import { parseFountain } from './fountain';
+import { carryOutline } from './outline';
 import { blocksFromSource, parseTitlePage, serialize, setBlockType } from './screenplay';
 import completFdx from './__fixtures__/kit/modele-complet.fdx?raw';
 import completFountain from './__fixtures__/kit/modele-complet.fountain?raw';
@@ -55,6 +56,21 @@ describe('Final Draft', () => {
     const src = fdxToFountain(xml);
     const title = parseTitlePage(blocksFromSource(src).blocks.find((b) => b.type === 'title')!.text);
     expect(title).toEqual({ Title: 'LUNDI', Credit: 'Écrit par', Author: 'Collectif Vox', Contact: 'contact@exemple.fr', 'Draft date': 'Version du 20/10/2026' });
+  });
+
+  it('la phrase du séquencier devient le résumé de la scène, et revient en ligne « = » (sans sa note)', () => {
+    const src = 'INT. GARE - JOUR\n\n= Léa trouve la *lettre*. [[ds:etape=9;intrigue=B]]\n\nLéa entre.\n\nEXT. QUAI - NUIT\n\nLe train part.\n\n= Résumé libre.\n';
+    const fdx = scriptToFdx(blocksFromSource(src).blocks);
+    expect(fdx).toContain(
+      '<Paragraph Number="1" Type="Scene Heading"><SceneProperties><Summary><Paragraph Type="General"><Text>Léa trouve la </Text><Text Style="Italic">lettre</Text><Text>.</Text></Paragraph></Summary></SceneProperties><Text>INT. GARE - JOUR</Text></Paragraph>',
+    );
+    expect(fdx).not.toContain('etape');
+    expect(fdx.match(/<Summary>/g)).toHaveLength(1);
+    expect(parseFdx(fdx).paragraphs.map((p) => p.type)).toEqual(['heading', 'synopsis', 'action', 'heading', 'action']);
+    const back = fdxToFountain(fdx);
+    expect(back).toBe('INT. GARE - JOUR\n\n= Léa trouve la *lettre*.\n\nLéa entre.\n\nEXT. QUAI - NUIT\n\nLe train part.\n');
+    // Réimporté par-dessus le texte d'origine, la note revient par le report du séquencier.
+    expect(carryOutline(src, back)).toContain('= Léa trouve la *lettre*. [[ds:etape=9;intrigue=B]]\n');
   });
 
   it('refuse un fichier qui n’est pas du Final Draft', () => {

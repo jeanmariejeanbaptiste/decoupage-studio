@@ -24,6 +24,15 @@ describe('fichier .decoupage', () => {
     expect(checkInvariants(back)).toEqual([]);
   });
 
+  it('garde les intrigues du séquencier', () => {
+    const doc = buildFiction();
+    doc.plots = [
+      { key: 'A', name: 'Léa' },
+      { key: 'C', name: 'La lettre' },
+    ];
+    expect(parseProjectFile(serializeDoc(doc)).plots).toEqual(doc.plots);
+  });
+
   it('accepte un JSON de projet nu et complète les champs manquants', () => {
     const doc = buildRav3();
     const partial = JSON.parse(JSON.stringify(doc));

@@ -192,10 +192,14 @@ export function commentAttachments(doc: ProjectDoc): string[] {
 }
 
 /** Les passages commentés suivent le texte quand il change (même règle que les passages liés). */
-export function shiftCommentAnchors(doc: ProjectDoc, map: (p: number, side: 'start' | 'end') => number): void {
+export function shiftCommentAnchors(doc: ProjectDoc, map: (p: number, side: 'start' | 'end') => number, range?: (start: number, end: number) => [number, number]): void {
   for (const c of doc.comments ?? []) {
     if (c.anchor.kind !== 'script' || (doc.versions?.length && (c.versionId ?? doc.versions[0].id) !== doc.activeVersionId)) continue;
     const a = c.anchor;
+    if (range) {
+      [a.start, a.end] = range(a.start, a.end);
+      continue;
+    }
     const empty = a.end <= a.start;
     a.start = map(a.start, 'start');
     a.end = empty ? a.start : Math.max(a.start, map(a.end, 'end'));

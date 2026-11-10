@@ -8,7 +8,10 @@ import { addBreakdownItems, breakdownCategories, breakdownLabel, breakdownOf } f
 import { applyFormat } from './factory';
 import { scenesOf, shiftAnchors } from './fountain';
 import { formatFocal } from './focal';
-import { addCharacter, addSequence, addShot, deleteShot, linkAction } from './ops';
+import { addCharacter, addSequence, addShot, applyScenarioEdit, deleteShot, linkAction, setSequenceSummary } from './ops';
+import { carryOutline, insertEntry, moveEntry, outlineMeasures, outlineOf, plotName, plotsOf, sequenceSummary, setHeading, setOutlineTag, setPhrase, type OutlineSequence } from './outline';
+import { mmss } from './chronometry';
+import { stepLabel } from './truby';
 import { setSequenceDecorByName } from './registry';
 import { fold } from './text';
 import { formatTc } from './timecode';
@@ -142,6 +145,53 @@ export const AI_TOOLS: readonly ToolDef[] = [
     writes: true,
   },
   {
+    name: 'get_outline',
+    description:
+      'Séquencier du scénario (numéros du texte, distincts de ceux du découpage) : pour chaque séquence, en-tête, phrase (action essentielle en une ligne), étape de Truby (1 à 22), intrigue (lettre), page imprimée et durée ; les parties ; les intrigues du projet.',
+    schema: obj({}, []),
+    writes: false,
+  },
+  {
+    name: 'set_outline_entry',
+    description: 'Modifie une séquence du séquencier : phrase, étape de Truby (0 = aucune), intrigue (lettre A à Z), lieu, moment, intérieur/extérieur. Seuls les champs fournis changent.',
+    schema: obj(
+      {
+        n: int('Numéro de la séquence dans le scénario'),
+        phrase: str('Action essentielle en une phrase (vide = retirée)'),
+        step: int('Étape de Truby, 1 à 22 (0 = aucune)'),
+        plot: str('Intrigue : une lettre, A à Z'),
+        int_ext: { type: 'string', enum: ['INT', 'EXT', 'INT/EXT'] },
+        location: str('Lieu'),
+        effect: str('Moment (JOUR, NUIT, AUBE, CRÉPUSCULE, MATIN, SOIR…)'),
+      },
+      ['n'],
+    ),
+    writes: true,
+  },
+  {
+    name: 'add_outline_entry',
+    description: 'Ajoute une séquence au scénario depuis le séquencier : en-tête et phrase, après une séquence donnée (absent = à la fin). Renvoie son numéro.',
+    schema: obj(
+      {
+        after: int('Placer après cette séquence du scénario (0 = en tête ; absent = à la fin)'),
+        int_ext: { type: 'string', enum: ['INT', 'EXT', 'INT/EXT'] },
+        location: str('Lieu'),
+        effect: str('Moment'),
+        phrase: str('Action essentielle en une phrase'),
+        step: int('Étape de Truby, 1 à 22'),
+        plot: str('Intrigue : une lettre, A à Z'),
+      },
+      ['location'],
+    ),
+    writes: true,
+  },
+  {
+    name: 'move_outline_entry',
+    description: 'Déplace une séquence du scénario (son texte entier) pour qu’elle devienne la séquence « to ». Les parties restent en place ; le découpage suit s’il suivait déjà le texte.',
+    schema: obj({ from: int('Numéro actuel de la séquence'), to: int('Numéro voulu') }, ['from', 'to']),
+    writes: true,
+  },
+  {
     name: 'write_scenario',
     description:
       'Écrit dans le scénario, en syntaxe Fountain (en-têtes « INT. LIEU - JOUR », noms en capitales au-dessus des répliques) : à la fin, ou à la place d’une séquence existante.',
@@ -161,6 +211,7 @@ Tu peux lire le projet et le modifier avec les outils fournis : découpage techn
 Règles :
 - Avant de modifier, lis ce qu’il faut (get_project, puis get_sequence ou get_scenario). Les numéros de séquence et de plan sont toujours ceux du moment : relis après une insertion.
 - Vocabulaire du cadre : valeurs, axes et hauteurs, mouvements tels que listés dans les outils ; focales en millimètres.
+- Le séquencier (get_outline) lit le scénario : une phrase par séquence, étape de Truby et intrigue ; ses numéros sont ceux du texte.
 - Ne supprime rien sans demande explicite.
 - Après tes modifications, résume en une ou deux phrases ce que tu as fait (l’utilisateur peut tout annuler d’un clic).`;
 
@@ -190,6 +241,31 @@ function shotIdAt(doc: ProjectDoc, seqId: ID, n: unknown): ID {
   const id = i !== undefined ? doc.sequences[seqId].shotIds[i - 1] : undefined;
   if (!id) throw new Error(`Plan ${String(n)} introuvable dans cette séquence (${doc.sequences[seqId].shotIds.length} plans).`);
   return id;
+}
+
+/** Numéro d'une séquence du séquencier (texte du scénario). */
+function outlineN(doc: ProjectDoc, n: unknown): number {
+  const i = asInt(n);
+  const count = outlineOf(doc.scenario ?? '').filter((x) => x.kind === 'sequence').length;
+  if (i === undefined || i < 1 || i > count) throw new Error(`Séquence ${String(n)} introuvable dans le scénario (${count} séquences).`);
+  return i;
+}
+
+/** Étape et intrigue demandées (0 ou vide : retirées). */
+function outlineTag(input: Record<string, unknown>): { step?: number | null; plot?: string | null } {
+  const out: { step?: number | null; plot?: string | null } = {};
+  const step = asInt(input.step);
+  if (step !== undefined) {
+    if (step < 0 || step > 22) throw new Error('Étape de Truby : de 1 à 22 (0 = aucune).');
+    out.step = step || null;
+  }
+  const plot = asStr(input.plot);
+  if (plot !== undefined) {
+    const k = plot.toUpperCase();
+    if (k && !/^[A-Z]$/.test(k)) throw new Error('Intrigue : une lettre, de A à Z.');
+    out.plot = k || null;
+  }
+  return out;
 }
 
 /** Terme du vocabulaire si reconnu, sinon le texte libre (comme dans la grille). */
@@ -225,7 +301,7 @@ function describeSequence(doc: ProjectDoc, seqId: ID) {
     label: seq.label,
     int_ext: seq.intExt ?? null,
     effect: seq.effect ?? null,
-    summary: seq.summary ?? null,
+    summary: sequenceSummary(doc, seqId) ?? null,
     estimated: seq.estimatedSec !== undefined ? formatTc(seq.estimatedSec) : null,
     computed: formatTc(timing.sequences.get(seqId)?.durationSec ?? 0),
     shots: seq.shotIds.map((id, i) => {
@@ -318,7 +394,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const ef = asStr(input.effect);
         if (ef === 'JOUR' || ef === 'NUIT' || ef === 'AUBE' || ef === 'CRÉPUSCULE') seq.effect = ef;
         const sum = asStr(input.summary);
-        if (sum !== undefined) seq.summary = sum || undefined;
+        if (sum !== undefined) setSequenceSummary(doc, seqId, sum);
         const est = asInt(input.estimated_seconds);
         if (est !== undefined && est >= 0) seq.estimatedSec = est;
         return { result: 'ok', change: `Séquence ${input.sequence} modifiée` };
@@ -384,6 +460,77 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         addCharacter(doc, { name, kind: kind ?? 'secondaire', actor: asStr(input.actor) || undefined });
         return { result: 'ok', change: `Personnage ${name} créé` };
       }
+      case 'get_outline': {
+        const m = outlineMeasures(doc);
+        const items = outlineOf(doc.scenario ?? '');
+        return {
+          result: JSON.stringify({
+            sequences: items.filter((x): x is OutlineSequence => x.kind === 'sequence').map((x) => ({
+              n: x.n,
+              heading: x.heading,
+              phrase: x.phrase,
+              step: x.step ?? null,
+              step_label: x.step !== undefined ? stepLabel(x.step) : null,
+              plot: x.plot,
+              page: m.byN.get(x.n)?.page ?? null,
+              duration: mmss(m.byN.get(x.n)?.sec ?? 0),
+            })),
+            parts: items.flatMap((x, i) => (x.kind === 'part' ? [{ title: x.title, before: items.slice(i).find((y): y is OutlineSequence => y.kind === 'sequence')?.n ?? null }] : [])),
+            plots: plotsOf(doc).map((p) => ({ key: p.key, name: p.name })),
+          }),
+        };
+      }
+      case 'set_outline_entry': {
+        const n = outlineN(doc, input.n);
+        const changed: string[] = [];
+        const ie = asStr(input.int_ext);
+        const location = asStr(input.location);
+        const effect = asStr(input.effect);
+        if (ie !== undefined || location || effect !== undefined) {
+          const h: { intExt?: string; location?: string; effect?: string } = {};
+          if (ie !== undefined) h.intExt = ie;
+          if (location) h.location = location;
+          if (effect !== undefined) h.effect = effect;
+          applyScenarioEdit(doc, setHeading(doc.scenario ?? '', n, h));
+          changed.push('en-tête');
+        }
+        const phrase = asStr(input.phrase);
+        if (phrase !== undefined) {
+          applyScenarioEdit(doc, setPhrase(doc.scenario ?? '', n, phrase));
+          changed.push('phrase');
+        }
+        const tag = outlineTag(input);
+        if (Object.keys(tag).length) {
+          applyScenarioEdit(doc, setOutlineTag(doc.scenario ?? '', n, tag));
+          if ('step' in tag) changed.push('étape');
+          if ('plot' in tag) changed.push(`intrigue (${plotName(doc, tag.plot ?? 'A')})`);
+        }
+        if (!changed.length) throw new Error('Rien à modifier.');
+        return { result: 'ok', change: `Séquencier, séquence ${n} : ${changed.join(', ')}` };
+      }
+      case 'add_outline_entry': {
+        const location = asStr(input.location);
+        if (!location) throw new Error('Lieu manquant.');
+        const after = asInt(input.after);
+        const tag = outlineTag(input);
+        const edit = insertEntry(doc.scenario ?? '', after === undefined ? 'end' : Math.max(0, after), {
+          intExt: asStr(input.int_ext),
+          location,
+          effect: asStr(input.effect),
+          phrase: asStr(input.phrase) ?? '',
+          step: tag.step ?? undefined,
+          plot: tag.plot ?? undefined,
+        });
+        applyScenarioEdit(doc, edit);
+        return { result: JSON.stringify({ n: edit.n }), change: `Séquencier : séquence ${edit.n} ajoutée (${location.toLocaleUpperCase('fr')})` };
+      }
+      case 'move_outline_entry': {
+        const from = outlineN(doc, input.from);
+        const to = outlineN(doc, input.to);
+        if (from === to) return { result: 'ok' };
+        applyScenarioEdit(doc, moveEntry(doc.scenario ?? '', from, to), { reorderCut: true });
+        return { result: 'ok', change: `Séquencier : séquence ${from} déplacée en ${to}` };
+      }
       case 'write_scenario': {
         const text = (asStr(input.text) ?? '').replace(/\r\n?/g, '\n');
         if (!text) throw new Error('Texte vide.');
@@ -392,7 +539,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         if (n !== undefined) {
           const sc = scenesOf(src)[n - 1];
           if (!sc) throw new Error(`Séquence ${n} introuvable.`);
-          const next = src.slice(0, sc.start) + text.replace(/\n*$/, '\n\n') + src.slice(sc.end).replace(/^\n+/, '');
+          const next = carryOutline(src, src.slice(0, sc.start) + text.replace(/\n*$/, '\n\n') + src.slice(sc.end).replace(/^\n+/, ''));
           shiftAnchors(doc, src, next);
           doc.scenario = next;
           return { result: 'ok', change: `Séquence ${n} du scénario réécrite` };
