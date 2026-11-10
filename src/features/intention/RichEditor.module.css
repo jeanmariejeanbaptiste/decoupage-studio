@@ -8,14 +8,15 @@
   background: var(--paper-card); border: 1px solid var(--rule); border-radius: 8px;
   box-shadow: var(--shadow);
 }
-.ribbon > button, .tail > button {
+.group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 2px; }
+.group > button, .tail > button {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border: 0; border-radius: var(--radius);
   background: none; color: var(--ink); cursor: pointer;
 }
-.ribbon > button:hover, .tail > button:hover { background: var(--hover); }
-.ribbon > button.on { background: var(--ink); color: var(--paper); }
-.ribbon > select {
+.group > button:hover, .tail > button:hover { background: var(--hover); }
+.group > button.on { background: var(--ink); color: var(--paper); }
+.group > select {
   height: 28px; padding: 0 6px; border: 1px solid var(--rule); border-radius: var(--radius);
   background: var(--paper); color: var(--ink); font: inherit; font-size: 12.5px;
 }
@@ -71,7 +72,7 @@
   font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums;
 }
 .zoom { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
-.zoom button { display: inline-flex; padding: 3px; border: 0; border-radius: var(--radius); background: none; color: var(--ink-soft); cursor: pointer; }
+.zoom button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius); background: none; color: var(--ink-soft); cursor: pointer; }
 .zoom button:hover { color: var(--ink); background: var(--hover); }
 .zoom input { width: 110px; accent-color: var(--ink); }
 .zoomValue { min-width: 42px; text-align: right; }

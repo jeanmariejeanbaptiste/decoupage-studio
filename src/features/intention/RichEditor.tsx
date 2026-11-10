@@ -577,6 +577,19 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     if (!mod && (e.key.length === 1 || ['Backspace', 'Delete', 'Enter'].includes(e.key))) snapshot();
   };
 
+  // Ruban au clavier : un seul arrêt de tabulation, les flèches passent d'un contrôle à l'autre.
+  const [roving, setRoving] = useState('style');
+  const rove = (key: string) => ({ 'data-rove': key, tabIndex: roving === key ? 0 : -1 });
+  const onRibbonKey = (e: RKeyboardEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLElement;
+    if (!t.dataset.rove || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    const all = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-rove]'));
+    const i = all.indexOf(t);
+    const j = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + all.length) % all.length;
+    e.preventDefault();
+    all[j].focus();
+  };
+
   const btn = (key: string, label: string, icon: React.ReactNode, on: () => void, active?: boolean) => (
     <button
       key={key}
@@ -587,6 +600,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
       title={label}
       onMouseDown={(e) => e.preventDefault()}
       onClick={on}
+      {...rove(key)}
       data-testid={`note-${key}`}
     >
       {icon}
@@ -608,61 +622,80 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   return (
     <div className={s.wrap}>
       {!readOnly && (
-        <div className={s.ribbon} role="toolbar" aria-label="Mise en forme" onMouseDown={keepRange}>
-          <select value={state.style} onChange={(e) => setBlockStyle(e.target.value as ParagraphStyle)} aria-label="Style" title="Style de paragraphe" className={s.selStyle} data-testid="note-style">
-            {PARAGRAPH_STYLES.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.label}
+        <div
+          className={s.ribbon}
+          role="toolbar"
+          aria-label="Mise en forme"
+          onMouseDown={keepRange}
+          onKeyDown={onRibbonKey}
+          onFocus={(e) => {
+            const key = (e.target as HTMLElement).dataset.rove;
+            if (key) setRoving(key);
+          }}
+        >
+          {/* Groupes d'un seul tenant : sur écran étroit, le ruban passe à la ligne entre deux groupes. */}
+          <span className={s.group}>
+            <select value={state.style} onChange={(e) => setBlockStyle(e.target.value as ParagraphStyle)} aria-label="Style" title="Style de paragraphe" className={s.selStyle} {...rove('style')} data-testid="note-style">
+              {PARAGRAPH_STYLES.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <select value={state.font} onChange={(e) => exec('fontName', e.target.value)} aria-label="Police" title="Police" className={s.selFont} {...rove('font')} data-testid="note-font">
+              <option value="" disabled hidden>
+                Police
               </option>
-            ))}
-          </select>
-          <select value={state.font} onChange={(e) => exec('fontName', e.target.value)} aria-label="Police" title="Police" className={s.selFont} data-testid="note-font">
-            <option value="" disabled hidden>
-              Police
-            </option>
-            {RICH_FONTS.map((f) => (
-              <option key={f.family} value={f.family} style={{ fontFamily: `'${f.family}'` }}>
-                {f.label}
+              {RICH_FONTS.map((f) => (
+                <option key={f.family} value={f.family} style={{ fontFamily: `'${f.family}'` }}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <select value={RICH_SIZES.map(String).includes(state.size) ? state.size : ''} onChange={(e) => setSize(e.target.value)} aria-label="Corps" title="Taille des caractères" className={s.selSize} {...rove('size')} data-testid="note-size">
+              <option value="" disabled hidden>
+                {state.size ? state.size.replace('.', ',') : 'Corps'}
               </option>
-            ))}
-          </select>
-          <select value={RICH_SIZES.map(String).includes(state.size) ? state.size : ''} onChange={(e) => setSize(e.target.value)} aria-label="Corps" title="Taille des caractères" className={s.selSize} data-testid="note-size">
-            <option value="" disabled hidden>
-              {state.size ? state.size.replace('.', ',') : 'Corps'}
-            </option>
-            {RICH_SIZES.map((z) => (
-              <option key={z} value={String(z)}>
-                {String(z).replace('.', ',')}
-              </option>
-            ))}
-          </select>
-          <span className={s.sep} />
-          {btn('bold', 'Gras (⌘B)', <Bold {...IC} />, () => exec('bold'), state.marks.bold)}
-          {btn('italic', 'Italique (⌘I)', <Italic {...IC} />, () => exec('italic'), state.marks.italic)}
-          {btn('underline', 'Souligné (⌘U)', <Underline {...IC} />, () => exec('underline'), state.marks.underline)}
-          {btn('strike', 'Barré', <Strikethrough {...IC} />, () => exec('strikeThrough'), state.marks.strikeThrough)}
-          {btn('sub', 'Indice', <Subscript {...IC} />, () => exec('subscript'), state.marks.subscript)}
-          {btn('sup', 'Exposant', <Superscript {...IC} />, () => exec('superscript'), state.marks.superscript)}
-          {btn('highlight', 'Surligner', <Highlighter {...IC} />, () => (state.marks.highlight ? unhighlight() : exec('hiliteColor', 'rgba(17, 19, 24, 0.12)')), state.marks.highlight)}
-          {btn('clear', 'Effacer la mise en forme', <RemoveFormatting {...IC} />, () => exec('removeFormat'))}
-          <span className={s.sep} />
-          {btn('bullets', 'Liste à puces', <List {...IC} />, () => exec('insertUnorderedList'), state.marks.insertUnorderedList)}
-          {btn('numbers', 'Liste numérotée', <ListOrdered {...IC} />, () => exec('insertOrderedList'), state.marks.insertOrderedList)}
-          {btn('outdent', 'Diminuer le retrait', <IndentDecrease {...IC} />, () => indent(-1))}
-          {btn('indent', 'Augmenter le retrait', <IndentIncrease {...IC} />, () => indent(1))}
-          <span className={s.sep} />
-          {btn('left', 'Aligner à gauche', <AlignLeft {...IC} />, () => exec('justifyLeft'), state.align === 'left')}
-          {btn('center', 'Centrer', <AlignCenter {...IC} />, () => exec('justifyCenter'), state.align === 'center')}
-          {btn('right', 'Aligner à droite', <AlignRight {...IC} />, () => exec('justifyRight'), state.align === 'right')}
-          {btn('justify', 'Justifier', <AlignJustify {...IC} />, () => exec('justifyFull'), state.align === 'justify')}
-          <select value={state.line} onChange={(e) => setLine(e.target.value)} aria-label="Interligne" title="Interligne" className={s.selLine} data-testid="note-line">
-            <option value="">Interligne</option>
-            {LINE_SPACINGS.map((l) => (
-              <option key={l} value={String(l)}>
-                {String(l).replace('.', ',')}
-              </option>
-            ))}
-          </select>
+              {RICH_SIZES.map((z) => (
+                <option key={z} value={String(z)}>
+                  {String(z).replace('.', ',')}
+                </option>
+              ))}
+            </select>
+            <span className={s.sep} />
+          </span>
+          <span className={s.group}>
+            {btn('bold', 'Gras (⌘B)', <Bold {...IC} />, () => exec('bold'), state.marks.bold)}
+            {btn('italic', 'Italique (⌘I)', <Italic {...IC} />, () => exec('italic'), state.marks.italic)}
+            {btn('underline', 'Souligné (⌘U)', <Underline {...IC} />, () => exec('underline'), state.marks.underline)}
+            {btn('strike', 'Barré', <Strikethrough {...IC} />, () => exec('strikeThrough'), state.marks.strikeThrough)}
+            {btn('sub', 'Indice', <Subscript {...IC} />, () => exec('subscript'), state.marks.subscript)}
+            {btn('sup', 'Exposant', <Superscript {...IC} />, () => exec('superscript'), state.marks.superscript)}
+            {btn('highlight', 'Surligner', <Highlighter {...IC} />, () => (state.marks.highlight ? unhighlight() : exec('hiliteColor', 'rgba(17, 19, 24, 0.12)')), state.marks.highlight)}
+            {btn('clear', 'Effacer la mise en forme', <RemoveFormatting {...IC} />, () => exec('removeFormat'))}
+            <span className={s.sep} />
+          </span>
+          <span className={s.group}>
+            {btn('bullets', 'Liste à puces', <List {...IC} />, () => exec('insertUnorderedList'), state.marks.insertUnorderedList)}
+            {btn('numbers', 'Liste numérotée', <ListOrdered {...IC} />, () => exec('insertOrderedList'), state.marks.insertOrderedList)}
+            {btn('outdent', 'Diminuer le retrait', <IndentDecrease {...IC} />, () => indent(-1))}
+            {btn('indent', 'Augmenter le retrait', <IndentIncrease {...IC} />, () => indent(1))}
+            <span className={s.sep} />
+          </span>
+          <span className={s.group}>
+            {btn('left', 'Aligner à gauche', <AlignLeft {...IC} />, () => exec('justifyLeft'), state.align === 'left')}
+            {btn('center', 'Centrer', <AlignCenter {...IC} />, () => exec('justifyCenter'), state.align === 'center')}
+            {btn('right', 'Aligner à droite', <AlignRight {...IC} />, () => exec('justifyRight'), state.align === 'right')}
+            {btn('justify', 'Justifier', <AlignJustify {...IC} />, () => exec('justifyFull'), state.align === 'justify')}
+            <select value={state.line} onChange={(e) => setLine(e.target.value)} aria-label="Interligne" title="Interligne" className={s.selLine} {...rove('line')} data-testid="note-line">
+              <option value="">Interligne</option>
+              {LINE_SPACINGS.map((l) => (
+                <option key={l} value={String(l)}>
+                  {String(l).replace('.', ',')}
+                </option>
+              ))}
+            </select>
+          </span>
           {/* Insertion et export : d'un seul tenant, à droite (ils passent à la ligne ensemble). */}
           <span className={s.tail}>
             {btn('image', 'Insérer une image', <ImagePlus {...IC} />, () => fileInput.current?.click())}
@@ -672,6 +705,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
               type="file"
               accept="image/*"
               multiple
+              tabIndex={-1}
               className="visually-hidden"
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);

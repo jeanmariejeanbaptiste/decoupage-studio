@@ -114,7 +114,7 @@ test('note : une capture collée s’insère, réduite, et garde ses proportions
   await page.getByText('Word', { exact: true }).click();
   await page.getByTestId('tab-export-go').click();
   const content = readFileSync(await (await dl).path(), 'utf8');
-  expect(content).toMatch(/<img [^>]*width="605" height="303"/);
+  expect(content.replace(/src="[^"]*"/g, "src")).toMatch(/<img [^>]*width="605" height="303"/);
   expect(content).toContain('src="data:image/');
 });
 
@@ -177,4 +177,37 @@ test('note : écran étroit, la page s’ajuste à la largeur et la barre d’é
 test('note : grand écran, zoom à 100 %', async ({ page }) => {
   await page.goto('/#/intention?seed=fiction');
   await expect(page.getByRole('slider', { name: 'Zoom' })).toHaveValue('100');
+});
+
+test('note : ruban d’un seul arrêt de tabulation, flèches pour circuler', async ({ page }) => {
+  await page.goto('/#/intention?seed=fiction');
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('data-testid'));
+  await page.getByTestId('note-style').focus();
+  expect(await focused()).toBe('note-style');
+  await page.keyboard.press('ArrowRight');
+  expect(await focused()).toBe('note-font');
+  await expect(page.getByTestId('note-style')).toHaveValue('p');
+  await page.keyboard.press('End');
+  expect(await focused()).toBe('note-pagebreak');
+  await page.keyboard.press('Home');
+  expect(await focused()).toBe('note-style');
+  await page.keyboard.press('ArrowLeft');
+  expect(await focused()).toBe('note-pagebreak');
+  // Un seul arrêt : Tab quitte les contrôles de mise en forme.
+  await page.keyboard.press('Tab');
+  expect(await focused()).not.toMatch(/^note-(style|font|size|bold|line|image)/);
+  for (const name of ['Zoom avant', 'Zoom arrière']) {
+    const b = await page.getByRole('button', { name }).boundingBox();
+    expect(Math.min(b!.width, b!.height)).toBeGreaterThanOrEqual(24);
+  }
+});
+
+test('note : écran étroit, les groupes du ruban restent d’un seul tenant', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/#/intention?seed=fiction');
+  const top = (id: string) => page.getByTestId(id).evaluate((e) => Math.round(e.getBoundingClientRect().top));
+  expect(await top('note-bold')).toBe(await top('note-sup'));
+  expect(await top('note-bold')).toBe(await top('note-clear'));
+  expect(await top('note-left')).toBe(await top('note-line'));
+  expect(await top('note-bullets')).toBe(await top('note-indent'));
 });
