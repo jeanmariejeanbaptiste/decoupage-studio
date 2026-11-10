@@ -123,6 +123,8 @@ const LEXICON: Partial<Record<BaseCategory, Record<string, string[]>>> = {
 
 /** Expressions trompeuses retirées avant la détection (« en train de », « feu rouge »…). */
 const STOP_PHRASES = [/en train de/g, /feux? (rouges?|verts?|orange)/g, /mettre le feu|prendre feu/g, /au cafe\b/g, /au lit\b/g];
+/** Les trois premières n'ont pas le sens de l'élément (« en train de ») ; « au café », « au lit » le gardent. */
+const MISLEADING = 3;
 /** Mots ambigus (verbes ou sens courant) : retenus seulement après un déterminant (« un livre », « le lit »). */
 const AMBIGUOUS = new Set(['lit', 'livre', 'train', 'cafe', 'feu', 'verre', 'banc', 'bus', 'auto', 'sac', 'cle', 'pleure', 'larme', 'vent', 'photo']);
 const DETERMINER = "(?:le|la|les|l'|un|une|des|du|de la|sa|son|ses|mon|ma|mes|ton|ta|tes|notre|votre|leur|leurs|ce|cet|cette|ces)";
@@ -156,7 +158,7 @@ export interface DetectedSpan {
  * Le texte tel que le voit detectInText (replié, ponctuation et blancs réduits à une espace,
  * expressions trompeuses retirées), avec pour chaque caractère sa place dans le texte d'origine.
  */
-function detectionText(text: string): { t: string; at: number[] } {
+function detectionText(text: string): { t: string; at: number[]; misleading: Array<[number, number]> } {
   const chars: Array<{ ch: string; pos: number }> = [];
   let pos = 0;
   for (const ch of text) {
@@ -182,11 +184,14 @@ function detectionText(text: string): { t: string; at: number[] } {
   }
   t += ' ';
   at.push(pos);
-  for (const re of STOP_PHRASES) {
+  const misleading: Array<[number, number]> = [];
+  const endOf = (i: number) => i + ((text.codePointAt(i) ?? 0) > 0xffff ? 2 : 1);
+  for (const [n, re] of STOP_PHRASES.entries()) {
     let out = '';
     const map: number[] = [];
     let from = 0;
     for (const m of t.matchAll(re)) {
+      if (n < MISLEADING) misleading.push([at[m.index], endOf(at[m.index + m[0].length - 1])]);
       out += `${t.slice(from, m.index)} `;
       map.push(...at.slice(from, m.index), at[m.index]);
       from = m.index + m[0].length;
@@ -194,13 +199,14 @@ function detectionText(text: string): { t: string; at: number[] } {
     t = out + t.slice(from);
     at = [...map, ...at.slice(from)];
   }
-  return { t, at };
+  return { t, at, misleading };
 }
 
-const LEXICON_TERMS = new Set(Object.values(LEXICON).flatMap((dict) => Object.entries(dict ?? {}).flatMap(([canon, forms]) => [fold(canon), ...forms])));
-
-/** Terme du lexique (« Train », « lit »…) : ses occurrences ne comptent que là où la détection les retient. */
-export const isLexiconTerm = (item: string): boolean => LEXICON_TERMS.has(fold(item));
+/**
+ * Expressions trompeuses d'un texte (« en train de », « feu rouge », « prendre feu »), positions du
+ * texte d'origine : un élément dépouillé (« Train », « Feu ») n'y est pas repéré.
+ */
+export const misleadingRanges = (text: string): Array<[number, number]> => detectionText(text).misleading;
 
 /** Termes du lexique d'un texte, à leur place ; mêmes règles que detectInText. */
 export function detectSpans(text: string): DetectedSpan[] {

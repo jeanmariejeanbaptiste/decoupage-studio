@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { addBreakdownItems } from './breakdown';
+import { aggregateEquipment } from './equipment';
 import { cleanTag, findTerm, foldKeepLength, marksIn, marksWith, sceneRangeOf, tagContext } from './tagging';
 
 describe('dépouillement depuis le texte', () => {
@@ -64,11 +65,25 @@ describe('repères du lexique, à la place du mot trouvé', () => {
     const words = (t: string) => marksIn(doc, seqId, t).filter((m) => m.suggested).map((m) => `${t.slice(m.start, m.end)}=${m.item}`);
     expect(words(corpus[3])).toEqual(['maquille=Maquillage', 'coiffe=Coiffure', 'cheveux=Coiffure', 'portable=Téléphone', 'clé=Clés', 'bague=Bagues', 'larme=Larmes']);
     expect(words('Il est en train de lire. Il lit le journal au feu rouge.')).toEqual(['journal=Journal']);
-    // Déjà dépouillés : « Train » et « Lit » ne ressortent que là où la détection les retient.
+    // Déjà dépouillés : repérés partout, sauf au cœur d'une expression trompeuse (« en train de », « feu rouge »).
     addBreakdownItems(doc, seqId, 'vehicules', ['Train']);
-    addBreakdownItems(doc, seqId, 'accessoires', ['Lit', 'Téléphone']);
-    const t = 'Il est en train de lire au lit. Il lit. Le train part. Son portable sonne.';
-    expect(marksIn(doc, seqId, t).map((m) => `${t.slice(m.start, m.end)}=${m.item}${m.suggested ? '?' : ''}`)).toEqual(['train=Train', 'portable=Téléphone']);
+    addBreakdownItems(doc, seqId, 'accessoires', ['Lit', 'Téléphone', 'Sac', 'Café']);
+    addBreakdownItems(doc, seqId, 'effets', ['Feu']);
+    const show = (t: string) => marksIn(doc, seqId, t).map((m) => `${t.slice(m.start, m.end)}=${m.item}${m.suggested ? '?' : ''}`);
+    expect(show('Il est en train de lire au lit. Il lit. Le train part. Son portable sonne.')).toEqual(['lit=Lit', 'lit=Lit', 'train=Train', 'portable=Téléphone']);
+    expect(show('Elle prend un vieux sac.')).toEqual(['sac=Sac']);
+    expect(show('Café, puis CAFÉ au café.')).toEqual(['Café=Café', 'CAFÉ=Café', 'café=Café']);
+    expect(show('Le grand lit défait.')).toEqual(['lit=Lit']);
+    expect(show('INT. CAFÉ - JOUR')).toEqual(['CAFÉ=Café']);
+    expect(show('Arrêt au feu rouge. Le feu prend. Ça va prendre feu.')).toEqual(['feu=Feu']);
+  });
+
+  it('une expression trompeuse saisie telle quelle reste repérée', () => {
+    const doc = buildFiction();
+    const seqId = doc.project.sequenceIds[0];
+    addBreakdownItems(doc, seqId, 'effets', ['Feu rouge']);
+    const t = 'Arrêt au feu rouge.';
+    expect(marksIn(doc, seqId, t).map((m) => t.slice(m.start, m.end))).toEqual(['feu rouge']);
   });
 });
 
@@ -90,5 +105,7 @@ describe('repères : déduits ou saisis', () => {
     const seqId = doc.project.sequenceIds[2];
     const ctx = tagContext(doc, seqId);
     for (const t of ['Marc attend sous la pluie.', 'Une cigarette éteinte.']) expect(marksWith(ctx, t)).toEqual(marksIn(doc, seqId, t));
+    // Le matériel du film, calculé une fois pour toutes les séquences, donne le même contexte.
+    expect(tagContext(doc, seqId, aggregateEquipment(doc))).toEqual(ctx);
   });
 });

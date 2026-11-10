@@ -109,3 +109,4 @@
 /* Renommage en place (élément du film, catégorie ajoutée). */
 .rename, .cat input.rename { width: 100%; min-width: 0; font: inherit; font-size: 12.5px; letter-spacing: 0; text-transform: none; color: var(--ink); padding: 1px 5px; border: 1px solid var(--ink-soft); border-radius: var(--radius); background: var(--paper); outline: none; }
 .cat h3 .rename { flex: 1; font-weight: 500; }
+.rename[aria-invalid], .cat input.rename[aria-invalid] { border-color: var(--ink); border-width: 2px; padding: 0 4px; }

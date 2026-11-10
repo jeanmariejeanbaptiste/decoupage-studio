@@ -3,7 +3,8 @@ import { breakdownCategories, breakdownLabel, isCharacterCategory, type Breakdow
 import { blocksFromSource, type BlockType } from '../../domain/screenplay';
 import { categoryAbbr, cleanTag, marksWith, tagContext, type TagMark } from '../../domain/tagging';
 import { fold } from '../../domain/text';
-import type { ID, ProjectDoc } from '../../domain/types';
+import type { EquipmentLine } from '../../domain/equipment';
+import type { EquipmentCategory, ID, ProjectDoc } from '../../domain/types';
 import s from './SceneText.module.css';
 
 export interface Paragraph {
@@ -30,11 +31,13 @@ interface Props {
   /** Range un élément saisi dans une autre catégorie. */
   onMove?: (from: BreakdownCategory, to: BreakdownCategory, item: string) => void;
   readOnly?: boolean;
+  /** Matériel du film déjà calculé (scénario entier : une fois pour toutes les séquences). */
+  eq?: Record<EquipmentCategory, EquipmentLine[]>;
 }
 
 /** Repères de chaque paragraphe (le contexte de la séquence est calculé une fois). Lecture seule : sans suggestions. */
-export function paragraphMarks(doc: ProjectDoc, seqId: ID, paragraphs: readonly Paragraph[], readOnly?: boolean): TagMark[][] {
-  const ctx = tagContext(doc, seqId);
+export function paragraphMarks(doc: ProjectDoc, seqId: ID, paragraphs: readonly Paragraph[], readOnly?: boolean, eq?: Record<EquipmentCategory, EquipmentLine[]>): TagMark[][] {
+  const ctx = tagContext(doc, seqId, eq);
   return paragraphs.map((p) => {
     const ms = marksWith(ctx, p.text);
     return readOnly ? ms.filter((m) => !m.suggested) : ms;
@@ -70,13 +73,13 @@ function menuKeys(e: ReactKeyboardEvent<HTMLElement>, cols: number) {
  * Le texte de la séquence, actif : les éléments dépouillés y sont repérés ; une sélection ouvre le
  * choix de la catégorie ; une suggestion (soulignée) s'ajoute d'un clic.
  */
-export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, onMove, readOnly }: Props) {
+export function SceneText({ doc, seqId, paragraphs, hot, onTag, onUntag, onMove, readOnly, eq }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const pop = useRef<HTMLDivElement>(null);
   const [picker, setPicker] = useState<{ x: number; y: number; text: string } | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; mark: TagMark } | null>(null);
   const cats = breakdownCategories(doc);
-  const marks = useMemo(() => paragraphMarks(doc, seqId, paragraphs, readOnly), [doc, seqId, paragraphs, readOnly]);
+  const marks = useMemo(() => paragraphMarks(doc, seqId, paragraphs, readOnly, eq), [doc, seqId, paragraphs, readOnly, eq]);
   const hotKey = hot ? fold(hot) : '';
   const open = !!picker || !!menu;
 
