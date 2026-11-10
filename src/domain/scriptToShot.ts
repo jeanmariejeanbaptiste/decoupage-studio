@@ -4,6 +4,7 @@
  */
 import { characterName, displayName, matchSequence, parseFountain, sceneAt, scenesOf, type Scene, type ScriptElement } from './fountain';
 import { addCharacter, addSequence, addShot, refreshRecognition } from './ops';
+import { sequenceSummary } from './outline';
 import { setSequenceDecorByName } from './registry';
 import { parseEmphasis } from './scriptLayout';
 import { fold } from './text';
@@ -318,7 +319,7 @@ const printed = (text: string) =>
 export function sequenceExcerpt(doc: ProjectDoc, seqId: ID, elements?: readonly ScriptElement[], max = 280): string {
   const seq = doc.sequences[seqId];
   if (!seq) return '';
-  let text = printed(seq.summary ?? '');
+  let text = printed(sequenceSummary(doc, seqId) ?? '');
   if (!text) {
     const source = doc.scenario ?? '';
     const els = elements ?? parseFountain(source);

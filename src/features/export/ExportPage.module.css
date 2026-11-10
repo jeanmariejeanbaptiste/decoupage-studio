@@ -11,6 +11,7 @@
 .card { background: var(--paper-card); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 22px 20px; }
 .cardHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
 .cardHead h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 24px; color: var(--ink); }
+.cardHead:only-child { padding-bottom: 0; border-bottom: 0; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px; padding-top: 6px; }

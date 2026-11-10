@@ -22,7 +22,8 @@ import { ask } from '../../ui/dialogStore';
 import { TabExport } from '../export/TabExport';
 import { breakdownCsv } from '../../domain/exports';
 import { breakdownDocument } from '../../domain/documents';
-import { paragraphsOf, SceneText, type Paragraph } from './SceneText';
+import { sequenceSummary } from '../../domain/outline';
+import { paragraphsOf, phraseOf, SceneText, type Paragraph } from './SceneText';
 import { BreakdownReports } from './BreakdownReports';
 import { breakdownIndex, itemCountBySequence, type BreakdownEntry } from '../../domain/breakdownReport';
 import { entriesOf, entryLabel, entryName, entryNumbers, type Entry } from './entries';
@@ -322,7 +323,11 @@ function EntryText({
 }) {
   const paragraphs = useMemo(() => paragraphsFor(doc, entry), [doc, entry]);
   const suggestions = suggestionsFor(doc, entry, paragraphs);
-  const seq = entry.seqId ? doc.sequences[entry.seqId] : undefined;
+  // Un seul résumé : la phrase du séquencier, sinon celui de la séquence (documentaire, interview).
+  const summary = useMemo(
+    () => (entry.seqId ? sequenceSummary(doc, entry.seqId) : entry.scene ? phraseOf((doc.scenario ?? '').slice(entry.scene.start, entry.scene.end)) : undefined),
+    [doc, entry],
+  );
   const heading = entryLabel(doc, entry, n);
   return (
     <article className={[s.entry, full && active ? s.entryOn : ''].join(' ')} data-entry={entry.key} onMouseDownCapture={onFocus} onFocusCapture={onFocus} data-testid={full ? 'breakdown-entry' : undefined}>
@@ -333,7 +338,7 @@ function EntryText({
           {!entry.seqId && <span className={s.absent}>pas encore au découpage</span>}
         </header>
       )}
-      {seq?.summary && <p className={s.summary}>{seq.summary}</p>}
+      {summary && <p className={s.summary}>{summary}</p>}
       {!readOnly && active && !full && <AddAll suggestions={suggestions} onAdd={onTag} />}
       {paragraphs.length > 0 && <SceneText doc={doc} seqId={entry.seqId ?? ''} paragraphs={paragraphs} hot={active ? hot : null} readOnly={readOnly} onTag={(cat, item) => onTag([{ cat, item }])} onUntag={onUntag} />}
     </article>

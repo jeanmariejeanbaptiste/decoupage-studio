@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Download, Eye, FolderArchive, FileSpreadsheet, Printer, Save, Table2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Eye, FileText, FolderArchive, FileSpreadsheet, Printer, Save, Table2 } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { ALL_COLUMNS, columnMenuLabel, moveColumn, tcLast } from '../../domain/columns';
 import { toCsv } from '../../domain/csv';
@@ -64,6 +64,32 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
           Télécharger (.zip)
         </Button>
       </section>
+
+      {!!doc.scenario?.trim() && (
+        <section className={s.card}>
+          <header className={s.cardHead}>
+            <h2>Séquencier</h2>
+            <div className={s.actions} data-view>
+              <Button
+                variant="outline"
+                icon={<FileText size={15} strokeWidth={1.3} />}
+                onClick={async () => (await import('../scenario/outlineExport')).exportOutlineDocx(doc)}
+                data-testid="export-outline-docx"
+              >
+                Word
+              </Button>
+              <Button
+                variant="primary"
+                icon={<Printer size={15} strokeWidth={1.3} />}
+                onClick={async () => (await import('../scenario/outlineExport')).exportOutlinePdf(doc)}
+                data-testid="export-outline-pdf"
+              >
+                PDF
+              </Button>
+            </div>
+          </header>
+        </section>
+      )}
 
       <section className={s.card}>
         <header className={s.cardHead}>

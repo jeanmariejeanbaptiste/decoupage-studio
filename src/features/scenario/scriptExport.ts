@@ -132,8 +132,8 @@ export async function scriptCanvases(source: string): Promise<HTMLCanvasElement[
 // --- Word (.docx) ---------------------------------------------------------------------------------
 
 /** Points → vingtièmes de point (unité de Word). */
-const tw = (pt: number) => Math.round(pt * 20);
-const xmlEsc = (s: string) =>
+export const tw = (pt: number) => Math.round(pt * 20);
+export const xmlEsc = (s: string) =>
   s
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '')
@@ -141,7 +141,7 @@ const xmlEsc = (s: string) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+export const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 
 const STYLE_ID: Partial<Record<BlockType, string>> = {
   heading: 'Sequence',
@@ -199,7 +199,7 @@ const guid = () => {
  * Courier Prime intégrée, numéro de page en haut à droite à partir de la deuxième page.
  */
 export async function scriptDocx(source: string, meta: ScriptMeta): Promise<Blob> {
-  const [{ default: JSZip }, bytes] = await Promise.all([import('jszip'), loadFontBytes()]);
+  const bytes = await loadFontBytes();
   const { blocks } = blocksFromSource(source);
   const numbers = headingNumbers(blocks);
   const { lineH, w, h, right, pageNumberBaseline, firstBaseline } = SCRIPT_PAGE;
@@ -251,28 +251,57 @@ export async function scriptDocx(source: string, meta: ScriptMeta): Promise<Blob
   const headerFirst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${W_NS}><w:p><w:pPr><w:pStyle w:val="Action"/></w:pPr></w:p></w:hdr>`;
   const font = 'w:ascii="Courier Prime" w:hAnsi="Courier Prime" w:cs="Courier Prime" w:eastAsia="Courier Prime"';
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${W_NS}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts ${font}/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="fr-FR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="${tw(lineH)}" w:lineRule="exact"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:widowControl w:val="0"/></w:pPr><w:rPr><w:rFonts ${font}/><w:sz w:val="24"/></w:rPr></w:style>${(Object.entries(STYLE_ID) as Array<[BlockType, string]>).map(([t, id]) => styleXml(id, t)).join('')}${styleXml('Titre', 'titre')}</w:styles>`;
-  const keys: Record<Face, string> = { regular: guid(), bold: guid(), italic: guid(), boldItalic: guid() };
-  const embed: Array<[Face, string]> = [
-    ['regular', 'embedRegular'],
-    ['bold', 'embedBold'],
-    ['italic', 'embedItalic'],
-    ['boldItalic', 'embedBoldItalic'],
-  ];
-  const fontTable = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:fonts ${W_NS}><w:font w:name="Courier Prime"><w:altName w:val="Courier New"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>${embed.map(([k, tag], i) => `<w:${tag} r:id="rIdFont${i + 1}" w:fontKey="${keys[k]}"/>`).join('')}</w:font></w:fonts>`;
+  return docxPackage({
+    document,
+    styles,
+    headers: { rIdHeader: header, rIdHeaderFirst: headerFirst },
+    font: { name: 'Courier Prime', alt: 'Courier New', family: 'modern', fixed: true, faces: { embedRegular: bytes.regular, embedBold: bytes.bold, embedItalic: bytes.italic, embedBoldItalic: bytes.boldItalic } },
+    title: meta.title || title.Title || 'Scénario',
+    author: (meta.author || title.Author || '').replace(/\n/g, ', '),
+  });
+}
+
+export type DocxEmbed = 'embedRegular' | 'embedBold' | 'embedItalic' | 'embedBoldItalic';
+
+export interface DocxParts {
+  /** `word/document.xml`. */
+  document: string;
+  /** `word/styles.xml`. */
+  styles: string;
+  /** En-têtes, par identifiant de relation (`rIdHeader` → `header1.xml`…). */
+  headers?: Record<string, string>;
+  /** Pieds de page, de même (`footer1.xml`…). */
+  footers?: Record<string, string>;
+  /** Police intégrée (obscurcie, ECMA-376). */
+  font: { name: string; alt: string; family: 'modern' | 'swiss' | 'roman'; fixed?: boolean; faces: Partial<Record<DocxEmbed, ArrayBuffer>> };
+  title: string;
+  author?: string;
+}
+
+/** Paquet .docx : types de contenu, relations, propriétés, réglages, table des polices et polices intégrées. */
+export async function docxPackage(p: DocxParts): Promise<Blob> {
+  const { default: JSZip } = await import('jszip');
+  const headers = Object.entries(p.headers ?? {});
+  const footers = Object.entries(p.footers ?? {});
+  const faces = (Object.entries(p.font.faces) as Array<[DocxEmbed, ArrayBuffer]>).filter(([, b]) => b);
+  const keys = faces.map(() => guid());
+  const fontTable = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:fonts ${W_NS}><w:font w:name="${xmlEsc(p.font.name)}"><w:altName w:val="${xmlEsc(p.font.alt)}"/><w:family w:val="${p.font.family}"/><w:pitch w:val="${p.font.fixed ? 'fixed' : 'variable'}"/>${faces.map(([tag], i) => `<w:${tag} r:id="rIdFont${i + 1}" w:fontKey="${keys[i]}"/>`).join('')}</w:font></w:fonts>`;
   const settings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings ${W_NS}><w:embedTrueTypeFonts/><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`;
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const headerType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+  const footerType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
   const zip = new JSZip();
-  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`);
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>${headers.map((_h, i) => `<Override PartName="/word/header${i + 1}.xml" ContentType="${headerType}"/>`).join('')}${footers.map((_f, i) => `<Override PartName="/word/footer${i + 1}.xml" ContentType="${footerType}"/>`).join('')}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`);
   zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`);
-  zip.file('docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xmlEsc(meta.title || title.Title || 'Scénario')}</dc:title><dc:creator>${xmlEsc((meta.author || title.Author || '').replace(/\n/g, ', '))}</dc:creator><dc:language>fr-FR</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`);
-  zip.file('word/document.xml', document);
-  zip.file('word/styles.xml', styles);
+  zip.file('docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xmlEsc(p.title)}</dc:title><dc:creator>${xmlEsc(p.author ?? '')}</dc:creator><dc:language>fr-FR</dc:language><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`);
+  zip.file('word/document.xml', p.document);
+  zip.file('word/styles.xml', p.styles);
   zip.file('word/settings.xml', settings);
   zip.file('word/fontTable.xml', fontTable);
-  zip.file('word/header1.xml', header);
-  zip.file('word/header2.xml', headerFirst);
-  zip.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/><Relationship Id="rIdFonts" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/><Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rIdHeaderFirst" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/></Relationships>`);
-  zip.file('word/_rels/fontTable.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${embed.map((_e, i) => `<Relationship Id="rIdFont${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font${i + 1}.odttf"/>`).join('')}</Relationships>`);
-  embed.forEach(([k], i) => zip.file(`word/fonts/font${i + 1}.odttf`, obfuscate(bytes[k], keys[k])));
+  headers.forEach(([, xml], i) => zip.file(`word/header${i + 1}.xml`, xml));
+  footers.forEach(([, xml], i) => zip.file(`word/footer${i + 1}.xml`, xml));
+  zip.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/><Relationship Id="rIdFonts" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>${headers.map(([id], i) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header${i + 1}.xml"/>`).join('')}${footers.map(([id], i) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer${i + 1}.xml"/>`).join('')}</Relationships>`);
+  zip.file('word/_rels/fontTable.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${faces.map((_e, i) => `<Relationship Id="rIdFont${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font${i + 1}.odttf"/>`).join('')}</Relationships>`);
+  faces.forEach(([, bytes], i) => zip.file(`word/fonts/font${i + 1}.odttf`, obfuscate(bytes, keys[i])));
   return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', compression: 'DEFLATE' });
 }
