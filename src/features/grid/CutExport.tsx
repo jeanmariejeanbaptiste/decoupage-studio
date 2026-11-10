@@ -8,6 +8,7 @@ import { useUi } from '../../store/uiStore';
 import { ExportTable } from '../export/ExportTable';
 import { exportDocumentPages, exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
 import { oneShotAnnexDocument } from '../../domain/documents';
+import { exportFooterText } from '../../domain/exports';
 import { ExportPanel } from '../export/ExportPanel';
 import { StoryboardExportOptions, StoryboardImaging } from '../storyboard/StoryboardPage';
 import x from '../export/ExportPanel.module.css';
@@ -18,6 +19,12 @@ const CONTENTS = [
   ['grid', 'Découpage'],
   ['storyboard', 'Storyboard'],
 ] as const;
+
+/** Capture qui échoue (rendu impossible, aucune page) : un message, jamais un export muet. */
+function failed(err: unknown) {
+  if (recoverStaleChunk(err)) return;
+  useUi.getState().toast({ message: `Export impossible : ${(err as Error).message}`, tone: 'warn' });
+}
 
 /** Export du découpage technique : on choisit le contenu (tableau ou storyboard), puis le format. */
 export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultContent: CutContent }) {
@@ -36,6 +43,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
     const root = imageRef.current;
     void waitForPages(root, '[data-testid="print-page"]')
       .then((pages) => exportNodePages(pages, `${base}-decoupage-A4-${cutImaging.orientation === 'portrait' ? 'portrait' : 'paysage'}`, cutImaging, pages[0] ? getComputedStyle(pages[0]).backgroundColor : '#ffffff'))
+      .catch(failed)
       .finally(() => setCutImaging(null));
   }, [cutImaging]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -86,7 +94,8 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
           }
           onExport={async ({ format, orientation, numbers }) => {
             try {
-              if (format === 'pdf' || format === 'images') setCutImaging({ format, orientation, numbers });
+              // Pied de page selon le réglage du projet (titre, version, date), comme l'aperçu imprimé.
+              if (format === 'pdf' || format === 'images') setCutImaging({ format, orientation, numbers, ...(doc.project.settings.exportFooter ? { footer: exportFooterText(doc) } : {}) });
               else if (format === 'annex') await exportDocumentPages(oneShotAnnexDocument(doc).html, `${base}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
               else {
                 const { exportXlsx } = await import('../export/xlsx');
