@@ -35,3 +35,23 @@ describe('toasts « Annuler »', () => {
     expect(useUi.getState().toasts.map((t) => t.message)).toEqual(['Autre.']);
   });
 });
+
+describe('annuler, rétablir', () => {
+  it('la date du projet suit l’heure du geste, sans jamais reculer', () => {
+    const doc = buildFiction();
+    doc.project.updatedAt = '2026-01-01T00:00:00.000Z';
+    useProjectStore.getState().loadDoc(doc);
+    const at = () => useProjectStore.getState().doc!.project.updatedAt;
+    mutateDoc((d) => void (d.project.title = 'Modifié'));
+    const edited = at();
+    undo();
+    expect(useProjectStore.getState().doc!.project.title).toBe(doc.project.title);
+    expect(at() >= edited).toBe(true);
+    // La date n'entre pas dans l'historique : rétablir reste possible, une seule fois.
+    expect(useProjectStore.temporal.getState().futureStates).toHaveLength(1);
+    redo();
+    expect(useProjectStore.getState().doc!.project.title).toBe('Modifié');
+    expect(at() >= edited).toBe(true);
+    expect(useProjectStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+});
