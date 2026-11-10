@@ -64,6 +64,27 @@ describe('exports par onglet', () => {
       expect(p.y).toBeLessThanOrEqual(y0 + h);
     }
   });
+  it('le plan exporté suit l’écran : portes sur les murs, comédien nommé une fois', async () => {
+    const { floorPlanSvg } = await import('./exports');
+    const doc = buildRav3();
+    const seqId = doc.project.sequenceIds[0];
+    const charId = Object.keys(doc.characters)[0];
+    const next = produce(doc, (d) => {
+      addFloorItem(d, seqId, 'door', { x: 400, y: 300 });
+      addFloorItem(d, seqId, 'wall', { x: 300, y: 300 }, { x: 700, y: 300 });
+      const a = addFloorItem(d, seqId, 'actor', { x: 500, y: 500 });
+      if (charId) updateFloorItem(d, seqId, a, { characterId: charId } as Partial<FloorItem>);
+    });
+    const svg = floorPlanSvg(next, seqId, 'Test');
+    const wallAt = svg.indexOf('x2="700"');
+    const doorAt = svg.indexOf('A 80 80');
+    expect(wallAt).toBeGreaterThan(-1);
+    expect(doorAt).toBeGreaterThan(wallAt);
+    if (charId) {
+      const name = next.characters[charId].name.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      expect(svg.split(`>${name}<`).length - 1).toBe(1);
+    }
+  });
 });
 
 describe('calendriers du dossier de production', () => {
