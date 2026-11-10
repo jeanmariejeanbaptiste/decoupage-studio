@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { deleteProject, liveReviewOf, restoreProject, snapshotProject, type ProjectSnapshot } from './db';
-import { dropPendingSave, flushPendingSave } from './persistence';
+import { announceDeleted, dropPendingSave, flushPendingSave } from './persistence';
 import { useUi } from './uiStore';
 
 /**
@@ -41,6 +41,7 @@ export async function removeProject(id: string, liveReview?: string): Promise<vo
   dropPendingSave(id);
   const snap = await snapshotProject(id);
   await deleteProject(id);
+  announceDeleted(id);
   if (snap) useHomeHistory.setState((s) => ({ past: [...s.past, snap], future: [], rev: s.rev + 1 }));
   hooks.removed?.(id);
 }
@@ -74,6 +75,7 @@ export async function redoHome(): Promise<void> {
   const snap = (await snapshotProject(old.project.id)) ?? old;
   dropPendingSave(old.project.id);
   await deleteProject(old.project.id);
+  announceDeleted(old.project.id);
   useHomeHistory.setState((s) => ({ future: s.future.slice(0, -1), past: [...s.past, snap], rev: s.rev + 1 }));
   hooks.removed?.(old.project.id);
 }
