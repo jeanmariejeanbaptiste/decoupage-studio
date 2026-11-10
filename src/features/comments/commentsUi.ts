@@ -35,11 +35,15 @@ export const closeCommentsPanel = () => useCommentsUi.setState({ panel: null });
 
 /**
  * Nom de l'auteur : le prénom donné en rejoignant un partage (relecture en ligne : celui du compte
- * Google, qui signe le commentaire), sinon le compte Google, sinon la réalisation.
+ * Google, qui signe le commentaire), sinon le compte Google, sinon le réalisateur, sinon « Réalisation »
+ * (lu tel quel par les invités : jamais « Moi »).
  */
 export function authorName(): string {
   if (useShare.getState().role === 'guest' && useShare.getState().via === 'drive') return reviewerName();
   if (useShare.getState().role === 'guest') {
+    // Nom sous lequel l'hôte l'a accueilli (« Nina 2 » si une autre Nina était déjà là).
+    const self = useShare.getState().selfName?.trim();
+    if (self) return self;
     try {
       const n = localStorage.getItem('ds-guest-name');
       if (n?.trim()) return n.trim();
@@ -49,7 +53,7 @@ export function authorName(): string {
     return 'Invité';
   }
   const u = useCloud.getState().user;
-  return u?.name || useProjectStore.getState().doc?.project.director || 'Moi';
+  return u?.name || useProjectStore.getState().doc?.project.director || 'Réalisation';
 }
 
 /** Deux endroits commentés sont-ils le même ? (un passage : s'ils se chevauchent) */

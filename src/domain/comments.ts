@@ -4,6 +4,7 @@
  * Communs au projet (ils circulent avec le partage) ; l'auteur les consulte, y répond ou les retire.
  */
 import { newId } from './factory';
+import type { Op } from './patch';
 import type { ColumnKey, ID, ProjectDoc } from './types';
 
 export type CommentAnchor =
@@ -216,4 +217,49 @@ export function relinkComments(doc: ProjectDoc, before: string, after: string): 
       a.end = best + quote.length;
     } else a.end = a.start = Math.min(Math.round(expect), after.length);
   }
+}
+
+/** Commentaire reçu d'un autre participant : la forme attendue, rien de plus. */
+export function isCommentShape(x: unknown): x is ReviewComment {
+  if (!x || typeof x !== 'object') return false;
+  const c = x as Partial<ReviewComment>;
+  return typeof c.id === 'string' && !!c.anchor && typeof c.anchor === 'object' && typeof c.text === 'string' && Array.isArray(c.replies);
+}
+
+/**
+ * Liste des commentaires reçue d'un participant, unie à la liste locale (deux commentaires écrits en
+ * même temps ne s'écrasent pas) : l'ordre reçu, puis les commentaires locaux qu'elle n'a pas encore.
+ * Ceux que l'on vient de retirer ici ne reviennent pas ; les entrées mal formées sont écartées.
+ */
+export function mergeComments(local: readonly ReviewComment[], incoming: readonly unknown[], removed: ReadonlySet<ID> = new Set()): ReviewComment[] {
+  const seen = new Set<ID>();
+  const out: ReviewComment[] = [];
+  for (const c of [...incoming, ...local]) {
+    if (!isCommentShape(c) || seen.has(c.id) || removed.has(c.id)) continue;
+    seen.add(c.id);
+    out.push(c);
+  }
+  return out;
+}
+
+/** Nom distinct de ceux déjà pris (« Nina », « Nina 2 »…), sans tenir compte de la casse. */
+export function uniqueName(name: string, taken: readonly string[]): string {
+  const used = new Set(taken.map((t) => t.trim().toLocaleLowerCase('fr')));
+  if (!used.has(name.toLocaleLowerCase('fr'))) return name;
+  for (let i = 2; ; i++) if (!used.has(`${name} ${i}`.toLocaleLowerCase('fr'))) return `${name} ${i}`;
+}
+
+/**
+ * Opérations d'un invité « Commenter » : seulement sur les commentaires, sans effacer la liste ni un
+ * commentaire entier, et en remplaçant un commentaire par un commentaire bien formé.
+ */
+export function guestCommentOps(ops: readonly Op[], comments: readonly ReviewComment[]): Op[] {
+  return ops.filter((o) => {
+    if (o.p[0] !== 'comments') return false;
+    if (o.p.length === 1) return 'v' in o && Array.isArray(o.v);
+    const i = o.p[1];
+    if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= comments.length) return false;
+    if (o.p.length === 2) return 'v' in o && isCommentShape(o.v);
+    return true;
+  });
 }

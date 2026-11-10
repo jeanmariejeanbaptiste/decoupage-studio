@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
-import { addComment, commentsOf, cutComments, deleteComment, replyComment, setResolved, shownComments } from './comments';
+import { addComment, commentsOf, cutComments, deleteComment, guestCommentOps, mergeComments, replyComment, setResolved, shownComments, uniqueName, type ReviewComment } from './comments';
 import { mediaKeys, migrate } from './serialize';
 import { shiftAnchors } from './fountain';
 import { reviseScenario } from './revision';
@@ -103,5 +103,37 @@ describe('commentaires de relecture', () => {
       shiftAnchors(d, src, `Dans un vacarme continu, ${src}`);
     });
     expect(raw.comments![0].anchor).toEqual(old.comments![0].anchor);
+  });
+});
+
+describe('commentaires à plusieurs', () => {
+  const c = (id: string): ReviewComment => ({ id, anchor: { kind: 'sequence', seqId: 'q' }, author: 'A', text: id, at: '2026-11-10T10:00:00Z', replies: [] });
+  it('deux listes écrites en même temps s’unissent, sans doublon ni retour d’un commentaire retiré', () => {
+    expect(mergeComments([c('A'), c('C')], [c('A'), c('B')]).map((x) => x.id)).toEqual(['A', 'B', 'C']);
+    expect(mergeComments([c('A')], [c('A'), c('D')], new Set(['D'])).map((x) => x.id)).toEqual(['A']);
+    expect(mergeComments([c('A')], [null, { id: 'x' }, c('B')]).map((x) => x.id)).toEqual(['B', 'A']);
+  });
+  it('noms d’invités distincts', () => {
+    expect(uniqueName('Nina', ['Paul'])).toBe('Nina');
+    expect(uniqueName('Nina', ['nina', 'Nina 2'])).toBe('Nina 3');
+  });
+  it('invité « Commenter » : ni liste effacée, ni commentaire retiré, ni autre chose que les commentaires', () => {
+    const list = [c('A')];
+    const ops = guestCommentOps(
+      [
+        { p: ['comments'], del: true },
+        { p: ['comments'], v: [c('A'), c('B')] },
+        { p: ['comments', 0], del: true },
+        { p: ['comments', 0], v: { nope: 1 } },
+        { p: ['comments', 3, 'text'], v: 'x' },
+        { p: ['comments', 0, 'replies'], v: [] },
+        { p: ['shots'], v: {} },
+      ],
+      list,
+    );
+    expect(ops).toEqual([
+      { p: ['comments'], v: [c('A'), c('B')] },
+      { p: ['comments', 0, 'replies'], v: [] },
+    ]);
   });
 });
