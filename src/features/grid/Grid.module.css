@@ -111,6 +111,9 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 .faded { color: var(--ink-soft); opacity: 0.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .seqCell { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
+/* Séquence plus haute que l'écran : son nom reste visible tant qu'un de ses plans l'est, calé sous
+   l'en-tête du tableau ou au bas de la zone visible, puis il s'en va avec la séquence. */
+.c_sequence > .seqCell { position: sticky; top: var(--seq-sticky-top, 44px); bottom: var(--seq-sticky-bottom, 12px); }
 .seqLabel { letter-spacing: 0.02em; }
 .seqMeta { font-size: 11px; font-weight: 400; color: var(--ink-soft); letter-spacing: 0.06em; }
 .placeholder { color: var(--ink-soft); font-weight: 400; font-style: italic; text-transform: none; }

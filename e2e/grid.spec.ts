@@ -121,3 +121,33 @@ test('aperçu (auteur) : un clic sur une cellule n’ouvre pas de commentaire', 
   await page.locator('tr[data-shot] td[data-col="action"]').first().click();
   await expect(page.getByTestId('comment-popover')).toHaveCount(0);
 });
+
+test('découpage : le nom d’une longue séquence reste visible tant qu’un de ses plans l’est', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 560 });
+  await page.goto('/#/grid?seed=rav3');
+  await expect(page.locator('tbody[data-seq]').first()).toBeVisible();
+  const outside = await page.evaluate(async () => {
+    const grid = document.querySelector('[data-testid="grid"]')!;
+    let sc = grid as HTMLElement | null;
+    while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+    const head = grid.querySelector('thead')!.getBoundingClientRect().height;
+    const bad: string[] = [];
+    for (const tb of Array.from(document.querySelectorAll('tbody[data-seq]'))) {
+      const cell = tb.querySelector('td[class*="c_sequence"] > div');
+      if (!cell || !sc) continue;
+      for (let f = 0.1; f < 1; f += 0.2) {
+        const r0 = tb.getBoundingClientRect();
+        const s0 = sc.getBoundingClientRect();
+        sc.scrollTop += r0.top + r0.height * f - (s0.top + head + (s0.height - head) / 2);
+        await new Promise((r) => requestAnimationFrame(r));
+        const s = sc.getBoundingClientRect();
+        const c = cell.getBoundingClientRect();
+        const t = tb.getBoundingClientRect();
+        if (Math.min(s.bottom, t.bottom) - Math.max(s.top + head, t.top) < c.height + 20) continue;
+        if (c.top < s.top + head - 1 || c.bottom > s.bottom + 1) bad.push(`${tb.getAttribute('data-seq')}@${f.toFixed(1)}`);
+      }
+    }
+    return bad;
+  });
+  expect(outside).toEqual([]);
+});
