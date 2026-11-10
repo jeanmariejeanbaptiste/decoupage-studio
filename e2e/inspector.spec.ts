@@ -42,8 +42,9 @@ test('vérifications : liste cliquable, ignorer ici, rétablir', async ({ page }
   await expect(issues).toHaveCount(n - 1);
   await page.getByRole('button', { name: /Rétablir les 1 contrôle/ }).click();
   await expect(issues).toHaveCount(n);
+  // Le lien mène à la cellule en cause (la valeur de cadre répétée), pas seulement au plan.
   await issues.filter({ hasText: 'risque de saute' }).first().getByRole('button').first().click();
-  await expect(page.locator('[aria-selected="true"][data-cell$=":subject"]')).toHaveCount(1);
+  await expect(page.locator('[aria-selected="true"][data-cell$=":value"]')).toHaveCount(1);
   await expect(page.getByTestId('issue-dot').first()).toBeVisible();
 });
 

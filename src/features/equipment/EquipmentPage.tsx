@@ -11,7 +11,7 @@ import type { EquipmentCategory, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
 import { ask } from '../../ui/dialogStore';
-import { goToShot } from '../registry/RegistryPage';
+import { goToShot } from '../grid/goTo';
 import s from './EquipmentPage.module.css';
 import { exportBase } from '../../domain/serialize';
 import { plural } from '../../domain/schedule';

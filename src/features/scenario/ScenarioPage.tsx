@@ -50,7 +50,7 @@ import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { useIsMobile } from '../../ui/useIsMobile';
 import { ScriptExportButton } from './ScriptExportButton';
-import { goToShot } from '../registry/RegistryPage';
+import { goToShot } from '../grid/goTo';
 import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
 import { CharactersPanel, DecorsPanel, ResearchPanel } from './ResearchPanels';
 import { ScriptStatsReports } from './ScriptStatsReports';

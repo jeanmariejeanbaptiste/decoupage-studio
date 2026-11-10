@@ -22,7 +22,7 @@ import { mutateDoc } from '../../store/projectStore';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { usePrintMedia } from '../../ui/usePrintMedia';
 import { deleteShotById, dropShot } from '../grid/actions';
-import { goToShot } from '../registry/RegistryPage';
+import { goToShot } from '../grid/goTo';
 import s from './StoryboardPage.module.css';
 import { exportBase } from '../../domain/serialize';
 

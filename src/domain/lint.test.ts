@@ -2,7 +2,7 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
 import { createProjectDoc } from './factory';
-import { CHECK_LABELS, runChecks } from './lint';
+import { CHECK_LABELS, groupIssues, runChecks } from './lint';
 import { addSequence, addShot } from './ops';
 import { computeTiming } from './timing';
 import type { ProjectDoc } from './types';
@@ -67,5 +67,32 @@ describe('contrôles de la scripte (§9)', () => {
     });
     expect(check(next).find((i) => i.id === affiche.id)).toBeUndefined();
     expect(check(next).length).toBe(issues.length - 1);
+  });
+  it('chaque contrôle désigne la cellule à montrer (le clic mène à la bonne colonne)', () => {
+    const col = (doc: ProjectDoc, code: string) => check(doc).find((i) => i.code === code)?.col;
+    const blank = docWith([{}]);
+    expect(col(blank, 'missing-value')).toBe('value');
+    expect(col(blank, 'missing-subject')).toBe('subject');
+    expect(col(docWith([{ init: { subject: 'x', value: 'Taille', movement: ['Zoom avant'] } }]), 'zoom-focal')).toBe('focal');
+    expect(col(docWith([{ init: { subject: 'x', value: 'Taille', movement: ['Drone'] } }]), 'drone')).toBe('movement');
+    const base = { subject: 'Léa', value: 'Taille', angle: ['Face'], movement: ['Fixe'] };
+    expect(col(docWith([{ init: base }, { init: base }]), 'jump-cut')).toBe('value');
+    // Séquence sans plan : ni plan ni colonne, la séquence elle-même.
+    const empty = createProjectDoc({ title: 't', format: 'fiction' });
+    addSequence(empty, undefined, { label: 'vide' }, false);
+    const [e] = check(empty);
+    expect([e.shotId, e.col]).toEqual([undefined, undefined]);
+  });
+  it('les séquences sans plan forment une seule entrée (badge, résumé)', () => {
+    const doc = docWith([{ init: { subject: 'x', value: 'Taille', movement: ['Zoom avant'] } }]);
+    for (let k = 0; k < 5; k++) addSequence(doc, undefined, { label: `vide ${k}` }, false);
+    const issues = check(doc);
+    expect(issues.filter((i) => i.code === 'empty-sequence')).toHaveLength(5);
+    const g = groupIssues(issues);
+    expect(g.empty).toHaveLength(5);
+    expect(g.rest.map((i) => i.code)).toEqual(['zoom-focal']);
+    expect(g.count).toBe(2);
+    expect(g.warn).toBe(2);
+    expect(groupIssues(check(docWith([{ init: { subject: 'x', value: 'Taille' } }])))).toMatchObject({ count: 0, warn: 0, empty: [] });
   });
 });
