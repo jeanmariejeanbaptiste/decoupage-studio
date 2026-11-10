@@ -44,7 +44,9 @@ const PLACEHOLDER = 'Durée ?';
 
 /**
  * Saisie de la durée estimée (« 1:30 », « 90s ») : appliquée en quittant le champ, avec Entrée, ou
- * avant un enregistrement ; Échap rend la valeur d'avant. Ce qui n'est pas une durée est refusé.
+ * avant un enregistrement, puis montrée sous sa forme normale (« 1m30 » → « 1:30 »). Ce qui n'est pas
+ * une durée est refusé sans rien effacer : le texte reste, marqué invalide (Entrée garde le champ) ;
+ * Échap rend la valeur d'avant.
  */
 function EstimateInput({ seqId, value }: { seqId: ID; value: string }) {
   const [draft, setDraftState] = useState(value);
@@ -62,20 +64,30 @@ function EstimateInput({ seqId, value }: { seqId: ID; value: string }) {
     setDraftState(value);
     setBad(false);
   }, [value]);
-  const commit = useCallback(() => {
+  /** Applique la saisie ; `false` si ce n'est pas une durée (rien ne change, le texte reste). */
+  const commit = useCallback((): boolean => {
     const v = draftRef.current;
-    if (v === valueRef.current) return;
-    if (parseEstimate(v) === null) {
+    const sec = parseEstimate(v);
+    if (sec === null) {
       setBad(true);
-      return;
+      return false;
     }
-    valueRef.current = v;
-    mutateDoc((d) => void setSequenceEstimate(d, seqId, v));
+    const shown = sec === undefined ? '' : formatTc(sec);
+    if (shown !== valueRef.current) {
+      valueRef.current = shown;
+      mutateDoc((d) => void setSequenceEstimate(d, seqId, v));
+    }
+    // Forme normale, même quand la durée ne change pas (« 90s » pour 1:30).
+    if (v !== shown) {
+      draftRef.current = shown;
+      setDraftState(shown);
+    }
+    return true;
   }, [seqId]);
   useEffect(() => {
     // Le projet ouvert au montage : une saisie ne doit jamais aller dans un autre projet.
     const project = useProjectStore.getState().doc?.project.id;
-    const off = registerFlush(commit);
+    const off = registerFlush(() => void commit());
     return () => {
       off();
       if (useProjectStore.getState().doc?.project.id === project) commit();
@@ -89,18 +101,15 @@ function EstimateInput({ seqId, value }: { seqId: ID; value: string }) {
         placeholder={PLACEHOLDER}
         aria-label="Durée estimée"
         aria-invalid={bad || undefined}
-        title={bad ? 'Durée non reconnue : 1:30, 90s, 1m30' : undefined}
         style={{ width: `calc(${Math.max(draft.length, draft ? 3 : PLACEHOLDER.length)}ch + 0.6em)` }}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          commit();
-          // Saisie refusée : la valeur d'avant revient en quittant le champ.
-          if (parseEstimate(draftRef.current) === null) setDraft(valueRef.current);
-        }}
+        onBlur={() => void commit()}
         onKeyDown={(e) => {
           if (e.key !== 'Enter' && e.key !== 'Escape') return;
           e.preventDefault();
           if (e.key === 'Escape') setDraft(valueRef.current);
+          // Saisie refusée : le champ garde le clavier et le texte.
+          else if (!commit()) return;
           // Dans la grille, le clavier y revient (comme après la saisie d'une cellule).
           const el = e.currentTarget;
           const grid = el.closest<HTMLElement>('[data-testid="grid"]');

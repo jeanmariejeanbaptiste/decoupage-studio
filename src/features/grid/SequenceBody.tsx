@@ -20,6 +20,7 @@ import { DroppableBody, DroppableRow, NumberHandle, SeqHandle } from './dnd';
 import { editableText, setCellText } from '../../domain/cells';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
+import { useReadOnly } from '../../store/share';
 import { sequenceNumber } from '../../domain/numbering';
 import { focalTooltip } from '../../domain/focal';
 import { hasAngleConflict } from '../../domain/vocabulary';
@@ -125,6 +126,8 @@ export function SequenceBody({
   const seqTiming = model.timing.sequences.get(seq.seqId);
   const color = sequence?.color;
   const seqNumber = sequenceNumber(doc, seq.seqId);
+  // Invité en lecture : les en-têtes se lisent, rien ne s'y saisit (ni « Durée ? » ni menus).
+  const readOnly = useReadOnly();
 
   if (n === 0) {
     // Séquence sans plan (scénario importé) : même en-tête que les autres, puis une ligne fantôme —
@@ -157,9 +160,9 @@ export function SequenceBody({
               <span className={s.seqLabel}>
                 {seqNumber}, {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
               </span>
-              <SeqMeta doc={doc} seqId={seq.seqId} />
+              <SeqMeta doc={doc} seqId={seq.seqId} readOnly={readOnly} />
               {/* Sans plan, la ligne reste compacte : la durée n'y figure que si elle est estimée. */}
-              {sequence?.estimatedSec !== undefined && <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} />}
+              {sequence?.estimatedSec !== undefined && <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} readOnly={readOnly} />}
             </div>
           </td>
           <td className={s.gutter} aria-hidden="true" />
@@ -329,8 +332,8 @@ export function SequenceBody({
                             {sequenceNumber(doc, seq.seqId)},{' '}
                             {sequence?.label.toUpperCase() || <span className={s.placeholder}>libellé</span>}
                           </span>
-                          <SeqMeta doc={doc} seqId={seq.seqId} />
-                          <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} />
+                          <SeqMeta doc={doc} seqId={seq.seqId} readOnly={readOnly} />
+                          <SeqTiming doc={doc} seqId={seq.seqId} timing={model.timing} readOnly={readOnly} />
                         </div>
                       ) : col === 'tc' ? (
                         <span className={s.tc}>
