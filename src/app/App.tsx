@@ -168,6 +168,8 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    // Barre d'état du téléphone et de l'application installée : au fond de la page.
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'encre' ? '#0f1115' : '#ffffff');
     try {
       localStorage.setItem('ds-theme', theme);
     } catch {
