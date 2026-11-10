@@ -3,13 +3,14 @@ import { fold, mergeKey } from './text';
 import { formatGap, type Timing } from './timing';
 import { tokensKey } from './tokens';
 import type { ID, ProjectDoc } from './types';
-import { isZoom, matchVocab, MOVEMENTS, valueRank, WIDE_VALUE_KEYS, SHOT_VALUES } from './vocabulary';
+import { hasAngleConflict, isZoom, matchVocab, MOVEMENTS, valueRank, WIDE_VALUE_KEYS, SHOT_VALUES } from './vocabulary';
 
 export type CheckCode =
   | 'zoom-focal'
   | 'missing-value'
   | 'missing-subject'
   | 'jump-cut'
+  | 'angle-conflict'
   | 'empty-sequence'
   | 'doc-open-wide'
   | 'doc-close-wide'
@@ -34,6 +35,7 @@ export const CHECK_LABELS: Readonly<Record<CheckCode, string>> = {
   'missing-value': 'Plan sans valeur de cadre',
   'missing-subject': 'Plan sans sujet',
   'jump-cut': 'Plans consécutifs identiques (risque de saute)',
+  'angle-conflict': 'Angle : deux axes ou deux hauteurs incompatibles',
   'empty-sequence': 'Séquence sans plan',
   'doc-open-wide': 'Documentaire : ouverture sans plan large',
   'doc-close-wide': 'Documentaire : fermeture sans plan large',
@@ -123,8 +125,10 @@ export function runChecks(doc: ProjectDoc, timing: Timing): Issue[] {
         mergeKey(prev.subject) === mergeKey(shot.subject) &&
         tokensKey(prev.movement) === tokensKey(shot.movement)
       ) {
-        push({ ...base, code: 'jump-cut', level: 'warn', message: `Identique au plan précédent en valeur, angle et sujet : risque de saute.`, detail: `Identique au plan ${shotCode(doc, prev.id)}` });
+        push({ ...base, code: 'jump-cut', level: 'warn', message: `Identique au plan ${shotCode(doc, prev.id)} en valeur, angle et sujet : risque de saute.` });
       }
+      if (hasAngleConflict(shot.angle))
+        push({ ...base, code: 'angle-conflict', level: 'warn', message: 'Deux axes ou deux hauteurs incompatibles dans l’angle.', detail: shot.angle.join(', ') });
       const moves = shot.movement.map((m) => matchVocab(m, MOVEMENTS)?.key ?? fold(m));
       if (moves.some((m) => m.includes('drone'))) push({ ...base, code: 'drone', level: 'info', message: DRONE_MSG });
       if (moves.some((m) => m === 'epaule' || m === 'steadicam' || m.includes('epaule') || m.includes('steadicam')))

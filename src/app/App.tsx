@@ -12,6 +12,7 @@ import { CommentPopover } from '../features/comments/CommentPopover';
 import { CommentsPanel } from '../features/comments/CommentsPanel';
 import { SketchPad } from '../features/comments/SketchPad';
 import { runChecks } from '../domain/lint';
+import { checkLineCount } from '../domain/checkTarget';
 import { computeTiming } from '../domain/timing';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
@@ -89,7 +90,8 @@ export function App() {
   const checkCount = useMemo(() => {
     if (!doc) return 0;
     try {
-      return runChecks(doc, computeTiming(doc)).length;
+      // Autant que de lignes sur la page : une série de sautes compte pour une.
+      return checkLineCount(doc, runChecks(doc, computeTiming(doc)));
     } catch (e) {
       console.error(e);
       return 0;

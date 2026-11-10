@@ -230,7 +230,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
               <li key={i.id} className={i.level === 'info' ? s.info : undefined}>
                 <span>{i.message}</span>
                 <button type="button" onClick={() => update((d) => void d.ignoredChecks.push(i.id))}>
-                  ignorer ici
+                  Ignorer
                 </button>
               </li>
             ))}

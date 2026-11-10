@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { checkPlace, checkTarget } from './checkTarget';
+import { checkLineCount, checkPlace, checkRows, checkTarget, sequenceName } from './checkTarget';
 import { createProjectDoc } from './factory';
 import { CHECK_LABELS, CHECK_NOTES, groupChecks, runChecks, type CheckCode, type Issue } from './lint';
 import { addSequence, addShot } from './ops';
@@ -20,7 +20,7 @@ function everyCheck(): ProjectDoc {
   addShot(doc, seq, { init: same });
   addShot(doc, seq, { init: { subject: '', value: '' } });
   addShot(doc, seq, { init: { subject: 'Ville', value: 'Général', movement: ['Drone', 'Zoom avant'], focal: { from: 24 } } });
-  addShot(doc, seq, { init: { subject: 'Léa', value: 'Taille', movement: ['Épaule'] }, action: { text: 'x', overrideSec: 60 } });
+  addShot(doc, seq, { init: { subject: 'Léa', value: 'Taille', angle: ['Plongée', 'Contre-plongée'], movement: ['Épaule'] }, action: { text: 'x', overrideSec: 60 } });
   doc.sequences[seq].estimatedSec = 10;
   return doc;
 }
@@ -39,7 +39,7 @@ describe('vérifications : chaque contrôle mène à l’endroit exact', () => {
     const inst = institutional(['Gros plan', 'Insert']);
     for (const i of check(inst)) codes.add(i.code);
     expect([...codes].sort()).toEqual((Object.keys(CHECK_LABELS) as CheckCode[]).sort());
-    for (const d of [doc, inst]) for (const i of check(d)) expect(checkTarget(d, i).page).toMatch(/^(grid|registry)$/);
+    for (const d of [doc, inst]) for (const i of check(d)) expect(checkTarget(d, i).page).toMatch(/^(grid|registry|interview)$/);
   });
 
   it('plan : la cellule où se règle le contrôle', () => {
@@ -50,21 +50,52 @@ describe('vérifications : chaque contrôle mène à l’endroit exact', () => {
     expect(checkTarget(doc, find(doc, 'zoom-focal'))).toMatchObject({ shotId: aerial, cols: ['focal'] });
     expect(checkTarget(doc, find(doc, 'drone'))).toMatchObject({ shotId: aerial, cols: ['movement'] });
     expect(checkTarget(doc, find(doc, 'stabilizer-safety'))).toMatchObject({ shotId: shoulder, cols: ['movement'] });
+    expect(checkTarget(doc, find(doc, 'angle-conflict'))).toMatchObject({ shotId: shoulder, cols: ['angle'] });
+    expect(find(doc, 'angle-conflict').detail).toBe('Plongée, Contre-plongée');
   });
 
   it('saute : toutes les colonnes comparées, dans l’ordre de la grille ; le plan voisin est nommé', () => {
     const doc = everyCheck();
     const jump = find(doc, 'jump-cut');
     expect(checkTarget(doc, jump)).toMatchObject({ cols: ['subject', 'value', 'angle', 'movement'] });
-    expect(jump.detail).toBe('Identique au plan 2.1');
+    expect(jump.message).toMatch(/^Identique au plan 2\.1 /);
     expect(checkPlace(doc, jump)).toBe('2.2');
+    // Une seule ligne pour la paire : les deux plans.
+    const [row] = checkRows(doc, [jump]);
+    const [a, b] = doc.sequences[doc.project.sequenceIds[1]].shotIds;
+    expect(row).toMatchObject({ place: '2.1\u2009–\u20092.2', detail: '2 plans', target: { page: 'grid', shotId: a, lastShotId: b } });
   });
 
-  it('colonne masquée : repli sur une colonne visible, jamais de sélection vide', () => {
+  it('sautes consécutives : une série par suite de plans identiques, une ligne chacune', () => {
+    const doc = buildRav3();
+    const jumps = check(doc).filter((i) => i.code === 'jump-cut');
+    const rows = checkRows(doc, jumps);
+    expect(rows.length).toBeLessThan(jumps.length);
+    expect(rows.reduce((n, r) => n + r.issues.length, 0)).toBe(jumps.length);
+    const loge = rows.find((r) => r.place.startsWith('4.1'))!;
+    expect(loge.place).toBe('4.1\u2009–\u20094.6');
+    expect(loge.detail).toBe('6 plans');
+    expect(loge.issues).toHaveLength(5);
+    // Le compteur du menu compte les lignes de la page, pas les contrôles.
+    expect(checkLineCount(doc, check(doc))).toBe(rows.length + check(doc).filter((i) => i.code !== 'jump-cut').length);
+
+    // Deux séries séparées par un plan différent : deux lignes.
+    const d = createProjectDoc({ title: 't', format: 'fiction' });
+    const seq = addSequence(d, undefined, { label: 'Parc' }, false);
+    const same = { subject: 'Léa', value: 'Taille', angle: ['Face'], movement: ['Fixe'] };
+    for (const init of [same, same, { ...same, value: 'Gros plan' }, { ...same, value: 'Gros plan' }, { ...same, value: 'Gros plan' }]) addShot(d, seq, { init });
+    const r2 = checkRows(d, check(d).filter((i) => i.code === 'jump-cut'));
+    expect(r2.map((r) => [r.place, r.detail])).toEqual([
+      ['1.1\u2009–\u20091.2', '2 plans'],
+      ['1.3\u2009–\u20091.5', '3 plans'],
+    ]);
+  });
+
+  it('colonne masquée : repli sur une autre colonne du contrôle, sinon la ligne entière (aucune cellule sans rapport)', () => {
     const doc = everyCheck();
     doc.project.settings.gridColumns = doc.project.settings.gridColumns.filter((c) => c !== 'focal' && c !== 'value');
     expect(checkTarget(doc, find(doc, 'zoom-focal'))).toMatchObject({ cols: ['movement'] });
-    expect(checkTarget(doc, find(doc, 'missing-value'))).toMatchObject({ cols: ['subject'] });
+    expect(checkTarget(doc, find(doc, 'missing-value'))).toMatchObject({ page: 'grid', shotId: find(doc, 'missing-value').shotId, cols: [] });
     expect(checkTarget(doc, find(doc, 'jump-cut'))).toMatchObject({ cols: ['subject', 'angle', 'movement'] });
   });
 
@@ -73,7 +104,7 @@ describe('vérifications : chaque contrôle mène à l’endroit exact', () => {
     const [empty, park] = doc.project.sequenceIds;
     expect(checkTarget(doc, find(doc, 'empty-sequence'))).toEqual({ page: 'grid', sequenceId: empty, cols: [] });
     expect(checkPlace(doc, find(doc, 'empty-sequence'))).toBe('1');
-    expect(checkTarget(doc, find(doc, 'estimate-gap'))).toEqual({ page: 'registry', tab: 'sequences', sequenceId: park });
+    expect(checkTarget(doc, find(doc, 'estimate-gap'))).toEqual({ page: 'registry', tab: 'sequences', sequenceId: park, col: 'est' });
     expect(checkPlace(doc, find(doc, 'estimate-gap'))).toBe('2');
   });
 
@@ -88,6 +119,32 @@ describe('vérifications : chaque contrôle mène à l’endroit exact', () => {
     expect(close.shotId).toBeUndefined();
     expect(checkTarget(single, close)).toMatchObject({ shotId: only, cols: ['value'] });
     expect(checkPlace(single, close)).toBe('1.1');
+  });
+
+  it('plan d’interview (institutionnel) : sa caméra dans la fiche, où il se règle', () => {
+    const doc = institutional(['Plan général']);
+    const seqId = doc.project.sequenceIds[0];
+    const shotId = addShot(doc, seqId, { init: { subject: 'Directrice', value: '', angle: ['Face', 'Dos'] } });
+    doc.shots[shotId].interview = { subjectId: 'sub', setupId: 'set', cameraId: 'cam' };
+    const issues = check(doc).filter((i) => i.shotId === shotId);
+    const target = (code: CheckCode) => checkTarget(doc, issues.find((i) => i.code === code)!);
+    expect(target('missing-value')).toEqual({ page: 'interview', sequenceId: seqId, shotId, subjectId: 'sub', setupId: 'set', cameraId: 'cam', field: 'value' });
+    expect(target('angle-conflict')).toMatchObject({ page: 'interview', field: 'angle' });
+    // Hors institutionnel, le lien ne change rien : la grille.
+    doc.project.format = 'fiction';
+    expect(checkTarget(doc, issues.find((i) => i.code === 'missing-value')!)).toMatchObject({ page: 'grid', cols: ['value'] });
+  });
+
+  it('séquence sans libellé : INT/EXT et décor, sinon rien', () => {
+    const doc = createProjectDoc({ title: 't', format: 'fiction' });
+    const a = addSequence(doc, undefined, { label: '' }, false);
+    expect(sequenceName(doc, a)).toBe('');
+    doc.sequences[a].intExt = 'EXT';
+    doc.decors.d = { id: 'd', name: 'Parvis de la gare' } as ProjectDoc['decors'][string];
+    doc.sequences[a].decorId = 'd';
+    expect(sequenceName(doc, a)).toBe('EXT PARVIS DE LA GARE');
+    doc.sequences[a].label = 'Arrivée';
+    expect(sequenceName(doc, a)).toBe('ARRIVÉE');
   });
 
   it('plan disparu entre le calcul et le clic : la séquence', () => {

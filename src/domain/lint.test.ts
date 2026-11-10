@@ -32,6 +32,11 @@ describe('contrôles de la scripte (§9)', () => {
     expect(codes(docWith([{ init: base }, { init: base }]))).toContain('jump-cut');
     expect(codes(docWith([{ init: base }, { init: { ...base, movement: ['Trav avant'] } }]))).not.toContain('jump-cut');
   });
+  it('angle : deux axes ou deux hauteurs, comme la grille le signale', () => {
+    expect(codes(docWith([{ init: { subject: 'x', value: 'Taille', angle: ['Face', 'Dos'] } }]))).toContain('angle-conflict');
+    expect(codes(docWith([{ init: { subject: 'x', value: 'Taille', angle: ['Plongée', 'Contre-plongée'] } }]))).toContain('angle-conflict');
+    expect(codes(docWith([{ init: { subject: 'x', value: 'Taille', angle: ['Face', 'Hauteur regard'] } }]))).not.toContain('angle-conflict');
+  });
   it('séquence vide et institutionnel sans plan large', () => {
     const empty = createProjectDoc({ title: 't', format: 'fiction' });
     addSequence(empty, undefined, { label: 'vide' }, false);

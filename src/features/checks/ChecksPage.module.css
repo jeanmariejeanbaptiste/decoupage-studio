@@ -15,7 +15,8 @@
 /* Toute la ligne est le lien ; « Ignorer » reste une commande à part, séparée d'un filet. */
 .go {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto 16px;
+  /* Repère : la largeur du plus long du groupe (« 7.12 – 7.13 »), au moins celle d'un numéro de plan. */
+  grid-template-columns: max(56px, var(--place-w, 0px)) minmax(0, 1fr) auto 16px;
   align-items: center;
   gap: 14px;
   min-height: 42px;
@@ -31,8 +32,9 @@
 }
 .go:hover { background: var(--hover); }
 .go:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-.place { font-weight: 600; font-variant-numeric: tabular-nums; }
+.place { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .seq { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.01em; }
+.unnamed { color: var(--ink-soft); opacity: 0.6; }
 .detail { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chev { color: var(--ink-soft); opacity: 0.5; transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
 .go:hover .chev, .go:focus-visible .chev { opacity: 1; transform: translateX(2px); }
@@ -51,6 +53,6 @@
 .ignore:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
 @media (max-width: 700px) {
-  .go { grid-template-columns: 44px minmax(0, 1fr) 16px; gap: 10px; }
+  .go { grid-template-columns: max(44px, var(--place-w, 0px)) minmax(0, 1fr) 16px; gap: 10px; }
   .detail { grid-column: 2; grid-row: 2; white-space: normal; }
 }
