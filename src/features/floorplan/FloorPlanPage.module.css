@@ -243,7 +243,7 @@
 .roomFoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
 .dim line { stroke: var(--ink-soft); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .dim path { fill: none; stroke: var(--ink); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
-.dim text { font-family: var(--font-ui); font-size: 13px; font-weight: 500; fill: var(--ink); text-anchor: middle; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--paper-card); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.dim text { font-family: var(--font-ui); font-weight: 500; fill: var(--ink); text-anchor: middle; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--paper-card); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
 .dim { pointer-events: none; }
 .thumb { flex: none; width: 44px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 3px; border: 1px solid var(--rule); }
 .decor { margin: 6px 0 0; font-size: 12px; color: var(--ink-soft); }

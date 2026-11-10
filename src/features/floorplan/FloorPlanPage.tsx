@@ -68,7 +68,10 @@ import { aiPlanInstructions, extractPlanText, parsePlanFile, placePlan, type Par
 import { askWithImage, isConfigured, loadAiSettings, modelOf, type ImageInput } from '../assistant/providers';
 import { navigate } from '../../app/router';
 import {
+  DIMENSION_FONT,
+  DIMENSION_REACH,
   LIGHT_PRESETS,
+  ROOM_LIMITS,
   ROOM_PRESETS,
   WORLD,
   formatRoom,
@@ -76,6 +79,7 @@ import {
   lightSpecs,
   moveFloorItems,
   roomDimensions,
+  roomOf,
   roomPreset,
   roomRect,
   roomSize,
@@ -170,6 +174,9 @@ interface Ghost {
 /** Bornes du zoom : de 1/10 de la vue par défaut jusqu'à tout l'espace de travail. */
 const ZOOM_MIN = PLAN_W / 10;
 const ZOOM_MAX = WORLD.max - WORLD.min;
+/** Taille du texte des cotes à l'écran (px), et place prise par la palette d'outils à gauche. */
+const DIM_PX = 12;
+const PALETTE_PX = 64;
 
 /** Dimensions naturelles d'une image (pour son format exact et les consignes IA). */
 function useImageSize(url: string | null | undefined): { w: number; h: number } | undefined {
@@ -221,6 +228,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // Le cadre visible prend les proportions de la zone de dessin : pas de bandes vides, et le point
   // sous le pointeur reste exact pour le zoom.
   const aspectRef = useRef(PLAN_H / PLAN_W);
+  // Largeur du dessin à l'écran (px) : cotes de taille constante quel que soit le zoom.
+  const [svgPx, setSvgPx] = useState(0);
   const fitAspect = (v: View): View => {
     const h = v.w * aspectRef.current;
     return Math.abs(h - v.h) < 0.01 ? v : { ...v, y: v.y + (v.h - h) / 2, h };
@@ -376,6 +385,7 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
       const r = svg.getBoundingClientRect();
       if (!r.width || !r.height) return;
       aspectRef.current = r.height / r.width;
+      setSvgPx(r.width);
       setView((v) => fitAspect(v));
     });
     ro.observe(svg);
@@ -502,6 +512,9 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   // (sans en créer un nouveau) ; l'outil reste actif pour le placement suivant.
   const onItemDown = (e: PointerEvent, id: ID, mode: 'move' | 'rotate' | 'path' | 'end1' | 'end2' = 'move') => {
     if (bgEdit || e.button !== 0) return;
+    // Outil de placement sur un mur : le geste revient au plan (cloison tracée depuis le mur, porte
+    // ou fenêtre posée dedans) au lieu de déplacer le mur, ou toute la pièce.
+    if (tool !== 'select' && mode === 'move' && items.find((i) => i.id === id)?.kind === 'wall') return;
     e.stopPropagation();
     svgRef.current?.focus({ preventScroll: true });
     if (e.shiftKey && mode === 'move') {
@@ -718,24 +731,40 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
   const stroke = planOf(doc, planKey).stroke ?? 1;
   const inventory = planInventory(doc, items);
   const decor = decorSummary(items);
-  const room = planOf(doc, planKey).room;
-  // Cotes de la pièce : elles suivent la pièce pendant qu'on la déplace.
-  const dims = roomDimensions({ room, items: drag?.mode === 'group' ? items.map(preview) : items });
-  /** Pièce posée ou redimensionnée : le cadrage la montre en entier, cotes comprises, si elle déborde. */
+  const room = roomOf(planOf(doc, planKey));
+  // Cotes de la pièce : texte de 12 px à l'écran quel que soit le zoom ; elles suivent la pièce
+  // pendant qu'on la déplace.
+  const unitPx = svgPx ? view.w / svgPx : 1;
+  const dims = roomDimensions({ room, items: drag?.mode === 'group' ? items.map(preview) : items }, (unitPx * DIM_PX) / DIMENSION_FONT);
+  /**
+   * Pièce posée ou redimensionnée : si elle sort de la vue (cotes comprises, palette d'outils
+   * déduite), la vue glisse juste assez, et recule si la pièce ne tient pas ; jamais de zoom avant.
+   */
   const applyRoom = (r: Room | undefined) => {
     mutateDoc((d) => setRoom(d, planKey, r));
     const rect = roomRect(planOf(useProjectStore.getState().doc ?? doc, planKey));
     const box = svgRef.current?.getBoundingClientRect();
     if (!rect || !box?.width) return;
-    // Marges en pixels : la palette d'outils couvre la gauche du plan.
-    const [ml, mr, mt, mb] = [96, 40, 72, 40];
-    const kx = view.w / box.width;
-    const inside = rect.x - ml * kx >= view.x && rect.x + rect.w + mr * kx <= view.x + view.w && rect.y - mt * kx >= view.y && rect.y + rect.l + mb * kx <= view.y + view.h;
-    if (inside) return;
-    const w = Math.min(ZOOM_MAX, Math.max(rect.w / (1 - (ml + mr) / box.width), rect.l / (1 - (mt + mb) / box.height) / aspectRef.current));
-    const h = w * aspectRef.current;
+    // Marges en pixels : cote (taille constante à l'écran) et palette à gauche, cote en haut.
+    const reach = (DIMENSION_REACH * DIM_PX) / DIMENSION_FONT;
+    const [ml, mr, mt, mb] = [PALETTE_PX + reach, 24, reach + 16, 24];
+    const k0 = view.w / box.width;
+    const fits =
+      rect.x - ml * k0 >= view.x - k0 &&
+      rect.x + rect.w + mr * k0 <= view.x + view.w + k0 &&
+      rect.y - mt * k0 >= view.y - k0 &&
+      rect.y + rect.l + mb * k0 <= view.y + view.h + k0;
+    if (fits) return;
+    const a = aspectRef.current;
+    const need = Math.max(rect.w / (1 - (ml + mr) / box.width), rect.l / (a - (mt + mb) / box.width));
+    const w = Math.min(ZOOM_MAX, Math.max(view.w, need));
+    const h = w * a;
     const k = w / box.width;
-    setView({ x: rect.x - ml * k - (w - rect.w - (ml + mr) * k) / 2, y: rect.y - mt * k - (h - rect.l - (mt + mb) * k) / 2, w, h });
+    // Recul autour du centre de la vue, puis le moindre glissement qui montre la pièce.
+    const pan = (from: number, lo: number, hi: number) => (lo <= hi ? Math.max(lo, Math.min(hi, from)) : (lo + hi) / 2);
+    const x = pan(view.x + (view.w - w) / 2, rect.x + rect.w + mr * k - w, rect.x - ml * k);
+    const y = pan(view.y + (view.h - h) / 2, rect.y + rect.l + mb * k - h, rect.y - mt * k);
+    setView({ x, y, w, h });
   };
 
   return (
@@ -1219,8 +1248,8 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
                   <line key={k} x1={x1} y1={y1} x2={x2} y2={y2} />
                 ))}
                 <line x1={dm.x1} y1={dm.y1} x2={dm.x2} y2={dm.y2} />
-                <path d={[[dm.x1, dm.y1], [dm.x2, dm.y2]].map(([x, y]) => `M ${x - 4} ${y + 4} L ${x + 4} ${y - 4}`).join(' ')} />
-                <text x={dm.tx} y={dm.ty} transform={dm.rot ? `rotate(${dm.rot} ${dm.tx} ${dm.ty})` : undefined}>
+                <path d={[[dm.x1, dm.y1], [dm.x2, dm.y2]].map(([x, y]) => `M ${x - dm.tick} ${y + dm.tick} L ${x + dm.tick} ${y - dm.tick}`).join(' ')} />
+                <text x={dm.tx} y={dm.ty} transform={dm.rot ? `rotate(${dm.rot} ${dm.tx} ${dm.ty})` : undefined} style={{ fontSize: dm.font, strokeWidth: 4 * unitPx }}>
                   {dm.label}
                 </text>
               </g>
@@ -1299,7 +1328,15 @@ export function FloorPlanPage({ doc }: { doc: ProjectDoc }) {
             </section>
           ) : sel ? (
             <section className={s.section}>
-              <Properties doc={doc} seqId={seqId} planKey={planKey} item={sel} beats={nBeats} onDelete={() => setSelected(null)} />
+              <Properties
+                doc={doc}
+                seqId={seqId}
+                planKey={planKey}
+                item={sel}
+                beats={nBeats}
+                onDelete={() => setSelected(null)}
+                room={isRoomWall(sel) ? <RoomFields key={planKey} room={room} onCommit={applyRoom} removeLabel="Retirer la pièce" /> : undefined}
+              />
             </section>
           ) : (
             // Rien de sélectionné : la pièce en tête du panneau (masquée en lecture seule tant qu'elle n'existe pas).
@@ -1728,6 +1765,7 @@ function Properties({
   item,
   beats,
   onDelete,
+  room,
 }: {
   doc: ProjectDoc;
   seqId: ID;
@@ -1735,6 +1773,8 @@ function Properties({
   item: FloorItem;
   beats: number;
   onDelete: () => void;
+  /** Mur de la pièce : les dimensions de la pièce, sous le titre. */
+  room?: React.ReactNode;
 }) {
   const update = (patch: Partial<FloorItem>) => mutateDoc((d) => updateFloorItem(d, planKey, item.id, patch));
   // Curseurs : un geste entier = une seule étape d'annulation.
@@ -1742,7 +1782,8 @@ function Properties({
   return (
     <div className={s.props} data-testid="fp-properties">
       <h2 className={s.h2}>{item.kind === 'light' && item.practical ? 'Lampe de jeu' : isRoomWall(item) ? 'Mur de la pièce' : FLOOR_KIND_LABEL[item.kind]}</h2>
-      {'x2' in item && (
+      {room}
+      {'x2' in item && !room && (
         <p className={s.note} data-testid="fp-length">
           Longueur {formatMeters(itemLength(item))}
         </p>
@@ -1883,7 +1924,7 @@ function Properties({
           onDelete();
         }}
       >
-        Retirer
+        {isRoomWall(item) ? 'Retirer ce côté' : 'Retirer'}
       </Button>
     </div>
   );
@@ -1906,12 +1947,14 @@ const parseNum = (v: string) => {
 };
 
 const fr = (n: number | undefined) => (n ? String(n).replace('.', ',') : '');
+/** Surface ou volume : séparateur des milliers à la française (10 000 m²). */
+const frBig = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
 
 /**
  * Pièce : largeur × longueur (et hauteur) en mètres, ou un modèle. Les murs suivent ; la superficie
  * s'affiche pendant la saisie. Les champs reprennent les valeurs du projet après une annulation.
  */
-function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | undefined) => void }) {
+function RoomFields({ room, onCommit, removeLabel = 'Retirer' }: { room?: Room; onCommit: (r: Room | undefined) => void; removeLabel?: string }) {
   const [w, setW] = useState(fr(room?.w));
   const [l, setL] = useState(fr(room?.l));
   const [h, setH] = useState(fr(room?.h));
@@ -1921,17 +1964,29 @@ function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | unde
     setL(fr(room?.l));
     setH(fr(room?.h));
   }, [room?.w, room?.l, room?.h]);
-  const draft = parseNum(w) && parseNum(l) ? { w: parseNum(w)!, l: parseNum(l)!, ...(parseNum(h) ? { h: parseNum(h) } : {}) } : undefined;
+  // Valeurs bornées (une pièce de 450 m est sans doute saisie en centimètres) : hors bornes = invalide.
+  const within = (v: string, [a, b]: readonly [number, number]) => {
+    const n = parseNum(v);
+    return n !== undefined && n >= a && n <= b ? n : undefined;
+  };
+  const [wv, lv, hv] = [within(w, ROOM_LIMITS.side), within(l, ROOM_LIMITS.side), within(h, ROOM_LIMITS.h)];
+  const hBad = !!h.trim() && hv === undefined;
+  const draft = wv && lv && !hBad ? { w: wv, l: lv, ...(hv ? { h: hv } : {}) } : undefined;
   const size = draft ? roomSize(draft) : undefined;
   const preset = roomPreset(room);
   const commit = () => {
     if (draft) {
       if (draft.w !== room?.w || draft.l !== room?.l || draft.h !== room?.h) onCommit(draft);
     } else if (room) {
-      // Saisie incomplète sur une pièce existante : on revient à ses dimensions.
+      // Saisie incomplète ou hors bornes sur une pièce existante : on revient à ses dimensions.
       setW(fr(room.w));
       setL(fr(room.l));
       setH(fr(room.h));
+    } else {
+      // Pas encore de pièce : une valeur hors bornes s'efface, une saisie en cours reste.
+      if (w.trim() && wv === undefined) setW('');
+      if (l.trim() && lv === undefined) setL('');
+      if (hBad) setH('');
     }
   };
   const field = (label: string, value: string, set: (v: string) => void, ref?: React.Ref<HTMLInputElement>) => (
@@ -1966,11 +2021,11 @@ function RoomFields({ room, onCommit }: { room?: Room; onCommit: (r: Room | unde
       {(size || room) && (
         <div className={s.roomFoot}>
           <p className={s.roomSize} data-testid="fp-room-size">
-            {size ? `${fr(size.area)} m²${size.volume ? ` · ${fr(size.volume)} m³` : ''}` : ''}
+            {size ? `${frBig(size.area)} m²${size.volume ? ` · ${frBig(size.volume)} m³` : ''}` : ''}
           </p>
           {room && (
             <Button variant="danger" size="sm" icon={<Trash2 size={13} />} onClick={() => onCommit(undefined)} aria-label="Retirer la pièce" data-testid="fp-room-remove">
-              Retirer
+              {removeLabel}
             </Button>
           )}
         </div>

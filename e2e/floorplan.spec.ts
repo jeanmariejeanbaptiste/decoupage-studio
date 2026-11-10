@@ -318,14 +318,19 @@ test('plan au sol : la pièce en tête du panneau, modèles chiffrés, cotes, re
   await expect(page.getByTestId('fp-dimension')).toHaveText(['4 m', '3,5 m']);
   await expect(room.getByLabel('Largeur de la pièce (m)')).toHaveValue('4');
   await expect(room.getByLabel('Longueur de la pièce (m)')).toHaveValue('3,5');
-  // Un mur de la pièce sélectionné : ses propriétés prennent la tête du panneau, puis la pièce revient.
+  // Un mur de la pièce sélectionné : la pièce s'édite sous son titre, son côté se retire à part.
   // Trait horizontal : boîte sans hauteur, le clic est forcé sur son milieu.
   await page.getByTestId('fp-wall').first().click({ force: true });
-  await expect(page.getByTestId('fp-properties')).toContainText('Mur de la pièce');
-  await expect(panel.getByTestId('fp-room')).toHaveCount(0);
+  const props = page.getByTestId('fp-properties');
+  await expect(props).toContainText('Mur de la pièce');
+  await expect(panel.getByTestId('fp-room')).toHaveCount(1);
+  await expect(props.getByTestId('fp-room')).toHaveCount(1);
+  await expect(props.getByTestId('fp-room-remove')).toHaveText('Retirer la pièce');
+  await expect(props.getByRole('button', { name: 'Retirer ce côté' })).toBeVisible();
   await expect(page.getByTestId('fp-end1')).toHaveCount(0);
   await page.getByTestId('floorplan').press('Escape');
   await expect(panel.getByTestId('fp-room')).toHaveCount(1);
+  await expect(page.getByTestId('fp-properties')).toHaveCount(0);
   // Retirer la pièce : murs et cotes partent, la caméra reste ; annulable.
   await room.getByRole('button', { name: 'Retirer la pièce' }).click();
   await expect(page.getByTestId('fp-wall')).toHaveCount(0);
@@ -334,4 +339,32 @@ test('plan au sol : la pièce en tête du panneau, modèles chiffrés, cotes, re
   await expect(room.getByLabel('Largeur de la pièce (m)')).toHaveValue('');
   await page.keyboard.press('Control+z');
   await expect(page.getByTestId('fp-wall')).toHaveCount(4);
+});
+
+test('plan au sol : avec un outil, partir d’un mur de la pièce trace ou pose sans déplacer la pièce', async ({ page }) => {
+  await page.goto('/#/floorplan?seed=fiction');
+  const room = page.getByTestId('fp-panel').getByTestId('fp-room');
+  await room.getByRole('radio', { name: /^Petite/ }).click();
+  await expect(page.getByTestId('fp-wall')).toHaveCount(4);
+  const walls = () =>
+    page.evaluate(() => {
+      const d = (window as unknown as { __ds: { doc: () => { floorPlans: Record<string, { items: Array<{ kind: string; room?: boolean; x: number; y: number; x2: number; y2: number }> }> } } }).__ds.doc();
+      return Object.values(d.floorPlans).flatMap((p) => p.items).filter((i) => i.kind === 'wall');
+    });
+  const before = (await walls()).filter((w) => w.room);
+  // Le mur du haut : au milieu de sa boîte (trait horizontal, boîte sans hauteur).
+  const top = (await page.getByTestId('fp-wall').first().boundingBox())!;
+  const [x, y] = [top.x + top.width / 2, top.y + top.height / 2];
+  await page.getByTestId('tool-wall').click();
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 120, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId('fp-wall')).toHaveCount(5);
+  expect((await walls()).filter((w) => w.room)).toEqual(before);
+  // La porte se pose dans le mur, sans le sélectionner.
+  await page.getByTestId('tool-door').click();
+  await page.mouse.click(x - 60, y);
+  await expect(page.getByTestId('fp-properties')).toContainText('Porte');
+  expect((await walls()).filter((w) => w.room)).toEqual(before);
 });
