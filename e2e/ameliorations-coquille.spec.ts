@@ -127,3 +127,15 @@ test('palette : passer d’un projet à l’autre', async ({ page }) => {
   await expect(page.getByTestId('project-menu')).toContainText('Premier film');
   expect((await page.evaluate(getDoc)).project.id).not.toBe(before);
 });
+
+test('raccourcis : une combinaison gardée par le navigateur est refusée', async ({ page }) => {
+  await page.goto('/#/settings?seed=fiction');
+  await page.getByTestId('settings-raccourcis').click();
+  const btn = page.getByTestId('shortcut-newShot');
+  await expect(btn).toHaveText('⌘↵');
+  await btn.click();
+  await page.keyboard.press('Control+t');
+  await expect(page.getByText('⌘T est réservé par le navigateur.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(btn).toHaveText('⌘↵');
+});

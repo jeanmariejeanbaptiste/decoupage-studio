@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { comboFromEvent, conflictOf, DEFAULT_SHORTCUTS, formatCombo, isReserved, matchesCombo, resolveShortcuts } from './shortcuts';
+import { comboFromEvent, conflictOf, DEFAULT_SHORTCUTS, formatCombo, isBrowserReserved, isReserved, matchesCombo, resolveShortcuts } from './shortcuts';
 
 const ev = (key: string, o: Partial<{ code: string; meta: boolean; ctrl: boolean; shift: boolean; alt: boolean }> = {}) => ({
   key,
@@ -49,6 +49,11 @@ describe('raccourcis', () => {
     expect(isReserved('Mod+C')).toBe(true);
     expect(isReserved('Mod+J')).toBe(false);
     expect(isReserved('Alt+ArrowUp')).toBe(false);
+  });
+
+  it('refuse les combinaisons gardées par le navigateur', () => {
+    for (const c of ['Mod+W', 'Mod+T', 'Mod+N', 'Mod+Q', 'Mod+L', 'Mod+R', 'Mod+Shift+T', 'Mod+Shift+N', 'Mod+Shift+W', 'Mod+Tab']) expect(isBrowserReserved(c)).toBe(true);
+    for (const c of ['Mod+D', 'Mod+Shift+D', 'Alt+W', 'W', 'Mod+Enter']) expect(isBrowserReserved(c)).toBe(false);
   });
 });
 
