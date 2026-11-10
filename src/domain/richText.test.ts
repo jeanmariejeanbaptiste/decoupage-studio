@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { richImageKeys, richToText, sanitizeRich, textToRich, wordFontStacks, wordImageBox } from './richText';
+import { richImageKeys, richToText, sanitizeRich, textToRich, shrunkImageSize, wordFontStacks, wordImageBox } from './richText';
 import { mediaKeys } from './serialize';
 import { createProjectDoc } from './factory';
 
@@ -80,5 +80,12 @@ describe('note d’intention mise en forme', () => {
     const tall = wordImageBox(1000, 4000);
     expect(tall.height).toBe(869);
     expect(Math.abs(tall.width / tall.height - 0.25)).toBeLessThan(0.01);
+  });
+
+  it('images importées : réduites au-delà de 2400 px, proportions gardées', () => {
+    expect(shrunkImageSize(6000, 4000)).toEqual({ w: 2400, h: 1600 });
+    expect(shrunkImageSize(1000, 3000)).toEqual({ w: 800, h: 2400 });
+    expect(shrunkImageSize(2400, 1000)).toBeNull();
+    expect(shrunkImageSize(0, 0)).toBeNull();
   });
 });

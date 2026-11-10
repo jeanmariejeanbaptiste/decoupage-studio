@@ -300,6 +300,16 @@ export function textToRich(text: string): string {
   return paras.filter((p) => p.trim()).map((p) => `<p>${escText(p).replace(/\n/g, '<br>')}</p>`).join('');
 }
 
+/** Plus grand côté d'une image rangée dans le projet (au-delà, elle est réduite à l'import). */
+export const NOTE_IMAGE_MAX_PX = 2400;
+
+/** Taille à laquelle ranger une image : réduite, proportions gardées, si un côté dépasse `max` ; sinon null. */
+export function shrunkImageSize(w: number, h: number, max = NOTE_IMAGE_MAX_PX): { w: number; h: number } | null {
+  if (!(w > 0 && h > 0) || Math.max(w, h) <= max) return null;
+  const k = max / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+
 /** Clés des images du projet posées dans la note. */
 export function richImageKeys(html: string | undefined): string[] {
   return [...(html ?? '').matchAll(/data-blob="([^"]+)"/g)].map((m) => m[1]);

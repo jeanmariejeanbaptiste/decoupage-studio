@@ -23,8 +23,9 @@ import {
 } from 'lucide-react';
 import { INDENT_STEP_CM, LINE_SPACINGS, PARAGRAPH_STYLES, RICH_FONTS, RICH_SIZES, sanitizeRich, type ParagraphStyle } from '../../domain/richText';
 import { countWords } from '../../domain/text';
-import { getBlob, putBlob } from '../../store/db';
+import { getBlob } from '../../store/db';
 import { registerFlush } from '../../store/persistence';
+import { storeNoteImage } from './noteImage';
 import s from './RichEditor.module.css';
 
 /** Géométrie de la page à l'écran : A4, marges de 25 mm (comme Word). */
@@ -449,9 +450,15 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
 
   const insertImage = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
-    const key = await putBlob(projectId, file.name, file);
+    const key = await storeNoteImage(projectId, file);
+    if (!key) return;
     exec('insertHTML', `<img data-blob="${key}" alt="" style="width: 100%">`);
     resolveImages();
+  };
+
+  /** Plusieurs images, dans l'ordre. */
+  const insertImages = async (files: File[]) => {
+    for (const f of files) await insertImage(f);
   };
 
   const onKeyDown = (e: RKeyboardEvent<HTMLDivElement>) => {
@@ -587,11 +594,12 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
               ref={fileInput}
               type="file"
               accept="image/*"
+              multiple
               className="visually-hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
+                const files = Array.from(e.target.files ?? []);
                 e.target.value = '';
-                if (f) void insertImage(f);
+                void insertImages(files);
               }}
               data-testid="note-image-input"
             />
@@ -635,8 +643,14 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
             onBlur={commit}
             onPaste={(e) => {
               if (readOnly) return;
-              // Collage : texte mis en forme nettoyé (aucun style étranger), ou texte brut.
+              // Collage : images (capture d'écran), texte mis en forme nettoyé (aucun style étranger), ou texte brut.
               e.preventDefault();
+              const images = Array.from(e.clipboardData.files ?? []).filter((f) => f.type.startsWith('image/'));
+              if (images.length) {
+                keepRange();
+                void insertImages(images);
+                return;
+              }
               snapshot(true);
               const htmlData = e.clipboardData.getData('text/html');
               const text = e.clipboardData.getData('text/plain');
@@ -646,10 +660,10 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
               afterChange();
             }}
             onDrop={(e) => {
-              const f = e.dataTransfer.files?.[0];
-              if (readOnly || !f?.type.startsWith('image/')) return;
+              const images = Array.from(e.dataTransfer.files ?? []).filter((f) => f.type.startsWith('image/'));
+              if (readOnly || !images.length) return;
               e.preventDefault();
-              void insertImage(f);
+              void insertImages(images);
             }}
           />
         </div>
