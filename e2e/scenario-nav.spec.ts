@@ -138,7 +138,7 @@ test('Scénario : menu Exporter à sections fixes', async ({ page }) => {
 test('Scénario : panneau aéré, largeur réglable et retenue, double-clic pour revenir', async ({ page }) => {
   await page.goto('/#/scenario?seed=fiction');
   const side = page.getByLabel('Navigation du scénario');
-  await expect(page.getByRole('tablist', { name: 'Panneau' }).getByRole('tab')).toHaveText(['Séquences', 'Personnages', 'Décors', 'Recherche']);
+  await expect(page.getByRole('tablist', { name: 'Panneau' }).getByRole('tab')).toHaveText(['Séquences', 'Personnages', 'Décors']);
   const width = async () => Math.round((await side.boundingBox())!.width);
   expect(await width()).toBe(344);
   const grip = page.getByTestId('scenario-side-resize');
