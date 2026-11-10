@@ -84,13 +84,36 @@ function dropUndoToasts(): void {
 export const undo = () => {
   if (!canMutate()) return;
   dropUndoToasts();
-  useProjectStore.temporal.getState().undo();
+  const t = useProjectStore.temporal.getState();
+  if (!t.pastStates.length) return;
+  t.undo();
+  touchAfterTravel();
 };
 export const redo = () => {
   if (!canMutate()) return;
   dropUndoToasts();
-  useProjectStore.temporal.getState().redo();
+  const t = useProjectStore.temporal.getState();
+  if (!t.futureStates.length) return;
+  t.redo();
+  touchAfterTravel();
 };
+
+/**
+ * Annuler ramène l'état d'avant, date comprise : le projet paraîtrait plus ancien que sa version
+ * enregistrée (les autres onglets et le Drive garderaient l'état annulé). La date suit donc l'heure
+ * réelle du geste, hors historique.
+ */
+function touchAfterTravel(): void {
+  const doc = useProjectStore.getState().doc;
+  if (!doc) return;
+  const t = useProjectStore.temporal.getState();
+  t.pause();
+  try {
+    useProjectStore.setState({ doc: produce(doc, (d) => void (d.project.updatedAt = new Date().toISOString())) });
+  } finally {
+    t.resume();
+  }
+}
 
 export function useHistory() {
   const canUndo = useStore(useProjectStore.temporal, (s) => s.pastStates.length > 0);
