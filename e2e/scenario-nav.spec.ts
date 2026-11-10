@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 test('Scénario : quatre onglets, adresse, Précédent, clavier, sous-page retenue', async ({ page }) => {
   await page.goto('/#/scenario?seed=fiction');
@@ -154,4 +154,83 @@ test('Scénario : panneau aéré, largeur réglable et retenue, double-clic pour
   await page.getByRole('tablist', { name: 'Scénario' }).getByRole('tab', { name: 'Découpage' }).click();
   await expect(page.getByRole('tablist', { name: 'Panneau' })).toHaveCount(0);
   await expect(page.getByTestId('scenario-shot').first()).toBeVisible();
+});
+
+/** Débordement horizontal de la zone de page (0 : aucun). */
+const sideScroll = (page: Page) =>
+  page.evaluate(() => {
+    const main = document.getElementById('contenu')!;
+    return main.scrollWidth - main.clientWidth;
+  });
+/** L'élément est entièrement dans la largeur de la fenêtre. */
+const inside = async (page: Page, loc: Locator) => {
+  const b = (await loc.boundingBox())!;
+  return b.x >= 0 && b.x + b.width <= page.viewportSize()!.width + 0.5;
+};
+
+test('Scénario étroit (800 px, menu latéral ouvert) : rien ne déborde, les outils gardent leur icône', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.goto('/#/scenario?seed=fiction&view=script');
+  await expect(page.getByTestId('script-editor')).toBeVisible();
+  for (const v of ['script', 'outline', 'cut', 'stats']) {
+    await page.evaluate((h) => void (location.hash = h), `#/scenario?view=${v}`);
+    await page.waitForTimeout(300);
+    expect(await sideScroll(page)).toBeLessThanOrEqual(0);
+    expect(await inside(page, page.getByTestId('scenario-export'))).toBe(true);
+  }
+  await page.evaluate(() => void (location.hash = '#/scenario?view=script'));
+  expect(await inside(page, page.getByTestId('scenario-side-toggle'))).toBe(true);
+  await expect(page.getByTestId('edit-title-page')).toHaveAttribute('title', 'Page de garde');
+  expect(await inside(page, page.getByTestId('edit-title-page'))).toBe(true);
+});
+
+test('Scénario sur téléphone : menus entiers, Exporter et version toujours visibles', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#/scenario?seed=fiction&view=script');
+  await expect(page.getByTestId('script-editor')).toBeVisible();
+  expect(await sideScroll(page)).toBeLessThanOrEqual(0);
+  expect(await inside(page, page.getByTestId('scenario-export'))).toBe(true);
+  expect(await inside(page, page.getByTestId('version-switcher'))).toBe(true);
+  await page.getByTestId('scenario-export').click();
+  const items = page.getByTestId('scenario-export-menu').getByRole('menuitem');
+  await expect(items).toHaveCount(5);
+  for (const it of await items.all()) await expect(it).toBeInViewport({ ratio: 1 });
+  await page.keyboard.press('Escape');
+  await page.getByTestId('block-type').click();
+  await expect(page.getByRole('listbox', { name: 'Type du paragraphe' }).getByRole('option').last()).toBeInViewport({ ratio: 1 });
+  await page.getByTestId('block-type').click();
+  await page.getByTestId('version-switcher').click();
+  await expect(page.getByTestId('version-import')).toBeInViewport({ ratio: 1 });
+});
+
+test('Scénario au clavier : Exporter (Échap, Tab), ⌘\\ hors panneau, poignée du panneau', async ({ page }) => {
+  await page.goto('/#/scenario?seed=fiction&view=script');
+  await expect(page.getByTestId('script-editor')).toBeVisible();
+  const trigger = page.getByTestId('scenario-export');
+  await trigger.click();
+  await expect(page.getByRole('menuitem', { name: 'PDF' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('scenario-export-menu')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('scenario-export-menu')).toHaveCount(0);
+
+  // ⌘\ ne touche au panneau que là où il existe.
+  const tabs = page.getByRole('tablist', { name: 'Scénario' });
+  await tabs.getByRole('tab', { name: 'Séquencier' }).click();
+  await page.keyboard.press('Control+Backslash');
+  await tabs.getByRole('tab', { name: 'Texte' }).click();
+  await expect(page.getByLabel('Navigation du scénario')).toBeVisible();
+
+  const grip = page.getByTestId('scenario-side-resize');
+  await grip.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(grip).toHaveAttribute('aria-valuenow', '360');
+  await page.keyboard.press('End');
+  await expect(grip).toHaveAttribute('aria-valuenow', '480');
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(grip).toHaveAttribute('aria-valuenow', '416');
+  await page.keyboard.press('Enter');
+  await expect(grip).toHaveAttribute('aria-valuenow', '344');
 });

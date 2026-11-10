@@ -621,6 +621,7 @@ test('relecteur : rien de la synchronisation privée, onglets publiés seulement
   for (const t of ['scenes', 'characters', 'decors', 'research']) await expect(nina.getByTestId(`scenario-tab-${t}`)).toHaveCount(0);
   await nina.evaluate(() => void (location.hash = '#/scenario?view=outline'));
   await expect(views.filter({ hasText: 'Texte' })).toHaveAttribute('aria-selected', 'true');
+  await expect(nina).toHaveURL(/#\/scenario\?view=script$/);
 
   // Lien arrêté : un autre relecteur qui commente n'ouvre pas le sélecteur de Google.
   const { page: paul } = await person(browser, fake, 'tok-paul');

@@ -5,7 +5,7 @@
 /* Invité en lecture : le nom de la version, sans allure de bouton. */
 .label { display: inline-flex; align-items: center; height: 32px; padding: 0 2px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .count { font-weight: 400; font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 40; min-width: 280px; padding: 6px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-card); box-shadow: var(--shadow); }
+.menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 40; min-width: 280px; max-width: calc(100vw - 16px); padding: 6px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-card); box-shadow: var(--shadow); }
 .menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .menu li { display: flex; align-items: center; gap: 4px; border-radius: 5px; }
 .menu li:hover { background: var(--hover); }
