@@ -126,6 +126,22 @@ test('lecture seule : changer de jour et déplier une bande restent possibles', 
   await expect(page.getByTestId('callsheet-link-1')).toBeVisible();
 });
 
+test('carte : les jours sont des boutons à bascule', async ({ page }) => {
+  // Rien ne part sur le réseau (ni tuiles ni géocodage).
+  await page.route(/^https?:\/\/(?!localhost)/, (route) => route.abort());
+  await suggested(page);
+  await page.getByTestId('callsheet-link-1').click();
+  await page.getByTestId('stop-address').first().fill('3 quai Voltaire, Paris');
+  await page.getByRole('button', { name: 'Jour suivant' }).click();
+  await page.getByTestId('stop-address').first().fill('23 rue Clovis, Paris');
+  await page.getByRole('button', { name: 'Plan de travail' }).click();
+  const days = page.getByTestId('schedule-map').getByRole('group', { name: 'Jour' });
+  await expect(days.getByRole('button', { name: 'Tous', pressed: true })).toBeVisible();
+  await days.getByRole('button', { name: 'J2', pressed: false }).click();
+  await expect(days.getByRole('button', { name: 'J2' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('schedule-map').getByRole('tab')).toHaveCount(0);
+});
+
 test.describe('téléphone', () => {
   test.use({ viewport: { width: 390, height: 844 } });
   for (const theme of ['papier', 'encre']) {
