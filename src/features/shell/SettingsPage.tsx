@@ -15,7 +15,7 @@ import { accessOf, forgetProbe, refreshAiStatus, rememberProbe, verifiedFor } fr
 import { keyOf, loadAiSettings, probeProvider, providerInfo, PROVIDERS, saveAiSettings, type AiSettings, type ModelEntry, type ProviderId } from '../assistant/providers';
 import s from './SettingsPage.module.css';
 
-import { conflictOf, comboFromEvent, formatCombo, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId, type ShortcutMap } from '../../domain/shortcuts';
+import { conflictOf, comboFromEvent, formatCombo, isBrowserReserved, isReserved, SHORTCUTS, DEFAULT_SHORTCUTS, type ShortcutId, type ShortcutMap } from '../../domain/shortcuts';
 import { setShortcut, useShortcuts } from '../../store/shortcuts';
 import { navigate, useLocation } from '../../app/router';
 
@@ -601,6 +601,7 @@ function ShortcutsSection() {
     const combo = comboFromEvent(e.nativeEvent);
     if (!combo) return;
     if (isReserved(combo)) return setError({ id, text: `${formatCombo(combo)} sert déjà à la saisie.` });
+    if (isBrowserReserved(combo)) return setError({ id, text: `${formatCombo(combo)} est réservé par le navigateur.` });
     const other = conflictOf(map, id, combo);
     if (other) return setError({ id, text: `${formatCombo(combo)} est déjà pris par « ${other.label} ».` });
     setKey(id, combo);

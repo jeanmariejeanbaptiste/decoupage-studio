@@ -128,6 +128,14 @@ export function isReserved(combo: string): boolean {
   return /^(Shift\+)?(Arrow(Up|Down|Left|Right)|Tab|Enter|Escape|Backspace|Delete|F2)$/.test(combo) || /^(Shift\+)?[A-Z0-9]$/.test(combo) || /^Mod\+[CVX]$/.test(combo);
 }
 
+/**
+ * Combinaisons que le navigateur garde pour lui (fermer l'onglet, nouvelle fenêtre, recharger…) : la
+ * page ne les reçoit jamais, ou trop tard (⌘W fermerait l'onglet au lieu d'agir).
+ */
+export function isBrowserReserved(combo: string): boolean {
+  return /^Mod\+([WTNQLR]|Tab)$/.test(combo) || /^Mod\+Shift\+([WTN]|Tab)$/.test(combo);
+}
+
 /** Le clavier est-il celui d'un Mac (⌥ y sert à taper des caractères : « » ’ [ { …) ? */
 export const isMacPlatform = (): boolean => typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 
