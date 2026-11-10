@@ -302,6 +302,8 @@
   transition: opacity 0.2s ease;
 }
 .item:hover .del, .del:focus-visible { opacity: 1; }
+/* Écran tactile : pas de survol, la suppression reste visible. */
+@media (hover: none) { .del { opacity: 1; } }
 .del:hover { color: var(--h-accent); }
 .empty {
   display: inline-flex;
