@@ -198,7 +198,8 @@ export function richToText(html: string): string {
           const own = li.cloneNode(true) as Element;
           own.querySelectorAll('ul, ol').forEach((x) => x.remove());
           parts.push(`${prefix}${c.tagName === 'OL' ? `${i + 1}.` : '•'} ${textOf(own)}`.trimEnd());
-          walk(li, `${prefix}  `);
+          // Seules les sous-listes : le texte de la puce (gras, italique…) est déjà repris.
+          for (const sub of Array.from(li.children)) if (sub.tagName === 'UL' || sub.tagName === 'OL') walk({ children: [sub] } as unknown as Element, `${prefix}  `);
         });
       } else if (c.tagName !== 'HR') {
         const t = textOf(c);

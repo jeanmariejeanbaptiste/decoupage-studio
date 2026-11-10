@@ -33,4 +33,8 @@ describe('note d’intention mise en forme', () => {
     doc.intentionHtml = '<p><img data-blob="note-img-1" alt=""></p>';
     expect(mediaKeys(doc)).toContain('note-img-1');
   });
+
+  it('texte brut : la mise en forme d’une puce n’est pas répétée', () => {
+    expect(richToText('<ul><li>Un <i>mot</i></li><li>Deux<ol><li>A <b>b</b></li></ol></li></ul>')).toBe('• Un mot\n\n• Deux\n\n  1. A b');
+  });
 });
