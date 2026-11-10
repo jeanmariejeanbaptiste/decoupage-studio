@@ -120,7 +120,7 @@ export function focalText(f: Focal): string {
 /** Libellé lu : « 50 → 85 mm ». */
 export function focalLabel(f: Focal): string {
   const t = focalText(f);
-  return t ? `${t.replace(' → ', ' → ')} mm` : '';
+  return t ? `${t.replace(' → ', '\u202f→\u202f')}\u00a0mm` : '';
 }
 
 // --- Angle : un axe, une hauteur -----------------------------------------------------------------

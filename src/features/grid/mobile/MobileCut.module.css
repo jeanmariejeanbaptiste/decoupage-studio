@@ -1,0 +1,108 @@
+/* Découpage sur téléphone : noir, gris, blanc ; des lignes plutôt que des cartes (maquettes « cadre »). */
+.vars {
+  --m-bg: var(--paper);
+  --m-ink: var(--ink);
+  --m-soft: var(--ink-soft);
+  --m-faint: #a4a9b1;
+  --m-ghost: #d9dce1;
+  --m-rule: #ebedf0;
+  --m-tint: #f4f5f7;
+  --m-mark: #e4e6ea;
+  --m-sheet: #ffffff;
+  --m-scrim: rgba(17, 19, 24, 0.3);
+  --m-lift: 0 1px 0 rgba(17, 19, 24, 0.04), 0 10px 28px rgba(17, 19, 24, 0.14), 0 2px 6px rgba(17, 19, 24, 0.06);
+  --m-press: rgba(17, 19, 24, 0.05);
+}
+:global(:root[data-theme='encre']) .vars {
+  --m-faint: #5d636c;
+  --m-ghost: #33373f;
+  --m-rule: #23262c;
+  --m-tint: #16181d;
+  --m-mark: #2a2e35;
+  --m-sheet: #1a1d22;
+  --m-scrim: rgba(0, 0, 0, 0.55);
+  --m-lift: 0 10px 28px rgba(0, 0, 0, 0.5);
+  --m-press: rgba(255, 255, 255, 0.06);
+}
+
+/* La page garde sa marge ailleurs ; ici, l'écran est à bord perdu. */
+.root {
+  margin: -14px -16px -40px;
+  padding-bottom: 120px;
+  min-height: calc(100dvh - var(--topbar-h));
+  background: var(--m-bg);
+  color: var(--m-ink);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+:where(.root) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+:where(.root) button:disabled { cursor: default; }
+:where(.root) :focus-visible { outline: 1.5px solid var(--m-ink); outline-offset: 2px; border-radius: 3px; }
+.icon { display: block; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+/* En-tête : la séquence, le numéro du plan au bout ; la liste et « … » à droite. */
+.top { height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px 0 24px; }
+.seq { display: flex; align-items: baseline; min-width: 0; font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; white-space: nowrap; }
+.seq b { font-weight: 600; }
+.seq .label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.seq .d { color: var(--m-faint); padding: 0 8px; }
+.seq .pn { font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.icons { display: flex; flex: none; position: relative; }
+.btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--m-ink); }
+
+/* L'image du storyboard, collée à l'en-tête. */
+.frame { margin: 6px 24px 0; background: var(--m-tint); border-radius: 4px; overflow: hidden; }
+.frame img { display: block; width: 100%; height: 100%; }
+
+/* Position dans la séquence, durée au bout. */
+.pos { display: flex; align-items: center; gap: 4px; margin: 12px 24px 0; min-height: 14px; }
+.pos u { display: block; flex: 1; max-width: 18px; height: 2px; background: var(--m-rule); text-decoration: none; border-radius: 1px; }
+.pos u.on { background: var(--m-ink); }
+.pos em { flex: none; margin-left: auto; padding-left: 10px; font-style: normal; font-size: 12px; color: var(--m-faint); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.frame + .pos u { max-width: none; }
+
+/* Titre : la valeur, une ligne, une graisse. */
+.lead { padding: 22px 24px 0; }
+.title { display: block; width: 100%; font-size: 46px; line-height: 1.04; letter-spacing: -0.04em; font-weight: 500; margin-left: -2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title[data-len='m'] { font-size: 38px; }
+.title[data-len='l'] { font-size: 30px; }
+.sub { margin: 10px 0 0; font-size: 16px; line-height: 1.4; color: var(--m-soft); letter-spacing: -0.006em; }
+.sub .who { color: var(--m-ink); font-weight: 500; }
+.sub .s { color: var(--m-ghost); padding: 0 6px; }
+.sub button { display: inline; }
+.empty { color: var(--m-ghost); font-weight: 400; }
+
+/* Champs : une ligne par champ ; chacune s'ouvre dans sa feuille. */
+.fields { margin-top: 18px; }
+.field { display: block; width: 100%; padding: 12px 24px 13px; border-top: 1px solid var(--m-rule); }
+.field:last-child { border-bottom: 1px solid var(--m-rule); }
+.field:not(:disabled):active { background: var(--m-press); }
+.field .dt { display: block; font-size: 12px; color: var(--m-faint); letter-spacing: 0.01em; margin-bottom: 4px; }
+.field .dd { display: block; font-size: 16px; line-height: 1.45; letter-spacing: -0.008em; color: var(--m-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.quote { border-left: 1.5px solid var(--m-ghost); padding-left: 12px; text-wrap: pretty; }
+.field .mv { display: flex; align-items: center; justify-content: space-between; gap: 12px; white-space: normal; }
+.mv i { font-style: normal; color: var(--m-soft); }
+.mv b { display: flex; gap: 2px; flex: none; font-weight: 400; }
+.mv svg { width: 26px; height: 26px; color: var(--m-soft); stroke-width: 1.2; }
+
+/* Pied : précédent, ajouter, suivant. */
+.foot {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  height: calc(92px + env(safe-area-inset-bottom)); padding: 10px 14px calc(22px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; justify-content: space-between;
+  background: linear-gradient(to bottom, transparent, var(--m-bg) 22%);
+  pointer-events: none;
+}
+.foot > * { pointer-events: auto; }
+.nav { display: flex; align-items: center; gap: 2px; height: 48px; min-width: 72px; padding: 0 10px; font-size: 14px; color: var(--m-soft); font-variant-numeric: tabular-nums; }
+.nav.r { flex-direction: row-reverse; }
+.nav:disabled { visibility: hidden; }
+.add { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--m-ink); display: grid; place-items: center; color: var(--m-ink); background: var(--m-bg); }
+.add:active { background: var(--m-press); }
+
+/* Menu « … » */
+.menu { position: absolute; top: 44px; right: 4px; z-index: 30; min-width: 210px; padding: 6px; background: var(--m-sheet); border-radius: 12px; box-shadow: var(--m-lift); }
+.menu button { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 12px; border-radius: 8px; font-size: 15px; letter-spacing: -0.006em; }
+.menu button:active { background: var(--m-press); }
+.menu svg { color: var(--m-soft); }
+.menuScrim { position: fixed; inset: 0; z-index: 25; }
