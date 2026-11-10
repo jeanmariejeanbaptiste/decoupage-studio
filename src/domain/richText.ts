@@ -47,7 +47,7 @@ export function wordImageBox(naturalW: number, naturalH: number, widthPct = 100)
 }
 
 /** Corps proposés, en points. */
-export const RICH_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48] as const;
+export const RICH_SIZES = [8, 9, 10, 10.5, 11, 12, 12.5, 13, 14, 15, 16, 18, 20, 24, 28, 36, 48] as const;
 
 /** Interlignes proposés. */
 export const LINE_SPACINGS = [1, 1.15, 1.5, 2] as const;

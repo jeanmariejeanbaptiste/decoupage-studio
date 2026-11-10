@@ -494,7 +494,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
           </select>
           <select value={RICH_SIZES.map(String).includes(state.size) ? state.size : ''} onChange={(e) => setSize(e.target.value)} aria-label="Corps" title="Taille des caractères" className={s.selSize} data-testid="note-size">
             <option value="" disabled hidden>
-              {state.size || 'Corps'}
+              {state.size ? state.size.replace('.', ',') : 'Corps'}
             </option>
             {RICH_SIZES.map((z) => (
               <option key={z} value={String(z)}>
