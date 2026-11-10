@@ -11,7 +11,7 @@ test('storyboard : « Par feuille » ne propose que les grilles qui remplissent 
   await expect(picker).toContainText('16:9');
   await picker.click();
   const options = page.getByTestId('storyboard-aspect-option');
-  await expect(options).toHaveCount(11);
+  await expect(options).toHaveCount(6);
   await expect(options.first()).toHaveText('16:9');
   await expect(options.first().locator('svg')).toHaveCount(1);
   await expect(page.getByRole('listbox', { name: 'Format des images' })).not.toContainText('cinémascope');

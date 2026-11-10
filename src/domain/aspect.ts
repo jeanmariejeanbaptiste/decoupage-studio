@@ -2,14 +2,10 @@
  *  montre par son rapport et sa silhouette, sans description. */
 export const ASPECT_PRESETS: ReadonlyArray<{ label: string; w: number; h: number }> = [
   { label: '16:9', w: 16, h: 9 },
-  { label: '1.85:1', w: 1.85, h: 1 },
+  // Scope d'aujourd'hui (projection anamorphique DCI) ; 1.85, 2:1 ou 1.66 se saisissent en personnalisé.
   { label: '2.39:1', w: 2.39, h: 1 },
-  { label: '2:1', w: 2, h: 1 },
-  { label: '1.66:1', w: 1.66, h: 1 },
   { label: '4:3', w: 4, h: 3 },
   { label: '1:1', w: 1, h: 1 },
-  { label: '4:5', w: 4, h: 5 },
-  { label: '3:4', w: 3, h: 4 },
   { label: '9:16', w: 9, h: 16 },
 ];
 
