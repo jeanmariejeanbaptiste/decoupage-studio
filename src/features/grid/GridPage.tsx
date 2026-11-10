@@ -74,10 +74,20 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     [selIds, doc],
   );
   const multi = selIds.length > 1;
-  // Aperçu : une séquence sans plan n'y figure (comme à l'export) que si un commentaire la vise.
-  const commentedSeqs = useMemo(
-    () => new Set([...cutComments(storeDoc).values()].flatMap((l) => (l[0].anchor.kind === 'sequence' ? [l[0].anchor.seqId] : []))),
-    [storeDoc],
+  // Aperçu : une séquence sans plan n'y figure (comme à l'export) que si un commentaire la vise, ou
+  // si une vérification y mène (lecture seule).
+  const cutFocus = useUi((u) => u.cutFocus);
+  const commentedSeqs = useMemo(() => {
+    const keep = new Set([...cutComments(storeDoc).values()].flatMap((l) => (l[0].anchor.kind === 'sequence' ? [l[0].anchor.seqId] : [])));
+    if (cutFocus && !cutFocus.shotId) keep.add(cutFocus.seqId);
+    return keep;
+  }, [storeDoc, cutFocus]);
+  // L'arrivée d'une vérification ne vaut que pour cette visite (le démontage d'essai du mode strict la garde).
+  useEffect(
+    () => () => {
+      if (!/^#\/(grid|storyboard)\b/.test(window.location.hash)) useUi.getState().set({ cutFocus: null });
+    },
+    [],
   );
 
   // Après la création de la première séquence, la grille prend le focus.

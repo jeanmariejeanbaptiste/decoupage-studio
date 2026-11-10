@@ -41,8 +41,15 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
     const elements = empty.length ? parseFountain(doc.scenario ?? '') : [];
     return new Map(empty.map((id) => [id, sequenceExcerpt(doc, id, elements, 160)]));
   }, [doc]);
-  const [current, setCurrent] = useState<ID | undefined>(() => order[0]);
-  const [list, setList] = useState(false);
+  // Arrivée d'une vérification ou d'un lien vers un plan : ce plan ; vers une séquence sans plan :
+  // la vue d'ensemble, où elle a son « + ». Sinon le plan sélectionné, ou le premier.
+  const [arrival] = useState(() => useUi.getState().cutFocus);
+  const [current, setCurrent] = useState<ID | undefined>(() => {
+    const sel = useUi.getState().selection;
+    const wanted = arrival?.shotId ?? (sel ? order[sel.focus.row] : undefined);
+    return wanted && order.includes(wanted) ? wanted : order[0];
+  });
+  const [list, setList] = useState(() => !!arrival && !arrival.shotId);
   const idx = current ? order.indexOf(current) : -1;
   const shotId = idx >= 0 ? current : order[0];
   const i = shotId ? order.indexOf(shotId) : -1;
@@ -121,6 +128,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
                     }}
                     aria-label={`Ajouter un plan à la séquence ${sequenceNumber(doc, seqId)}`}
                     data-testid="mobile-add-first-shot"
+                    data-empty-seq={seqId}
                   >
                     <span className={s.listNum}>
                       <Plus size={16} strokeWidth={1.25} />
@@ -207,7 +215,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
             />
           </label>
           <SeqMeta doc={doc} seqId={shot.sequenceId} readOnly={readOnly} className={s.kickerMeta} />
-          <h1 className={s.title}>
+          <h1 className={s.title} data-mobile-title>
             Plan {shotCode(doc, shot.id)}
             {tc && <span className={s.tc}>{tc}</span>}
           </h1>
@@ -234,6 +242,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
           c === 'sequence' ? null : (
             <Field
               key={`${shot.id}-${c}`}
+              col={c}
               label={label(c)}
               value={editableText(doc, shot.id, c)}
               multiline={MULTILINE.includes(c)}
@@ -275,6 +284,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
 
 /** Champ saisi d'un trait, enregistré en quittant le champ. */
 function Field({
+  col,
   label: l,
   value,
   multiline,
@@ -283,6 +293,7 @@ function Field({
   numeric,
   onCommit,
 }: {
+  col: ColumnKey;
   label: string;
   value: string;
   multiline?: boolean;
@@ -322,7 +333,7 @@ function Field({
     onCommit(next);
   };
   return (
-    <label className={s.field}>
+    <label className={s.field} data-field={col}>
       <span>{l}</span>
       {multiline ? (
         <textarea rows={Math.max(2, Math.ceil(draft.length / 38))} {...common} />

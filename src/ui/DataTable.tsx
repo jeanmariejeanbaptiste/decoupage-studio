@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { fold } from '../domain/text';
 import s from './DataTable.module.css';
@@ -39,6 +39,8 @@ interface Props<T> {
 export function DataTable<T>({ rows, columns, rowKey, search = '', empty, rowProps, label, wrapRow }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
   const [editing, setEditing] = useState<{ row: string; col: string } | null>(null);
+  const returnTo = useRef<{ row: string; col: string } | null>(null);
+  const table = useRef<HTMLTableElement>(null);
 
   const visible = useMemo(() => {
     const q = fold(search);
@@ -58,7 +60,7 @@ export function DataTable<T>({ rows, columns, rowKey, search = '', empty, rowPro
 
   return (
     <div className={s.wrap}>
-      <table className={s.table} aria-label={label}>
+      <table ref={table} className={s.table} aria-label={label}>
         <thead>
           <tr>
             {columns.map((c) => {
@@ -90,15 +92,25 @@ export function DataTable<T>({ rows, columns, rowKey, search = '', empty, rowPro
           {visible.map((r) => {
             const id = rowKey(r);
             const tr = (
-              <tr key={id} {...(rowProps?.(r) ?? {})}>
+              <tr key={id} data-row-key={id} {...(rowProps?.(r) ?? {})}>
                 {columns.map((c) => {
                   const isEditing = editing?.row === id && editing.col === c.key;
+                  // Cellule modifiable : atteinte au clavier, Entrée (ou F2) ouvre la saisie.
+                  const inline = !!c.edit && c.edit.type !== 'color';
                   return (
                     <td
                       key={c.key}
                       style={{ textAlign: c.align }}
                       className={[c.edit ? s.editable : '', c.className ?? ''].join(' ').trim() || undefined}
-                      onClick={() => c.edit && !isEditing && c.edit.type !== 'color' && setEditing({ row: id, col: c.key })}
+                      data-col={c.key}
+                      tabIndex={inline && !isEditing ? 0 : undefined}
+                      onClick={() => inline && !isEditing && setEditing({ row: id, col: c.key })}
+                      onKeyDown={(e) => {
+                        if (!inline || isEditing || e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== 'F2')) return;
+                        e.preventDefault();
+                        returnTo.current = { row: id, col: c.key };
+                        setEditing({ row: id, col: c.key });
+                      }}
                     >
                       {isEditing && c.edit ? (
                         <InlineEditor
@@ -106,6 +118,10 @@ export function DataTable<T>({ rows, columns, rowKey, search = '', empty, rowPro
                           options={c.edit.options}
                           onDone={(v) => {
                             setEditing(null);
+                            // Ouverte au clavier : le clavier revient sur la cellule.
+                            const back = returnTo.current;
+                            returnTo.current = null;
+                            if (back) requestAnimationFrame(() => table.current?.querySelector<HTMLElement>(`tr[data-row-key="${CSS.escape(back.row)}"] > td[data-col="${CSS.escape(back.col)}"]`)?.focus());
                             if (v !== null && v !== c.edit!.get(r)) c.edit!.set(r, v);
                           }}
                         />

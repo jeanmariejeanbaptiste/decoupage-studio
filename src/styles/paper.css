@@ -81,12 +81,19 @@ input, progress { accent-color: var(--ink); }
 }
 [data-flash]:not(tr) { animation: ds-flash 1.6s var(--ease); }
 tr[data-flash] > td { animation: ds-flash-fill 1.6s var(--ease); }
+/* Bloc dont le contenu touche les bords (caméra de la fiche d'interview) : un cadre détaché, arrondi. */
+@keyframes ds-flash-ring {
+  0%, 45% { background-color: var(--flash); box-shadow: 0 0 0 6px var(--flash); outline-color: var(--ink); }
+  100% { background-color: transparent; box-shadow: 0 0 0 6px transparent; outline-color: transparent; }
+}
+[data-itw-cam][data-flash] { animation: ds-flash-ring 1.6s var(--ease); border-radius: 4px; outline: 1.5px solid transparent; outline-offset: 6px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
   /* Sans animation, la cible garde un trait fixe le temps du repère. */
   [data-flash]:not(tr) { box-shadow: inset 0 0 0 1.5px var(--ink); }
   tr[data-flash] > td { box-shadow: inset 0 0 0 999px var(--flash); }
+  [data-itw-cam][data-flash] { box-shadow: 0 0 0 6px var(--flash); background-color: var(--flash); outline-color: var(--ink); }
 }
 .skip-link {
   position: absolute; left: 12px; top: -60px; z-index: 300;

@@ -19,6 +19,7 @@
 .table tbody tr:hover td { background: var(--hover); }
 .editable { cursor: text; }
 .editable:hover { box-shadow: inset 0 -1px 0 var(--rust); }
+.editable:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .input { width: 100%; font: inherit; padding: 2px 4px; border: 1px solid var(--rust); border-radius: 3px; background: var(--paper-card); }
 .color { width: 28px; height: 22px; padding: 0; border: 1px solid var(--rule); border-radius: 3px; background: none; cursor: pointer; }
 .empty { text-align: center; color: var(--ink-soft); padding: 24px !important; font-style: italic; }
