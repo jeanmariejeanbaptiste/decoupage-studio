@@ -3,7 +3,7 @@ import { formatOneShotDuration, oneShotTiming, toggleOneShot } from '../../domai
 import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { ImagePlus, PanelRightClose, Trash2 } from 'lucide-react';
-import { setCellText } from '../../domain/cells';
+import { lockedCell, setCellText } from '../../domain/cells';
 import { deduceEquipment, EQUIPMENT_CATEGORIES } from '../../domain/equipment';
 import { diagonalFov, fullFrameEquivalent, horizontalFov } from '../../domain/focal';
 import { runChecks } from '../../domain/lint';
@@ -53,6 +53,8 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
   const equipment = deduceEquipment(shot);
   const block = doc.blocks[shot.actionBlockId];
   const update = (fn: (d: ProjectDoc) => void) => mutateDoc(fn);
+  // Plan d'interview : ces champs suivent sa fiche, la saisie serait refusée.
+  const locked = lockedCell(doc, shot.id, 'notes');
 
   const dropImage = async (file: File | undefined) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -190,15 +192,15 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
         <h3>Son, lumière, image</h3>
         <label className={s.field}>
           <span>Son</span>
-          <Draft value={shot.sound ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'sound', v))} />
+          <Draft readOnly={locked} value={shot.sound ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'sound', v))} />
         </label>
         <label className={s.field}>
           <span>Lumière (effet, intention)</span>
-          <Draft value={shot.light ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'light', v))} />
+          <Draft readOnly={locked} value={shot.light ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'light', v))} />
         </label>
         <label className={s.field}>
           <span>Image</span>
-          <Draft multiline value={shot.notes ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'notes', v))} />
+          <Draft readOnly={locked} multiline value={shot.notes ?? ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'notes', v))} />
         </label>
         <div className={s.row}>
           <label className={s.field}>
@@ -211,7 +213,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
           </label>
           <label className={s.field}>
             <span>Jour de tournage</span>
-            <Draft type="number" value={shot.shootingDay !== undefined ? String(shot.shootingDay) : ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'shootingDay', v))} />
+            <Draft readOnly={locked} type="number" value={shot.shootingDay !== undefined ? String(shot.shootingDay) : ''} onCommit={(v) => update((d) => void setCellText(d, shot.id, 'shootingDay', v))} />
           </label>
         </div>
       </section>
@@ -259,7 +261,7 @@ function Header({ onClose }: { onClose: () => void }) {
  * Champ de l'inspecteur saisi d'un trait : la frappe reste locale et n'est enregistrée qu'en quittant
  * le champ (ou Entrée), si bien qu'une note entière s'annule en une seule fois avec ⌘Z.
  */
-function Draft({ value, onCommit, multiline, type }: { value: string; onCommit: (v: string) => void; multiline?: boolean; type?: string }) {
+function Draft({ value, onCommit, multiline, type, readOnly }: { value: string; onCommit: (v: string) => void; multiline?: boolean; type?: string; readOnly?: boolean }) {
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -271,6 +273,7 @@ function Draft({ value, onCommit, multiline, type }: { value: string; onCommit: 
   };
   const common = {
     value: draft,
+    readOnly,
     onFocus: () => setFocused(true),
     onBlur: commit,
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),

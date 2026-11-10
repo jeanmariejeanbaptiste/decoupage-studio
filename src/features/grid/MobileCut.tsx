@@ -2,7 +2,7 @@ import { SeqMeta } from './SeqMeta';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Copy, List, Plus, Trash2, X } from 'lucide-react';
 import { COLUMN_DEFS, tcLast } from '../../domain/columns';
-import { editableText, isEditable, setCellText } from '../../domain/cells';
+import { editableText, isEditable, lockedCell, setCellText } from '../../domain/cells';
 import { sequenceHeading, sequenceNumber, shotCode } from '../../domain/numbering';
 import { addSequence, addShot as addShotTo, addShotAfter, deleteShot, duplicateShot } from '../../domain/ops';
 import { parseFountain } from '../../domain/fountain';
@@ -25,6 +25,8 @@ const label = (c: ColumnKey) => {
 /** Point de départ du glissement du doigt (un seul doigt à la fois). */
 const swipe = { x: 0, y: 0 };
 const MULTILINE: ColumnKey[] = ['action', 'dialogue', 'notes', 'sound'];
+/** Champs à plusieurs termes séparés par des virgules : la suggestion touchée remplace le dernier. */
+const TOKEN_FIELDS: ColumnKey[] = ['subject', 'angle', 'movement'];
 
 /**
  * Découpage sur téléphone : pas de tableau. Un plan à la fois, en pleine hauteur, champ par champ ;
@@ -67,7 +69,9 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
     useUi.getState().set({ printView: false });
   }, []);
 
-  const cols = tcLast(doc.project.settings.gridColumns).filter((c) => c !== 'number' && c !== 'tc');
+  // Mode durée : la durée du plan se saisit ici ; dans les autres modes le TC se calcule (en-tête).
+  const ownDuration = doc.project.settings.tcMode === 'duree';
+  const cols = tcLast(doc.project.settings.gridColumns).filter((c) => c !== 'number' && (c !== 'tc' || ownDuration));
   const go = (k: number) => {
     const next = order[Math.max(0, Math.min(order.length - 1, k))];
     if (next) setCurrent(next);
@@ -227,7 +231,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
           <SeqMeta doc={doc} seqId={shot.sequenceId} readOnly={readOnly} className={s.kickerMeta} />
           <h1 className={s.title} data-mobile-title>
             Plan {shotCode(doc, shot.id)}
-            {tc && <span className={s.tc}>{tc}</span>}
+            {tc && !(ownDuration && cols.includes('tc')) && <span className={s.tc}>{tc}</span>}
           </h1>
         </div>
         <div className={s.headActions}>
@@ -253,10 +257,11 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
             <Field
               key={`${shot.id}-${c}`}
               col={c}
-              label={label(c)}
+              label={c === 'tc' ? 'Durée' : label(c)}
               value={editableText(doc, shot.id, c)}
+              placeholder={c === 'tc' ? tc : undefined}
               multiline={MULTILINE.includes(c)}
-              readOnly={readOnly || !isEditable(c)}
+              readOnly={readOnly || !isEditable(c) || lockedCell(doc, shot.id, c)}
               suggest={readOnly ? undefined : suggestionSource(doc, c)}
               numeric={c === 'focal' || c === 'aperture'}
               onCommit={(v) => mutateDoc((d) => void setCellText(d, shot.id, c, v))}
@@ -299,13 +304,15 @@ function Field({
   value,
   multiline,
   readOnly,
-  suggest,
+  suggest: suggestFor,
   numeric,
+  placeholder,
   onCommit,
 }: {
   col: ColumnKey;
   label: string;
   value: string;
+  placeholder?: string;
   multiline?: boolean;
   readOnly?: boolean;
   suggest?: (q: string) => Suggestion[];
@@ -320,7 +327,7 @@ function Field({
   const common = {
     value: draft,
     readOnly,
-    placeholder: readOnly ? '' : '—',
+    placeholder: readOnly ? '' : placeholder || '—',
     onFocus: () => setFocused(true),
     onBlur: () => {
       setFocused(false);
@@ -329,16 +336,23 @@ function Field({
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
     'aria-label': l,
   };
-  // Suggestions à toucher (vocabulaire, focales…) : pour la dernière valeur saisie après une virgule.
-  const last = draft.split(/,\s*/).pop() ?? '';
-  // Valeur déjà complète : on propose toute la liste, pour changer d'un geste.
-  const matches = focused && suggest ? suggest(last) : [];
-  const chips = (matches.length <= 1 && suggest && focused ? suggest('') : matches).slice(0, 12);
+  const suggest = readOnly ? undefined : suggestFor;
+  // Suggestions à toucher (vocabulaire, focales…) : pour la dernière valeur saisie après une virgule
+  // dans un champ à plusieurs termes, pour le champ entier ailleurs.
+  const tokens = TOKEN_FIELDS.includes(col);
+  const query = tokens ? (draft.split(/,\s*/).pop() ?? '') : draft;
+  const matches = focused && suggest ? suggest(query) : [];
+  // Valeur déjà complète : on propose toute la liste, pour changer d'un geste (pas pour le dialogue,
+  // dont les suggestions dépendent du texte déjà saisi).
+  const chips = (matches.length <= 1 && suggest && focused && col !== 'dialogue' ? suggest('') : matches).slice(0, 12);
   const pick = (sg: Suggestion) => {
     const v = sg.value ?? sg.label;
-    const parts = draft.split(/,\s*/);
-    parts[parts.length - 1] = v;
-    const next = parts.filter(Boolean).join(', ');
+    let next = v;
+    if (tokens) {
+      const parts = draft.split(/,\s*/);
+      parts[parts.length - 1] = v;
+      next = parts.filter(Boolean).join(', ');
+    }
     setDraft(next);
     onCommit(next);
   };
