@@ -4,7 +4,7 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, DIMENSION_FONT, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
@@ -235,17 +235,24 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
         break;
     }
   }
-  // Cotes de la pièce : traits fins et valeurs en mètres, comme à l'écran.
-  const dims = roomDimensions(planOf(doc, key));
+  // Cotes de la pièce : traits fins et valeurs en mètres, comme à l'écran ; le texte grandit avec le
+  // cadre exporté pour rester lisible une fois la page réduite.
+  const span = (vs: number[]) => Math.max(...vs) - Math.min(...vs);
+  const xs = [0, PLAN_W, ...items.flatMap((i) => ('x2' in i ? [i.x, i.x2] : [i.x]))];
+  const ys = [0, PLAN_H, ...items.flatMap((i) => ('y2' in i ? [i.y, i.y2] : [i.y]))];
+  const dims = roomDimensions(planOf(doc, key), Math.max(1, Math.max(span(xs), span(ys)) / (70 * DIMENSION_FONT)));
   for (const d of dims) {
-    const ticks = [[d.x1, d.y1], [d.x2, d.y2]].map(([x, y]) => `M ${x - 4} ${y + 4} L ${x + 4} ${y - 4}`).join(' ');
+    const t = d.tick;
+    const ticks = [[d.x1, d.y1], [d.x2, d.y2]].map(([x, y]) => `M ${x - t} ${y + t} L ${x + t} ${y - t}`).join(' ');
     out.push(
-      `<g stroke="#6b7079" stroke-width="0.8" fill="none">${d.ext.map(([a, b, c, e]) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${e}"/>`).join('')}<line x1="${d.x1}" y1="${d.y1}" x2="${d.x2}" y2="${d.y2}"/><path d="${ticks}" stroke-width="1.2"/></g><text x="${d.tx}" y="${d.ty}" font-size="13" text-anchor="middle" fill="#3a3e45"${d.rot ? ` transform="rotate(${d.rot} ${d.tx} ${d.ty})"` : ''}>${xml(d.label)}</text>`,
+      `<g stroke="#6b7079" stroke-width="0.8" fill="none">${d.ext.map(([a, b, c, e]) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${e}"/>`).join('')}<line x1="${d.x1}" y1="${d.y1}" x2="${d.x2}" y2="${d.y2}"/><path d="${ticks}" stroke-width="1.2"/></g><text x="${d.tx}" y="${d.ty}" font-size="${+d.font.toFixed(1)}" text-anchor="middle" fill="#3a3e45"${d.rot ? ` transform="rotate(${d.rot} ${d.tx} ${d.ty})"` : ''}>${xml(d.label)}</text>`,
     );
   }
   // Cadre : la zone par défaut, élargie à tout ce qui a été placé (fond à l'échelle réelle et cotes compris).
-  const xs = [0, PLAN_W, ...items.flatMap((i) => ('x2' in i ? [i.x, i.x2] : [i.x])), ...dims.map((d) => d.x1 - 24)];
-  const ys = [0, PLAN_H, ...items.flatMap((i) => ('y2' in i ? [i.y, i.y2] : [i.y])), ...dims.map((d) => d.y1 - 24)];
+  for (const d of dims) {
+    xs.push(d.rot ? d.tx - d.font : d.x1);
+    ys.push(d.rot ? d.y1 : d.ty - d.font);
+  }
   const x0 = Math.min(...xs) - 30;
   const y0 = Math.min(...ys) - 70;
   const w = Math.max(...xs) + 30 - x0;
