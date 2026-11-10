@@ -3,7 +3,7 @@ name: Intégration continue
 on:
   pull_request:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, 'wip-*', 'integ*', relais, ci-verif]
 
 jobs:
   verifier:
