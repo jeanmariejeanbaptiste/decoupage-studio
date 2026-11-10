@@ -152,6 +152,8 @@ function repairSections(doc: ProjectDoc): void {
     if (Array.isArray(d[k])) d[k] = (d[k] as unknown[]).filter(k.endsWith('Extra') ? isText : isObject);
   }
   for (const k of ['floorPlans', 'breakdown', 'geocodes'] as const) if (doc[k]) dropBroken(doc[k] as Record<string, unknown>);
+  // Adresse géocodée sans coordonnées valables (ni marquée introuvable) : la carte planterait ; on la recherchera.
+  for (const [key, g] of Object.entries(doc.geocodes ?? {})) if (g.missing !== true && !(Number.isFinite(g.lat) && Number.isFinite(g.lon))) delete doc.geocodes![key];
   // Commentaires : sans identifiant ni ancre, ils ne s'afficheraient nulle part ; le reste est complété.
   if (doc.comments) doc.comments = doc.comments.filter((c) => isText(c.id) && isObject(c.anchor));
   for (const c of doc.comments ?? []) {
