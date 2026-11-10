@@ -170,6 +170,18 @@ test.describe('téléphone', () => {
     await expect(toggle).toBeFocused();
   });
 
+  test('panneau du projet : accueil, thème et Rétablir à portée de main', async ({ page }) => {
+    await page.goto('/#/grid?seed=fiction');
+    await expect(page.getByRole('button', { name: /^Rétablir/ })).toBeVisible();
+    await page.getByTestId('project-menu').click();
+    const panel = page.getByTestId('project-panel');
+    await panel.getByRole('button', { name: 'Thème encre' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'encre');
+    await expect(panel.getByRole('button', { name: 'Enregistrer le fichier' })).toBeVisible();
+    await panel.getByRole('button', { name: 'Tous les projets' }).click();
+    await expect(page).toHaveURL(/#\/home/);
+  });
+
   test('accueil : la suppression d’un projet reste visible sans survol', async ({ page }) => {
     await page.goto('/#/grid?seed=fiction');
     await expect(page.getByTestId('mobile-cut')).toBeVisible();
@@ -184,6 +196,23 @@ test('accueil : la suppression n’apparaît qu’au survol sur ordinateur', asy
   await expect(page.locator(ROWS).first()).toBeVisible();
   await page.goto('/#/home');
   await expect(page.getByRole('button', { name: 'Supprimer La Consigne' })).toHaveCSS('opacity', '0');
+});
+
+test('panneau du projet sur ordinateur : pas de doublon de la barre', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByTestId('project-menu').click();
+  await expect(page.getByTestId('project-panel-phone')).toBeHidden();
+});
+
+test('palette : enregistrer tous les projets en .zip', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await expect(page.locator(ROWS).first()).toBeVisible();
+  await page.locator('[data-cell="0:subject"]').click();
+  await page.keyboard.press('Control+k');
+  await page.keyboard.type('tous les projets zip');
+  const download = page.waitForEvent('download');
+  await page.keyboard.press('Enter');
+  expect((await download).suggestedFilename()).toMatch(/^decoupage-studio-\d{4}-\d{2}-\d{2}\.zip$/);
 });
 
 test('accueil : dupliquer un projet sans l’ouvrir', async ({ page }) => {
