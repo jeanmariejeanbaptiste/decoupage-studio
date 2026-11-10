@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 const ROWS = '[data-testid="shot-row"]';
 type Doc = { project: { id: string; title: string } };
@@ -183,4 +184,51 @@ test('accueil : la suppression n’apparaît qu’au survol sur ordinateur', asy
   await expect(page.locator(ROWS).first()).toBeVisible();
   await page.goto('/#/home');
   await expect(page.getByRole('button', { name: 'Supprimer La Consigne' })).toHaveCSS('opacity', '0');
+});
+
+test('accueil : dupliquer un projet sans l’ouvrir', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await expect(page.locator(ROWS).first()).toBeVisible();
+  await page.goto('/#/home');
+  const list = page.getByTestId('project-list');
+  await list.locator('li').first().hover();
+  await page.getByRole('button', { name: 'Dupliquer La Consigne' }).click();
+  await expect(list.locator('li')).toHaveCount(2);
+  await expect(list).toContainText('La Consigne (copie)');
+  await expect(page).toHaveURL(/#\/home/);
+});
+
+test('accueil : un projet créé dans un autre onglet apparaît sans recharger', async ({ page, context }) => {
+  await page.goto('/#/home');
+  await expect(page.getByTestId('home')).toBeVisible();
+  const other = await context.newPage();
+  await newProject(other, 'Venu d’ailleurs');
+  await expect(page.getByTestId('project-list')).toContainText('Venu d’ailleurs');
+});
+
+test('accueil : un fichier .decoupage déposé sur la page s’ouvre', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    delete w.showSaveFilePicker;
+  });
+  await page.goto('/#/grid?seed=fiction');
+  await expect(page.locator(ROWS).first()).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-cell="0:subject"]').click();
+  await page.keyboard.press('Control+s');
+  const content = readFileSync(await (await download).path(), 'utf8');
+  const file = JSON.parse(content) as { doc: Doc };
+  file.doc.project.id = 'depose-1';
+  file.doc.project.title = 'Déposé';
+  await page.goto('/#/home');
+  await expect(page.getByTestId('home')).toBeVisible();
+  await page.evaluate((text) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([text], 'depose.decoupage', { type: 'application/json' }));
+    const home = document.querySelector('[data-testid="home"]')!;
+    home.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    home.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  }, JSON.stringify(file));
+  await expect(page).toHaveURL(/#\/grid/);
+  await expect(page.getByTestId('project-menu')).toContainText('Déposé');
 });

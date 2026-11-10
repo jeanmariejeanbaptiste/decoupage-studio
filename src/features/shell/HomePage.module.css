@@ -34,6 +34,9 @@
   --h-beam: 0.7;
 }
 
+/* Fichier tenu au-dessus de la page : un filet sur le cadre. */
+.home[data-dropping]::after { content: ''; position: absolute; inset: 10px; z-index: 50; border: 1px solid var(--h-soft); border-radius: 14px; pointer-events: none; }
+
 /* ---------- Grain de pellicule ---------- */
 .grain {
   position: absolute;
@@ -287,7 +290,7 @@
 .cardTop > :first-child { color: var(--h-accent); }
 .cardTitle { font-family: var(--font-ui); font-size: 22px; font-weight: 400; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cardMeta { font-size: 13px; color: var(--h-soft); }
-.del {
+.del, .dup {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -301,10 +304,14 @@
   opacity: 0;
   transition: opacity 0.2s ease;
 }
-.item:hover .del, .del:focus-visible { opacity: 1; }
-/* Écran tactile : pas de survol, la suppression reste visible. */
-@media (hover: none) { .del { opacity: 1; } }
-.del:hover { color: var(--h-accent); }
+.dup { right: 36px; }
+.item:hover .del, .del:focus-visible, .item:hover .dup, .dup:focus-visible { opacity: 1; }
+/* Écran tactile : pas de survol, les actions restent visibles. */
+@media (hover: none) {
+  .del, .dup { opacity: 1; }
+  .cardTop { padding-right: 58px; }
+}
+.del:hover, .dup:hover { color: var(--h-accent); }
 .empty {
   display: inline-flex;
   flex-direction: column;
