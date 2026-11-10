@@ -73,6 +73,9 @@ describe('fichier .decoupage', () => {
     expect(fileNameFor(d)).toBe('москва-1989-v1.decoupage');
     d.project.title = 'ガラス';
     expect(exportBase(d)).toBe('ガラス-v1');
+    // Signes combinants (voyelles des écritures indiennes, thaï) : gardés.
+    d.project.title = 'हिन्दी ไทย';
+    expect(exportBase(d)).toBe('हिन्दी-ไทย-v1');
     d.project.title = 'Œuvre çà et là '.repeat(20);
     const base = exportBase(d);
     expect(base.startsWith('œuvre-ca-et-la-')).toBe(true);

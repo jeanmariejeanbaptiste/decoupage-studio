@@ -355,7 +355,7 @@ export function fileNameFor(doc: ProjectDoc): string {
     .normalize('NFD')
     .replace(/([A-Za-z])[̀-ͯ]+/g, '$1')
     .normalize('NFC')
-    .replace(/[^\p{L}\p{N}_-]+/gu, '-')
+    .replace(/[^\p{L}\p{M}\p{N}_-]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
   const short = Array.from(base).slice(0, MAX_BASE).join('').replace(/-+$/, '');
