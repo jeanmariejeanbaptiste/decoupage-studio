@@ -97,6 +97,30 @@ test('palette et aide : le focus revient à la grille, une seule fenêtre à la 
   await expect(help).toHaveCount(0);
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('[data-cell="1:subject"]')).toHaveAttribute('aria-selected', 'true');
+
+  // L'aide remplacée par la palette : Échap rend le focus à la grille, pas au bouton disparu de l'aide.
+  await page.keyboard.press('?');
+  await expect(help).toBeVisible();
+  await page.keyboard.press('Control+k');
+  await expect(palette).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(palette).toHaveCount(0);
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('[data-cell="2:subject"]')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('accueil : ⌘Z ne rétablit rien derrière l’assistant « Nouveau projet »', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await expect(page.locator(ROWS).first()).toBeVisible();
+  await page.goto('/#/home');
+  await page.getByRole('button', { name: 'Supprimer La Consigne' }).click();
+  await expect(page.getByTestId('project-list')).toHaveCount(0);
+  await page.getByTestId('new-project').click();
+  await page.getByRole('radio', { name: 'Clip' }).focus();
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('wizard')).toHaveCount(0);
+  await expect(page.getByTestId('project-list')).toHaveCount(0);
 });
 
 test('palette : commandes de la page en tête, vocabulaire du découpage', async ({ page }) => {

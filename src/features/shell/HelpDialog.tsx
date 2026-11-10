@@ -45,7 +45,7 @@ function HelpBody() {
             </div>
           ))}
         </dl>
-        <button type="button" className={s.helpLink} onClick={() => { keepFocus.current = false; close(); navigate('settings', { section: 'raccourcis' }); }}>
+        <button type="button" className={s.helpLink} onClick={() => { keepFocus.active = false; close(); navigate('settings', { section: 'raccourcis' }); }}>
           Modifier les raccourcis
         </button>
         <button type="button" autoFocus className="visually-hidden" onClick={close}>
