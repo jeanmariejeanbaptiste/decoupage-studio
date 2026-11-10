@@ -8,7 +8,7 @@ import boldUrl from '../../assets/fonts/courier-prime/CourierPrime-Bold.ttf?url'
 import italicUrl from '../../assets/fonts/courier-prime/CourierPrime-Italic.ttf?url';
 import boldItalicUrl from '../../assets/fonts/courier-prime/CourierPrime-BoldItalic.ttf?url';
 import { blocksFromSource, headingNumbers, isEmptyBlock, parseTitlePage, type BlockType, type SBlock } from '../../domain/screenplay';
-import { NOT_PRINTED, SCRIPT_COLUMNS, SCRIPT_PAGE, blankLinesBefore, layoutScript, parseEmphasis, printLines, printable, titlePageLines, titlePrintLines, type PrintLine, type Run } from '../../domain/scriptLayout';
+import { NOT_PRINTED, SCRIPT_COLUMNS, SCRIPT_PAGE, blankLinesBefore, layoutScript, parseEmphasis, printLines, printable, titlePageLayout, titlePrintPages, type PrintLine, type Run } from '../../domain/scriptLayout';
 
 export type Face = 'regular' | 'bold' | 'italic' | 'boldItalic';
 const URLS: Record<Face, string> = { regular: regularUrl, bold: boldUrl, italic: italicUrl, boldItalic: boldItalicUrl };
@@ -39,7 +39,8 @@ function printedPages(source: string): { pages: PrintLine[][]; title?: Record<st
   const layout = layoutScript(blocks);
   const title = layout.title && Object.values(layout.title).some((v) => v.trim()) ? layout.title : undefined;
   const body = layout.pages.filter((p) => p.lines.length).map(printLines);
-  return { pages: [...(title ? [titlePrintLines(title)] : []), ...(body.length ? body : [[]])], title };
+  // Sans texte, la page de garde suffit ; sans rien du tout, une page blanche.
+  return { pages: [...(title ? titlePrintPages(title) : []), ...(body.length ? body : title ? [] : [[]])], title };
 }
 
 const UNDERLINE = { offset: 1.9, thickness: 0.6 };
@@ -236,15 +237,19 @@ export async function scriptDocx(source: string, meta: ScriptMeta): Promise<Blob
     `<w:pgSz w:w="${tw(w)}" w:h="${tw(h)}"/><w:pgMar w:top="${tw(top)}" w:right="${tw(w - right)}" w:bottom="${tw(bottom)}" w:left="${tw(SCRIPT_COLUMNS.action.x)}" w:header="${tw(pageNumberBaseline - lineH * 0.8)}" w:footer="${tw(28)}" w:gutter="0"/>${first ? '' : '<w:pgNumType w:start="1"/><w:titlePg/>'}`;
   const titleParas: string[] = [];
   if (hasTitle) {
-    // Mêmes lignes que le PDF : chaque ligne à son rang, l'écart rendu par l'espace avant.
-    let row = -1;
-    const lines = titlePageLines(title);
-    for (const l of lines) {
-      const before = (l.row - row - 1) * lineH;
-      row = l.row;
-      const last = l === lines[lines.length - 1];
-      titleParas.push(`<w:p><w:pPr><w:pStyle w:val="${l.align === 'center' ? 'Titre' : 'Action'}"/>${before ? `<w:spacing w:before="${tw(before)}"/>` : ''}${last ? `<w:sectPr>${pageSetup(true)}</w:sectPr>` : ''}</w:pPr>${runsXml(l.text)}</w:p>`);
-    }
+    // Mêmes lignes que le PDF : chaque ligne à son rang, l'écart rendu par l'espace avant ; une page
+    // de garde qui déborde continue sur la suivante (saut de page).
+    const pagesOfTitle = titlePageLayout(title);
+    pagesOfTitle.forEach((lines, p) => {
+      let row = -1;
+      for (const l of lines) {
+        const before = (l.row - row - 1) * lineH;
+        row = l.row;
+        const last = p === pagesOfTitle.length - 1 && l === lines[lines.length - 1];
+        const brk = p > 0 && l === lines[0];
+        titleParas.push(`<w:p><w:pPr><w:pStyle w:val="${l.align === 'center' ? 'Titre' : 'Action'}"/>${brk ? '<w:pageBreakBefore/>' : ''}${before ? `<w:spacing w:before="${tw(before)}"/>` : ''}${last ? `<w:sectPr>${pageSetup(true)}</w:sectPr>` : ''}</w:pPr>${runsXml(l.text)}</w:p>`);
+      }
+    });
   }
   const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W_NS}><w:body>${titleParas.join('')}${paras.join('')}<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader"/><w:headerReference w:type="first" r:id="rIdHeaderFirst"/>${pageSetup(false)}</w:sectPr></w:body></w:document>`;
   const header = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${W_NS}><w:p><w:pPr><w:pStyle w:val="Action"/><w:jc w:val="right"/></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t>.</w:t></w:r></w:p></w:hdr>`;

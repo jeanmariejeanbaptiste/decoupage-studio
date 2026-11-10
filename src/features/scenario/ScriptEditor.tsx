@@ -398,7 +398,15 @@ function TitleLines({ fields, paged }: { fields: Record<string, string>; paged: 
         <span
           key={i}
           className={[s.tpLine, l.blockId === 'title:Title' ? s.tpTitle : '', l.align === 'center' ? s.tpCenter : ''].join(' ')}
-          style={paged ? { top: l.row * LINE } : undefined}
+          style={
+            paged
+              ? {
+                  top: l.row * LINE,
+                  // Lignes centrées : sur la colonne de la page de garde (centrée sur la feuille), comme à l'export.
+                  ...(l.align === 'center' ? { left: (SCRIPT_COLUMNS.title.x - SCRIPT_COLUMNS.action.x) * PT, width: SCRIPT_COLUMNS.title.chars * SCRIPT_PAGE.cw * PT, right: 'auto' } : {}),
+                }
+              : undefined
+          }
         >
           {plainText(l.text)}
         </span>

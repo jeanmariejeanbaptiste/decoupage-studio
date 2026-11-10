@@ -37,7 +37,8 @@ export const SCRIPT_COLUMNS: Record<BlockType, { x: number; chars: number; align
   section: { x: 108, chars: 61 },
   synopsis: { x: 108, chars: 61 },
   pagebreak: { x: 108, chars: 61 },
-  title: { x: 108, chars: 61, align: 'center' },
+  /** Page de garde : 52 caractères centrés sur la page (modèle KIT). */
+  title: { x: 298.2 - 26 * ((1228 / 2048) * 12), chars: 52, align: 'center' },
 };
 
 /** Éléments qui ne s'impriment pas (notes, parties, résumés : aides à l'écriture). */
@@ -465,33 +466,72 @@ export function lineX(line: Pick<LaidLine, 'x' | 'align' | 'text' | 'type'>): nu
 export const baselineOf = (row: number) => SCRIPT_PAGE.firstBaseline + row * SCRIPT_PAGE.lineH;
 
 /**
- * Page de titre : titre en capitales au tiers de la page, crédit et auteurs centrés en dessous,
- * contact et date en bas à gauche. Elle n'est pas numérotée.
+ * Page de garde, au gabarit du modèle KIT (mesuré sur son PDF) : titre en capitales soulignées au
+ * 17e rang, centré sur la page sur 52 caractères au plus ; trois lignes, puis crédit, auteur et
+ * source centrés, séparés d'une ligne ; contact à gauche à partir du 43e rang ; date centrée sur la
+ * dernière ligne. Rien n'est coupé : un texte trop long continue sur une page de garde suivante,
+ * comme dans KIT. Elle n'est pas numérotée.
  */
-export function titlePageLines(title: Record<string, string>, upper = true): LaidLine[] {
-  const out: LaidLine[] = [];
-  const col = SCRIPT_COLUMNS.title;
-  // `blockId` nomme le champ d'origine (« title:Title », « title:Author »…).
-  const center = (text: string, row: number, field: string) => {
-    for (const l of wrapText(printable(text), col.chars)) out.push({ blockId: `title:${field}`, type: 'title', text: l, x: col.x, align: 'center', row: row++ });
-    return row;
+export const TITLE_PAGE = {
+  titleRow: 16,
+  contactRow: 42,
+} as const;
+
+export function titlePageLayout(title: Record<string, string>, upper = true): LaidLine[][] {
+  const { lines: L } = SCRIPT_PAGE;
+  const last = L - 1;
+  const pages: LaidLine[][] = [[]];
+  let row: number = TITLE_PAGE.titleRow;
+  const { x: colX, chars } = SCRIPT_COLUMNS.title;
+  // Une ligne posée au rang courant ; passé l'avant-dernier rang (la date garde le dernier), page suivante.
+  const put = (line: Omit<LaidLine, 'row'>) => {
+    if (row >= last) {
+      pages.push([]);
+      row = 0;
+    }
+    pages[pages.length - 1].push({ ...line, row: row++ });
   };
   const split = (v?: string) => (v ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
-  let row = 19;
-  for (const l of split(title.Title)) row = center(upper ? l.toLocaleUpperCase('fr') : l, row, 'Title');
-  row += 2;
-  for (const l of split(title.Credit)) row = center(l, row, 'Credit');
-  if (split(title.Credit).length) row += 1;
-  for (const l of split(title.Author)) row = center(l, row, 'Author');
-  const source = split(title.Source);
-  if (source.length) {
-    row += 2;
-    for (const l of source) row = center(l, row, 'Source');
+  const centered = (field: string, lines: string[], mark = (t: string) => t) => {
+    for (const l of lines) for (const w of wrapText(printable(l), chars)) put({ blockId: `title:${field}`, type: 'title', text: mark(w), x: colX, align: 'center' });
+  };
+  const blank = (n: number) => {
+    // Une page neuve commence par du texte, jamais par des lignes vides.
+    if (row !== 0) row = Math.min(row + n, last);
+  };
+  const t = split(title.Title).map((l) => (upper ? l.toLocaleUpperCase('fr') : l));
+  centered('Title', t, (w) => `_${w}_`);
+  const blocks = (['Credit', 'Author', 'Source'] as const).map((f) => [f, split(title[f])] as const).filter(([, v]) => v.length);
+  blocks.forEach(([f, v], i) => {
+    if (t.length || i) blank(i === 0 ? 3 : 1);
+    centered(f, v);
+  });
+  // Contact : à gauche, à partir de son rang ; s'il ne tient pas avant la date, en tête de la page suivante.
+  const contact = split(title.Contact).flatMap((l) => wrapText(printable(l), SCRIPT_COLUMNS.action.chars));
+  if (contact.length) {
+    const page = pages[pages.length - 1];
+    const start = Math.max(TITLE_PAGE.contactRow, page.length ? row + 1 : 0);
+    if (start + contact.length > last - 1 && start > 0 && contact.length <= last - 1) {
+      pages.push([]);
+      row = 0;
+    } else row = start;
+    for (const l of contact) put({ blockId: 'title:Contact', type: 'action', text: l, x: SCRIPT_COLUMNS.action.x });
   }
-  // Pied de page : contact, puis date et mentions, en bas à gauche.
-  const foot = [...split(title.Contact), ...split(title['Draft date']), ...split(title.Copyright)].flatMap((l) => wrapText(printable(l), SCRIPT_COLUMNS.action.chars));
-  foot.forEach((l, k) => out.push({ blockId: 'title:foot', type: 'action', text: l, x: SCRIPT_COLUMNS.action.x, row: SCRIPT_PAGE.lines - foot.length + k }));
-  return out;
+  // Date (et mentions) centrées, sur la dernière ligne de la page où le reste s'arrête.
+  const foot = [...split(title['Draft date']), ...split(title.Copyright)].flatMap((l) => wrapText(printable(l), chars));
+  if (foot.length) {
+    if (row > last - foot.length) {
+      pages.push([]);
+      row = 0;
+    }
+    foot.forEach((l, k) => pages[pages.length - 1].push({ blockId: 'title:foot', type: 'title', text: l, x: colX, align: 'center', row: last - foot.length + 1 + k }));
+  }
+  return pages;
+}
+
+/** Première page de garde (aperçu de l'éditeur, champs de la fenêtre). */
+export function titlePageLines(title: Record<string, string>, upper = true): LaidLine[] {
+  return titlePageLayout(title, upper)[0];
 }
 
 /** Ligne prête à dessiner : position en points depuis le coin haut gauche, morceaux mis en forme. */
@@ -524,9 +564,9 @@ export function printLines(page: LaidPage): PrintLine[] {
   return out;
 }
 
-/** Lignes de la page de titre. */
-export function titlePrintLines(title: Record<string, string>): PrintLine[] {
-  return titlePageLines(title).map((l) => ({ x: lineX(l), y: baselineOf(l.row), runs: runsOf(l.text) }));
+/** Lignes des pages de garde (une en principe, davantage si un champ déborde). */
+export function titlePrintPages(title: Record<string, string>): PrintLine[][] {
+  return titlePageLayout(title).map((page) => page.map((l) => ({ x: lineX(l), y: baselineOf(l.row), runs: runsOf(l.text) })));
 }
 
 /**

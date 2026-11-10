@@ -58,7 +58,7 @@
 .t_title { position: relative; color: var(--ink); user-select: none; }
 .tpLine { position: absolute; left: 0; white-space: pre; }
 .tpCenter { right: 0; text-align: center; }
-.tpTitle { text-transform: uppercase; }
+.tpTitle { text-transform: uppercase; text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
 .titleEditable { cursor: pointer; border-radius: 4px; }
 .titleEditable:hover { background: var(--hover); }
 .flow .t_title { padding: 24px 0; }

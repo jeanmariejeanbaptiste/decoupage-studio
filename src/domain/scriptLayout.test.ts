@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fdxToFountain } from './fdx';
 import { blocksFromSource } from './screenplay';
-import { blankLinesBefore, layoutScript, parseEmphasis, plainText, printLines, SCRIPT_PAGE, titlePageLines, wrapText } from './scriptLayout';
+import { blankLinesBefore, layoutScript, lineX, parseEmphasis, plainText, printLines, SCRIPT_PAGE, titlePageLayout, wrapText } from './scriptLayout';
 import completFountain from './__fixtures__/kit/modele-complet.fountain?raw';
 import completFdx from './__fixtures__/kit/modele-complet.fdx?raw';
 import completLines from './__fixtures__/kit/modele-complet.lines.txt?raw';
@@ -124,11 +124,28 @@ describe('règles de mise en page', () => {
     expect(heading.page).toBe(1);
     expect(heading.row).toBe(0);
   });
-  it('page de titre : titre en capitales au tiers, contact et date en bas à gauche', () => {
-    const lines = titlePageLines({ Title: 'La Consigne', Credit: 'Écrit par', Author: 'Léa Martin', Contact: 'lea@exemple.fr', 'Draft date': '8 novembre 2026' });
-    expect(lines[0]).toMatchObject({ text: 'LA CONSIGNE', row: 19, align: 'center' });
-    expect(lines.find((l) => l.text === 'lea@exemple.fr')).toMatchObject({ row: SCRIPT_PAGE.lines - 2, x: 108 });
-    expect(lines.find((l) => l.text === '8 novembre 2026')).toMatchObject({ row: SCRIPT_PAGE.lines - 1, x: 108 });
+  it('page de garde au gabarit KIT : titre souligné au 17e rang, blocs centrés sur la page, contact au 43e rang, date en bas centrée', () => {
+    const pages = titlePageLayout({ Title: 'Consectetur', Credit: 'Écrit par', Author: 'Léa Martin', Source: 'D’après une idée', Contact: 'lea@exemple.fr\n06 00 00 00 00', 'Draft date': '2026' });
+    expect(pages).toHaveLength(1);
+    const [lines] = pages;
+    const at = (t: string) => lines.find((l) => plainText(l.text) === t)!;
+    expect(at('CONSECTETUR')).toMatchObject({ row: 16, align: 'center', text: '_CONSECTETUR_' });
+    expect(at('Écrit par').row).toBe(20);
+    expect(at('Léa Martin').row).toBe(22);
+    expect(at('D’après une idée').row).toBe(24);
+    expect(at('lea@exemple.fr')).toMatchObject({ row: 42, x: 108 });
+    expect(at('2026')).toMatchObject({ row: SCRIPT_PAGE.lines - 1, align: 'center' });
+    // Centrée sur la feuille (et non sur la colonne d'action).
+    expect(lineX(at('2026')) + (4 * SCRIPT_PAGE.cw) / 2).toBeCloseTo(298.2, 0);
+  });
+  it('page de garde trop longue : rien n’est coupé, elle continue sur une page suivante', () => {
+    const long = Array.from({ length: 120 }, (_, i) => `mot${i}`).join(' ');
+    const pages = titlePageLayout({ Title: long, Source: long.repeat(4), Contact: long, 'Draft date': '2026' });
+    expect(pages.length).toBeGreaterThan(1);
+    for (const p of pages) for (const l of p) expect(l.row).toBeLessThan(SCRIPT_PAGE.lines);
+    const all = pages.flat().map((l) => plainText(l.text)).join(' ');
+    expect(all).toContain('mot119');
+    expect(pages.at(-1)!.at(-1)).toMatchObject({ text: '2026', row: SCRIPT_PAGE.lines - 1 });
   });
 });
 
