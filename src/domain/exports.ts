@@ -4,7 +4,7 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { beamStops, cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, DIMENSION_FONT, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { actorCaption, beamStops, cameraCone, drawOrder, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, DIMENSION_FONT, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
 import { BEAM_GREY, lightTint, TINT_GAIN } from './colorTemperature';
 import { formatFocal } from './focal';
@@ -261,7 +261,8 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
   });
   for (const p of choreography(items))
     if (p.points.length > 1) out.push(`<polyline points="${pts(p.points)}" fill="none" stroke="${p.kind === 'camera' ? '#111318' : '#6b7079'}" stroke-width="${p.kind === 'camera' ? 2.5 : 2}" stroke-dasharray="${p.kind === 'camera' ? '10 6' : '3 5'}"/>`);
-  for (const i of items as FloorItem[]) {
+  // Même ordre qu'à l'écran : murs sous les portes et fenêtres, quel que soit l'ordre de création.
+  for (const i of drawOrder(items as FloorItem[])) {
     if ((i.kind === 'camera' || i.kind === 'actor') && i.beat) out.push(`<text x="${i.x + 16}" y="${i.y - 16}" font-size="14" font-weight="700" fill="#111318">T${i.beat}</text>`);
     switch (i.kind) {
       case 'camera': {
@@ -275,9 +276,8 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
       case 'actor':
         if (i.to) out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.to.x}" y2="${i.to.y}" stroke="#6b7079" stroke-width="1.2" stroke-dasharray="5 4"/>`);
         out.push(
-          `<g transform="rotate(${(i.rot ?? 90) - 90} ${i.x} ${i.y})"><ellipse cx="${i.x}" cy="${i.y}" rx="17" ry="7" fill="#c9ccd2" stroke="#111318"/><circle cx="${i.x}" cy="${i.y}" r="8.5" fill="#111318" stroke="#fff"/><circle cx="${i.x - 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/><circle cx="${i.x + 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/></g><text x="${i.x}" y="${i.y - 13}" font-size="11" font-weight="600" text-anchor="middle" fill="#111318">${xml(i.label)}</text>`,
+          `<g transform="rotate(${(i.rot ?? 90) - 90} ${i.x} ${i.y})"><ellipse cx="${i.x}" cy="${i.y}" rx="17" ry="7" fill="#c9ccd2" stroke="#111318"/><circle cx="${i.x}" cy="${i.y}" r="8.5" fill="#111318" stroke="#fff"/><circle cx="${i.x - 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/><circle cx="${i.x + 3.2}" cy="${i.y + 5.6}" r="1.3" fill="#fff"/></g><text x="${i.x}" y="${i.y - 13}" font-size="11" font-weight="600" text-anchor="middle" fill="#111318">${xml(actorCaption(doc, i))}</text>`,
         );
-        if (i.characterId && doc.characters[i.characterId]) out.push(`<text x="${i.x}" y="${i.y + 32}" font-size="12" text-anchor="middle" fill="#6b7079">${xml(doc.characters[i.characterId].name)}</text>`);
         break;
       case 'wall':
         out.push(`<line x1="${i.x}" y1="${i.y}" x2="${i.x2}" y2="${i.y2}" stroke="${i.kind === 'wall' && i.white ? '#d6d8dd' : '#5f636b'}" stroke-width="${3.5 * k}"/>`);
