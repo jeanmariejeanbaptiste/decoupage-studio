@@ -3,7 +3,11 @@ import { useShortcuts } from '../../store/shortcuts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fold } from '../../domain/text';
 import { useUi } from '../../store/uiStore';
-import { availableCommands } from './commands';
+import { navigate, useLocation } from '../../app/router';
+import { listProjects } from '../../store/db';
+import { openStoredProject } from '../../store/persistence';
+import { availableCommands, orderCommands, projectCommands } from './commands';
+import { useReturnFocus } from './useReturnFocus';
 import s from './CommandPalette.module.css';
 
 /** Palette de commandes (⌘K). */
@@ -15,13 +19,33 @@ export function CommandPalette() {
 function PaletteBody() {
   const map = useShortcuts((x) => x.map);
   const set = useUi((u) => u.set);
+  const { route } = useLocation();
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
+  const [projects, setProjects] = useState<Array<{ id: string; title: string }>>([]);
   const listRef = useRef<HTMLUListElement>(null);
+  // Fermée sans commande (Échap, clic à côté) : le focus revient où il était (la grille, un champ…).
+  const keepFocus = useReturnFocus();
+
+  useEffect(() => {
+    let live = true;
+    void listProjects()
+      .then((all) => live && setProjects(all))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const items = useMemo(() => {
     const f = fold(q);
-    return availableCommands().filter((c) => !f || f.split(' ').every((w) => fold(`${c.group} ${c.label}`).includes(w)));
-  }, [q]);
+    const all = [
+      ...availableCommands(),
+      ...projectCommands(projects, (id) => void openStoredProject(id).then((ok) => ok && navigate('grid'))),
+    ];
+    if (!f) return orderCommands(all, route);
+    return all.filter((c) => f.split(' ').every((w) => fold(`${c.group} ${c.label}`).includes(w)));
+  }, [q, projects, route]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -31,6 +55,7 @@ function PaletteBody() {
   const run = (i: number) => {
     const c = items[i];
     if (!c) return;
+    keepFocus.current = false;
     close();
     c.run();
   };
@@ -49,7 +74,7 @@ function PaletteBody() {
           role="combobox"
           aria-expanded="true"
           aria-controls="palette-list"
-          aria-activedescendant={`cmd-${active}`}
+          aria-activedescendant={items.length ? `cmd-${active}` : undefined}
           onKeyDown={(e) => {
             e.stopPropagation();
             if (e.key === 'ArrowDown') {
@@ -58,6 +83,14 @@ function PaletteBody() {
             } else if (e.key === 'ArrowUp') {
               e.preventDefault();
               setActive((a) => Math.max(0, a - 1));
+            } else if (e.key === 'Home' || e.key === 'End') {
+              // Sans recherche, Début et Fin parcourent la liste ; sinon ils restent au texte.
+              if (q) return;
+              e.preventDefault();
+              setActive(e.key === 'Home' ? 0 : Math.max(0, items.length - 1));
+            } else if (e.key === 'Tab') {
+              // Le focus reste dans la palette.
+              e.preventDefault();
             } else if (e.key === 'Enter') {
               e.preventDefault();
               run(active);

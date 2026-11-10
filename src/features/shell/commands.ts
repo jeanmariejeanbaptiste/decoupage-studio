@@ -44,24 +44,24 @@ const toGrid = (fn: () => void) => () => {
 };
 
 export const COMMANDS: readonly Command[] = [
-  { id: 'new-shot', group: 'Grille', label: 'Nouveau plan sous le plan courant', shortcut: 'newShot', run: toGrid(newShotBelow), needsProject: true, edits: true },
-  { id: 'new-seq', group: 'Grille', label: 'Nouvelle séquence', shortcut: 'newSequence', run: toGrid(newSequenceAfter), needsProject: true, edits: true },
-  { id: 'dup', group: 'Grille', label: 'Dupliquer le plan', shortcut: 'duplicate', run: toGrid(duplicateCurrent), needsProject: true, edits: true },
-  { id: 'del-shot', group: 'Grille', label: 'Supprimer le plan', shortcut: 'deleteShot', run: toGrid(deleteCurrentShots), needsProject: true, edits: true },
-  { id: 'del-seq', group: 'Grille', label: 'Supprimer la séquence…', run: toGrid(() => void deleteSequenceOf()), needsProject: true, edits: true },
-  { id: 'link', group: 'Grille', label: 'Lier l’action des plans sélectionnés', run: toGrid(linkSelection), needsProject: true, edits: true },
-  { id: 'unlink', group: 'Grille', label: 'Délier l’action', run: toGrid(unlinkSelection), needsProject: true, edits: true },
-  { id: 'fill', group: 'Grille', label: 'Recopier vers le bas', shortcut: 'fillDown', run: toGrid(fillDown), needsProject: true, edits: true },
+  { id: 'new-shot', group: 'Découpage', label: 'Nouveau plan sous le plan courant', shortcut: 'newShot', run: toGrid(newShotBelow), needsProject: true, edits: true },
+  { id: 'new-seq', group: 'Découpage', label: 'Nouvelle séquence', shortcut: 'newSequence', run: toGrid(newSequenceAfter), needsProject: true, edits: true },
+  { id: 'dup', group: 'Découpage', label: 'Dupliquer le plan', shortcut: 'duplicate', run: toGrid(duplicateCurrent), needsProject: true, edits: true },
+  { id: 'del-shot', group: 'Découpage', label: 'Supprimer le plan', shortcut: 'deleteShot', run: toGrid(deleteCurrentShots), needsProject: true, edits: true },
+  { id: 'del-seq', group: 'Découpage', label: 'Supprimer la séquence…', run: toGrid(() => void deleteSequenceOf()), needsProject: true, edits: true },
+  { id: 'link', group: 'Découpage', label: 'Lier l’action des plans sélectionnés', run: toGrid(linkSelection), needsProject: true, edits: true },
+  { id: 'unlink', group: 'Découpage', label: 'Délier l’action', run: toGrid(unlinkSelection), needsProject: true, edits: true },
+  { id: 'fill', group: 'Découpage', label: 'Recopier vers le bas', shortcut: 'fillDown', run: toGrid(fillDown), needsProject: true, edits: true },
   {
     id: 'print-view',
-    group: 'Grille',
+    group: 'Découpage',
     label: 'Basculer la vue impression',
     run: toGrid(() => useUi.getState().set({ printView: !useUi.getState().printView })),
     needsProject: true,
   },
   {
     id: 'inspector',
-    group: 'Grille',
+    group: 'Découpage',
     label: 'Afficher / masquer l’inspecteur',
     run: toGrid(() => useUi.getState().set({ rightPanel: useUi.getState().rightPanel === 'inspector' ? null : 'inspector' })),
     needsProject: true,
@@ -69,7 +69,7 @@ export const COMMANDS: readonly Command[] = [
   // À l'accueil, annuler / rétablir portent sur la suppression des projets (comme ⌘Z).
   { id: 'undo', group: 'Édition', label: 'Annuler', shortcut: 'undo', run: () => (atHome() ? void undoHome() : undo()), needsProject: true, edits: true },
   { id: 'redo', group: 'Édition', label: 'Rétablir', shortcut: 'redo', run: () => (atHome() ? void redoHome() : redo()), needsProject: true, edits: true },
-  { id: 'go-home', group: 'Aller à', label: 'Accueil — projets', run: () => navigate('home') },
+  { id: 'go-home', group: 'Aller à', label: 'Tous les projets', run: () => navigate('home') },
   { id: 'go-intention', group: 'Aller à', label: 'Note d’intention', run: () => navigate('intention'), needsProject: true },
   { id: 'go-scenario', group: 'Aller à', label: 'Scénario', run: () => navigate('scenario'), needsProject: true },
   { id: 'go-breakdown', group: 'Aller à', label: 'Dépouillement', run: () => navigate('breakdown'), needsProject: true },
@@ -120,4 +120,25 @@ export function availableCommands(): Command[] {
   const drive = sh.role === 'guest' && sh.via === 'drive';
   const reachable = (c: Command) => !drive || !c.id.startsWith('go-') || c.id === 'go-home' || REVIEWED.has(c.id.slice(3) as Route);
   return COMMANDS.filter((c) => (has || !c.needsProject) && (canCopy || !c.copies) && (!readOnly || !c.edits) && reachable(c) && (!c.when || c.when()));
+}
+
+/** Pages dont les commandes du découpage sont les premières utiles. */
+const CUT_ROUTES: ReadonlySet<string> = new Set(['grid', 'storyboard']);
+
+/**
+ * Ordre sans recherche : sur le découpage, ses commandes d'abord ; ailleurs, « Aller à » d'abord.
+ * Le reste garde son ordre.
+ */
+export function orderCommands<T extends Pick<Command, 'group'>>(items: readonly T[], route: string): T[] {
+  const first = CUT_ROUTES.has(route) ? 'Découpage' : 'Aller à';
+  return [...items.filter((c) => c.group === first), ...items.filter((c) => c.group !== first)];
+}
+
+/** Ouvrir un autre projet de ce navigateur : jamais pour un invité (son projet est celui qu'on lui confie). */
+export function projectCommands(projects: ReadonlyArray<{ id: string; title: string }>, open: (id: string) => void): Command[] {
+  if (useShare.getState().role === 'guest') return [];
+  const current = useProjectStore.getState().doc?.project.id;
+  return projects
+    .filter((p) => p.id !== current)
+    .map((p) => ({ id: `project-${p.id}`, group: 'Projets', label: `Ouvrir « ${p.title || 'Sans titre'} »`, run: () => open(p.id) }));
 }
