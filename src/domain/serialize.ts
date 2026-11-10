@@ -100,7 +100,14 @@ export function parseProjectFile(text: string): ProjectDoc {
   if (!isObject(candidate) || !isObject(candidate.project)) throw new ProjectFileError('Ce fichier ne contient pas de projet Découpage Studio.');
   const version = isObject(raw) && typeof raw.schemaVersion === 'number' ? raw.schemaVersion : SCHEMA_VERSION;
   if (version > SCHEMA_VERSION) throw new ProjectFileError('Ce fichier provient d’une version plus récente de l’application.');
-  return migrate(candidate as unknown as ProjectDoc);
+  try {
+    return migrate(candidate as unknown as ProjectDoc);
+  } catch (e) {
+    // Jamais de message technique (en anglais) à l'écran : l'erreur reste dans la console.
+    if (e instanceof ProjectFileError) throw e;
+    console.error(e);
+    throw new ProjectFileError('Ce fichier est endommagé et n’a pas pu être ouvert.');
+  }
 }
 
 /** Tableau relu d'un fichier : autre chose qu'un tableau compte pour vide. */
@@ -143,7 +150,17 @@ function repairSections(doc: ProjectDoc): void {
     if (Array.isArray(d[k])) d[k] = (d[k] as unknown[]).filter(k.endsWith('Extra') ? isText : isObject);
   }
   for (const k of ['floorPlans', 'breakdown', 'geocodes'] as const) if (doc[k]) dropBroken(doc[k] as Record<string, unknown>);
-  for (const c of doc.comments ?? []) c.replies = list<unknown>(c.replies).filter(isObject) as unknown as typeof c.replies;
+  // Commentaires : sans identifiant ni ancre, ils ne s'afficheraient nulle part ; le reste est complété.
+  if (doc.comments) doc.comments = doc.comments.filter((c) => isText(c.id) && isObject(c.anchor));
+  for (const c of doc.comments ?? []) {
+    c.replies = list<unknown>(c.replies).filter(isObject) as unknown as typeof c.replies;
+    for (const x of [c, ...c.replies]) {
+      if (!isText(x.text)) x.text = '';
+      if (!isText(x.author)) x.author = '';
+      dropIfNot(x, 'attachments', Array.isArray);
+      if (x.attachments) x.attachments = x.attachments.filter(isText);
+    }
+  }
   if (doc.schedule) {
     doc.schedule.days = list<unknown>(doc.schedule.days).filter(isObject) as unknown as typeof doc.schedule.days;
     dropIfNot(doc.schedule, 'order', Array.isArray);
@@ -303,13 +320,19 @@ export function withoutReview(doc: ProjectDoc): ProjectDoc {
   return out;
 }
 
+/** Longueur maximale du nom (avant l'extension) : loin des 255 octets des systèmes de fichiers. */
+const MAX_BASE = 80;
+
 export function fileNameFor(doc: ProjectDoc): string {
+  // Accents des lettres latines retirés ; les autres écritures (cyrillique, grec, japonais…) gardées.
   const base = `${doc.project.title || 'projet'} ${doc.project.version ?? ''}`
     .trim()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^\w-]+/g, '-')
+    .replace(/([A-Za-z])[̀-ͯ]+/g, '$1')
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N}_-]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
-  return `${base || 'projet'}${FILE_EXTENSION}`;
+  const short = Array.from(base).slice(0, MAX_BASE).join('').replace(/-+$/, '');
+  return `${short || 'projet'}${FILE_EXTENSION}`;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
 import { buildRav3 } from '../../seed/rav3';
 import { checkInvariants } from './ops';
-import { exportBase, fileNameFor, migrate, parseProjectFile, ProjectFileError, projectCopy, serializeDoc, sharedMediaOwners } from './serialize';
+import { exportBase, fileNameFor, mediaKeys, migrate, parseProjectFile, ProjectFileError, projectCopy, serializeDoc, sharedMediaOwners } from './serialize';
 
 describe('fichier .decoupage', () => {
   it('ouvert comme copie : nouvel identifiant, sans le fichier de relecture de l’original', () => {
@@ -64,6 +64,19 @@ describe('fichier .decoupage', () => {
     d.project.title = '';
     d.project.version = '';
     expect(fileNameFor(d)).toBe('projet.decoupage');
+  });
+
+  it('garde les écritures non latines et borne la longueur', () => {
+    const d = buildFiction();
+    d.project.title = 'Москва : 1989 ?';
+    expect(fileNameFor(d)).toBe('москва-1989-v1.decoupage');
+    d.project.title = 'ガラス';
+    expect(exportBase(d)).toBe('ガラス-v1');
+    d.project.title = 'Œuvre çà et là '.repeat(20);
+    const base = exportBase(d);
+    expect(base.startsWith('œuvre-ca-et-la-')).toBe(true);
+    expect(Array.from(base).length).toBeLessThanOrEqual(80);
+    expect(base.endsWith('-')).toBe(false);
   });
 });
 
@@ -163,7 +176,7 @@ describe('projet abîmé relu (fichier ou base)', () => {
     (doc.project.settings as unknown as Raw).fps = null;
     (doc.project.settings as unknown as Raw).gridColumns = ['subject', null, 'inconnue'];
     raw.scenario = 42;
-    raw.comments = [null, { id: 'c', replies: null }];
+    raw.comments = [null, { id: 'sans-ancre' }, { id: 'c', anchor: { kind: 'sequence', sequenceId: seq.id }, replies: null, attachments: [null, 'k:1'] }];
     const back = migrate(doc);
     expect(back.sequences[seq.id].characterIds).not.toContain('disparu');
     expect(back.sequences[seq.id].decorId).toBeUndefined();
@@ -173,5 +186,6 @@ describe('projet abîmé relu (fichier ou base)', () => {
     expect(back.scenario).toBeUndefined();
     expect(back.comments).toHaveLength(1);
     expect(back.comments![0].replies).toEqual([]);
+    expect(mediaKeys(back)).toContain('k:1');
   });
 });
