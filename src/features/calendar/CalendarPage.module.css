@@ -102,6 +102,7 @@
 .colHead { display: flex; align-items: center; justify-content: center; gap: 5px; height: 34px; border: 0; background: none; font-size: 12.5px; color: var(--ink); }
 .colHead b { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 12px; font-weight: 500; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .colHead:hover b:not(.today) { background: var(--hover); }
+.colInitial { display: none; }
 .allDay { border-bottom: 1px solid var(--rule); }
 .tgHead + .allDay { border-top: 1px solid var(--rule); }
 .tgHead, .allDay { padding-right: var(--sb, 0px); }
@@ -147,10 +148,13 @@
 .miniDay { position: relative; justify-self: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 12px; background: none; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--ink); }
 .miniDay.weekend { color: var(--ink-soft); }
 .miniDay:hover:not(.today) { background: var(--hover); }
+.miniDay.shootDay:not(.today) { background: color-mix(in srgb, var(--ink) 18%, transparent); }
 .busy::after { content: ''; position: absolute; left: 50%; bottom: 1px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: currentColor; }
 
 /* --- Fenêtre d'un rendez-vous ----------------------------------------------------------------- */
 .dialog { display: flex; flex-direction: column; gap: 10px; width: min(400px, 92vw); padding: 18px 20px 16px; }
+.dFields { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.dFields:disabled :is(input, select, textarea) { opacity: 1; color: var(--ink); -webkit-text-fill-color: var(--ink); }
 .dTitle { border: 0; border-bottom: 1px solid var(--rule); background: none; padding: 2px 0 8px; font-size: 18px; font-weight: 500; color: var(--ink); outline: none; }
 .dTitle:focus { border-bottom-color: var(--ink); }
 .dRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
@@ -173,4 +177,10 @@
   .pill, .line { font-size: 10.5px; padding: 0 3px; }
   .line { padding-left: 6px; }
   .chipTime { display: none; }
+  /* En-têtes de la semaine : l'initiale du jour au-dessus du numéro. */
+  .colHead { flex-direction: column; gap: 0; height: 44px; min-width: 0; padding: 0; font-size: 11px; color: var(--ink-soft); }
+  .colDay { display: none; }
+  .colInitial { display: inline; line-height: 14px; }
+  .colHead b { min-width: 22px; height: 22px; padding: 0 3px; font-size: 12.5px; color: var(--ink); }
+  .colHead b.today { color: var(--paper); }
 }

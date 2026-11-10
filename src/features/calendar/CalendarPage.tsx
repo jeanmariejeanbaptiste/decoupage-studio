@@ -28,6 +28,7 @@ import {
   type CalendarView,
   type EventFields,
 } from '../../domain/calendar';
+import { exportBase } from '../../domain/serialize';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
@@ -132,9 +133,11 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
     // Étapes du calendrier de production : lecture seule ici, modifiables là-bas.
     if (it.source === 'production') return navigate('production', { task: it.taskId! });
     const e = doc.calendar?.find((x) => x.id === it.eventId);
-    if (e && !readOnly) setEditing({ id: e.id, fields: eventFields(e) });
+    // Lecture seule : la fenêtre s'ouvre quand même, pour lire l'horaire et la note.
+    if (e) setEditing({ id: e.id, fields: eventFields(e) });
   };
   const save = (f: EventFields) => {
+    if (readOnly) return setEditing(null);
     const ev = eventFromFields(f);
     const id = editing?.id;
     mutateDoc((d) => (id ? updateEvent(d, id, ev) : void addEvent(d, ev)));
@@ -142,7 +145,7 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
   };
   const exportIcs = () => {
     const name = doc.project.title || 'Projet';
-    downloadBlob(new Blob([calendarIcs(items, name)], { type: 'text/calendar;charset=utf-8' }), `${name}-calendrier.ics`);
+    downloadBlob(new Blob([calendarIcs(items, name)], { type: 'text/calendar;charset=utf-8' }), `${exportBase(doc)}-calendrier.ics`);
   };
 
   const seg = (
@@ -179,6 +182,7 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
           <Button variant="icon" aria-label="Exporter le calendrier (.ics)" title="Exporter le calendrier (.ics)" icon={<CalendarArrowDown {...ICON} />} disabled={!items.length} onClick={exportIcs} data-export data-testid="calendar-ics" />
         </div>
       </header>
+      {/* Vues marquées data-view : en lecture seule, on y lit et on ouvre les éléments. */}
       {view === 'month' && <MonthView {...props} />}
       {view === 'week' && <TimeGrid {...props} dates={weekDays(anchor)} />}
       {view === 'day' && <TimeGrid {...props} dates={[anchor]} />}
@@ -187,6 +191,7 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
         <EventDialog
           initial={editing.fields}
           existing={!!editing.id}
+          readOnly={readOnly}
           onClose={() => setEditing(null)}
           onSave={save}
           onDelete={() => {
@@ -217,8 +222,9 @@ const stop = (fn: () => void) => (e: MouseEvent) => {
 
 /** Élément compact : journée entière en pastille, rendez-vous en ligne « titre … 14:00 ». */
 function Chip({ it, onOpen, date }: { it: CalendarItem; onOpen: (it: CalendarItem) => void; date?: string }) {
-  // Étape de production sur plusieurs jours : nommée le premier jour et chaque lundi, filet seul ailleurs.
-  const span = it.source === 'production' && !it.milestone && !!date;
+  // Étape de production ou rendez-vous sur plusieurs jours : nommé le premier jour et chaque lundi,
+  // bords ouverts du côté de la suite.
+  const span = !!date && it.allDay && ((it.source === 'production' && !it.milestone) || (it.source === 'project' && it.endDate > it.date));
   const cont = span && date !== it.date && weekday(date) !== 0;
   const goes = span && date !== it.endDate && weekday(date) !== 6;
   const label = it.allDay ? it.title : `${it.title}, ${it.start}`;
@@ -259,7 +265,7 @@ function MonthView({ anchor, today, items, onCreate, onOpen, onDay }: ViewProps)
   // Lignes visibles par case : le reste se résume en « n de plus » (ouvre la journée).
   const lines = Math.max(1, Math.floor((height / weeks.length - 30) / 20));
   return (
-    <div className={s.month} data-testid="calendar-month">
+    <div className={s.month} data-view data-testid="calendar-month">
       <div className={s.weekdays}>
         {WEEKDAYS.map((d, i) => (
           <span key={d} className={i >= 5 ? s.weekend : ''}>
@@ -327,14 +333,18 @@ function TimeGrid({ dates, today, now, items, onCreate, onOpen, onDay }: ViewPro
   }, []);
   const single = dates.length === 1;
   return (
-    <div className={s.timeGrid} style={{ '--sb': `${bar}px` } as CSSProperties} data-testid={single ? 'calendar-day' : 'calendar-week'}>
+    <div className={s.timeGrid} style={{ '--sb': `${bar}px` } as CSSProperties} data-view data-testid={single ? 'calendar-day' : 'calendar-week'}>
       {/* Vue Jour : la date est déjà le titre de la page. */}
       {!single && (
         <div className={s.tgHead} style={cols}>
           <span />
           {dates.map((date) => (
             <button key={date} type="button" className={[s.colHead, isWeekend(date) ? s.weekend : ''].join(' ')} onClick={() => onDay(date)} aria-label={longDay.format(utc(date))}>
-              {WEEKDAYS[weekday(date)]} <b className={date === today ? s.today : ''}>{dayNum(date)}</b>
+              <span className={s.colDay}>{WEEKDAYS[weekday(date)]}</span>
+              <span className={s.colInitial} aria-hidden="true">
+                {INITIALS[weekday(date)]}
+              </span>{' '}
+              <b className={date === today ? s.today : ''}>{dayNum(date)}</b>
             </button>
           ))}
         </div>
@@ -400,8 +410,10 @@ function YearView({ anchor, today, items, onDay, onMonth }: ViewProps & { onMont
   const year = anchor.slice(0, 4);
   // Les étapes de production durent des semaines : seuls leurs jalons marquent un jour.
   const busy = useMemo(() => busyDates(items.filter((it) => it.source !== 'production' || it.milestone), `${year}-01-01`, `${year}-12-31`), [items, year]);
+  // Jours de tournage : marqués à part, c'est ce qu'on cherche d'abord sur l'année.
+  const shoot = useMemo(() => busyDates(items.filter((it) => it.source === 'shooting'), `${year}-01-01`, `${year}-12-31`), [items, year]);
   return (
-    <div className={s.year} data-testid="calendar-year">
+    <div className={s.year} data-view data-testid="calendar-year">
       {yearMonths(anchor).map((m) => (
         <section key={m} className={s.mini}>
           <button type="button" className={s.miniTitle} onClick={() => onMonth(m)}>
@@ -419,8 +431,8 @@ function YearView({ anchor, today, items, onDay, onMonth }: ViewProps & { onMont
                   <button
                     key={date}
                     type="button"
-                    className={[s.miniDay, isWeekend(date) ? s.weekend : '', date === today ? s.today : '', busy.has(date) ? s.busy : ''].join(' ')}
-                    aria-label={longDay.format(utc(date))}
+                    className={[s.miniDay, isWeekend(date) ? s.weekend : '', date === today ? s.today : '', shoot.has(date) ? s.shootDay : busy.has(date) ? s.busy : ''].join(' ')}
+                    aria-label={[longDay.format(utc(date)), shoot.has(date) ? 'jour de tournage' : busy.has(date) ? 'occupé' : ''].filter(Boolean).join(', ')}
                     onClick={() => onDay(date)}
                     data-testid={`year-${date}`}
                   >
