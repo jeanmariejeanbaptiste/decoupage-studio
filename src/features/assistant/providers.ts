@@ -130,7 +130,16 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
     }
     throw httpError(res.status, detail);
   }
-  return JSON.parse(text) as unknown;
+  return parseJson(text);
+}
+
+/** Corps d'une réponse réussie : une page HTML (proxy, portail Wi-Fi, mauvaise adresse) n'est pas du JSON. */
+export function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new AiError('Réponse illisible du service (adresse ou réseau à vérifier).');
+  }
 }
 
 // --- Anthropic : SDK officiel, chargé à la demande ----------------------------------------------
@@ -418,7 +427,7 @@ async function getJson(url: string, headers: Record<string, string>, signal?: Ab
   }
   const text = await res.text();
   if (!res.ok) throw httpError(res.status, text.slice(0, 200));
-  return JSON.parse(text) as unknown;
+  return parseJson(text);
 }
 
 /** Modèles que cette clé donne réellement, selon le fournisseur (avec leur prix quand il est publié). */

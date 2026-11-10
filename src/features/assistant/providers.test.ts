@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { probeProvider, type AiSettings } from './providers';
+import { AiError, createSession, parseJson, probeProvider, type AiSettings } from './providers';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -58,5 +58,35 @@ describe('essai de la clé', () => {
   it('aucun modèle ne répond : l’erreur du fournisseur', async () => {
     route(OPENROUTER.data.map((m) => m.id));
     await expect(probeProvider(settings)).rejects.toThrow('Limite de requêtes');
+  });
+});
+
+describe('réponse illisible', () => {
+  it('une page HTML au lieu de JSON : une erreur en français, pas une exception technique', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<!DOCTYPE html><html>Portail Wi-Fi</html>', { status: 200 })));
+    const session = createSession({ ...settings, models: { openrouter: 'openai/gpt-5-mini' } }, 'système', []);
+    session.addUser('Bonjour');
+    await expect(session.step()).rejects.toThrow(new AiError('Réponse illisible du service (adresse ou réseau à vérifier).'));
+    expect(() => parseJson('<html>')).toThrow(AiError);
+  });
+
+  it('revient en arrière dans l’historique après un tour en échec', async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return json({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] });
+      }),
+    );
+    const session = createSession({ ...settings, models: { openrouter: 'openai/gpt-5-mini' } }, 'système', []);
+    const mark = session.size();
+    session.addUser('Perdu');
+    session.truncate(mark);
+    session.addUser('Bonjour');
+    await session.step();
+    const messages = (bodies[0] as { messages: Array<{ role: string; content: string }> }).messages;
+    expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(messages[1].content).toBe('Bonjour');
   });
 });
