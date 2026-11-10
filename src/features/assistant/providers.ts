@@ -96,6 +96,9 @@ export interface ChatSession {
   addUser(text: string): void;
   step(signal?: AbortSignal): Promise<TurnResult>;
   addToolResults(results: readonly ToolResult[]): void;
+  /** Longueur de l'historique, pour revenir en arrière après un tour en échec. */
+  size(): number;
+  truncate(length: number): void;
 }
 
 export class AiError extends Error {}
@@ -139,6 +142,8 @@ function anthropicSession(key: string, model: string, system: string, tools: rea
     provider: 'anthropic',
     model,
     addUser: (text) => messages.push({ role: 'user', content: text }),
+    size: () => messages.length,
+    truncate: (n) => void messages.splice(n),
     addToolResults: (results) =>
       messages.push({ role: 'user', content: results.map((r) => ({ type: 'tool_result', tool_use_id: r.id, content: r.output, ...(r.isError ? { is_error: true } : {}) })) }),
     async step(signal) {
@@ -188,6 +193,8 @@ function openAiSession(provider: ProviderId, baseUrl: string, key: string, model
     provider,
     model,
     addUser: (text) => messages.push({ role: 'user', content: text }),
+    size: () => messages.length,
+    truncate: (n) => void messages.splice(Math.max(1, n)),
     addToolResults: (results) => results.forEach((r) => messages.push({ role: 'tool', tool_call_id: r.id, content: r.output })),
     async step(signal) {
       const headers: Record<string, string> = key ? { authorization: `Bearer ${key}` } : {};
@@ -240,6 +247,8 @@ function geminiSession(key: string, model: string, system: string, tools: readon
     provider: 'gemini',
     model,
     addUser: (text) => contents.push({ role: 'user', parts: [{ text }] }),
+    size: () => contents.length,
+    truncate: (n) => void contents.splice(n),
     addToolResults: (results) =>
       contents.push({ role: 'user', parts: results.map((r) => ({ functionResponse: { name: r.name, response: r.isError ? { error: r.output } : { result: r.output } } })) }),
     async step(signal) {

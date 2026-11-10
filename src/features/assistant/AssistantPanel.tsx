@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, RotateCcw, Square, SquarePen, X } from 'lucide-react';
+import { ArrowUp, RotateCcw, RotateCw, Square, SquarePen, X } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { undo, useProjectStore } from '../../store/projectStore';
 import { Button } from '../../ui/Button';
-import { askAssistant, newConversation, stopAssistant, toggleAssistant, useAssistant } from './assistant';
+import { askAssistant, newConversation, retryAssistant, stopAssistant, toggleAssistant, useAssistant } from './assistant';
 import { loadAiSettings, modelOf } from './providers';
 import s from './AssistantPanel.module.css';
 
@@ -35,7 +35,8 @@ export function AssistantPanel() {
   const settings = loadAiSettings();
   const send = () => {
     const t = draft.trim();
-    if (!t) return;
+    // Pendant une réponse, le brouillon reste dans le champ : seul « Arrêter » agit.
+    if (!t || busy) return;
     setDraft('');
     void askAssistant(t);
   };
@@ -59,6 +60,11 @@ export function AssistantPanel() {
         {entries.map((e) => (
           <div key={e.id} className={[s.msg, s[e.role]].join(' ')} data-testid={`assistant-${e.role}`}>
             {e.text && <p>{e.text}</p>}
+            {e.retry && !busy && (
+              <button type="button" className={s.undo} onClick={() => retryAssistant(e.id)} data-testid="assistant-retry">
+                <RotateCw size={12} strokeWidth={1.5} /> Réessayer
+              </button>
+            )}
             {e.changes && e.changes.length > 0 && (
               <div className={s.changes}>
                 <ul>
