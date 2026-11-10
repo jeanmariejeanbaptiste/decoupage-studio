@@ -211,10 +211,20 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
 
   // Délier : les dates redeviennent modifiables.
   await row(page, 'Tournage').hover();
-  await row(page, 'Tournage').getByTestId('row-menu').click();
+  const trigger = row(page, 'Tournage').getByTestId('row-menu');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
   await expect(page.getByTestId('menu-link')).toHaveText('Délier du plan de travail');
   await page.getByTestId('menu-link').click();
   await expect(field(page, 'Début : Tournage')).toHaveValue(fr(first));
+  await expect(trigger).toBeFocused();
+  await row(page, 'Repérages').hover();
+  await row(page, 'Repérages').getByTestId('row-menu').click();
+  await expect(page.getByTestId('menu-link')).toHaveText('Lier au plan de travail');
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Repérages').getByTestId('row-menu')).toBeFocused();
   await page.keyboard.press('ControlOrMeta+z');
   await expect(row(page, 'Tournage').getByTestId('linked-mark')).toBeVisible();
 
@@ -267,10 +277,12 @@ test('calendrier de production : rendez-vous du calendrier sur la frise, lien ve
   // Et l'inverse : du calendrier de production au calendrier, sur la période des étapes.
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
   await page.getByTestId('production-to-calendar').click();
-  await expect(page).toHaveURL(/#\/calendar\?date=\d{4}-\d{2}-\d{2}/);
+  await expect(page).toHaveURL(/#\/calendar\?date=\d{4}-\d{2}-\d{2}&view=month/);
+  await expect(page.getByRole('tab', { name: 'Mois' })).toHaveAttribute('aria-selected', 'true');
   // Le modèle se retire d'un coup, après confirmation, et ⌘Z le rend.
   await page.getByRole('button', { name: 'Calendrier de production' }).click();
   await page.getByTestId('production-clear').click();
+  await expect(page.getByRole('alertdialog')).not.toContainText('⌘');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Effacer' }).click();
   await expect(page.getByTestId('production-template')).toBeVisible();
   await page.keyboard.press('Control+z');

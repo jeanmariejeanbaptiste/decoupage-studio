@@ -125,7 +125,7 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await guest.evaluate(() => void (window.location.hash = '#/production'));
   await expect(guest.getByTestId('gantt-bar').first()).toBeVisible();
   await expect(guest.getByTestId('row-menu')).toHaveCount(0);
-  await expect(guest.getByTestId('phase-add')).toBeHidden();
+  await expect(guest.getByTestId('production-clear')).toHaveCount(0);
   await expect(guest.getByLabel(/^Début : /)).toHaveCount(0);
   await expect(guest.getByRole('checkbox').first()).toBeDisabled();
   await guest.getByTestId('zoom-in').click();
