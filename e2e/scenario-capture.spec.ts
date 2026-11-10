@@ -78,16 +78,19 @@ test('scénario vers la cellule Action : seulement en saisie, au curseur, lié a
   await expect(action).toHaveText(before);
 });
 
-test('scénario vers la cellule Action : en mode Écrire ou panneau fermé, la saisie se valide comme avant', async ({ page }) => {
+test('scénario du découpage : lecture seule ; panneau fermé, la saisie se valide comme avant', async ({ page }) => {
   await page.goto('/#/grid?seed=fiction');
   await page.getByTestId('toggle-scenario').click();
   const panel = page.getByTestId('scenario-panel');
-  await panel.getByRole('radio', { name: 'Écrire' }).click();
+  // Plus de mode Écrire : le scénario s'écrit dans l'onglet Scénario.
+  await expect(panel.getByRole('radio')).toHaveCount(0);
+  await expect(panel.locator('textarea')).toHaveCount(0);
+  await expect(panel.getByTestId('scenario-link-mode')).toBeVisible();
+  await panel.getByRole('button', { name: 'Fermer le scénario' }).click();
   const action = page.locator('[data-cell="0:action"]');
   await action.dblclick();
-  await expect(panel.getByTestId('capture-target')).toHaveCount(0);
   await page.getByTestId('cell-editor').fill('Texte libre');
-  await panel.getByTestId('scenario-panel-editor').click();
+  await page.locator('[data-cell="1:subject"]').click();
   await expect(page.getByTestId('cell-editor')).toHaveCount(0);
   await expect(action).toHaveText('Texte libre');
 });
