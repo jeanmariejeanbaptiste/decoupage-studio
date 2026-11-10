@@ -394,6 +394,23 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
   const setSize = (pt: string) => {
     restoreRange();
     snapshot(true);
+    // Curseur seul : la frappe suivante prend le corps choisi (le navigateur, lui, poserait son plus grand corps).
+    const sel = window.getSelection();
+    if (sel?.rangeCount && sel.isCollapsed && root.current?.contains(sel.anchorNode)) {
+      const range = sel.getRangeAt(0);
+      const span = document.createElement('span');
+      span.style.fontSize = `${pt}pt`;
+      const mark = document.createTextNode('\u200b');
+      span.appendChild(mark);
+      range.insertNode(span);
+      const at = document.createRange();
+      at.setStart(mark, 1);
+      at.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(at);
+      afterChange();
+      return;
+    }
     // Le navigateur ne connaît que 7 tailles : on pose la plus grande, puis on la remplace par le corps choisi.
     document.execCommand('styleWithCSS', false, 'false');
     document.execCommand('fontSize', false, '7');
