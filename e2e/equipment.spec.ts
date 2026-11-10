@@ -15,8 +15,7 @@ test('matériel : poste ajouté en ligne, nom déjà pris refusé, suppression c
   await field.fill('regie');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('equipment-Régie')).toHaveCount(1);
-  await expect(page.getByTestId('equipment-Image')).toHaveCount(0);
-  await page.getByRole('navigation', { name: 'Postes' }).getByRole('button', { name: /^Tous/ }).click();
+  await expect(page.getByLabel('Ajouter du matériel (Régie)')).toBeFocused();
   // Échap abandonne la saisie.
   await field.fill('Brouillon');
   await page.keyboard.press('Escape');

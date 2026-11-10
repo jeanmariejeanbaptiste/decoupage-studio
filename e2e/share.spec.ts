@@ -113,8 +113,8 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await expect(guest.getByPlaceholder('Ajouter…').first()).toBeHidden();
   // Matériel : les postes et les codes de plan mènent toujours quelque part.
   await guest.evaluate(() => void (window.location.hash = '#/equipment'));
-  await guest.getByRole('navigation', { name: 'Postes' }).getByRole('button', { name: /^Image/ }).click();
-  await expect(guest.getByTestId('equipment-Son')).toHaveCount(0);
+  await expect(guest.getByPlaceholder('Ajouter du matériel').first()).toBeHidden();
+  await expect(guest.getByTestId('add-equipment-category')).toBeHidden();
   await guest.getByTestId('equipment-Image').locator('li button').first().click();
   await expect(guest).toHaveURL(/#\/grid/);
   // Registre : en-têtes de colonnes et numéros de séquence restent visibles.
