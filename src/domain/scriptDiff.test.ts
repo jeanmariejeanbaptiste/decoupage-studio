@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { countWordsOf, diffBlocks, edges, diffItems, diffScripts, tokenize, wordDiff, type Seg } from './scriptDiff';
+import { countWordsOf, diffBlocks, edges, diffItems, diffScripts, readable, tokenize, wordDiff, type Seg } from './scriptDiff';
+import { headingNumbers } from './screenplay';
 import { blocksFromSource } from './screenplay';
 
 const text = (segs: Seg[], op?: Seg['op']) => segs.filter((s) => !op || s.op === op).map((s) => s.text).join('');
@@ -71,6 +72,39 @@ describe('mots', () => {
     expect(side(d, 'after')).toBe('Elle court lentement vers la place du sud ce soir.');
   });
 
+  it('un îlot fondu dans le changement est cité de chaque côté avec ses propres espaces', () => {
+    const pairs: Array<[string, string]> = [
+      ['Elle ne viendra pas.', 'Elle viendra. Elle vient toujours.'],
+      ['Il part demain matin.', 'Il part ce soir.'],
+      ['Un deux trois', 'Quatre cinq six'],
+      ['Léa, seule, attend le train de nuit.', 'Léa attend, seule, le dernier train.'],
+    ];
+    for (const [a, b] of pairs) {
+      const d = wordDiff(a, b);
+      expect(side(d, 'before')).toBe(a);
+      expect(side(d, 'after')).toBe(b);
+    }
+    expect(text(wordDiff('Elle ne viendra pas.', 'Elle viendra. Elle vient toujours.'), 'del')).toBe('ne viendra pas.');
+  });
+
+  it('un retrait suivi d’un ajout se lit avec une espace entre les deux (non marquée)', () => {
+    expect(readable(wordDiff('Un deux trois', 'Quatre cinq six'))).toEqual([
+      { op: 'del', text: 'Un deux trois' },
+      { op: 'eq', text: ' ' },
+      { op: 'add', text: 'Quatre cinq six' },
+    ]);
+    const r = readable(wordDiff('Il part demain matin.', 'Il part ce soir.'));
+    expect(r.map((x) => x.text).join('')).toBe('Il part demain matin ce soir.');
+    // Une espace déjà là : rien n'est ajouté.
+    const plain = wordDiff('un deux trois', 'un quatre trois');
+    expect(readable(plain)).toEqual(plain);
+  });
+
+  it('en capitales (en-tête, personnage, transition), la casse ne compte pas', () => {
+    expect(wordDiff('int. a - jour', 'INT. A - JOUR', true).every((x) => x.op === 'eq')).toBe(true);
+    expect(wordDiff('int. a - jour', 'INT. A - JOUR').some((x) => x.op !== 'eq')).toBe(true);
+  });
+
   it('un îlot long reste inchangé', () => {
     const d = wordDiff('Avant. Le hall bruisse, les annonces se succèdent sans fin. Après.', 'Plus tôt. Le hall bruisse, les annonces se succèdent sans fin. Ensuite.');
     expect(d.find((s) => s.op === 'eq' && s.text.includes('les annonces se succèdent'))).toBeTruthy();
@@ -102,6 +136,27 @@ describe('blocs', () => {
   it('la casse d’un en-tête ou d’un personnage ne compte pas (ils s’impriment en capitales)', () => {
     const d = diffBlocks(blocks('@Léa\nBonjour.'), blocks('@LÉA\nBonjour.'));
     expect(d.every((x) => x.op === 'eq')).toBe(true);
+  });
+
+  it('un en-tête dont seule la casse change est identique', () => {
+    const base = 'INT. A - JOUR\n\nLéa attend.\n\nEXT. B - NUIT\n\nMarc arrive.\n';
+    const d = diffScripts(base, base.replace('INT. A - JOUR', 'int. a - jour'));
+    expect(d.scenes.map((x) => x.status)).toEqual(['same', 'same']);
+    expect(d.stats).toMatchObject({ changed: 0, wordsAdded: 0, wordsRemoved: 0 });
+  });
+
+  it('un nombre à la fin de l’en-tête est du texte : affiché et comparé', () => {
+    const d = diffScripts('INT. CHAMBRE DE LÉA - NUIT 2\n\nLéa dort.\n', 'INT. CHAMBRE DE LÉA - NUIT 3\n\nLéa dort.\n');
+    expect(d.scenes[0].status).toBe('changed');
+    const head = d.scenes[0].blocks[0];
+    expect(head.op).toBe('mod');
+    expect(text(head.segs, 'del').trim()).toBe('2');
+    expect(text(head.segs, 'add').trim()).toBe('3');
+    expect(side(head.segs, 'after')).toBe('INT. CHAMBRE DE LÉA - NUIT 3');
+    // Seules les marques de numéro sont retirées (« #12A# », « 12. » devant INT).
+    const same = diffScripts('INT. ROUTE 66 - JOUR #4#\n\nUn camion.\n', '12. INT. ROUTE 66 - JOUR #7A#\n\nUn camion.\n');
+    expect(same.scenes[0].status).toBe('same');
+    expect(text(same.scenes[0].blocks[0].segs)).toBe('INT. ROUTE 66 - JOUR');
   });
 
   it('les marques d’emphase et les notes ne sont pas des changements', () => {
@@ -184,6 +239,21 @@ Je ne sais pas encore. Une nuit, peut-être deux.
     expect(d.scenes[1].status).toBe('same');
   });
 
+  it('un en-tête vide ne fait pas de séquence : numéros de l’éditeur, texte rattaché à la séquence d’avant', () => {
+    const src = 'INT. A - JOUR\n\nAction a.\n\n.\n\nAction sous un en-tête vide.\n\nEXT. B - NUIT\n\nAction b.\n';
+    const d = diffScripts(src, src);
+    expect(d.scenes.map((x) => `${x.status}:${x.after}`)).toEqual(['same:1', 'same:2']);
+    expect([...headingNumbers(blocksFromSource(src).blocks).values()]).toEqual([1, 2]);
+    expect(text(d.scenes[0].blocks[2].segs)).toBe('Action sous un en-tête vide.');
+    expect(d.stats.after.scenes).toBe(2);
+    // L'en-tête vide retiré ou ajouté d'une version à l'autre ne déplace pas les numéros.
+    const plain = src.replace('.\n\nAction sous', 'Action sous');
+    const e = diffScripts(plain, src);
+    expect(e.scenes.map((x) => `${x.status}:${x.before}>${x.after}`)).toEqual(['same:1>1', 'same:2>2']);
+    const f = diffScripts(src, 'INT. A - JOUR\n\nAction a.\n\nINT. C - JOUR\n\nAction sous un en-tête vide.\n\nEXT. B - NUIT\n\nAction b.\n');
+    expect(f.scenes.map((x) => `${x.status}:${x.before ?? '-'}>${x.after ?? '-'}`)).toEqual(['changed:1>1', 'added:->2', 'same:2>3']);
+  });
+
   it('versions vides ou sans séquence', () => {
     expect(diffScripts('', '').scenes).toEqual([]);
     const d = diffScripts('', V1);
@@ -217,6 +287,19 @@ describe('seulement les changements', () => {
       { kind: 'scene', index: 3 },
     ]);
     expect(diffItems(d, false)).toHaveLength(4);
+  });
+
+  it('le texte d’avant la première séquence, inchangé, ne se replie pas en « Séquence 0 »', () => {
+    const v1 = 'Noir. Une sirène au loin.\n\n' + V1.replace(/^Title:.*\n\n/, '');
+    const d = diffScripts(v1, v1.replace('sans lever les yeux', 'sans un regard'));
+    expect(d.scenes[0].prelude).toBe(true);
+    expect(diffItems(d, true)).toEqual([
+      { kind: 'fold', scenes: [1, 2, 3], from: 1, to: 3 },
+      { kind: 'scene', index: 4 },
+    ]);
+    // Changé, il s'affiche.
+    const e = diffScripts(v1, v1.replace('Une sirène', 'Un train'));
+    expect(diffItems(e, true)[0]).toEqual({ kind: 'scene', index: 0 });
   });
 });
 

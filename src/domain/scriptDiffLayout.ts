@@ -6,7 +6,7 @@
 import { mmss } from './chronometry';
 import type { BlockType } from './screenplay';
 import { SCRIPT_COLUMNS, SCRIPT_PAGE, blankLinesBefore } from './scriptLayout';
-import type { BlockOp, DiffItem, DiffStats, ScriptDiff, SegOp } from './scriptDiff';
+import { readable, type BlockOp, type DiffItem, type DiffStats, type ScriptDiff, type SegOp } from './scriptDiff';
 
 /**
  * Coupures d'un texte en lignes d'au plus `chars` caractères, aux mêmes endroits que `wrapText`
@@ -68,8 +68,8 @@ export interface DiffLine {
   row: number;
   /** Numéro de séquence dans la marge (barré pour une séquence retirée). */
   sceneNumber?: string;
-  /** Mention dans la marge, sous le numéro (« déplacée, était 4 »). */
-  margin?: string;
+  /** Mention dans la marge, sous le numéro, ligne à ligne (« déplacée » / « était 4 »). */
+  margin?: string[];
   /** Première et dernière ligne du bloc (filet d'un bloc ajouté). */
   first?: boolean;
   last?: boolean;
@@ -122,6 +122,8 @@ export const foldLabel = (from: number, to: number, count: number) => (count > 1
 
 /** Mention d'une séquence déplacée. */
 export const movedLabel = (before: number) => `déplacée, était ${before}`;
+/** La même, en deux lignes courtes (marge étroite de la page imprimée). */
+export const movedLines = (before: number) => ['déplacée', `était ${before}`];
 
 interface Item {
   kind: DiffLine['kind'];
@@ -129,7 +131,7 @@ interface Item {
   type: BlockType;
   lines: DiffRun[][];
   sceneNumber?: string;
-  margin?: string;
+  margin?: string[];
 }
 
 /**
@@ -148,14 +150,14 @@ export function layoutDiff(diff: ScriptDiff, items: readonly DiffItem[], header:
     const sc = diff.scenes[it.index];
     sc.blocks.forEach((b, bi) => {
       const c = col(b.type);
-      const runs = b.segs.map((s) => ({ op: s.op, text: c.upper ? s.text.toLocaleUpperCase('fr') : s.text }));
+      const runs = readable(b.segs).map((s) => ({ op: s.op, text: c.upper ? s.text.toLocaleUpperCase('fr') : s.text }));
       const isHead = bi === 0 && b.type === 'heading' && !sc.prelude;
       flat.push({
         kind: 'text',
         op: b.op,
         type: b.type,
         lines: wrapRuns(runs, c.chars),
-        ...(isHead ? { sceneNumber: String(sc.after ?? sc.before ?? ''), ...(sc.moved && sc.before ? { margin: movedLabel(sc.before) } : {}) } : {}),
+        ...(isHead ? { sceneNumber: String(sc.after ?? sc.before ?? ''), ...(sc.moved && sc.before ? { margin: movedLines(sc.before) } : {}) } : {}),
       });
     });
   }

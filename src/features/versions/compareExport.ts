@@ -110,14 +110,16 @@ export async function comparePdf(
             color: gray,
           });
       }
-      if (l.margin)
-        page.drawText(l.margin, {
-          x: sceneNumberRight - l.margin.length * smallCw,
-          y: y - lineH,
+      // Mention sous le numéro, alignée à droite sur lui, loin du bord du papier (au moins 36 pt).
+      l.margin?.forEach((t, k) =>
+        page.drawText(t, {
+          x: Math.max(36, sceneNumberRight - t.length * smallCw),
+          y: y - lineH * 0.9 - k * small * 1.15,
           size: small,
           font: fonts.regular,
           color: gray,
-        });
+        }),
+      );
     }
   }
   pdf.setTitle(`${meta.title} : ${header[0] ?? 'comparaison'}`);

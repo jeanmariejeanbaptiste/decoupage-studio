@@ -98,7 +98,8 @@ interface Token {
 const TOKEN_RE = /[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu;
 const isWord = (core: string) => /[\p{L}\p{N}]/u.test(core);
 
-export function tokenize(text: string): Token[] {
+/** Mots d'un texte. `upper` : comparés en capitales (types imprimés en capitales, où la casse saisie ne compte pas). */
+export function tokenize(text: string, upper = false): Token[] {
   const out: Token[] = [];
   let last = 0;
   let lead = '';
@@ -106,7 +107,7 @@ export function tokenize(text: string): Token[] {
     const at = m.index ?? 0;
     if (out.length) out[out.length - 1].text += text.slice(last, at);
     else lead = text.slice(0, at);
-    out.push({ core: m[0], text: m[0] });
+    out.push({ core: upper ? m[0].toLocaleUpperCase('fr') : m[0], text: m[0] });
     last = at + m[0].length;
   }
   if (out.length) {
@@ -131,15 +132,26 @@ function tidy(segs: Seg[]): Seg[] {
   return out;
 }
 
+/**
+ * Morceaux prêts à lire (espaces retirées seules omises) : entre un retrait et l'ajout qui le suit, une espace (non marquée) quand ni
+ * l'un ni l'autre n'en a à leur jonction (« trois » puis « Quatre » ne se lisent pas « troisQuatre »).
+ */
+export function readable(segs: readonly Seg[]): Seg[] {
+  const out: Seg[] = [];
+  // Une espace retirée seule ne se montre pas (le texte lu a la sienne).
+  const shown = segs.filter((x) => x.op !== 'del' || x.text.trim());
+  shown.forEach((x, k) => {
+    const prev = shown[k - 1];
+    if (prev && prev.op === 'del' && x.op === 'add' && !/\s$/.test(prev.text) && !/^\s/.test(x.text)) out.push({ op: 'eq', text: ' ' });
+    out.push(x);
+  });
+  return out;
+}
+
 /** Un morceau en trois : espaces de tête, texte marqué, espaces de queue (les espaces ne se soulignent ni ne se barrent). */
 export function edges(text: string): [string, string, string] {
   const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(text)!;
   return [m[1], m[2], m[3]];
-}
-
-interface Piece {
-  op: SegOp;
-  toks: Token[];
 }
 
 const coreLen = (toks: readonly Token[]) => toks.reduce((n, t) => n + t.core.length, 0);
@@ -148,14 +160,16 @@ const wordsIn = (toks: readonly Token[]) => toks.filter((t) => isWord(t.core)).l
 /**
  * Différence mot à mot de deux textes. Les îlots inchangés d'au plus deux mots, pris entre deux
  * changements et plus courts qu'eux, rejoignent le changement (lu en entier : barré, puis souligné).
+ * Les morceaux inchangés et retirés redonnent le texte d'avant ; les inchangés et ajoutés, celui d'après.
+ * `upper` : texte imprimé en capitales, la casse ne compte pas.
  */
-export function wordDiff(before: string, after: string): Seg[] {
-  const A = tokenize(before);
-  const B = tokenize(after);
+export function wordDiff(before: string, after: string, upper = false): Seg[] {
+  const A = tokenize(before, upper);
+  const B = tokenize(after, upper);
   const runs = A.length * B.length > 4_000_000 ? null : equalRuns(A.map((t) => t.core), B.map((t) => t.core), 2000);
   if (!runs) return tidy([{ op: 'del', text: before }, { op: 'add', text: after }]);
-  // Suite de zones : changement (retraits, ajouts) / commun.
-  const zones: Array<{ eq?: Token[]; del: Token[]; add: Token[] }> = [];
+  // Suite de zones : changement (retraits, ajouts) / commun (les mots de chaque côté, avec leurs espaces à eux).
+  const zones: Array<{ eq?: { a: Token[]; b: Token[] }; del: Token[]; add: Token[] }> = [];
   let i = 0;
   let j = 0;
   const change = (di: number, dj: number) => {
@@ -164,7 +178,7 @@ export function wordDiff(before: string, after: string): Seg[] {
   };
   for (const r of runs) {
     change(r.a, r.b);
-    zones.push({ eq: B.slice(r.b, r.b + r.n), del: [], add: [] });
+    zones.push({ eq: { a: A.slice(r.a, r.a + r.n), b: B.slice(r.b, r.b + r.n) }, del: [], add: [] });
     i = r.a + r.n;
     j = r.b + r.n;
   }
@@ -178,24 +192,32 @@ export function wordDiff(before: string, after: string): Seg[] {
       const p = zones[k - 1];
       const n = zones[k + 1];
       if (!z.eq || p.eq || n.eq) continue;
-      const island = coreLen(z.eq);
+      const island = coreLen(z.eq.b);
       const around = Math.max(coreLen(p.del) + coreLen(p.add), coreLen(n.del) + coreLen(n.add));
-      if (wordsIn(z.eq) <= 2 && island <= around) {
-        zones.splice(k - 1, 3, { del: [...p.del, ...z.eq, ...n.del], add: [...p.add, ...z.eq, ...n.add] });
+      if (wordsIn(z.eq.b) <= 2 && island <= around) {
+        zones.splice(k - 1, 3, { del: [...p.del, ...z.eq.a, ...n.del], add: [...p.add, ...z.eq.b, ...n.add] });
         merged = true;
         break;
       }
     }
   }
-  const pieces: Piece[] = [];
+  const segs: Seg[] = [];
+  const put = (op: SegOp, toks: readonly Token[]) => segs.push({ op, text: toks.map((t) => t.text).join('') });
   for (const z of zones) {
-    if (z.eq) pieces.push({ op: 'eq', toks: z.eq });
-    else {
-      if (z.del.length) pieces.push({ op: 'del', toks: z.del });
-      if (z.add.length) pieces.push({ op: 'add', toks: z.add });
+    if (z.eq) {
+      // Mot commun dont l'espace qui suit diffère (« Léa, » / « Léa attend ») : l'espace de chaque côté à part.
+      z.eq.b.forEach((b, k) => {
+        const aw = /\s*$/.exec(z.eq!.a[k].text)![0];
+        const bw = /\s*$/.exec(b.text)![0];
+        if (aw === bw) segs.push({ op: 'eq', text: b.text });
+        else segs.push({ op: 'eq', text: b.text.slice(0, b.text.length - bw.length) }, { op: 'del', text: aw }, { op: 'add', text: bw });
+      });
+    } else {
+      put('del', z.del);
+      put('add', z.add);
     }
   }
-  return tidy(pieces.map((p) => ({ op: p.op, text: p.toks.map((t) => t.text).join('') })));
+  return tidy(segs);
 }
 
 // --- Blocs --------------------------------------------------------------------------------------
@@ -211,12 +233,15 @@ interface CBlock {
   bag: Map<string, number>;
 }
 
-/** En-tête sans son numéro écrit (« 12. INT. GARE - JOUR 12 », « #12A# ») : le numéro affiché est dérivé de l'ordre. */
-const bareHeading = (h: string) => h.replace(/^\s*\d+[A-Z]?[.)-]?\s+/, '').replace(/\s+#[^#\s]+#\s*$/, '').replace(/\s+\d+[A-Z]?\.?\s*$/, '');
+/**
+ * En-tête sans ses marques de numéro (« #12A# » à la fin, « 12. » ou « 12A » devant INT / EXT) : le
+ * numéro affiché est dérivé de l'ordre. Tout autre nombre (« NUIT 2 », « ROUTE 66 ») est du texte, comparé.
+ */
+const printedHeading = (h: string) => h.replace(/^\s*\d+[A-Z]?(?:[.)-]\s+|\s+(?=(?:INT|EXT|I\/E|E\/I)\b))/i, '').replace(/\s*#[^#\s]+#\s*$/, '');
 
 const printedOf = (b: SBlock) => {
   const t = printable(stripMarks(b.text)).replace(/[^\S\n]+$/gm, '').replace(/^\n+|\n+$/g, '');
-  return b.type === 'heading' ? bareHeading(t) : t;
+  return b.type === 'heading' ? printedHeading(t) : t;
 };
 
 function cblock(b: SBlock): CBlock {
@@ -245,8 +270,9 @@ const LIKE = 0.3;
 const whole = (op: 'eq' | 'add' | 'del', b: CBlock): BlockDiff => ({ op, type: b.type, segs: [{ op, text: b.text }] });
 
 function modified(a: CBlock, b: CBlock): BlockDiff {
-  const segs = wordDiff(a.text, b.text);
-  return segs.every((s) => s.op === 'eq') ? { op: 'eq', type: b.type, segs: [{ op: 'eq', text: b.text }] } : { op: 'mod', type: b.type, segs };
+  const segs = wordDiff(a.text, b.text, UPPER(b.type));
+  // Seules les espaces ou la casse d'un texte en capitales changent : bloc identique à l'impression.
+  return segs.every((s) => s.op === 'eq' || !s.text.trim()) ? { op: 'eq', type: b.type, segs: [{ op: 'eq', text: b.text }] } : { op: 'mod', type: b.type, segs };
 }
 
 /** Retraits et ajouts entre deux blocs communs : les paires qui se ressemblent deviennent des blocs modifiés (ordre gardé). */
@@ -317,15 +343,26 @@ export function diffBlocks(before: readonly SBlock[], after: readonly SBlock[]):
 
 const compared = (b: SBlock) => b.type !== 'title' && b.type !== 'pagebreak' && !NOT_PRINTED.has(b.type) && !isEmptyBlock(b);
 
-/** Blocs comparés : le texte avant la première séquence, puis chaque séquence (en-tête d'abord). */
-function scenesFromBlocks(blocks: readonly SBlock[]): { prelude: SBlock[]; scenes: SBlock[][] } {
+/**
+ * Blocs comparés : le texte avant la première séquence, puis chaque séquence (en-tête d'abord). Un
+ * en-tête vide ne fait pas de séquence (pas de numéro, comme dans l'éditeur et à l'impression) : ce
+ * qui le suit reste dans la séquence d'avant. `index` : rang de chaque en-tête, vides compris (celui
+ * de `scenesOf`, donc de `alignScenes`) → rang de sa séquence, ou -1 s'il est vide.
+ */
+function scenesFromBlocks(blocks: readonly SBlock[]): { prelude: SBlock[]; scenes: SBlock[][]; index: number[] } {
   const prelude: SBlock[] = [];
   const scenes: SBlock[][] = [];
+  const index: number[] = [];
   for (const b of blocks) {
-    if (b.type === 'heading') scenes.push([b]);
-    else if (compared(b)) (scenes.length ? scenes[scenes.length - 1] : prelude).push(b);
+    if (b.type === 'heading') {
+      if (isEmptyBlock(b)) index.push(-1);
+      else {
+        index.push(scenes.length);
+        scenes.push([b]);
+      }
+    } else if (compared(b)) (scenes.length ? scenes[scenes.length - 1] : prelude).push(b);
   }
-  return { prelude, scenes };
+  return { prelude, scenes, index };
 }
 
 /** Séquences rapprochées hors de l'ordre : celles qui sortent de la plus longue suite croissante. */
@@ -366,9 +403,13 @@ export function diffScripts(before: string, after: string, chrono?: Partial<Scri
   const B = scenesFromBlocks(bb);
   const A = scenesFromBlocks(ab);
   const al = alignScenes(before, after);
-  const moved = movedSet(al.matches);
-  const byTo = new Map(al.matches.map((x) => [x.to, x.from]));
-  const removed = new Set(al.removed);
+  // Rangs de `alignScenes` (en-têtes vides compris) ramenés aux séquences numérotées.
+  const at = (index: number[], k: number) => index[k] ?? -1;
+  const matches = al.matches.map((x) => ({ from: at(B.index, x.from), to: at(A.index, x.to) })).filter((x) => x.from >= 0 && x.to >= 0);
+  const moved = movedSet(matches);
+  const byTo = new Map(matches.map((x) => [x.to, x.from]));
+  const kept = new Set(matches.map((x) => x.from));
+  const removed = new Set(B.scenes.map((_, k) => k).filter((k) => !kept.has(k)));
 
   const scenes: SceneDiff[] = [];
   const preludeBlocks = diffBlocks(B.prelude, A.prelude);
@@ -379,8 +420,7 @@ export function diffScripts(before: string, after: string, chrono?: Partial<Scri
     const bl = (B.scenes[k] ?? []).map((x) => whole('del', cblock(x)));
     scenes.push({ status: 'removed', before: k + 1, moved: false, changed: true, blocks: bl });
   };
-  const sceneCount = Math.max(A.scenes.length, al.newScenes.length);
-  for (let t = 0; t < sceneCount; t++) {
+  for (let t = 0; t < A.scenes.length; t++) {
     const from = byTo.get(t);
     const own = A.scenes[t] ?? [];
     if (from === undefined) {
@@ -448,15 +488,17 @@ export function diffItems(diff: ScriptDiff, onlyChanges: boolean): DiffItem[] {
   if (!onlyChanges) return diff.scenes.map((_, index) => ({ kind: 'scene', index }));
   const out: DiffItem[] = [];
   diff.scenes.forEach((sc, index) => {
+    // Texte d'avant la première séquence, inchangé : rien à montrer (il n'a pas de numéro à replier).
+    if (sc.prelude && sc.status === 'same') return;
     if (sc.status !== 'same') {
       out.push({ kind: 'scene', index });
       return;
     }
     const last = out[out.length - 1];
-    const n = sc.after ?? 0;
+    const n = sc.after!;
     if (last?.kind === 'fold') {
       last.scenes.push(index);
-      last.to = n || last.to;
+      last.to = n;
     } else out.push({ kind: 'fold', scenes: [index], from: n, to: n });
   });
   return out;

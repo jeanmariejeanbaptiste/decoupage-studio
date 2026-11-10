@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { diffItems, diffScripts } from './scriptDiff';
-import { foldLabel, layoutDiff, movedLabel, summaryLines, wrapRanges, wrapRuns } from './scriptDiffLayout';
+import { foldLabel, layoutDiff, movedLines, summaryLines, wrapRanges, wrapRuns } from './scriptDiffLayout';
 import { SCRIPT_PAGE, wrapText } from './scriptLayout';
 
 describe('coupure des lignes', () => {
@@ -46,7 +46,7 @@ describe('pages de la comparaison', () => {
     expect(lines[0]).toMatchObject({ kind: 'head', row: 0 });
     expect(lines.filter((l) => l.kind === 'head')).toHaveLength(5);
     const hotel = lines.find((l) => l.runs.some((r) => r.text.includes('HÔTEL')))!;
-    expect(hotel).toMatchObject({ sceneNumber: '1', margin: movedLabel(4) });
+    expect(hotel).toMatchObject({ sceneNumber: '1', margin: movedLines(4) });
     // Deux lignes blanches après l'en-tête.
     expect(hotel.row).toBe(lines.filter((l) => l.kind === 'head').length + 2);
     expect(lines.find((l) => l.kind === 'fold')!.runs[0].text).toBe(foldLabel(3, 4, 2));
@@ -65,6 +65,22 @@ describe('pages de la comparaison', () => {
       const last = p.lines[p.lines.length - 1];
       expect(last.type === 'heading' && last.kind === 'text').toBe(false);
     }
+  });
+
+  it('un retrait et l’ajout qui le suit ne sont pas collés : « JOUR NUIT »', () => {
+    const d = diffScripts('INT. GARE - JOUR\n\nLéa attend sous la verrière, un deux trois\n', 'INT. GARE - NUIT\n\nLéa attend sous la verrière, quatre cinq six\n');
+    expect(d.scenes[0].blocks.map((b) => b.op)).toEqual(['mod', 'mod']);
+    const pages = layoutDiff(d, diffItems(d, false), []);
+    const texts = pages[0].lines.map((l) => l.runs.map((r) => r.text).join(''));
+    expect(texts).toContain('INT. GARE - JOUR NUIT');
+    expect(texts.some((t) => /trois quatre/.test(t))).toBe(true);
+  });
+
+  it('la mention d’une séquence déplacée tient en deux lignes courtes', () => {
+    expect(movedLines(12)).toEqual(['déplacée', 'était 12']);
+    // Alignée à droite sur le numéro (98 pt), elle reste à plus de 36 pt du bord.
+    const smallCw = (1228 / 2048) * 8;
+    for (const t of movedLines(128)) expect(SCRIPT_PAGE.sceneNumberRight - t.length * smallCw).toBeGreaterThan(36);
   });
 
   it('résumé chiffré', () => {
