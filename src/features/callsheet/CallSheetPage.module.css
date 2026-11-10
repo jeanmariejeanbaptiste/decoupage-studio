@@ -1,7 +1,11 @@
-.toolbar { display: flex; gap: 8px; align-items: flex-end; }
-.pick { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--ink-soft); }
-.pick select { font-size: 14px; padding: 4px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); }
-.sheet { font-size: 13px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Jour : précédent, choix, suivant ; les flèches gardent leur place (désactivées aux extrémités). */
+.pick { display: flex; align-items: center; gap: 2px; }
+.pick select { font-size: 14px; padding: 4px 8px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-card); color: var(--ink); }
+.pick button:disabled { opacity: 0.3; }
+/* La feuille est un conteneur : sur un écran étroit, repères et carte passent sur moins de colonnes. */
+.sheet { font-size: 13px; container-type: inline-size; }
+@media screen and (max-width: 600px) { .sheet { padding: 16px 12px; } }
 .head { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid var(--ink); padding-bottom: 14px; margin-bottom: 16px; }
 .kicker { margin: 0; font-family: var(--font-ui); color: var(--rust); font-size: 12.5px; }
 .title { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 36px; line-height: 1; }
@@ -25,6 +29,9 @@
 .table td input[type="time"] { width: 100%; min-width: 0; box-sizing: border-box; }
 .table th { hyphens: auto; }
 .code { color: var(--rust); font-weight: 600; white-space: nowrap; }
+/* Horaire d'une étape : peut passer à la ligne après le tiret, jamais au milieu d'une heure. */
+.slot { white-space: normal; }
+.slot > span { white-space: nowrap; }
 .muted { color: var(--ink-soft); font-style: italic; }
 .equip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .equip ul { margin: 4px 0 0; padding-left: 16px; font-size: 12.5px; }
@@ -40,6 +47,8 @@
 .key { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--ink-soft); }
 .key input { width: 100%; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-card); color: var(--ink); font: inherit; font-size: 13px; }
 .keyWide { grid-column: 1 / -1; }
+@container (max-width: 680px) { .keys { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 520px) { .keys { grid-template-columns: minmax(0, 1fr); } }
 /* Repas et reprise : de … à … */
 .range { display: flex; align-items: center; gap: 6px; }
 .range > span { flex: none; color: var(--ink-soft); }

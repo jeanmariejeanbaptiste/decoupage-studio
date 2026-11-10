@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { useA4Pages } from '../../ui/useA4Pages';
-import { navigate } from '../../app/router';
+import { navigate, useLocation } from '../../app/router';
 import { aggregateEquipment, equipmentCategories } from '../../domain/equipment';
 import { formatFocal } from '../../domain/focal';
-import { sequenceHeading, shotCode } from '../../domain/numbering';
+import { sequenceHeading, sequenceNumber, shotCode } from '../../domain/numbering';
+import { fold } from '../../domain/text';
 import {
   bannerLabel,
   callSheetAgenda,
@@ -14,7 +15,10 @@ import {
   dayStats,
   scheduleDays,
   firstSlot,
+  longDate,
   plural,
+  setCall,
+  setCallDetail,
   setDayMeal,
   shotSlotsText,
   showTime,
@@ -36,22 +40,29 @@ import { characterNumbers } from '../../domain/registry';
 import { decorLocation } from '../../domain/locations';
 import { exportBase } from '../../domain/serialize';
 import { dayPlaces, mapPlaces } from '../../domain/geo';
-import { Map as MapIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Map as MapIcon } from 'lucide-react';
 import { DayMap } from '../map/PlacesMap';
 import { dayMapImage } from '../map/staticMap';
 import { useMapVisible } from '../map/visibility';
 
-const dateFmt = new Intl.DateTimeFormat('fr-FR', {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
+const shortFmt = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+
+/** Date courte d'un jour (« lun. 16 nov. ») ; vide si elle est absente ou mal formée. */
+function shortDate(date?: string): string {
+  if (!date) return '';
+  const t = new Date(`${date}T12:00`);
+  return Number.isNaN(t.getTime()) ? '' : shortFmt.format(t);
+}
+
+/** Jour choisi : il vit dans l'adresse (#/callsheet?day=n), sans ajouter d'étape à l'historique. */
+function showDay(n: number): void {
+  window.location.replace(`#/callsheet?day=${n}`);
+}
 
 /** Feuille de service d'un jour de tournage (§15.4). */
 export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
   const days = scheduleDays(doc);
-  const [n, setN] = useState<number | undefined>(days[0]?.n);
+  const n = Number(useLocation().params.get('day'));
   const day = days.find((d) => d.n === n) ?? days[0];
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const sheetRef = useRef<HTMLElement>(null);
@@ -93,6 +104,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
     />
   );
   const hasPlaces = dayPlaces(places, doc, day.n).length > 0;
+  const at = days.indexOf(day);
   const cast = stats.characterIds
     .map((id) => doc.characters[id])
     .filter(Boolean)
@@ -102,21 +114,18 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
     <div className="page">
       <header className="page-head no-print">
         <div className={s.toolbar}>
-          <label className={s.pick}>
-            <span>Jour</span>
-            <select
-              value={day.n}
-              onChange={(e) => setN(Number(e.target.value))}
-              aria-label="Jour de tournage"
-            >
+          {/* Changer de jour ne modifie rien : permis aux invités en lecture seule (data-view). */}
+          <div className={s.pick} role="group" aria-label="Jour">
+            <Button variant="icon" size="sm" aria-label="Jour précédent" icon={<ChevronLeft size={15} strokeWidth={1.25} />} disabled={at <= 0} onClick={() => showDay(days[at - 1].n)} data-view />
+            <select value={day.n} onChange={(e) => showDay(Number(e.target.value))} aria-label="Jour de tournage" data-view>
               {days.map((d) => (
                 <option key={d.n} value={d.n}>
-                  Jour {d.n}
-                  {d.date ? ` — ${d.date}` : ''}
+                  {[`Jour ${d.n}`, shortDate(d.date)].filter(Boolean).join(' · ')}
                 </option>
               ))}
             </select>
-          </label>
+            <Button variant="icon" size="sm" aria-label="Jour suivant" icon={<ChevronRight size={15} strokeWidth={1.25} />} disabled={at >= days.length - 1} onClick={() => showDay(days[at + 1].n)} data-view />
+          </div>
           <TabExport id="callsheet" orientation="portrait"
             doc={async () => callSheetDocument(doc, day.n, { map: mapOn && hasPlaces ? await dayMapImage(doc, day.n) : undefined })}
             fileBase={`${exportBase(doc)}-feuille-de-service-J${day.n}`}
@@ -147,7 +156,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
           </div>
           <div className={s.dayBox}>
             <span className={s.dayN}>Jour {day.n}</span>
-            <span>{day.date ? dateFmt.format(new Date(`${day.date}T12:00`)) : <em>date à préciser</em>}</span>
+            <span>{longDate(day.date) || <em>date à préciser</em>}</span>
             <label className={s.call}>
               Rendez-vous
               <input
@@ -187,7 +196,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   if (it.type === 'banner') {
                     return (
                       <tr key={it.banner.id} className={s.bannerRow} data-testid="itinerary-banner">
-                        <td className={s.code}>{it.start ? `${showTime(it.start)} – ${showTime(it.end)}` : '—'}</td>
+                        <td className={[s.code, s.slot].join(' ')}>{it.start ? <SlotText start={it.start} end={it.end} /> : '—'}</td>
                         <td colSpan={3}>
                           <strong>{bannerLabel(it.banner)}</strong>
                           {it.banner.label ? ` · ${it.banner.label}` : ''} <span className={s.muted}>{it.banner.minutes} min</span>
@@ -201,7 +210,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                   const loc = decorLocation(decor);
                   return (
                     <tr key={it.strip.seqId}>
-                      <td className={[s.code, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? `${showTime(stop.start)} – ${showTime(stop.end)}` : '—'}</td>
+                      <td className={[s.code, s.slot, stop.computed ? s.computed : ''].join(' ')}>{stop.start ? <SlotText start={stop.start} end={stop.end} /> : '—'}</td>
                       <td>
                         <strong>{decor?.name ?? 'Décor non renseigné'}</strong>{' '}
                         {decor?.intExt && <span className={s.muted}>{decor.intExt}</span>}
@@ -224,7 +233,20 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                         {loc.access && <span className={s.locLine}>Accès : {loc.access}</span>}
                         {loc.contact && <span className={s.locLine}>Contact : {loc.contact}</span>}
                       </td>
-                      <td>{stop.seqIds.map((id) => sequenceHeading(doc, id)).join(' · ')}</td>
+                      <td data-testid="stop-sequence">
+                        {stop.seqIds.map((id, i) => {
+                          // L'intitulé seulement s'il dit autre chose que le décor (déjà dans sa colonne).
+                          const label = doc.sequences[id]?.label ?? '';
+                          const same = !!decor && fold(label) === fold(decor.name);
+                          return (
+                            <span key={id}>
+                              {i > 0 && ' · '}
+                              <strong>{sequenceNumber(doc, id)}</strong>
+                              {!same && label ? `, ${label.toUpperCase()}` : ''}
+                            </span>
+                          );
+                        })}
+                      </td>
                     </tr>
                   );
                 })}
@@ -330,7 +352,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                     <input
                       type="time"
                       value={x[k] ?? ''}
-                      onChange={(e) => set({ callDetails: { ...(day.callDetails ?? {}), [c.id]: { ...x, [k]: e.target.value || undefined } } })}
+                      onChange={(e) => mutateDoc((d) => setCallDetail(d, day.n, c.id, k, e.target.value))}
                       aria-label={`${label} de ${c.name}`}
                     />
                   </td>
@@ -345,7 +367,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                       <input
                         type="time"
                         value={day.calls?.[c.id] ?? ''}
-                        onChange={(e) => set({ calls: { ...(day.calls ?? {}), [c.id]: e.target.value } })}
+                        onChange={(e) => mutateDoc((d) => setCall(d, day.n, c.id, e.target.value))}
                         aria-label={`Convocation de ${c.name}`}
                       />
                     </td>
@@ -456,5 +478,14 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
         </section>
       </article>
     </div>
+  );
+}
+
+/** Horaire d'une étape : « 07:30 – 10:30 », qui peut passer à la ligne après le tiret (colonne étroite). */
+function SlotText({ start, end }: { start: string; end?: string }) {
+  return (
+    <>
+      <span>{showTime(start)} –</span> <span>{showTime(end)}</span>
+    </>
   );
 }
