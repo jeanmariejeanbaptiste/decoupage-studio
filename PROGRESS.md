@@ -273,7 +273,7 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Divers : glisser des plans en liste triable, Entrée sans transformer une ligne en personnage, page d'erreur qui rouvre le projet, session Google gardée.
 - Tests : 387 unitaires, 101 parcours de bout en bout.
 
-## Comparer les versions du scénario (branche « comparer-versions »)
+## Comparer les versions du scénario — 2026-11-10
 - Menu des versions (Scénario et Découpage) : « Comparer les versions… » remplace les différences abrégées ; invités et relecteurs : un bouton à côté du nom de la version.
 - Sous-page `#/scenario?compare=A~B` : « Comparer [A] avec [B] » (par défaut la courante avec celle dont elle est partie), texte entier aux colonnes du scénario, marques sans couleur, résumé (séquences, mots, pages, durée), seulement les changements, J / K, séquence ouverte dans l'éditeur (version courante), export PDF.
 - Domaine : `domain/scriptDiff.ts` (séquences par `sceneAlign`, blocs, mots), `domain/scriptDiffLayout.ts` (pages A4 de l'export) ; `sceneAlign` compte les triplets communs par index (plus rapide, mêmes résultats).
@@ -284,3 +284,13 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Feuille de service : carte réduite des lieux du jour à l'écran et dans l'export (image composée des tuiles en gris, repères numérotés, légende, attribution), lien d'itinéraire par lieu, cliquable dans le PDF et le Word.
 - Relecture : carte isolée sous les fenêtres et panneaux ; hôpital sans nom jamais replié sur la ville ; aucune requête après une carte masquée pendant la pause d'un refus 429 ; outils du jour en colonne fixe ; rendez-vous courts entiers ; réserve sans indication superflue ; légende entière.
 - Tests : 498 unitaires, 131 parcours de bout en bout (1 capture sur demande ignorée).
+
+## Version 2.9.0 — 2026-11-10 (comparaison, carte, calendrier de production, relecture Drive, revue)
+- Comparaison des versions du scénario (voir plus haut), relue de façon contradictoire : nombres des en-têtes comparés, citations exactes, casse ignorée en capitales, invités limités aux versions publiées.
+- Plan au sol : pièce en tête du panneau (modèles Petite / Moyenne / Grande avec dimensions, Personnalisée), cotes en mètres sur le plan et dans l'export, pièce déplacée d'un bloc avec portes et fenêtres, posée au coin du plan des locaux, dimensions bornées ; un outil actif trace ou pose depuis un mur.
+- Carte des lieux : plan de travail et feuille de service, export compris (voir plus haut).
+- Calendrier de production (Gantt) : tournage lié fidèle au plan de travail (date corrigée, jours datés en partie), modèle autour d'un tournage daté, calendriers dans le dossier .zip, Word en tableau ; rendez-vous du calendrier repérés sur la frise, tout effacer annulable.
+- Relecture en ligne par Google Drive : jeton du relecteur limité à l'onglet, retrait annulé qui tient, citation gardée d'un passage réécrit, lien fermé à la suppression du projet, envois manqués gardés, version publiée non supprimable, rien de la relecture chez un invité du partage en direct.
+- Revue approfondie (73 défauts confirmés, 59 corrigés, le reste déjà réglé) : scénario (pages et minutage de l'impression), versions et commentaires, dépouillement et registre, plan au sol, production (déroulé unique plan de travail / feuille de service, nuit « (+1) », repas vers midi), coquille et paramètres.
+- Ouvert : sur un scénario annoté, le numéro de page écrit sur une feuille de l'éditeur peut dépasser celui du PDF (notes comptées à l'écran). Pré-remplir la pièce depuis le plan des locaux écarté : l'échelle réelle n'est pas enregistrée.
+- Tests : 587 unitaires, 161 parcours de bout en bout (1 capture sur demande ignorée).
