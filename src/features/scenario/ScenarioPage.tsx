@@ -137,9 +137,10 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
     setRemembered(view);
     store('ds-scenario-view', view);
   }, [view]);
-  // Adresse sans sous-page : elle la reçoit (sans nouvelle entrée), pour que Précédent y revienne.
+  // Adresse sans sous-page, ou sans objet ici (séquencier en relecture Drive) : elle reçoit la sous-page
+  // affichée (sans nouvelle entrée), pour que Précédent y revienne.
   useEffect(() => {
-    if (loc.view) return;
+    if (loc.view === view) return;
     const q = new URLSearchParams(params);
     q.set('view', view);
     window.history.replaceState(window.history.state, '', `#/scenario?${q.toString()}`);
@@ -260,11 +261,15 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
   // ⌘\ (Ctrl+\) : masquer ou rouvrir le panneau, sans quitter le texte.
   const sideRef = useRef(side);
   sideRef.current = side;
+  const viewRef = useRef(view);
+  viewRef.current = view;
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       // « \ » se tape avec ⌥⇧/ sur un Mac AZERTY, AltGr+8 sous Windows : ⌥, ⇧ et AltGr sont admis ;
       // la touche physique « \ » d'un clavier QWERTY aussi, quelle que soit la disposition.
       if ((e.metaKey || e.ctrlKey) && (e.key === '\\' || e.code === 'Backslash')) {
+        // Seules les sous-pages qui ont un panneau le montrent ou le masquent.
+        if (viewRef.current !== 'script' && viewRef.current !== 'cut') return;
         e.preventDefault();
         setSide(!sideRef.current);
       }
@@ -521,20 +526,22 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
                   createShot({ x: r.left, y: r.bottom + 4 });
                 }}
                 disabled={!selection}
+                title="Créer un plan"
                 data-testid="create-shot-from-selection"
               >
                 <FilePlus2 size={16} strokeWidth={1.25} aria-hidden="true" />
-                Créer un plan
+                <span className={s.lbl}>Créer un plan</span>
               </button>
               <button
                 type="button"
                 className={s.labelled}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => api.current?.editTitle()}
+                title="Page de garde"
                 data-testid="edit-title-page"
               >
                 <FileText size={16} strokeWidth={1.25} aria-hidden="true" />
-                Page de garde
+                <span className={s.lbl}>Page de garde</span>
               </button>
             </>
           )}
@@ -547,10 +554,11 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
               disabled={!selection}
               data-comment-trigger
               data-view
+              title="Commenter"
               data-testid="comment-selection"
             >
               <MessageSquarePlus size={16} strokeWidth={1.25} aria-hidden="true" />
-              Commenter
+              <span className={s.lbl}>Commenter</span>
             </button>
           )}
           {view === 'cut' && !readOnly && (
@@ -718,38 +726,60 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
   );
 }
 
-/** Poignée du panneau : tirer pour régler la largeur (280 à 480 px), double-clic pour revenir à 344. */
+/**
+ * Poignée du panneau : tirer pour régler la largeur (280 à 480 px), double-clic pour revenir à 344 ;
+ * au clavier, ← élargit, → rétrécit (⇧ : par 64 px), Début / Fin aux bornes, Entrée revient à 344.
+ */
 function SideResize({ width, onChange }: { width: number; onChange: (w: number) => void }) {
-  const save = (w: number) => store('ds-scenario-side-w', String(w));
+  const clamp = (w: number) => Math.min(SIDE_MAX, Math.max(SIDE_MIN, w));
+  const set = (w: number) => {
+    const v = clamp(w);
+    onChange(v);
+    store('ds-scenario-side-w', String(v));
+  };
   return (
     <div
       className={s.resize}
       role="separator"
+      tabIndex={0}
       aria-orientation="vertical"
       aria-label="Largeur du panneau"
       aria-valuemin={SIDE_MIN}
       aria-valuemax={SIDE_MAX}
       aria-valuenow={width}
       data-view
-      onDoubleClick={() => {
-        onChange(SIDE_W);
-        save(SIDE_W);
+      onDoubleClick={() => set(SIDE_W)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 64 : 16;
+        const next =
+          e.key === 'ArrowLeft' ? width + step
+          : e.key === 'ArrowRight' ? width - step
+          : e.key === 'Home' ? SIDE_MIN
+          : e.key === 'End' ? SIDE_MAX
+          : e.key === 'Enter' ? SIDE_W
+          : null;
+        if (next === null) return;
+        e.preventDefault();
+        set(next);
       }}
       onPointerDown={(e) => {
         e.preventDefault();
         const x0 = e.clientX;
         let w = width;
         const move = (ev: PointerEvent) => {
-          w = Math.min(SIDE_MAX, Math.max(SIDE_MIN, width + (x0 - ev.clientX)));
+          w = clamp(width + (x0 - ev.clientX));
           onChange(w);
         };
-        const up = () => {
+        // Fin du geste, ou geste interrompu (le système reprend le pointeur) : la largeur atteinte est gardée.
+        const end = () => {
           window.removeEventListener('pointermove', move);
-          window.removeEventListener('pointerup', up);
-          save(w);
+          window.removeEventListener('pointerup', end);
+          window.removeEventListener('pointercancel', end);
+          set(w);
         };
         window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', up);
+        window.addEventListener('pointerup', end);
+        window.addEventListener('pointercancel', end);
       }}
       data-testid="scenario-side-resize"
     />

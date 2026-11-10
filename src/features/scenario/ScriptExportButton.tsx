@@ -62,10 +62,16 @@ export function ExportMenu({ sections }: { sections: readonly ExportSection[] })
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    // Échap : le menu se ferme et le focus revient au bouton.
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      trigger.current?.focus();
+    };
     window.addEventListener('mousedown', away);
     window.addEventListener('keydown', esc);
     menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
@@ -90,6 +96,12 @@ export function ExportMenu({ sections }: { sections: readonly ExportSection[] })
   };
   // Flèches dans le menu : d'une entrée à l'autre, toutes sections confondues.
   const onKey = (e: React.KeyboardEvent) => {
+    // Tab : on quitte le menu, qui se ferme ; le focus suit son cours depuis le bouton.
+    if (e.key === 'Tab') {
+      setOpen(false);
+      trigger.current?.focus();
+      return;
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
     const items = Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
@@ -99,6 +111,7 @@ export function ExportMenu({ sections }: { sections: readonly ExportSection[] })
   return (
     <div className={s.wrap} ref={ref} data-view>
       <button
+        ref={trigger}
         type="button"
         className={s.trigger}
         aria-haspopup="menu"

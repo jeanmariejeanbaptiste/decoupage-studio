@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Check, ChevronDown, Eraser, FileUp, GitCompare, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
 import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
@@ -13,7 +13,19 @@ import { ask } from '../../ui/dialogStore';
 import { openCompare } from './compareUi';
 import s from './VersionSwitcher.module.css';
 
-const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+/** Place du menu (300 px au plus) : sous le bouton, aligné à droite si possible, jamais hors de la page. */
+function menuPlace(anchor: HTMLElement | null): CSSProperties | undefined {
+  if (!anchor) return undefined;
+  const r = anchor.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const w = Math.min(300, vw - 16);
+  const minX = (document.getElementById('contenu')?.getBoundingClientRect().left ?? 0) + 8;
+  if (r.right - w >= minX) return undefined;
+  const x = Math.max(8, Math.min(Math.max(r.left, minX), vw - 8 - w));
+  return { left: x - r.left, right: 'auto' };
+}
+
+const dateFmt =new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
 
 /**
  * Versions du film, communes au scénario et au découpage : on passe de l'une à l'autre, on en crée une
@@ -95,8 +107,9 @@ export function VersionSwitcher({ doc, onImport }: { doc: ProjectDoc; /** Page S
         <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
       </button>
       {open && (
-        // Le menu s'ouvre vers la droite quand il manquerait de place à gauche (barre étroite, bouton à gauche).
-        <div className={s.menu} role="menu" aria-label="Versions" style={(ref.current?.getBoundingClientRect().right ?? 1000) < 340 + 240 ? { left: 0, right: 'auto' } : undefined}>
+        // Le menu s'ouvre vers la gauche, ou vers la droite quand la place manque (bouton à gauche),
+        // et reste toujours entier dans la fenêtre (téléphone).
+        <div className={s.menu} role="menu" aria-label="Versions" style={menuPlace(ref.current)}>
           <ul>
             {list.map((v) => {
               const on = v.id === current.id;
