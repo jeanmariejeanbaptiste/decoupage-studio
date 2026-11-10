@@ -14,6 +14,20 @@ interface HomeHistory {
   rev: number;
 }
 
+/**
+ * Liste des projets changée ici (suppression, restauration, copie) : annoncée aux autres onglets sur
+ * le canal des enregistrements, au même format. Une date vide ne fait rouvrir le projet nulle part.
+ */
+const TAB = `home-${Math.random().toString(36).slice(2)}`;
+const channel: BroadcastChannel | null = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ds-projects') : null;
+export function announceProjects(id: string): void {
+  try {
+    channel?.postMessage({ id, updatedAt: '', tab: TAB });
+  } catch {
+    /* canal fermé : les autres onglets se mettront à jour au prochain affichage */
+  }
+}
+
 export const useHomeHistory = create<HomeHistory>(() => ({ past: [], future: [], rev: 0 }));
 
 /**
@@ -42,6 +56,7 @@ export async function removeProject(id: string, liveReview?: string): Promise<vo
   const snap = await snapshotProject(id);
   await deleteProject(id);
   if (snap) useHomeHistory.setState((s) => ({ past: [...s.past, snap], future: [], rev: s.rev + 1 }));
+  announceProjects(id);
   hooks.removed?.(id);
 }
 
@@ -52,6 +67,7 @@ export async function undoHome(projectId?: string): Promise<void> {
   if (!snap) return;
   await restoreProject(snap);
   useHomeHistory.setState((s) => ({ past: s.past.filter((p) => p !== snap), future: [...s.future, snap], rev: s.rev + 1 }));
+  announceProjects(snap.project.id);
   hooks.restored?.(snap.project.id);
   const live = liveReviewOf(snap.project.doc);
   if (live && hooks.reopenLink) await hooks.reopenLink(snap.project.id, live);
@@ -75,5 +91,6 @@ export async function redoHome(): Promise<void> {
   dropPendingSave(old.project.id);
   await deleteProject(old.project.id);
   useHomeHistory.setState((s) => ({ future: s.future.slice(0, -1), past: [...s.past, snap], rev: s.rev + 1 }));
+  announceProjects(old.project.id);
   hooks.removed?.(old.project.id);
 }
