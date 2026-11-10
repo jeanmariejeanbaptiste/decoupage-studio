@@ -10,7 +10,7 @@
    outils à droite sur la première ligne, quelle que soit la longueur de la date ; bilan et rendez-vous dessous. */
 .dayHead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; margin-bottom: 8px; }
 .dayTitle { grid-column: 1; grid-row: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
-.dayTools { grid-column: 2; grid-row: 1; display: inline-flex; align-items: center; gap: 8px; }
+.dayTools { grid-column: 2; grid-row: 1; align-self: start; display: inline-flex; align-items: center; gap: 8px; }
 .dayHead > .stats, .dayHead > .events { grid-column: 1 / -1; }
 .dayHead strong { font-family: var(--font-display); font-size: 21px; font-weight: 600; }
 .dayHead input { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
