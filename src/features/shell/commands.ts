@@ -86,6 +86,18 @@ export const COMMANDS: readonly Command[] = [
   { id: 'go-export', group: 'Aller à', label: 'Exporter', run: () => navigate('export'), needsProject: true },
   { id: 'go-settings', group: 'Aller à', label: 'Paramètres', run: () => navigate('settings'), needsProject: true, edits: true },
   { id: 'pdf', group: 'Fichier', label: 'Exporter en PDF', run: () => navigate('print', { auto: '1' }), needsProject: true, copies: true },
+  {
+    id: 'outline-pdf',
+    group: 'Fichier',
+    label: 'Exporter le séquencier (PDF)',
+    run: () => {
+      const doc = useProjectStore.getState().doc;
+      if (doc) void import('../scenario/outlineExport').then((m) => m.exportOutlinePdf(doc));
+    },
+    needsProject: true,
+    copies: true,
+    when: () => !!useProjectStore.getState().doc?.scenario?.trim(),
+  },
   { id: 'save', group: 'Fichier', label: 'Enregistrer le fichier .decoupage', shortcut: 'save', run: () => void saveToFile(), needsProject: true, copies: true },
   { id: 'open', group: 'Fichier', label: 'Ouvrir un fichier .decoupage…', run: () => void openFromFile().then((ok) => ok && navigate('grid')) },
   { id: 'assistant', group: 'Affichage', label: 'Assistant IA', run: () => toggleAssistant(), needsProject: true, edits: true, when: () => useAiStatus.getState().ready },

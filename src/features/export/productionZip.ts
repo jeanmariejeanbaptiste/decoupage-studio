@@ -14,7 +14,7 @@ Exporté le ${new Date().toLocaleString('fr-FR')}.
 
 00 Projet          fichier .decoupage (projet complet, à rouvrir dans l'application)
 01 Intention       note d'intention
-02 Scénario        scénario en PDF (mis en page), Final Draft (.fdx) et Fountain
+02 Scénario        scénario en PDF (mis en page), Final Draft (.fdx) et Fountain, séquencier en PDF
 03 Dépouillement   éléments par séquence
 04 Découpage       tableau Excel fusionné (thème et économie d'encre du projet) et CSV
 05 Storyboard      images des plans, nommées par code de plan
@@ -44,6 +44,8 @@ export async function buildProductionZip(doc: ProjectDoc): Promise<Blob> {
     root.file('02 Scénario/Scénario.pdf', await scriptPdf(doc.scenario, { title: doc.project.title }));
     root.file('02 Scénario/Scénario.fdx', scriptToFdx(blocksFromSource(doc.scenario).blocks));
     root.file('02 Scénario/Scénario.fountain', doc.scenario);
+    const { outlinePdf } = await import('../scenario/outlineExport');
+    root.file('02 Scénario/Séquencier.pdf', await outlinePdf(doc, { order: 'list' }));
   }
   root.file('03 Dépouillement/Dépouillement.csv', breakdownCsv(doc));
   root.file('04 Découpage/Découpage technique.xlsx', await exportXlsx(doc));

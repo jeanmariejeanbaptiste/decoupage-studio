@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { breakdownCategories, breakdownLabel, type BreakdownCategory } from '../../domain/breakdown';
+import { isOutlinePhrase } from '../../domain/outline';
 import { blocksFromSource, type BlockType } from '../../domain/screenplay';
 import { categoryAbbr, cleanTag, marksIn, type TagMark } from '../../domain/tagging';
 import type { ID, ProjectDoc } from '../../domain/types';
@@ -11,11 +12,19 @@ export interface Paragraph {
   text: string;
 }
 
-/** Paragraphes d'un passage du scénario (mis en forme comme un scénario). */
+/**
+ * Paragraphes d'un passage du scénario (mis en forme comme un scénario). La phrase du séquencier
+ * n'en fait pas partie : elle n'est pas étiquetable (le dépouillement l'affiche en résumé).
+ */
 export function paragraphsOf(source: string): Paragraph[] {
-  return blocksFromSource(source)
-    .blocks.filter((b) => b.type !== 'title' && b.type !== 'pagebreak')
-    .map((b, i) => ({ key: `${i}-${b.type}`, type: b.type, text: b.text }));
+  const { blocks } = blocksFromSource(source);
+  return blocks.flatMap((b, i) => (b.type === 'title' || b.type === 'pagebreak' || isOutlinePhrase(blocks, i) ? [] : [{ key: `${i}-${b.type}`, type: b.type, text: b.text }]));
+}
+
+/** Phrase du séquencier d'un passage qui commence à son en-tête. */
+export function phraseOf(source: string): string | undefined {
+  const { blocks } = blocksFromSource(source);
+  return blocks.find((_b, i) => isOutlinePhrase(blocks, i))?.text.trim() || undefined;
 }
 
 interface Props {
