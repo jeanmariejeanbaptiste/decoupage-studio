@@ -328,7 +328,7 @@ describe('moveEntry', () => {
     const e = moveEntry(SCRIPT, 1, 4);
     const a = SCRIPT.indexOf('valise');
     const b = SCRIPT.indexOf('train part') + 5;
-    const [s, t] = e.range!(a, b);
+    const [s, t] = e.range!(a, b)!;
     expect(e.source.slice(s, t)).toBe('valise sur le comptoir.');
   });
 });
@@ -479,5 +479,66 @@ describe('résumé unique', () => {
     expect(next.sequences[free].summary).toBe('Paul raconte.');
     expect(next.scenario).toBe(SRC3);
     expect(sequenceSummary(next, free)).toBe('Paul raconte.');
+  });
+});
+
+// --- Relecture contradictoire : défauts corrigés ---------------------------------------------------
+
+describe('défauts relevés en relecture', () => {
+  const SRC = 'INT. GARE - JOUR\n\n= Phrase gare.\n\nLéa entre.\n\nEXT. QUAI - NUIT\n\n= Phrase quai.\n\nLe train part.\n\nINT. BAR - SOIR\n\n= Phrase bar.\n\nMarc boit.\n';
+
+  it('1. supprimer une séquence détache la sienne ; les autres gardent leur lien et leur phrase', () => {
+    for (const n of [2, 3]) {
+      const doc = project(SRC);
+      const ids = doc.project.sequenceIds.slice();
+      const next = produce(doc, (d) => applyScenarioEdit(d, removeEntry(d.scenario!, n)));
+      const gone = ids[n - 1];
+      expect(next.sequences[gone].scenarioAnchor).toBeUndefined();
+      expect(sceneOfSequence(next, gone)).toBeUndefined();
+      expect(sequenceSummary(next, gone)).toBeUndefined();
+      const kept = ids.filter((id) => id !== gone);
+      expect(kept.map((id) => sceneOfSequence(next, id))).toEqual([1, 2]);
+      const w = produce(next, (d) => setSequenceSummary(d, gone, 'Pour la supprimée'));
+      expect(w.scenario).toBe(next.scenario);
+      expect(w.sequences[gone].summary).toBe('Pour la supprimée');
+    }
+  });
+
+  it('2. le moment n’est lu que s’il est connu ; le numéro en tête est gardé', () => {
+    const src = 'INT. GARE — CONSIGNE\n\nAa.\n';
+    expect(seqs(src)[0]).toMatchObject({ location: 'GARE — CONSIGNE' });
+    expect(seqs(src)[0].effect).toBeUndefined();
+    expect(setHeading(src, 1, { effect: 'JOUR' }).source).toBe('INT. GARE — CONSIGNE - JOUR\n\nAa.\n');
+    expect(seqs('INT. GARE - PLUS TARD\n')[0]).toMatchObject({ location: 'GARE', effect: 'PLUS TARD' });
+    const num = '12. INT. GARE - JOUR\n\nAa.\n';
+    expect(seqs(num)[0]).toMatchObject({ lead: '12.', intExt: 'INT.', location: 'GARE', effect: 'JOUR' });
+    expect(setHeading(num, 1, { intExt: 'EXT' }).source).toBe('12. EXT. GARE - JOUR\n\nAa.\n');
+  });
+
+  it('4. « [[ », « ]] », « /* » dans une phrase ou une note ne cassent pas l’analyse', () => {
+    const src = 'INT. A - JOUR\n\nAa.\n\nINT. B - NUIT\n\nBb.\n\nINT. C - JOUR\n\n[[note]]\n\nCc.\n';
+    for (const phrase of ['Léa hésite [[ ou pas', 'Fin ]] ici', 'Un /* commentaire', 'puis */ fin']) {
+      const e = setPhrase(src, 1, phrase);
+      expect(seqs(e.source).map((x) => x.location)).toEqual(['A', 'B', 'C']);
+      expect(seqs(e.source)[0].phrase).not.toMatch(/\[\[|\]\]|\/\*|\*\//);
+    }
+    const t = setOutlineTag(src, 1, { step: 'a]]b;c', plot: 'B]' });
+    expect(seqs(t.source).map((x) => x.location)).toEqual(['A', 'B', 'C']);
+    expect(seqs(t.source)[0]).toMatchObject({ step: 'abc', plot: 'B' });
+    const ins = insertEntry(src, 1, { intExt: 'INT.', location: 'Gare [[x', effect: 'JOUR', phrase: '/* oups' });
+    expect(seqs(ins.source)).toHaveLength(4);
+  });
+
+  it('7. une séquence insérée devant un en-tête forcé collé est bien lue comme un en-tête', () => {
+    const src = 'INT. A - JOUR\n\nAa.\n.CUISINE\n\nBb.\n';
+    const e = insertEntry(src, 1, { intExt: 'INT', location: 'Neuf', effect: 'JOUR', phrase: 'p' });
+    expect(e.n).toBe(2);
+    expect(seqs(e.source).map((x) => x.location)).toEqual(['A', 'NEUF', 'CUISINE']);
+  });
+
+  it('8. pas de phrase reprise en double quand la scène porte déjà cette ligne « = »', () => {
+    const before = 'INT. GARE - JOUR\n\n= Phrase gare. [[ds:etape=3]]\n\nLéa entre dans la gare avec une valise lourde.\n';
+    const after = 'INT. GARE - JOUR\n\nLéa entre dans la gare avec une valise lourde.\n\n= Phrase gare.\n';
+    expect(carryOutline(before, after)).toBe(after);
   });
 });
