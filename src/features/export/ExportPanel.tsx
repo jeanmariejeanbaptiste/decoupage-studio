@@ -35,6 +35,8 @@ interface Props {
   /** Format de page imposé (le scénario est toujours en A4 portrait). */
   noOrientation?: boolean;
   disabled?: boolean;
+  /** Formats qui n'ont rien à exporter pour l'instant (PDF d'un découpage sans plan) : ils ne sont pas proposés. */
+  unavailable?: readonly string[];
   onExport: (choice: ExportChoice) => void | Promise<void>;
   children?: ReactNode;
   /** Options après celles des formats paginés ; une fonction les choisit selon le format. */
@@ -55,6 +57,7 @@ export function ExportPanel({
   noNumbers,
   noOrientation,
   disabled,
+  unavailable = [],
   onExport,
   children,
   options,
@@ -92,10 +95,11 @@ export function ExportPanel({
     window.addEventListener('mousedown', close);
     return () => window.removeEventListener('mousedown', close);
   }, [open]);
-  // Contenu changé : un format qu'il ne propose pas revient au PDF.
-  const formatKeys = ['pdf', 'images', ...extra.map((f) => f.key)].join('|');
+  // Contenu changé : un format qu'il ne propose pas revient au premier proposé.
+  const formatKeys = ['pdf', 'images', ...extra.map((f) => f.key)].filter((k) => !unavailable.includes(k)).join('|');
   useEffect(() => {
-    if (!formatKeys.split('|').includes(format)) setFormat('pdf');
+    const keys = formatKeys.split('|');
+    if (!keys.includes(format)) setFormat(keys[0] || 'pdf');
   }, [formatKeys, format]);
   const paged = format === 'pdf' || format === 'images';
   const formats = [
@@ -110,7 +114,7 @@ export function ExportPanel({
       hint: 'Une image A4 exacte par page ; plusieurs pages arrivent dans un dossier compressé numéroté.',
     },
     ...extra,
-  ];
+  ].filter((f) => !unavailable.includes(f.key));
 
   const seg = <T extends string | number>(
     name: string,
@@ -204,6 +208,7 @@ export function ExportPanel({
           {typeof options === 'function' ? options(format) : options}
           <Button
             variant="primary"
+            disabled={!formats.some((f) => f.key === format)}
             onClick={async () => {
               setOpen(false);
               // Saisie en attente appliquée d'abord ; une erreur s'affiche au lieu de disparaître.

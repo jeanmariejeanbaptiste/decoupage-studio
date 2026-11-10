@@ -25,6 +25,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
   useEffect(() => setContent(defaultContent), [defaultContent]);
   const [cutImaging, setCutImaging] = useState<PageExportOptions | null>(null);
   const [sbImaging, setSbImaging] = useState<PageExportOptions | null>(null);
+  const nSeq = doc.project.sequenceIds.length;
   const nShots = doc.project.sequenceIds.reduce((n, id) => n + (doc.sequences[id]?.shotIds.length ?? 0), 0);
   const base = exportBase(doc);
 
@@ -51,6 +52,7 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
           perPage={[1, 2, 3, 4, 6, 9]}
           noNumbers
           disabled={nShots === 0 || busy}
+          unavailable={nShots === 0 ? ['pdf', 'images'] : undefined}
           onExport={({ format, orientation, numbers }) => setSbImaging({ format: format as 'pdf' | 'images', orientation, numbers })}
         >
           <StoryboardExportOptions doc={doc} />
@@ -66,7 +68,9 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
               ? [{ key: 'annex', label: 'Annexe plans-séquences', hint: 'PDF A4 : une page par plan-séquence (frise des temps, tableau, transitions en clair, plan au sol dédié).' }]
               : []),
           ]}
-          disabled={nShots === 0 || busy}
+          // Sans plan, rien à mettre en page ; Excel garde les séquences (onglet Registre).
+          disabled={nSeq === 0 || busy}
+          unavailable={nShots === 0 ? ['pdf', 'images'] : undefined}
           options={(format) =>
             format !== 'annex' && (
               <label className={x.check} title="Chaque cellule répétée en entier (utile pour retraiter le tableau)">
