@@ -1,4 +1,5 @@
-import { useEffect, useMemo, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { Plus } from 'lucide-react';
 import { outlineMeasures, outlineOf, type OutlineSequence } from '../../../domain/outline';
 import type { ProjectDoc } from '../../../domain/types';
 import { useReadOnly } from '../../../store/share';
@@ -19,6 +20,7 @@ const isField = (t: EventTarget | null) => t instanceof HTMLElement && (t.closes
  */
 export function OutlineView({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
+  const [adding, setAdding] = useState(false);
   const phone = useIsMobile();
   const items = useMemo(() => outlineOf(doc.scenario ?? ''), [doc.scenario]);
   const seqs = useMemo(() => items.filter((x): x is OutlineSequence => x.kind === 'sequence'), [items]);
@@ -82,7 +84,20 @@ export function OutlineView({ doc }: { doc: ProjectDoc }) {
 
   return (
     <div className={s.view} data-testid="outline-view" onKeyDown={onKeyDown}>
-      {!readOnly && <QuickAdd key={doc.project.id} doc={doc} after="end" autoFocus={!seqs.length} stacked={phone} />}
+      {/* Pas de barre d'ajout permanente : une séquence s'insère sous une ligne (menu, raccourci) ;
+          séquencier vide, un seul « + Séquence » ouvre la saisie. */}
+      {!readOnly &&
+        (adding ? (
+          // Ouverte, la saisie reste là pour enchaîner plusieurs séquences ; Échap la referme.
+          <QuickAdd key={doc.project.id} doc={doc} after="end" autoFocus stacked={phone} onClose={() => setAdding(false)} />
+        ) : (
+          !seqs.length && (
+            <button type="button" className={s.addFirst} onClick={() => setAdding(true)} data-testid="outline-add-first">
+              <Plus size={15} strokeWidth={1.25} aria-hidden="true" />
+              Séquence
+            </button>
+          )
+        ))}
       {items.length > 0 && <OutlineList items={items} ctx={ctx} />}
     </div>
   );

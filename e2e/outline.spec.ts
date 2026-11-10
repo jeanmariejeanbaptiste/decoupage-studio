@@ -20,9 +20,11 @@ test('séquencier : trois séquences saisies deviennent trois en-têtes du texte
   await page.getByTestId('wizard-next').click();
   await expect(page).toHaveURL(/#\/grid/);
   await page.evaluate(() => void (location.hash = '#/scenario?view=outline'));
-  // Séquencier vide : le lieu de l'ajout rapide a le focus.
-  await expect(page.getByTestId('quick-location')).toBeFocused();
+  // Séquencier vide : pas de barre d'ajout, un seul « + Séquence » qui ouvre la saisie.
+  await expect(page.getByTestId('outline-quick-add')).toHaveCount(0);
   await expect(rows(page)).toHaveCount(0);
+  await page.getByTestId('outline-add-first').click();
+  await expect(page.getByTestId('quick-location')).toBeFocused();
 
   const add = async (loc: string, effect: string, phrase: string) => {
     await page.getByTestId('quick-location').fill(loc);
@@ -42,6 +44,10 @@ test('séquencier : trois séquences saisies deviennent trois en-têtes du texte
   await add('quai', 'nuit', 'Un homme attend sous l’horloge.');
   await add('café', 'soir', 'Marc rend la clé.');
   await expect(rows(page)).toHaveCount(3);
+  // Échap referme la saisie : plus de barre au-dessus de la liste.
+  await page.getByTestId('quick-location').press('Escape');
+  await expect(page.getByTestId('outline-quick-add')).toHaveCount(0);
+  await expect(page.getByTestId('outline-add-first')).toHaveCount(0);
   await expect(rows(page).nth(1)).toContainText('INT. QUAI - NUIT');
   await expect(rows(page).nth(1)).toContainText('Un homme attend sous l’horloge.');
 

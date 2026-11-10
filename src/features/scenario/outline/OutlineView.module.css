@@ -137,3 +137,7 @@ button.partTitle:hover { color: var(--ink); }
   .headingEdit > :last-child { grid-column: 1 / -1; }
   .quickInline { margin-left: 0; }
 }
+
+/* Séquencier vide : un seul bouton, discret, qui ouvre la saisie d'une séquence. */
+.addFirst { display: inline-flex; align-items: center; gap: 8px; margin: 8px 0 0 52px; padding: 8px 0; border: 0; background: none; font: inherit; font-size: 15px; color: var(--ink-soft); cursor: pointer; }
+.addFirst:hover { color: var(--ink); }
