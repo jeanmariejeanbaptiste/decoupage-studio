@@ -272,8 +272,16 @@
  */
 .beamGroup, .light, .kDot { --light-k: var(--k-papier, var(--ochre)); }
 :root[data-theme='encre'] .beamGroup, :root[data-theme='encre'] .light, :root[data-theme='encre'] .kDot { --light-k: var(--k-encre, var(--ochre)); }
-.beamStop { stop-color: var(--light-k); }
+/* Opacité de chaque arrêt (--stop-a), relevée pour un faisceau teinté (--k-gain-*, une par thème). */
+.beamGroup { --k-gain: var(--k-gain-papier, 1); }
+:root[data-theme='encre'] .beamGroup { --k-gain: var(--k-gain-encre, 1); }
+.beamStop { stop-color: var(--light-k); stop-opacity: min(1, calc(var(--stop-a, 0) * var(--k-gain))); }
 .light { fill: var(--light-k); }
-.kDot { flex: none; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--light-k); vertical-align: 0; }
-.kUnit { display: inline-flex; align-items: center; }
-.kUnit .kDot { margin-right: 5px; }
+.kDot { flex: none; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--light-k); }
+.itemDetail .kDot { margin-right: 6px; }
+/* Puissance et température : unités dans une colonne fixe, les deux champs gardent la même largeur ;
+ * la teinte d'une valeur libre se loge dans le champ K, à droite. */
+.specFields .roomField { grid-template-columns: minmax(0, 1fr) 12px; }
+.kField input { grid-row: 2; grid-column: 1; padding-right: 22px; }
+.kField .kDot { grid-row: 2; grid-column: 1; justify-self: end; margin-right: 8px; pointer-events: none; }
+.kField em { grid-row: 2; grid-column: 2; }
