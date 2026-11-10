@@ -48,9 +48,20 @@ export function flushEditors(): void {
 
 /** Ouvre un projet stocké dans le navigateur (même remise en ordre qu'un fichier ouvert). */
 export async function openStoredProject(id: string): Promise<boolean> {
+  if (!(await leaveCurrent(id))) return false;
+  return showStored(id);
+}
+
+/**
+ * Avant de changer de projet : la saisie du projet ouvert est enregistrée. Si l'enregistrement
+ * échoue, on reste dessus (alerte maintenue, nouvel essai en cours) : le quitter la perdrait.
+ */
+async function leaveCurrent(targetId: string): Promise<boolean> {
   flushEditors();
   await flushSave();
-  return showStored(id);
+  if (!pending || pending.project.id === targetId) return true;
+  useUi.getState().toast({ message: `Les dernières modifications de « ${pending.project.title} » ne sont pas encore enregistrées : le projet reste ouvert.`, tone: 'warn' });
+  return false;
 }
 
 /**
@@ -91,14 +102,14 @@ async function showStored(id: string): Promise<boolean> {
 /** Une saisie de ce projet attend encore d'être enregistrée. */
 export const hasPendingSave = (projectId: string) => pending?.project.id === projectId;
 
-/** Ouvre un projet en mémoire et l'enregistre immédiatement. */
-export async function openDoc(doc: ProjectDoc): Promise<void> {
-  flushEditors();
-  await flushSave();
+/** Ouvre un projet en mémoire et l'enregistre immédiatement ; `false` si le projet ouvert n'a pas pu être quitté. */
+export async function openDoc(doc: ProjectDoc): Promise<boolean> {
+  if (!(await leaveCurrent(doc.project.id))) return false;
   useProjectStore.getState().loadDoc(doc);
   rememberLastProject(doc.project.id);
   useUi.getState().set({ selection: null, editing: null });
   await flushSave();
+  return true;
 }
 
 /** Projet supprimé : son enregistrement en attente ne doit pas le faire revenir. */
@@ -378,7 +389,7 @@ export async function openFromFile(file?: File | null): Promise<boolean> {
       else if (!r.ok) return false;
     }
     const lost = await restoreMedia(text, doc.project.id);
-    await openDoc(doc);
+    if (!(await openDoc(doc))) return false;
     if (lost) useUi.getState().toast({ message: lost > 1 ? `${lost} médias du fichier n’ont pas pu être relus.` : 'Un média du fichier n’a pas pu être relu.', tone: 'warn' });
     return true;
   } catch (e) {
