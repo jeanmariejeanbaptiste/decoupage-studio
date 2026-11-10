@@ -11,10 +11,11 @@ test('note d’intention : pages A4, mise en forme type Word, saut de page, annu
   expect(words).toBeGreaterThan(80);
 
   // Un paragraphe à la fin, mis en gras et centré depuis le ruban.
-  await ed.locator('blockquote').click();
+  await ed.locator('p').last().click();
   await page.keyboard.press('End');
   await page.keyboard.press('Enter');
-  await page.getByTestId('note-style').selectOption('p');
+  // Plus de menu de style dans le ruban.
+  await expect(page.getByTestId('note-style')).toHaveCount(0);
   await page.keyboard.type('Tournage prévu en mars.');
   await page.keyboard.press('Shift+Home');
   await page.getByTestId('note-bold').click();
@@ -22,9 +23,10 @@ test('note d’intention : pages A4, mise en forme type Word, saut de page, annu
   await expect(ed.locator('p', { hasText: 'Tournage prévu en mars.' })).toHaveCSS('text-align', 'center');
   await expect(ed.locator('b', { hasText: 'Tournage prévu en mars.' })).toHaveCount(1);
 
-  // Saut de page : une page de plus ; ⌘Z le retire.
+  // Saut de page (⌘ Entrée, plus de bouton) : une page de plus ; ⌘Z le retire.
+  await expect(page.getByTestId('note-pagebreak')).toHaveCount(0);
   await page.keyboard.press('End');
-  await page.getByTestId('note-pagebreak').click();
+  await page.keyboard.press('ControlOrMeta+Enter');
   await expect(page.getByTestId('note-pages')).toHaveText(/sur 2$/);
   await page.keyboard.press('ControlOrMeta+z');
   await expect(page.getByTestId('note-pages')).toHaveText(/sur 1$/);

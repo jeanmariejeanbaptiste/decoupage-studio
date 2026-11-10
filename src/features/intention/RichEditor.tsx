@@ -15,13 +15,12 @@ import {
   Minus,
   Plus,
   RemoveFormatting,
-  SeparatorHorizontal,
   Strikethrough,
   Subscript,
   Superscript,
   Underline,
 } from 'lucide-react';
-import { INDENT_STEP_CM, LINE_SPACINGS, PARAGRAPH_STYLES, RICH_FONTS, RICH_SIZES, sanitizeRich, type ParagraphStyle } from '../../domain/richText';
+import { INDENT_STEP_CM, LINE_SPACINGS, RICH_FONTS, RICH_SIZES, sanitizeRich, type ParagraphStyle } from '../../domain/richText';
 import { countWords } from '../../domain/text';
 import { getBlob, putBlob } from '../../store/db';
 import { registerFlush } from '../../store/persistence';
@@ -385,8 +384,6 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     afterChange();
   };
 
-  const setBlockStyle = (tag: ParagraphStyle) => exec('formatBlock', `<${tag}>`);
-
   const eachBlock = (fn: (b: HTMLElement) => void) => {
     const el = root.current;
     if (!el) return;
@@ -475,13 +472,6 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     <div className={s.wrap}>
       {!readOnly && (
         <div className={s.ribbon} role="toolbar" aria-label="Mise en forme" onMouseDown={keepRange}>
-          <select value={state.style} onChange={(e) => setBlockStyle(e.target.value as ParagraphStyle)} aria-label="Style" title="Style de paragraphe" className={s.selStyle} data-testid="note-style">
-            {PARAGRAPH_STYLES.map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.label}
-              </option>
-            ))}
-          </select>
           <select value={state.font} onChange={(e) => exec('fontName', e.target.value)} aria-label="Police" title="Police" className={s.selFont} data-testid="note-font">
             <option value="" disabled hidden>
               Police
@@ -503,7 +493,7 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
             ))}
           </select>
           <span className={s.sep} />
-          {btn('bold', 'Gras (⌘B)', <Bold {...IC} />, () => exec('bold'), state.marks.bold)}
+          {btn('bold', 'Gras (⌘B)', <Bold {...IC} strokeWidth={2.4} />, () => exec('bold'), state.marks.bold)}
           {btn('italic', 'Italique (⌘I)', <Italic {...IC} />, () => exec('italic'), state.marks.italic)}
           {btn('underline', 'Souligné (⌘U)', <Underline {...IC} />, () => exec('underline'), state.marks.underline)}
           {btn('strike', 'Barré', <Strikethrough {...IC} />, () => exec('strikeThrough'), state.marks.strikeThrough)}
@@ -532,7 +522,6 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
           {/* Insertion et export : d'un seul tenant, à droite (ils passent à la ligne ensemble). */}
           <span className={s.tail}>
             {btn('image', 'Insérer une image', <ImagePlus {...IC} />, () => fileInput.current?.click())}
-            {btn('pagebreak', 'Saut de page (⌘ Entrée)', <SeparatorHorizontal {...IC} />, () => exec('insertHTML', '<hr class="page-break"><p><br></p>'))}
             <input
               ref={fileInput}
               type="file"

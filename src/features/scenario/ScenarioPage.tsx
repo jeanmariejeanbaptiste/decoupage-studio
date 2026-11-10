@@ -43,7 +43,7 @@ import { useIsMobile } from '../../ui/useIsMobile';
 import { ExportMenu, scriptExportSection, type ExportSection } from './ScriptExportButton';
 import { goToShot } from '../grid/goTo';
 import { PAGE, ScriptEditor, useScriptUi, type ScriptEditorApi } from './ScriptEditor';
-import { CharactersPanel, DecorsPanel, ResearchPanel } from './ResearchPanels';
+import { CharactersPanel, DecorsPanel } from './ResearchPanels';
 import { CHART_REPORTS, REPORTS, ScriptStatsReports, isReport, savedReport, storeReport, type Report, type ReportsApi } from './ScriptStatsReports';
 import { SequencesPanel } from './SequencesPanel';
 import { TextToggle } from './TextToggle';
@@ -59,13 +59,12 @@ const VIEWS: ReadonlyArray<readonly [ScenarioView, string]> = [
   ['stats', 'Statistiques'],
 ];
 
-type Tab = 'scenes' | 'characters' | 'decors' | 'research';
+type Tab = 'scenes' | 'characters' | 'decors';
 /** Onglets du panneau de Texte, en mots. */
 const TABS: ReadonlyArray<readonly [Tab, string]> = [
   ['scenes', 'Séquences'],
   ['characters', 'Personnages'],
   ['decors', 'Décors'],
-  ['research', 'Recherche'],
 ];
 
 /** Largeur du panneau latéral : par défaut, bornes. */
@@ -510,7 +509,8 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
                     onClick={() => api.current?.emphasis(m)}
                     data-testid={`emphasis-${id}`}
                   >
-                    <Icon size={16} strokeWidth={1.25} />
+                    {/* Le gras se lit gras. */}
+                    <Icon size={16} strokeWidth={Icon === Bold ? 2.4 : 1.25} />
                   </button>
                 ))}
                 <HighlightPicker onPick={(c) => api.current?.highlight(c)} />
@@ -703,7 +703,6 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
                       {tab === 'decors' && (
                         <DecorsPanel doc={doc} blocks={sideBlocks} readOnly={readOnly} onGo={goTo} />
                       )}
-                      {tab === 'research' && <ResearchPanel doc={doc} readOnly={readOnly} />}
                     </div>
                   </>
                 )}
