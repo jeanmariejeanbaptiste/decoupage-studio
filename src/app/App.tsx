@@ -1,5 +1,5 @@
 import { redoHome, undoHome } from '../store/homeHistory';
-import { isShortcut } from '../store/shortcuts';
+import { isShortcut, startShortcutSync } from '../store/shortcuts';
 import { useCanCopy, useDriveReview, useReadOnly, useShare } from '../store/share';
 import { closeReviewLink, forgetReviewSession, reopenReviewLink, resumeReview, startReviewSync } from '../store/review';
 import { ReviewPage } from '../features/review/Review';
@@ -44,7 +44,7 @@ import { cloudForget, cloudRestore, keepSessionAlive, preloadGoogle, startCloudP
 import { setHomeHooks } from '../store/homeHistory';
 import { AccountButton } from '../features/shell/Account';
 import { redo, undo, useDoc, useHistory } from '../store/projectStore';
-import { toggleSidebar, useUi } from '../store/uiStore';
+import { startUiSync, toggleSidebar, useUi } from '../store/uiStore';
 import { Button } from '../ui/Button';
 import { ContextMenuHost } from '../ui/ContextMenu';
 import { DialogHost } from '../ui/Modal';
@@ -128,6 +128,8 @@ export function App() {
 
   useEffect(() => {
     const stop = startAutosave();
+    // Préférences de ce navigateur (thème, raccourcis, menu) : suivies d'un onglet à l'autre.
+    const stopPrefs = [startShortcutSync(), startUiSync()];
     // Assistant réglé : essai silencieux, il n'est proposé que s'il répond.
     void recheckAi();
     // Synchronisation Google Drive (si configurée) : envoi après chaque enregistrement, suppressions suivies.
@@ -149,6 +151,7 @@ export function App() {
       stopCloud();
       stopSession();
       stopReview();
+      stopPrefs.forEach((f) => f());
     };
   }, []);
 
@@ -177,6 +180,20 @@ export function App() {
       /* stockage indisponible */
     }
   }, [theme]);
+
+  // Tiroir du téléphone : le focus y entre sur la page courante ; Échap le referme et rend le focus au bouton.
+  const drawerOpen = phone && sidebarOpen && route !== 'home' && !!doc;
+  useEffect(() => {
+    if (!drawerOpen) return;
+    document.querySelector<HTMLElement>('aside [aria-current="page"]')?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      toggleSidebar(false);
+      document.querySelector<HTMLElement>('[data-testid="toggle-sidebar"]')?.focus({ preventScroll: true });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
 
   const projectTitle = doc?.project.title;
   useEffect(() => {

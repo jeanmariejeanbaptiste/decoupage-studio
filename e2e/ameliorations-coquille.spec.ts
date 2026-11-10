@@ -153,3 +153,34 @@ test('raccourcis : une combinaison gardée par le navigateur est refusée', asyn
   await page.keyboard.press('Escape');
   await expect(btn).toHaveText('⌘↵');
 });
+
+test.describe('téléphone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('tiroir du menu : le focus y entre, Échap le referme et rend le focus', async ({ page }) => {
+    await page.goto('/#/scenario?seed=fiction');
+    const toggle = page.getByTestId('toggle-sidebar');
+    await toggle.click();
+    const aside = page.getByRole('complementary', { name: 'Étapes du projet' });
+    await expect(aside).toBeVisible();
+    await expect(aside.locator('[aria-current="page"]')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(aside).toHaveCount(0);
+    await expect(toggle).toBeFocused();
+  });
+
+  test('accueil : la suppression d’un projet reste visible sans survol', async ({ page }) => {
+    await page.goto('/#/grid?seed=fiction');
+    await expect(page.getByTestId('mobile-cut')).toBeVisible();
+    await page.goto('/#/home');
+    const del = page.getByRole('button', { name: 'Supprimer La Consigne' });
+    await expect(del).toHaveCSS('opacity', '1');
+  });
+});
+
+test('accueil : la suppression n’apparaît qu’au survol sur ordinateur', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await expect(page.locator(ROWS).first()).toBeVisible();
+  await page.goto('/#/home');
+  await expect(page.getByRole('button', { name: 'Supprimer La Consigne' })).toHaveCSS('opacity', '0');
+});
