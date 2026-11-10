@@ -13,8 +13,13 @@ const FORMATS: ReadonlyArray<[ProjectFormat, string]> = [
   ['institutionnel', 'Institutionnel'],
 ];
 
-function Field({ label, value, placeholder, onCommit }: { label: string; value: string; placeholder?: string; onCommit: (v: string) => void }) {
-  const [draft, setDraft, flush] = useDraft(value, onCommit);
+function Field({ label, value, placeholder, required, onCommit }: { label: string; value: string; placeholder?: string; required?: boolean; onCommit: (v: string) => void }) {
+  const [draft, setDraft, rawFlush] = useDraft(value, onCommit);
+  // Champ obligatoire vidé : on revient à la valeur du projet plutôt que d'afficher un champ vide.
+  const flush = () => {
+    if (required && !draft.trim()) setDraft(value);
+    rawFlush();
+  };
   return (
     <label className={s.field}>
       <span>{label}</span>
@@ -66,7 +71,7 @@ export function ProjectMenu({ doc, readOnly }: { doc: ProjectDoc; readOnly?: boo
       </button>
       {open && (
         <div className={s.panel} role="dialog" aria-label="Projet" data-testid="project-panel">
-          <Field label="Titre" value={p.title} onCommit={(v) => v.trim() && mutateDoc((d) => void (d.project.title = v.trim()))} />
+          <Field label="Titre" value={p.title} required onCommit={(v) => v.trim() && v.trim() !== p.title && mutateDoc((d) => void (d.project.title = v.trim()))} />
           <div className={s.field}>
             <span>Format</span>
             <div className={s.seg} role="radiogroup" aria-label="Format">
