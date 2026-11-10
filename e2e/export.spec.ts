@@ -61,7 +61,7 @@ test('import CSV avec correspondance des colonnes', async ({ page }) => {
 test('dossier de production complet (.zip)', async ({ page }) => {
   // Calendrier de production rempli : ses fichiers rejoignent le dossier.
   await page.goto('/#/production?seed=fiction');
-  await page.getByTestId('production-template').click();
+  await page.evaluate(() => (window as unknown as { __ds: { productionTemplate: () => void } }).__ds.productionTemplate());
   await expect(page.getByTestId('task-row')).toHaveCount(17);
   await page.evaluate(() => void (window.location.hash = '#/export'));
   const dl = page.waitForEvent('download');

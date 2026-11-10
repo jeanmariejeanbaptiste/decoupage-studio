@@ -26,7 +26,7 @@ async function toProduction(page: Page) {
 
 async function fromTemplate(page: Page, seed = 'fiction') {
   await page.goto(`/#/production?seed=${seed}`);
-  await page.getByTestId('production-template').click();
+  await page.evaluate(() => (window as unknown as { __ds: { productionTemplate: () => void } }).__ds.productionTemplate());
   await expect(page.getByTestId('task-row')).toHaveCount(17);
 }
 
@@ -38,7 +38,7 @@ test('calendrier de production : modèle, dates au clavier, cascade, durée, ren
   expect(items.indexOf('Calendrier')).toBe(items.indexOf('Plan de travail') - 1);
   await toProduction(page);
   await expect(page.getByRole('button', { name: 'Calendrier', exact: true })).toHaveAttribute('aria-current', 'page');
-  await page.getByTestId('production-template').click();
+  await page.evaluate(() => (window as unknown as { __ds: { productionTemplate: () => void } }).__ds.productionTemplate());
   await expect(page.getByTestId('phase-row')).toHaveCount(5);
   await expect(page.getByTestId('gantt-bar').first()).toBeVisible();
   await expect(page.getByTestId('gantt-milestone')).toHaveCount(4);
@@ -181,7 +181,7 @@ test('calendrier de production : tournage lié au plan de travail, calendrier, e
   await page.getByTestId('suggest-schedule').click();
   await page.getByLabel('Date du jour 1').fill(iso(first));
   await toProduction(page);
-  await page.getByTestId('production-template').click();
+  await page.evaluate(() => (window as unknown as { __ds: { productionTemplate: () => void } }).__ds.productionTemplate());
 
   // L'étape Tournage suit le jour daté : début en lecture seule, marquée comme liée ; tant que tout
   // le plan de travail n'est pas daté, elle garde sa durée prévue et sa fin reste réglable.
@@ -301,7 +301,7 @@ test('calendrier de production : rendez-vous du calendrier sur la frise, lien ve
   await page.getByTestId('production-clear').click();
   await expect(page.getByRole('alertdialog')).not.toContainText('⌘');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Effacer' }).click();
-  await expect(page.getByTestId('production-template')).toBeVisible();
+  await expect(page.getByTestId('production-add-phase')).toBeVisible();
   await page.keyboard.press('Control+z');
   await expect(page.getByTestId('task-row')).toHaveCount(17);
 });

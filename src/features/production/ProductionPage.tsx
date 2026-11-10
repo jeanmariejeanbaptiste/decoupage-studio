@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { produce } from 'immer';
-import { Check, ChevronDown, ChevronRight, GripVertical, Link2, MoreHorizontal, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, GripVertical, Link2, MoreHorizontal, Plus, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import { addDays, calendarIcs, calendarItems, isWeekend, productionItems, timeOn, todayIso } from '../../domain/calendar';
 import { productionDocument, productionWordDocument } from '../../domain/documents';
@@ -9,7 +9,6 @@ import {
   addDependency,
   addPhase,
   addTask,
-  applyTemplate,
   daysBetween,
   dependencyCandidates,
   durationDays,
@@ -286,19 +285,13 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
     return (
       <div className={s.page} data-testid="production">
         {seg && <header className={s.bar}>{seg}</header>}
-        <div className="card empty">
-          <span className="hand">Aucune étape</span>
-          {!readOnly && (
-            <div className={s.emptyActions}>
-              <Button variant="primary" onClick={() => mutateDoc((d) => applyTemplate(d, today))} data-testid="production-template">
-                Partir du modèle
-              </Button>
-              <Button variant="outline" onClick={() => addPhaseAfter()} data-testid="production-blank">
-                Commencer vide
-              </Button>
-            </div>
-          )}
-        </div>
+        {/* Vue vierge : on commence par une phase. */}
+        {!readOnly && (
+          <button type="button" className={s.addFirstPhase} onClick={() => addPhaseAfter()} data-testid="production-add-phase">
+            <Plus size={15} strokeWidth={1.25} aria-hidden="true" />
+            Phase
+          </button>
+        )}
       </div>
     );
   }
@@ -333,6 +326,9 @@ export function ProductionPage({ doc, seg }: { doc: ProjectDoc; seg?: ReactNode 
           </div>
         </div>
         <div className={s.barEnd} data-view>
+          {!readOnly && (
+            <Button variant="icon" aria-label="Nouvelle phase" title="Nouvelle phase" icon={<Plus {...ICON} />} onClick={() => addPhaseAfter(plan.phases.at(-1)?.id)} data-edit data-testid="production-add-phase" />
+          )}
           <TabExport
             id="production"
             orientation="landscape"

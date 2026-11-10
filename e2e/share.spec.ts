@@ -73,7 +73,7 @@ test('partager un projet : lien et mot de passe, modifications en direct, lectur
 test('invité en lecture seule : aucune commande d’édition, découpage en aperçu', async ({ browser }) => {
   const host = await participant(browser);
   await host.goto('/#/production?seed=rav3');
-  await host.getByTestId('production-template').click();
+  await host.evaluate(() => (window as unknown as { __ds: { productionTemplate: () => void } }).__ds.productionTemplate());
   await host.evaluate(() => void (window.location.hash = '#/grid'));
   await host.getByTestId('share-button').click();
   await host.getByText('Lire seulement').click();

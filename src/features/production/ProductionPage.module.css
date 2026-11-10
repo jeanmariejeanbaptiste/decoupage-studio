@@ -10,7 +10,6 @@
 .todayBtn { border-color: var(--rule) !important; }
 
 .page > :global(.card.empty) { margin-top: 24px; }
-.emptyActions { display: flex; justify-content: center; gap: 8px; }
 
 .gantt {
   flex: 1;
@@ -148,3 +147,6 @@
 .appts { position: sticky; top: calc(var(--head) - 5px); z-index: 5; height: 0; }
 .appt { position: absolute; top: 0; width: 9px; height: 9px; margin-left: -4.5px; padding: 0; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--paper-card); cursor: pointer; }
 .appt:hover, .appt:focus-visible { background: var(--ink-soft); border-color: var(--ink-soft); }
+/* Vue vierge : un seul « + Phase », discret, en tête. */
+.addFirstPhase { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 8px 2px; border: 0; background: none; font: inherit; font-size: 15px; color: var(--ink-soft); cursor: pointer; }
+.addFirstPhase:hover { color: var(--ink); }
