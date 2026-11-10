@@ -38,11 +38,7 @@ export function Inspector({ doc, shotId, issues: given }: { doc: ProjectDoc; sho
     return (
       <aside className={s.panel} aria-label="Inspecteur du plan">
         <Header onClose={() => set({ rightPanel: null })} />
-        <p className={s.empty}>
-          <Hand>Sélectionnez un plan</Hand>
-          <br />
-          pour voir son angle de champ, son matériel et ses notes.
-        </p>
+        <p className={s.empty}>Aucun plan sélectionné</p>
       </aside>
     );
   }
@@ -162,7 +158,7 @@ export function Inspector({ doc, shotId, issues: given }: { doc: ProjectDoc; sho
             </ul>
           </div>
         ) : (
-          <p className={s.muted}>Renseignez la focale pour calculer l’angle de champ.</p>
+          <p className={s.muted} aria-label="Focale non renseignée">—</p>
         )}
         {camerasForShot(doc, shot.id).length > 0 && (
           <p className={s.muted} data-testid="inspector-cameras">

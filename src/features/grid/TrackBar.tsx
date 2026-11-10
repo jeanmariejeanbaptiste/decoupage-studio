@@ -179,12 +179,10 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
         <span className={s.name}>{track ? track.name : 'Aucune piste'}</span>
         {track && <span className="mono">{formatTc(duration)}</span>}
         <span className={s.hint}>
-          {block ? (
+          {block && (
             <>
               action sélectionnée : <b>{block.text || 'sans texte'}</b> · <span className="mono">{formatRange(block.tc) || '—'}</span>
             </>
-          ) : (
-            'sélectionnez un plan puis glissez sur la piste pour caler son action'
           )}
         </span>
         <span className={s.tools}>
@@ -240,9 +238,7 @@ export function TrackBar({ doc }: { doc: ProjectDoc }) {
             </span>
           ))}
         </div>
-      ) : (
-        <p className={s.empty}>Importez la piste (ou indiquez sa durée dans les Réglages) pour caler les actions sur le morceau.</p>
-      )}
+      ) : null}
       {url && (
         <audio
           ref={audioRef}

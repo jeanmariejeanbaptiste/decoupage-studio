@@ -199,7 +199,7 @@ test('retour sur le découpage : la grille reste en haut, l’inspecteur n’aff
     await expect(page.getByTestId('empty-sequence').first()).toBeInViewport();
     expect(await grid.evaluate((el) => el.scrollTop)).toBe(0);
     await page.getByRole('button', { name: 'Inspecteur', exact: true }).click();
-    await expect(page.getByRole('complementary', { name: 'Inspecteur du plan' })).toContainText('Sélectionnez un plan');
+    await expect(page.getByRole('complementary', { name: 'Inspecteur du plan' })).toContainText('Aucun plan sélectionné');
     await page.getByRole('button', { name: 'Inspecteur', exact: true }).click();
     await page.goto('/#/registry');
     await page.goto('/#/grid');

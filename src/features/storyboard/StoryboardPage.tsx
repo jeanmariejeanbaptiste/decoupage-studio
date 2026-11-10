@@ -144,7 +144,6 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
         {allShots.length === 0 && (
           <div className="card empty">
             <span className="hand">Aucun plan pour l’instant</span>
-            <p>Le storyboard se remplit à partir du découpage.</p>
           </div>
         )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
