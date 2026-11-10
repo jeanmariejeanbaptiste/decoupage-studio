@@ -230,18 +230,24 @@ test('séquence sans plan : ligne compacte, « depuis le texte » visible même 
   }
 });
 
-test('téléphone : une pastille de séquence sans plan ouvre la vue d’ensemble sur cette séquence', async ({ page }) => {
+test('téléphone : une séquence sans plan montre son texte et son « + » dans la vue d’ensemble', async ({ page }) => {
   await importEmpty(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByTestId('mobile-cut')).toBeVisible();
   // Le menu, resté ouvert depuis l'ordinateur, devient un tiroir : on le referme.
   await page.getByRole('button', { name: 'Afficher ou réduire le menu' }).click();
-  await page.getByTestId('mobile-seq-tab').filter({ hasText: 'COULOIR' }).click();
-  await expect(page.getByRole('heading', { name: 'Vue d’ensemble' })).toBeVisible();
+  await page.getByTestId('mobile-overview').click();
+  // Le « + » à la place du numéro, l'aperçu du texte de la séquence à côté (rien sans texte).
+  const rue = page.locator('section').filter({ has: page.getByRole('heading', { name: /RUE/ }) });
+  await expect(rue.getByTestId('mobile-add-first-shot')).toHaveText('Une voiture passe, phares éteints.');
   const section = page.locator('section').filter({ has: page.getByRole('heading', { name: /COULOIR/ }) });
-  await expect(section).toBeInViewport();
-  await section.getByTestId('mobile-add-first-shot').click();
-  await expect(page.getByTestId('mobile-cut')).toContainText('Plan 3.1');
+  const add = section.getByTestId('mobile-add-first-shot');
+  await expect(add).toHaveAccessibleName(/Ajouter un plan à la séquence 3/);
+  await expect(add).toHaveText('');
+  await add.scrollIntoViewIfNeeded();
+  await add.click();
+  await expect(page.getByTestId('mobile-code')).toHaveText('3.1');
+  await expect(page.getByTestId('mobile-seq')).toContainText('COULOIR');
 });
 
 test('découpage sans aucun plan : l’export Excel reste possible (séquences dans l’onglet Registre)', async ({ page }) => {

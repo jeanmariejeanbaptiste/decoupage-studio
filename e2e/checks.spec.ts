@@ -209,6 +209,27 @@ test('vérifications sur téléphone : le plan visé s’ouvre, pas le premier',
   expect(place).not.toBe('1.1');
   await line.click();
   await expect(page.getByTestId('mobile-cut')).toBeVisible();
-  await expect(page.locator('[data-mobile-title]')).toContainText(`Plan ${place}`);
+  await expect(page.getByTestId('mobile-code')).toHaveText(place);
   await expect(page.locator('[data-testid="mobile-cut"] [data-field="movement"]')).toHaveAttribute('data-flash', '');
+});
+
+test('vérifications sur téléphone : une séquence sans plan s’ouvre dans la vue d’ensemble, sur son « + »', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#/grid?seed=fiction');
+  // Une séquence ajoutée au bout, dont on retire le plan.
+  await page.getByTestId('mobile-overview').click();
+  await page.locator('[data-gap$=":e"]').last().click();
+  await page.getByTestId('mobile-insert-seq').click();
+  await expect(page.getByTestId('mobile-code')).toHaveText('4.1');
+  await page.getByTestId('mobile-more').click();
+  await page.getByRole('menuitem', { name: 'Supprimer le plan' }).click();
+  await expect(page.getByTestId('mobile-code')).toHaveText('3.3');
+  await toChecks(page);
+  await group(page, 'empty-sequence').getByTestId('check-go').click();
+  const target = page.locator('[data-empty-seq]');
+  await expect(target).toHaveAttribute('data-flash', '');
+  await expect(target).toBeInViewport();
+  await expect(target).toBeFocused();
+  await target.click();
+  await expect(page.getByTestId('mobile-code')).toHaveText('4.1');
 });

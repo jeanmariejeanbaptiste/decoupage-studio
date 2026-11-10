@@ -102,16 +102,17 @@ export function Overview({
     );
   };
 
-  const row = (id: ID, seqId: ID, k: number, lifted?: boolean, top?: number) => {
+  const row = (id: ID, seqId: ID, k: number, state?: 'lifted' | 'hidden' | 'hole', top?: number) => {
     const sh = doc.shots[id];
     const focal = focalLabel(sh.focal);
+    const lifted = state === 'lifted';
     return (
       <div
         key={lifted ? 'lifted' : id}
-        className={[s.lrow, id === current ? s.on : '', lifted ? s.lifted : ''].join(' ')}
+        className={[s.lrow, id === current ? s.on : '', lifted ? s.lifted : '', state === 'hidden' ? s.hidden : '', state === 'hole' ? s.asHole : ''].join(' ')}
         style={lifted ? { top } : undefined}
-        data-drop-shot={lifted ? undefined : id}
-        data-row={id}
+        data-drop-shot={state ? undefined : id}
+        data-row={lifted ? undefined : id}
       >
         <button type="button" className={s.main} onClick={() => onOpen(id)} data-testid="mobile-list-shot" disabled={!!drag}>
           <span className={s.n}>{shotCode(doc, id)}</span>
@@ -129,7 +130,7 @@ export function Overview({
           </span>
         </button>
         {!readOnly && (
-          <span className={s.g} {...(lifted ? {} : grip(id, seqId, k))} aria-label={`Déplacer le plan ${shotCode(doc, id)}`} role="button" data-testid="mobile-grip">
+          <span className={s.g} {...(state ? {} : grip(id, seqId, k))} aria-label={`Déplacer le plan ${shotCode(doc, id)}`} role="button" data-testid="mobile-grip">
             <Grip />
           </span>
         )}
@@ -140,7 +141,7 @@ export function Overview({
   const total = timing.totalSec;
   return (
     <div ref={root} className={[s.overview, drag ? s.dragging : ''].join(' ')} data-testid="mobile-overview-list" onClick={(e) => slot && !(e.target as HTMLElement).closest('[data-gap], [data-testid^="mobile-insert"]') && setSlot(null)}>
-      <header className={s.ohead}>
+      <header className={s.ohead} data-view={readOnly || undefined}>
         <div>
           <h1>{doc.project.title || 'Vue d’ensemble'}</h1>
           <p>
@@ -159,12 +160,14 @@ export function Overview({
           <Plus size={18} strokeWidth={1.4} /> Première séquence
         </button>
       )}
-      <div className={s.list}>
+      <div className={s.list} data-view={readOnly || undefined}>
         {ids.map((seqId) => {
           const seq = doc.sequences[seqId];
           const shots = (seq?.shotIds ?? []).filter((id) => id !== drag?.id);
           const meta = [seq?.intExt, seq?.effect].filter(Boolean).join(' · ');
-          const hole = drag && drag.seqId === seqId ? drag.at : -1;
+          // Tant que la rangée n'a pas quitté sa place, elle fait elle-même le creux (le doigt garde sa cible).
+          const home = !!drag && drag.seqId === drag.from.seqId && drag.at === drag.from.at;
+          const hole = drag && drag.seqId === seqId && !home ? drag.at : -1;
           return (
             <section key={seqId} data-mobile-seq={seqId}>
               <h2 className={[s.lseq, drag && drag.seqId === seqId ? s.target : ''].join(' ')} data-drop-seq={seqId}>
@@ -178,13 +181,19 @@ export function Overview({
                 {meta && <em>{meta}</em>}
               </h2>
               {shots.length > 0 && gap(seqId, 0, false)}
-              {shots.map((id, k) => (
-                <Fragment key={id}>
-                  {hole === k && <div className={s.hole} />}
-                  {row(id, seqId, k)}
-                  {gap(seqId, k + 1, k === shots.length - 1)}
-                </Fragment>
-              ))}
+              {(seq?.shotIds ?? []).map((id) => {
+                // La rangée soulevée reste dans la page, au même nœud (même structure) : le doigt qui la
+                // tient garde sa cible. Tant qu'elle n'a pas quitté sa place, elle fait le creux.
+                const lifted = id === drag?.id;
+                const k = shots.indexOf(id);
+                return (
+                  <Fragment key={id}>
+                    {!lifted && hole === k && <div className={s.hole} />}
+                    {lifted ? row(id, seqId, -1, home ? 'hole' : 'hidden') : row(id, seqId, k)}
+                    {!lifted && gap(seqId, k + 1, k === shots.length - 1)}
+                  </Fragment>
+                );
+              })}
               {hole === shots.length && <div className={s.hole} />}
               {/* Séquence sans plan : son texte, et le « + » à la place du numéro. */}
               {!shots.length && hole < 0 && (
@@ -198,7 +207,7 @@ export function Overview({
                   data-empty-seq={seqId}
                 >
                   <span className={s.n}>{!readOnly && <Plus size={18} strokeWidth={1.4} />}</span>
-                  <span className={s.p}>{excerpts.get(seqId) || '—'}</span>
+                  {excerpts.get(seqId) && <span className={s.p}>{excerpts.get(seqId)}</span>}
                 </button>
               )}
               {!shots.length && !drag && gap(seqId, 0, true, false)}
@@ -206,7 +215,7 @@ export function Overview({
           );
         })}
       </div>
-      {drag && row(drag.id, drag.seqId, 0, true, drag.top)}
+      {drag && row(drag.id, drag.seqId, 0, 'lifted', drag.top)}
       {tools && <div className={s.tools}>{tools}</div>}
     </div>
   );
