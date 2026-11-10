@@ -97,16 +97,28 @@ export function PrintPage({ doc }: { doc: ProjectDoc }) {
           />
           Pied de page
         </label>
-        <Button variant="primary" icon={<Printer size={15} strokeWidth={1.25} />} onClick={() => window.print()} data-testid="print-now">
+        <Button
+          variant="primary"
+          icon={<Printer size={15} strokeWidth={1.25} />}
+          onClick={() => window.print()}
+          data-testid="print-now"
+        >
           Imprimer / PDF
         </Button>
       </div>
-      <div
-        className={[s.paper, s[`paper_${paper}`]].join(' ')}
-        style={orientation === 'portrait' ? { width: paper === 'A4' ? '210mm' : '297mm', minHeight: paper === 'A4' ? '297mm' : '420mm' } : undefined}
-        data-testid="print-sheet"
-      >
-        <ExportTable doc={doc} theme={theme} paper={paper} footer={footer} orientation={orientation} />
+      {/* Écran étroit : la feuille défile dans son cadre, la page ne déborde pas. */}
+      <div className={s.scroller}>
+        <div
+          className={[s.paper, s[`paper_${paper}`]].join(' ')}
+          style={
+            orientation === 'portrait'
+              ? { width: paper === 'A4' ? '210mm' : '297mm', minHeight: paper === 'A4' ? '297mm' : '420mm' }
+              : undefined
+          }
+          data-testid="print-sheet"
+        >
+          <ExportTable doc={doc} theme={theme} paper={paper} footer={footer} orientation={orientation} />
+        </div>
       </div>
       {footer && <p className={[s.screenFooter, 'no-print'].join(' ')}>{footerText} · page 1 / n</p>}
     </div>
