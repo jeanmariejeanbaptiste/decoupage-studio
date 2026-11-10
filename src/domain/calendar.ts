@@ -387,6 +387,15 @@ export function removeEvent(doc: ProjectDoc, id: ID): void {
   if (!doc.calendar.length) delete doc.calendar;
 }
 
+/** Décale un rendez-vous de `days` jours : heures et durée gardées. */
+export function moveEvent(doc: ProjectDoc, id: ID, days: number): void {
+  const e = doc.calendar?.find((x) => x.id === id);
+  if (!e || !days || !isValidDate(e.start)) return;
+  const move = (s: string) => `${addDays(s.slice(0, 10), days)}${s.slice(10)}`;
+  e.start = move(e.start);
+  if (isValidDate(e.end)) e.end = move(e.end);
+}
+
 /** Champs du formulaire d'un rendez-vous (date, heures « HH:MM », dernier jour d'une journée entière). */
 export interface EventFields {
   title: string;
