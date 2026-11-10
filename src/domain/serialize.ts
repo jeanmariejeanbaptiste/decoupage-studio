@@ -41,7 +41,9 @@ export function serializeDoc(doc: ProjectDoc, savedAt = new Date().toISOString()
 export function mediaOfFile(text: string): Record<string, MediaEntry> {
   try {
     const raw = JSON.parse(text) as { media?: Record<string, MediaEntry> };
-    return raw && typeof raw.media === 'object' && raw.media ? raw.media : {};
+    const media = raw && typeof raw.media === 'object' && raw.media ? raw.media : {};
+    // Entrées abîmées (sans données ni type) : ignorées.
+    return Object.fromEntries(Object.entries(media).filter(([, m]) => m && typeof m.data === 'string' && typeof m.type === 'string'));
   } catch {
     return {};
   }
