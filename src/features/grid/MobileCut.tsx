@@ -43,6 +43,13 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
   }, [doc]);
   const [current, setCurrent] = useState<ID | undefined>(() => order[0]);
   const [list, setList] = useState(false);
+  // Séquence sans plan touchée dans la barre : la vue d'ensemble s'ouvre sur elle.
+  const [jumpSeq, setJumpSeq] = useState<ID | null>(null);
+  useEffect(() => {
+    if (!list || !jumpSeq) return;
+    document.querySelector(`[data-mobile-seq="${jumpSeq}"]`)?.scrollIntoView({ block: 'start' });
+    setJumpSeq(null);
+  }, [list, jumpSeq]);
   const idx = current ? order.indexOf(current) : -1;
   const shotId = idx >= 0 ? current : order[0];
   const i = shotId ? order.indexOf(shotId) : -1;
@@ -103,7 +110,7 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
           </button>
         )}
         {doc.project.sequenceIds.map((seqId) => (
-          <section key={seqId} className={s.listSeq}>
+          <section key={seqId} className={s.listSeq} data-mobile-seq={seqId}>
             <h2>{sequenceHeading(doc, seqId)}</h2>
             <ul>
               {/* Séquence sans plan : une ligne fantôme, « + » à la place du numéro et l'aperçu de son texte. */}
@@ -185,11 +192,14 @@ export function MobileCut({ doc }: { doc: ProjectDoc }) {
           <button
             key={id}
             type="button"
-            className={id === shot.sequenceId ? s.seqTabOn : ''}
+            className={id === shot.sequenceId ? s.seqTabOn : doc.sequences[id]?.shotIds.length ? '' : s.seqTabEmpty}
             onClick={() => {
               const first = doc.sequences[id]?.shotIds[0];
-              if (first) setCurrent(first);
+              if (first) return setCurrent(first);
+              setJumpSeq(id);
+              setList(true);
             }}
+            data-testid="mobile-seq-tab"
           >
             {sequenceHeading(doc, id)}
           </button>
