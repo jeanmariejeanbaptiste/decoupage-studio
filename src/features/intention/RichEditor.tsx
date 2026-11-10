@@ -528,6 +528,8 @@ export function RichEditor({ html, projectId, readOnly = false, onChange, onLayo
     if (!key) return;
     exec('insertHTML', `<img data-blob="${key}" alt="" style="width: 100%">`);
     resolveImages();
+    // Enregistrée tout de suite : une image rangée mais pas encore citée par la note passerait pour orpheline.
+    commit();
   };
 
   /** Plusieurs images, dans l'ordre. */
