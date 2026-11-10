@@ -2,10 +2,11 @@
  * Dépouillement depuis le texte : passage du scénario propre à une séquence, repérage des éléments
  * déjà dépouillés dans ce texte (sans accents ni casse), nettoyage d'une sélection avant ajout.
  */
-import { addedCharacters, breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown, detectSpans, isLexiconTerm, type BreakdownCategory } from './breakdown';
+import { addedCharacters, breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown, detectSpans, misleadingRanges, type BreakdownCategory } from './breakdown';
 import { fold } from './text';
 import { matchSequence, scenesOf } from './fountain';
-import type { ID, ProjectDoc } from './types';
+import type { EquipmentLine } from './equipment';
+import type { EquipmentCategory, ID, ProjectDoc } from './types';
 
 /** Abréviations des catégories (pastilles et sélecteur). */
 const ABBR: Record<string, string> = {
@@ -86,9 +87,10 @@ export interface TagContext {
   have: Set<string>;
 }
 
-export function tagContext(doc: ProjectDoc, seqId: ID): TagContext {
+/** `eq` : le matériel du film, calculé une fois quand plusieurs séquences sont repérées. */
+export function tagContext(doc: ProjectDoc, seqId: ID, eq?: Record<EquipmentCategory, EquipmentLine[]>): TagContext {
   const manual = breakdownOf(doc, seqId);
-  const derived = derivedBreakdown(doc, seqId);
+  const derived = derivedBreakdown(doc, seqId, eq);
   // Personnages ajoutés à la séquence (pas nommés par ses plans) : saisis ici, donc retirables.
   const added = addedCharacters(doc, seqId);
   const known: TagContext['known'] = [];
@@ -107,11 +109,12 @@ export function marksWith(ctx: TagContext, text: string): TagMark[] {
   const marks: TagMark[] = [];
   const taken = (a: number, b: number) => marks.some((m) => a < m.end && b > m.start);
   const spans = detectSpans(text);
+  // Un élément saisi est repéré partout, sauf au cœur d'une expression trompeuse (« Train » dans « en train de ») ;
+  // l'expression saisie telle quelle (« Feu rouge ») reste repérée.
+  const misleading = misleadingRanges(text);
   for (const k of ctx.known) {
-    // Un terme du lexique (« train », « lit ») ne compte pas là où la détection l'écarte (« en train de », « il lit »).
-    const strict = isLexiconTerm(k.item);
     for (const [a, b] of findTerm(text, k.item)) {
-      if (taken(a, b) || (strict && !spans.some((s) => a < s.end && b > s.start))) continue;
+      if (taken(a, b) || misleading.some(([x, y]) => x <= a && b <= y && b - a < y - x)) continue;
       marks.push({ start: a, end: b, cat: k.cat, item: k.item, ...(k.derived ? { derived: true } : {}) });
     }
   }
