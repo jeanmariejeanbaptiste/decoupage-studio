@@ -144,6 +144,84 @@ export function detectInText(text: string): Partial<Record<BreakdownCategory, st
   return out;
 }
 
+/** Terme du lexique trouvé dans un texte, à sa place (positions du texte d'origine). */
+export interface DetectedSpan {
+  start: number;
+  end: number;
+  cat: BreakdownCategory;
+  canon: string;
+}
+
+/**
+ * Le texte tel que le voit detectInText (replié, ponctuation et blancs réduits à une espace,
+ * expressions trompeuses retirées), avec pour chaque caractère sa place dans le texte d'origine.
+ */
+function detectionText(text: string): { t: string; at: number[] } {
+  const chars: Array<{ ch: string; pos: number }> = [];
+  let pos = 0;
+  for (const ch of text) {
+    chars.push({ ch, pos });
+    pos += ch.length;
+  }
+  // fold() retire les blancs de début et de fin avant que la ponctuation devienne une espace.
+  let first = 0;
+  let last = chars.length - 1;
+  while (first <= last && /\s/.test(chars[first].ch)) first++;
+  while (last >= first && /\s/.test(chars[last].ch)) last--;
+  let t = ' ';
+  let at: number[] = [chars[first]?.pos ?? 0];
+  let run = '';
+  for (let k = first; k <= last; k++) {
+    for (const c of chars[k].ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()) {
+      const kind = /\s/.test(c) ? 'space' : /[a-z0-9']/.test(c) ? '' : 'punct';
+      if (kind && kind === run) continue;
+      run = kind;
+      t += kind ? ' ' : c;
+      at.push(chars[k].pos);
+    }
+  }
+  t += ' ';
+  at.push(pos);
+  for (const re of STOP_PHRASES) {
+    let out = '';
+    const map: number[] = [];
+    let from = 0;
+    for (const m of t.matchAll(re)) {
+      out += `${t.slice(from, m.index)} `;
+      map.push(...at.slice(from, m.index), at[m.index]);
+      from = m.index + m[0].length;
+    }
+    t = out + t.slice(from);
+    at = [...map, ...at.slice(from)];
+  }
+  return { t, at };
+}
+
+const LEXICON_TERMS = new Set(Object.values(LEXICON).flatMap((dict) => Object.entries(dict ?? {}).flatMap(([canon, forms]) => [fold(canon), ...forms])));
+
+/** Terme du lexique (« Train », « lit »…) : ses occurrences ne comptent que là où la détection les retient. */
+export const isLexiconTerm = (item: string): boolean => LEXICON_TERMS.has(fold(item));
+
+/** Termes du lexique d'un texte, à leur place ; mêmes règles que detectInText. */
+export function detectSpans(text: string): DetectedSpan[] {
+  const { t, at } = detectionText(text);
+  const out: DetectedSpan[] = [];
+  const endOf = (i: number) => i + ((text.codePointAt(i) ?? 0) > 0xffff ? 2 : 1);
+  for (const [cat, dict] of Object.entries(LEXICON) as Array<[BreakdownCategory, Record<string, string[]>]>) {
+    for (const [canon, forms] of Object.entries(dict)) {
+      for (const f of forms) {
+        const word = `(${escapeRegExp(f)}(?:s|x)?)(?=[ '])`;
+        const re = new RegExp(AMBIGUOUS.has(f) ? `(?<=[ '])${DETERMINER} ?${word}` : `(?<=[ '])${word}`, 'g');
+        for (const m of t.matchAll(re)) {
+          const i = m.index + m[0].length - m[1].length;
+          out.push({ start: at[i], end: endOf(at[i + m[1].length - 1]), cat, canon });
+        }
+      }
+    }
+  }
+  return out.sort((a, b) => a.start - b.start || b.end - a.end);
+}
+
 export function breakdownOf(doc: ProjectDoc, seqId: ID): SequenceBreakdown {
   return doc.breakdown?.[seqId] ?? {};
 }
