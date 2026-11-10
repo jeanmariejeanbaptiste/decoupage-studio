@@ -2,6 +2,7 @@ import { switchTheme } from '../../ui/themeSwitch';
 import type { ShortcutId } from '../../domain/shortcuts';
 import { navigate, type Route } from '../../app/router';
 import { REVIEWED } from './steps';
+import { saveAllToZip } from './backupAll';
 import { saveToFile, openFromFile } from '../../store/persistence';
 import { redo, undo, useProjectStore } from '../../store/projectStore';
 import { redoHome, undoHome } from '../../store/homeHistory';
@@ -87,6 +88,14 @@ export const COMMANDS: readonly Command[] = [
   { id: 'go-settings', group: 'Aller à', label: 'Paramètres', run: () => navigate('settings'), needsProject: true, edits: true },
   { id: 'pdf', group: 'Fichier', label: 'Exporter en PDF', run: () => navigate('print', { auto: '1' }), needsProject: true, copies: true },
   { id: 'save', group: 'Fichier', label: 'Enregistrer le fichier .decoupage', shortcut: 'save', run: () => void saveToFile(), needsProject: true, copies: true },
+  {
+    id: 'save-all',
+    group: 'Fichier',
+    label: 'Enregistrer tous les projets (.zip)',
+    run: () => void saveAllToZip(),
+    copies: true,
+    when: () => useShare.getState().role !== 'guest',
+  },
   { id: 'open', group: 'Fichier', label: 'Ouvrir un fichier .decoupage…', run: () => void openFromFile().then((ok) => ok && navigate('grid')) },
   { id: 'assistant', group: 'Affichage', label: 'Assistant IA', run: () => toggleAssistant(), needsProject: true, edits: true, when: () => useAiStatus.getState().ready },
   {
