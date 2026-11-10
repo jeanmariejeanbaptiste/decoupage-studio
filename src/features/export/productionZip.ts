@@ -21,11 +21,12 @@ import {
 import { scheduleDays } from '../../domain/schedule';
 import { fileNameFor, serializeDoc } from '../../domain/serialize';
 import type { ProjectDoc } from '../../domain/types';
+import type { Orientation } from './imageExport';
 import { getBlob } from '../../store/db';
 import { collectMedia } from '../../store/persistence';
 
 const safe = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '-').trim();
-const word = (page: DocPage) => new Blob(['\uFEFF', wordHtml(page)], { type: 'application/msword' });
+const word = (page: DocPage, orientation?: Orientation) => new Blob(['\uFEFF', wordHtml(page, orientation)], { type: 'application/msword' });
 const ext = (blob: Blob) => (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/\+.*$/, '');
 
 const blobToDataUrl = (b: Blob) =>
@@ -88,13 +89,14 @@ export async function buildProductionZip(doc: ProjectDoc): Promise<Blob> {
   }
   uniqueNames(images.map((i) => i.name)).forEach((n, k) => put(`05 Storyboard/${n}.${ext(images[k].blob)}`, images[k].blob));
   const plans = allFloorPlans(doc);
-  uniqueNames(plans.map((p) => safe(p.name))).forEach((n, k) => put(`06 Plans au sol/${n}.svg`, plans[k].svg));
+  uniqueNames(plans.map((p) => safe(p.name)), 'Plan au sol').forEach((n, k) => put(`06 Plans au sol/${n}.svg`, plans[k].svg));
   put('07 Matériel/Listes de matériel.doc', word(equipmentDocument(doc, true)));
   put('07 Matériel/Listes de matériel.csv', equipmentCsv(doc));
   const days = scheduleDays(doc);
   // Sans jour de tournage, ni plan de travail ni feuilles de service : pas de fichiers vides.
   if (days.length) {
-    put('08 Plan de travail/Plan de travail.doc', word(scheduleDocument(doc)));
+    // Orientation choisie à l'export du plan de travail ; paysage par défaut (tableau large).
+    put('08 Plan de travail/Plan de travail.doc', word(scheduleDocument(doc), doc.project.settings.exportPrefs?.schedule?.orientation ?? 'landscape'));
     put('08 Plan de travail/Plan de travail.csv', scheduleCsv(doc));
   }
   for (const d of days) {
