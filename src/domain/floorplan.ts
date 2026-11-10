@@ -713,6 +713,18 @@ export interface Beam {
   points: Point[];
 }
 
+/**
+ * Dégradé d'un faisceau, du pied de la source au bout de sa portée : décalage (0 à 1) et opacité
+ * de chaque arrêt. Le même à l'écran et à l'export ; la lumière douce s'étale plus loin, moins dense.
+ */
+export function beamStops(b: Pick<Beam, 'intensity' | 'soft'>): Array<{ offset: number; opacity: number }> {
+  return [
+    { offset: 0, opacity: Math.min(0.85, (b.soft ? 0.32 : 0.55) * b.intensity) },
+    { offset: b.soft ? 0.8 : 0.6, opacity: Math.min(0.5, (b.soft ? 0.18 : 0.22) * b.intensity) },
+    { offset: 1, opacity: 0 },
+  ];
+}
+
 export function lightBeam(l: Light): Beam {
   const spread = l.spread ?? DEFAULT_SPREAD;
   const range = l.range ?? DEFAULT_RANGE;

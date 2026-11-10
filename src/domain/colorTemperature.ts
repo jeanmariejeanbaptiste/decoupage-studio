@@ -5,8 +5,9 @@
  * La chromaticité est celle du corps noir (lieu de Planck, approximation de Kim et al., valable de
  * 1 667 à 25 000 K), passée en sRGB puis équilibrée sur un blanc de 5 000 K (D50, la lumière de
  * l'impression) : 3 200 K reste chaud, 5 600 K est neutre à légèrement froid, 6 500 K et au-delà
- * bleutés. Pour rester lisible en aplat translucide sur le plan, la teinte et la pureté physiques
- * sont gardées, la clarté est fixée par le thème et la pureté légèrement accentuée.
+ * bleutés. Pour rester lisible en aplat translucide sur le plan, la teinte physique est gardée, la
+ * clarté est fixée par le thème et la pureté comprimée sans écrêtage : les faibles écarts au blanc
+ * (5 600 K) deviennent visibles, les forts (bougie, ampoule, tungstène) restent distincts.
  */
 
 /** Températures admises (K) : en dehors, la saisie est sans doute une faute de frappe. */
@@ -15,11 +16,33 @@ export const KELVIN_RANGE = [1000, 25000] as const;
 /** Blanc de référence (K). */
 const WHITE_K = 5000;
 
-/** Clarté de la teinte : sur papier (le trait s'y multiplie) et sur l'encre (il s'y additionne). */
-export const TONE_LIGHTNESS = { papier: 0.5, encre: 0.64 } as const;
+/**
+ * Clarté de la teinte : sur papier (le trait s'y multiplie) et sur l'encre (il s'y additionne).
+ * Assez claire pour que les tons chauds gardent leur pureté (plus sombres, ils tournent tous au même
+ * brun : bougie, ampoule et tungstène s'y confondent).
+ */
+export const TONE_LIGHTNESS = { papier: 0.66, encre: 0.74 } as const;
 
-/** Accentuation de la pureté, pour qu'un faisceau translucide se lise. */
-const CHROMA_GAIN = 1.6;
+/**
+ * Opacité d'un faisceau teinté, relativement au gris : sa teinte, plus claire, garde ainsi la densité
+ * d'un faisceau sans température sur papier, et ne tourne pas au brun sur l'encre.
+ */
+export const TINT_GAIN = { papier: 1.3, encre: 1.6 } as const;
+
+/**
+ * Faisceau sans température : un gris strictement neutre (r = g = b), de la luminance du gris du
+ * thème, pour qu'une lumière du jour à peine froide ne s'y confonde pas.
+ */
+export const BEAM_GREY = { papier: '#707070', encre: '#a0a0a0' } as const;
+
+/**
+ * Pureté affichée (0 à 1) d'une pureté physique (0 à 1) : strictement croissante, 0 et 1 gardés,
+ * relevée près du blanc (moitié linéaire, moitié puissance 0,3), jamais écrêtée.
+ */
+export const purity = (chroma: number): number => {
+  const c = Math.min(1, Math.max(0, chroma));
+  return (c + c ** 0.3) / 2;
+};
 
 export const kelvinValid = (k: number | undefined): k is number => typeof k === 'number' && Number.isFinite(k) && k >= KELVIN_RANGE[0] && k <= KELVIN_RANGE[1];
 
@@ -74,7 +97,7 @@ function hsl(h: number, s: number, L: number): [number, number, number] {
 }
 
 /**
- * Teinte de la lumière, en hexadécimal : la teinte du corps noir, sa pureté accentuée, à la
+ * Teinte de la lumière, en hexadécimal : la teinte du corps noir, sa pureté comprimée, à la
  * luminance du gris de clarté `lightness` (0 à 1) ; toutes les températures pèsent donc autant à
  * l'œil, la bougie ne paraît pas plus pâle que le tungstène. À 5 000 K, ce gris même.
  */
@@ -88,7 +111,7 @@ export function kelvinTone(k: number, lightness: number): string {
     else if (max === g) h = (b - r) / chroma + 2;
     else h = (r - g) / chroma + 4;
   }
-  const s = Math.min(1, chroma * CHROMA_GAIN);
+  const s = purity(chroma);
   const grey = Math.min(1, Math.max(0, lightness));
   const target = luminance([grey, grey, grey]);
   // Clarté TSL qui donne la luminance du gris (la luminance croît avec la clarté).

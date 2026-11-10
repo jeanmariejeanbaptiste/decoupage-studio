@@ -4,9 +4,9 @@
 import { aggregateEquipment, equipmentCategories } from './equipment';
 import { breakdownCategories, breakdownLabel, breakdownOf, derivedBreakdown } from './breakdown';
 import { sequenceCharacterIds } from './characters';
-import { cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, DIMENSION_FONT, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
+import { beamStops, cameraCone, choreography, computeLighting, lightSpecs, oneShotPlansOf, planOf, plansOf, roomDimensions, DIMENSION_FONT, PLAN_W, PLAN_H, type FloorItem } from './floorplan';
 import { CAMERA, FRESNEL, labelBehind, railSvg, symbolSvg } from './floorSymbols';
-import { lightTint } from './colorTemperature';
+import { BEAM_GREY, lightTint, TINT_GAIN } from './colorTemperature';
 import { formatFocal } from './focal';
 import { sequenceHeading, shotCode } from './numbering';
 import { characterNumbers, characterStats, characterUsage, decorStats, decorUsage, usageDayLabel } from './registry';
@@ -175,8 +175,16 @@ export function floorPlanSvg(doc: ProjectDoc, key: string, title: string): strin
   const out: string[] = [];
   const { beams, shadows } = computeLighting(items);
   for (const sh of shadows) out.push(`<polygon points="${pts(sh)}" fill="#111318" fill-opacity="0.14"/>`);
-  // Faisceaux gris, ou à la teinte de leur température de couleur (la seule couleur du plan).
-  for (const b of beams) out.push(`<polygon points="${pts(b.points)}" fill="${lightTint(b.kelvin)?.papier ?? '#6b7079'}" fill-opacity="${Math.min(0.4, 0.22 * b.intensity).toFixed(2)}"/>`);
+  // Faisceaux en dégradé comme à l'écran : gris neutre, ou teinte de leur température de couleur
+  // (la seule couleur du plan). Identifiants propres à la vue : plusieurs plans partagent un document.
+  const gid = `fpb-${key.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+  beams.forEach((b, n) => {
+    const tint = lightTint(b.kelvin)?.papier;
+    const gain = tint ? TINT_GAIN.papier : 1;
+    const stops = beamStops(b).map((st) => `<stop offset="${st.offset}" stop-color="${tint ?? BEAM_GREY.papier}" stop-opacity="${Math.min(1, st.opacity * gain).toFixed(2)}"/>`).join('');
+    out.push(`<radialGradient id="${gid}-${n}" cx="${b.x.toFixed(1)}" cy="${b.y.toFixed(1)}" r="${b.range.toFixed(1)}" gradientUnits="userSpaceOnUse">${stops}</radialGradient>`);
+    out.push(`<polygon points="${pts(b.points)}" fill="url(#${gid}-${n})"/>`);
+  });
   for (const p of choreography(items))
     if (p.points.length > 1) out.push(`<polyline points="${pts(p.points)}" fill="none" stroke="${p.kind === 'camera' ? '#111318' : '#6b7079'}" stroke-width="${p.kind === 'camera' ? 2.5 : 2}" stroke-dasharray="${p.kind === 'camera' ? '10 6' : '3 5'}"/>`);
   for (const i of items as FloorItem[]) {

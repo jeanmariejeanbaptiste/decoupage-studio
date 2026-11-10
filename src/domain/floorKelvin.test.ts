@@ -1,8 +1,8 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../seed/fiction';
-import { lightTint } from './colorTemperature';
-import { addFloorItem, computeLighting, lightSpecs, planInventory, planOf, updateFloorItem, type FloorItem } from './floorplan';
+import { BEAM_GREY, lightTint, TINT_GAIN } from './colorTemperature';
+import { addFloorItem, beamStops, computeLighting, lightSpecs, planInventory, planOf, updateFloorItem, type FloorItem } from './floorplan';
 import { floorPlanSvg } from './exports';
 
 describe('plan au sol : température de couleur des sources', () => {
@@ -37,7 +37,7 @@ describe('plan au sol : température de couleur des sources', () => {
     expect(rows[2].detail).toBe('Projecteur');
   });
 
-  it('l’export teinte faisceaux et lampes de jeu ; sans température, gris comme avant', () => {
+  it('l’export teinte faisceaux (en dégradé, comme à l’écran) et lampes de jeu ; sans température, gris neutre', () => {
     const base = buildFiction();
     const seq = base.project.sequenceIds[0];
     const doc = produce(base, (d) => {
@@ -47,12 +47,34 @@ describe('plan au sol : température de couleur des sources', () => {
       updateFloorItem(d, seq, b, { practical: true, spread: 360, range: 170, kelvin: 8000 } as Partial<FloorItem>);
     });
     const svg = floorPlanSvg(doc, seq, 'Test');
-    expect(svg).toContain(`fill="${lightTint(3200)!.papier}" fill-opacity`);
-    expect(svg).toContain(`fill="${lightTint(8000)!.papier}" fill-opacity`);
+    const beams = computeLighting(planOf(doc, seq).items).beams;
+    // Un dégradé radial par faisceau, aux arrêts de l'écran, référencé par son polygone.
+    const ids = [...svg.matchAll(/<radialGradient id="([^"]+)"/g)].map((m) => m[1]);
+    expect(ids).toHaveLength(beams.length);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(svg).toContain(`fill="url(#${id})"`);
+    const [first] = beamStops(beams[0]);
+    expect(svg).toContain(`<stop offset="0" stop-color="${lightTint(3200)!.papier}" stop-opacity="${Math.min(1, first.opacity * TINT_GAIN.papier).toFixed(2)}"/>`);
+    expect(svg).toContain(`stop-color="${lightTint(8000)!.papier}"`);
     expect(svg).toContain(`r="9" fill="${lightTint(8000)!.papier}"`);
     const grey = produce(base, (d) => void addFloorItem(d, seq, 'light', { x: 100, y: 100 }));
     const plain = floorPlanSvg(grey, seq, 'Test');
-    expect(plain).toContain('fill="#6b7079" fill-opacity');
-    expect(plain).not.toMatch(/fill="#(?!6b7079|fff|111318|c9ccd2)[0-9a-f]{6}" fill-opacity/);
+    const colors = [...plain.matchAll(/stop-color="([^"]+)"/g)].map((m) => m[1]);
+    expect(colors.length).toBeGreaterThan(0);
+    expect(new Set(colors)).toEqual(new Set([BEAM_GREY.papier]));
+    // Sans température, l'opacité du gris est celle de l'écran, sans gain.
+    expect(plain).toContain(`stop-color="${BEAM_GREY.papier}" stop-opacity="${first.opacity.toFixed(2)}"`);
+  });
+
+  it('plusieurs vues dans un même document : des dégradés aux identifiants distincts', () => {
+    const base = buildFiction();
+    const [s1, s2] = base.project.sequenceIds;
+    const doc = produce(base, (d) => {
+      addFloorItem(d, s1, 'light', { x: 100, y: 100 });
+      addFloorItem(d, s2, 'light', { x: 100, y: 100 });
+    });
+    const ids = [s1, s2].flatMap((k) => [...floorPlanSvg(doc, k, 'Test').matchAll(/<radialGradient id="([^"]+)"/g)].map((m) => m[1]));
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
   });
 });
