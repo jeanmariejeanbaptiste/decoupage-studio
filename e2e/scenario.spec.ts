@@ -185,29 +185,24 @@ test('scénario dans le découpage : un seul panneau à droite, + par phrase et 
   await expect(panel).toBeVisible();
   // Un seul panneau : l'inspecteur s'est refermé.
   await expect(page.getByRole('button', { name: 'Inspecteur' })).toHaveAttribute('aria-pressed', 'false');
-  // Survol d'une phrase : le « + » apparaît à sa fin et ajoute la phrase au découpage.
+  // Panneau sobre : survoler ne propose rien, ne surligne rien.
   const sentence = panel.getByTestId('script-sentence').first();
   await sentence.hover();
-  await sentence.getByTestId('script-plus').click();
-  await expect(rows).toHaveCount(n + 1);
-  // Sélection libre : un « + » apparaît au-dessus de la fin de la sélection.
+  await expect(panel.locator('button[data-testid^="script-"]')).toHaveCount(0);
+  await expect(sentence).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(rows).toHaveCount(n);
+  // Sélection au curseur : le plan est créé dès qu'on relâche le bouton.
   const target = panel.getByTestId('script-sentence').nth(2).locator('span').first();
   const box = (await target.boundingBox())!;
   await page.mouse.move(box.x + 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 5 });
+  await expect(rows).toHaveCount(n);
   await page.mouse.up();
-  await panel.getByTestId('script-selection-plus').click();
-  await expect(rows).toHaveCount(n + 2);
-  // Un clic ailleurs efface la sélection, et le « + » avec elle.
-  const box2 = (await panel.getByTestId('script-sentence').nth(4).locator('span').first().boundingBox())!;
-  await page.mouse.move(box2.x + 2, box2.y + box2.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box2.x + box2.width - 2, box2.y + box2.height / 2, { steps: 5 });
-  await page.mouse.up();
-  await expect(panel.getByTestId('script-selection-plus')).toBeVisible();
-  await page.mouse.click(box2.x + box2.width / 2, box2.y + 160);
-  await expect(panel.getByTestId('script-selection-plus')).toHaveCount(0);
+  await expect(rows).toHaveCount(n + 1);
+  // Un simple clic ne crée rien.
+  await page.mouse.click(box.x + 4, box.y + box.height / 2);
+  await expect(rows).toHaveCount(n + 1);
 });
 
 test('scénario : personnages (présence, fiche, répliques), décors et recherche', async ({ page }) => {

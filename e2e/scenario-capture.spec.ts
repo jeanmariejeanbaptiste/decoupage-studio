@@ -29,15 +29,16 @@ test('scénario vers la cellule Action : seulement en saisie, au curseur, lié a
   const action = page.locator('[data-cell="0:action"]');
   const before = (await action.innerText()).trim();
 
-  // Cellule seulement sélectionnée : rien ne la vise, la sélection propose le « + » habituel.
+  // Cellule seulement sélectionnée : rien ne la vise, la sélection relâchée crée un plan.
   await action.click();
   await expect(panel.getByTestId('capture-target')).toHaveCount(0);
   await expect(panel.getByTestId('scenario-link-mode')).toBeVisible();
   const third = panel.getByTestId('script-sentence').nth(2).locator('span').first();
   await drag(page, third);
-  await expect(panel.getByTestId('script-selection-plus')).toBeVisible();
-  await page.keyboard.press('Escape');
+  await expect(rows).toHaveCount(n + 1);
   await expect(action).toHaveText(before);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(rows).toHaveCount(n);
 
   // Double-clic : la cellule s'ouvre en saisie, le panneau nomme sa destination à la place du réglage.
   await action.dblclick();
@@ -52,17 +53,15 @@ test('scénario vers la cellule Action : seulement en saisie, au curseur, lié a
   await drag(page, third);
   await expect(editor).toBeFocused();
   await expect(editor).toHaveValue(`${before} ${picked}`);
-  await expect(panel.getByTestId('script-selection-plus')).toHaveCount(0);
   // Un simple clic dans le lecteur ne ferme pas la saisie.
   const box = (await third.boundingBox())!;
   await page.mouse.click(box.x + 4, box.y + box.height / 2);
   await expect(editor).toBeFocused();
-  // La flèche d'une phrase verse la phrase entière, au curseur.
+  // Une autre sélection s'ajoute au curseur.
   await page.keyboard.press('End');
   const fifth = panel.getByTestId('script-sentence').nth(4);
   const fifthText = (await fifth.locator('span').first().innerText()).trim();
-  await fifth.hover();
-  await fifth.getByTestId('script-plus').click();
+  await drag(page, fifth.locator('span').first());
   await expect(editor).toHaveValue(`${before} ${picked} ${fifthText}`);
   await page.keyboard.type(' Fin.');
   await page.keyboard.press('Enter');
