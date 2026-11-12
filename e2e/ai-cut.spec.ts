@@ -21,4 +21,10 @@ test('découpage par une IA externe : consignes copiées, réponse .md importée
   await expect(page.getByText('Elle boit son café.')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+z');
   await expect(rows).toHaveCount(n);
+
+  // Réponse copiée depuis la conversation (bloc de code) : collée d'un clic.
+  await page.evaluate((t) => navigator.clipboard.writeText('```markdown\n' + t + '\n```'), md);
+  await page.getByTestId('ai-cut').click();
+  await page.getByTestId('ai-cut-paste').click();
+  await expect(rows).toHaveCount(n + 2);
 });

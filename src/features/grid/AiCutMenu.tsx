@@ -36,9 +36,25 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
   const importFile = async () => {
     setOpen(false);
     const f = await pickFile('.md,.markdown,.txt,text/markdown,text/plain', false);
-    if (!f) return;
+    if (f) apply(await f.text());
+  };
+
+  /** Réponse copiée depuis la conversation (bouton « Copier » du bloc de code) : collée d'un clic. */
+  const paste = async () => {
+    setOpen(false);
+    let text = '';
     try {
-      const cut = parseCutFile(await f.text());
+      text = await navigator.clipboard.readText();
+    } catch {
+      useUi.getState().toast({ message: 'Le navigateur refuse la lecture du presse-papiers : importez le fichier .md.', tone: 'warn' });
+      return;
+    }
+    apply(text);
+  };
+
+  const apply = (text: string) => {
+    try {
+      const cut = parseCutFile(text);
       let r = { sequences: 0, shots: 0, rejected: 0 };
       mutateDoc((d) => void (r = applyCut(d, cut)));
       useUi.getState().toast({
@@ -60,8 +76,11 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
           <button type="button" role="menuitem" className={s.menuAction} onClick={() => void copy()} data-testid="ai-cut-copy">
             {copied ? 'Consignes copiées' : '1. Copier les consignes'}
           </button>
+          <button type="button" role="menuitem" className={s.menuAction} onClick={() => void paste()} data-testid="ai-cut-paste">
+            2. Coller sa réponse
+          </button>
           <button type="button" role="menuitem" className={s.menuAction} onClick={() => void importFile()} data-testid="ai-cut-import">
-            2. Importer sa réponse (.md)…
+            ou importer son fichier .md…
           </button>
         </div>
       )}

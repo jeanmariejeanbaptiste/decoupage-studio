@@ -30,7 +30,7 @@ export function aiCutInstructions(cols: readonly ColumnKey[]): string {
   return `Tu convertis un découpage technique de film (tableau, PDF, photo, texte…) au format exact de Découpage Studio.
 
 RÉPONSE ATTENDUE
-- Un seul fichier Markdown nommé decoupage.md, sans aucun texte avant ni après.
+- Un seul bloc de code Markdown (ou un fichier decoupage.md), sans aucun texte avant ni après.
 - Première ligne, exactement : ${CUT_HEADER}
 
 STRUCTURE
