@@ -8,6 +8,8 @@ import { preloadGoogle } from '../../store/cloud';
 import { syncReview } from '../../store/review';
 import { ReviewSection } from '../review/Review';
 import { Button } from '../../ui/Button';
+import { SNAPSHOT_SOFT_LIMIT, snapshotLink } from '../../store/snapshot';
+import type { ProjectDoc } from '../../domain/types';
 import s from './Share.module.css';
 
 const copy = async (text: string) => {
@@ -99,6 +101,7 @@ export function ShareButton() {
                 {st.status === 'opening' ? 'Ouverture…' : 'Ouvrir le partage'}
               </Button>
               <p className={s.note}>Le partage reste ouvert tant que cette page est ouverte.</p>
+              <SnapshotSection doc={doc} />
               <ReviewSection doc={doc} />
             </>
           ) : (
@@ -152,6 +155,7 @@ export function ShareButton() {
               <Button variant="outline" className={s.block} onClick={stopHosting} data-testid="share-stop">
                 Fermer le partage
               </Button>
+              <SnapshotSection doc={doc} />
               <ReviewSection doc={doc} />
             </>
           )}
@@ -232,6 +236,38 @@ export function GuestBanner() {
       >
         Quitter
       </button>
+    </div>
+  );
+}
+
+/**
+ * Lien autonome : le projet voyage dans le lien. Il s'ouvre même si cet ordinateur est éteint ou hors
+ * ligne (présentation, wifi public), en lecture seule et sans les images.
+ */
+function SnapshotSection({ doc }: { doc: ProjectDoc }) {
+  const [state, setState] = useState<'idle' | 'copied' | 'long'>('idle');
+  return (
+    <div className={s.snapshot}>
+      <Button
+        size="sm"
+        variant="outline"
+        className={s.block}
+        icon={state === 'idle' ? <Copy size={14} strokeWidth={1.25} /> : <Check size={14} />}
+        onClick={async () => {
+          const link = await snapshotLink(doc);
+          await copy(link);
+          setState(link.length > SNAPSHOT_SOFT_LIMIT ? 'long' : 'copied');
+          window.setTimeout(() => setState('idle'), 2400);
+        }}
+        data-testid="share-snapshot"
+      >
+        {state === 'idle' ? 'Copier un lien sans connexion' : 'Lien copié'}
+      </Button>
+      <p className={s.note}>
+        {state === 'long'
+          ? 'Lien très long : envoyez-le par e-mail plutôt que par messagerie.'
+          : 'S’ouvre même si cet ordinateur est hors ligne : lecture seule, sans les images.'}
+      </p>
     </div>
   );
 }

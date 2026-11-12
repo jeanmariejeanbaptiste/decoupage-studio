@@ -19,11 +19,12 @@ export type Route =
   | 'settings'
   | 'print'
   | 'join'
-  | 'review';
+  | 'review'
+  | 'view';
 
 const ROUTES: readonly Route[] = [
   'home', 'intention', 'scenario', 'breakdown', 'grid', 'storyboard', 'floorplan', 'equipment',
-  'schedule', 'callsheet', 'calendar', 'production', 'export', 'registry', 'checks', 'settings', 'print', 'join', 'review',
+  'schedule', 'callsheet', 'calendar', 'production', 'export', 'registry', 'checks', 'settings', 'print', 'join', 'review', 'view',
 ];
 
 export interface Location { route: Route; params: URLSearchParams }
@@ -36,6 +37,11 @@ export function parseHash(hash: string): Location {
   if (path.startsWith('review/')) {
     params.set('file', path.slice('review/'.length));
     return { route: 'review', params };
+  }
+  // Lien autonome : #/view/<projet compressé>
+  if (path.startsWith('view/')) {
+    params.set('data', path.slice('view/'.length));
+    return { route: 'view', params };
   }
   const route = (ROUTES as readonly string[]).includes(path) ? (path as Route) : 'home';
   return { route, params };

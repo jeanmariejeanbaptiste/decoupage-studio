@@ -3,6 +3,7 @@ import { isShortcut } from '../store/shortcuts';
 import { useCanCopy, useDriveReview, useReadOnly, useShare } from '../store/share';
 import { closeReviewLink, forgetReviewSession, reopenReviewLink, resumeReview, startReviewSync } from '../store/review';
 import { ReviewPage } from '../features/review/Review';
+import { openSnapshot } from '../store/snapshot';
 import { REVIEWED } from '../features/shell/steps';
 import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
@@ -72,6 +73,8 @@ async function boot(): Promise<void> {
   const { route } = parseHash(window.location.hash);
   // Lien de relecture : la page d'arrivée l'ouvre elle-même.
   if (route === 'review') return;
+  // Lien autonome : la page d'arrivée l'ouvre elle-même.
+  if (route === 'view') return;
   const seed = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('seed');
   if (seed === 'rav3') return void (await openDoc(buildRav3()));
   if (seed === 'fiction') return void (await openDoc(buildFiction()));
@@ -280,6 +283,7 @@ function Page({ route }: { route: Route }) {
   if (route === 'home') return <HomePage />;
   if (route === 'join') return <JoinPage />;
   if (route === 'review') return <ReviewPage />;
+  if (route === 'view') return <SnapshotLanding />;
   if (!doc) {
     return (
       <div className="page">
@@ -321,6 +325,32 @@ function Page({ route }: { route: Route }) {
         <Button variant="outline" onClick={() => navigate('grid')}>
           Ouvrir le découpage
         </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Lien autonome en cours d'ouverture, ou abîmé. */
+function SnapshotLanding() {
+  const { params } = useLocation();
+  const data = params.get('data') ?? '';
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void openSnapshot(data).then((err) => {
+      if (!alive) return;
+      if (err) setError(err);
+      else navigate('grid');
+    });
+    return () => {
+      alive = false;
+    };
+  }, [data]);
+  return (
+    <div className="page">
+      <div className="card empty" data-testid="snapshot-landing">
+        <span className="hand">{error ? 'Lien illisible' : 'Ouverture du projet…'}</span>
+        {error && <p>{error}</p>}
       </div>
     </div>
   );

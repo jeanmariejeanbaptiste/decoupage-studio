@@ -91,3 +91,5 @@
 .linkRow code.off { color: var(--ink-soft); text-decoration: line-through; }
 .linkRow button { display: inline-flex; padding: 4px; border: 0; border-radius: var(--radius); background: none; color: var(--ink-soft); cursor: pointer; }
 .linkRow button:hover { color: var(--ink); background: var(--hover); }
+
+.snapshot { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--rule); }

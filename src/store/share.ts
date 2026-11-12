@@ -36,7 +36,7 @@ interface ShareState {
   guests: Guest[];
   hostName?: string;
   /** Invité d'un partage en direct, ou relecteur d'une version publiée dans Google Drive (`review.ts`). */
-  via?: 'peer' | 'drive';
+  via?: 'peer' | 'drive' | 'link';
 }
 
 export const useShare = create<ShareState>(() => ({ role: 'none', status: 'idle', mode: 'edit', keep: false, guests: [] }));
@@ -549,6 +549,19 @@ export function enterDriveReview(hostName: string, blobs: (key: string) => Promi
   setMutationGuard(() => commentWriting);
   setPersistGuard(() => false);
   setRemoteBlobSource(blobs);
+}
+
+/**
+ * Lien autonome : le projet voyage dans le lien lui-même. Lecture seule, rien ne s'enregistre ici,
+ * aucune connexion à l'hôte (qui peut être hors ligne). Les images ne sont pas du voyage.
+ */
+export function enterSnapshot(hostName: string): void {
+  if (useShare.getState().role === 'host') stopHosting();
+  if (useShare.getState().role === 'guest') leaveSession(false);
+  useShare.setState({ role: 'guest', status: 'joined', mode: 'read', keep: false, hostName, guests: [], room: undefined, error: undefined, via: 'link' });
+  setMutationGuard(() => false);
+  setPersistGuard(() => false);
+  setRemoteBlobSource(async () => undefined);
 }
 
 /** Invité en lecture seule : l'interface ne montre que ce qui sert à regarder. */
