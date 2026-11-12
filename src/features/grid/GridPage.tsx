@@ -182,11 +182,11 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         <header className="page-head">
           <div className={s.toolbar} role="toolbar" aria-label="Outils du storyboard">
             <div className={s.left}>
+              <VersionSwitcher doc={storeDoc} />
               {views}
               {previewToggle}
             </div>
             <div className={s.right}>
-              <VersionSwitcher doc={storeDoc} />
               <CutExport doc={storeDoc} defaultContent="storyboard" />
             </div>
           </div>
@@ -202,13 +202,13 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         doc={storeDoc}
         lead={
           <>
+            <VersionSwitcher doc={storeDoc} />
             {views}
             {previewToggle}
           </>
         }
         trail={
           <>
-            <VersionSwitcher doc={storeDoc} />
             <CutExport doc={storeDoc} defaultContent="storyboard" />
           </>
         }
@@ -229,8 +229,10 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
           {/* Gauche : ce qu'on regarde (tableau, storyboard ou aperçu), puis l'action liée à la sélection. */}
           <div className={s.left}>
+            {!interviewView && <VersionSwitcher doc={storeDoc} />}
             {views}
             {previewToggle}
+            {!printView && !interviewView && <ColumnsMenu doc={doc} />}
             {!printView && !interviewView && (linked || multi) && (
               linked ? (
                 <Button size="sm" icon={<Unlink2 {...IC} />} onClick={unlinkSelection} title="Délier l’action des plans sélectionnés">
@@ -247,7 +249,6 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <div className={s.right}>
             {!printView && !interviewView && (
               <div className={s.icons}>
-                <ColumnsMenu doc={doc} />
                 <Button
                   variant="icon"
                   icon={<PanelRight {...IC} />}
@@ -269,7 +270,6 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
                 />
               </div>
             )}
-            {!interviewView && <VersionSwitcher doc={storeDoc} />}
             {itwSelected ? <InterviewExport doc={storeDoc} /> : <CutExport doc={storeDoc} defaultContent="grid" />}
           </div>
         </div>
@@ -351,9 +351,13 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
   const listed = [...shownCols, ...ALL_COLUMNS.filter((c) => !cols.includes(c))];
   return (
     <div className={s.menuWrap} ref={ref}>
-      <Button variant="icon" icon={<Columns3 {...IC} />} aria-label="Colonnes" title="Colonnes" aria-expanded={open} onClick={() => setOpen(!open)} />
+      <button type="button" className={[s.preview, open ? s.previewOn : ''].join(' ')} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Columns3 size={15} strokeWidth={1.5} aria-hidden="true" />
+        Colonnes
+        <ChevronDown size={13} strokeWidth={1.5} aria-hidden="true" />
+      </button>
       {open && (
-        <div className={s.menu} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+        <div className={[s.menu, s.menuLeft].join(' ')} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Colonnes de la grille</p>
           {listed.map((c) => {
             const on = cols.includes(c);

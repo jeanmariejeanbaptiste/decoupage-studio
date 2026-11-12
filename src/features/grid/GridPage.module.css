@@ -17,6 +17,7 @@
 @media (prefers-reduced-motion: reduce) { .lever, .lever span { transition: none; } }
 .sep { width: 1px; height: 20px; background: var(--rule); margin: 0 4px; }
 .menuWrap { position: relative; }
+.menuLeft { right: auto; left: 0; }
 .menu {
   position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
   width: 230px; padding: 8px;
