@@ -16,6 +16,7 @@ import { CutComments } from '../comments/CutComments';
 import { cutComments } from '../../domain/comments';
 import { linkSelection, newSequenceAfter, rowOfShot, unlinkSelection } from './actions';
 import { CutExport } from './CutExport';
+import { AiCutMenu } from './AiCutMenu';
 import { VersionSwitcher } from '../versions/VersionSwitcher';
 import { StoryboardPage, StoryboardPreview } from '../storyboard/StoryboardPage';
 import { Grid } from './Grid';
@@ -249,6 +250,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <div className={s.right}>
             {!printView && !interviewView && (
               <div className={s.icons}>
+                {!readOnly && <AiCutMenu doc={storeDoc} />}
                 <Button
                   variant="icon"
                   icon={<PanelRight {...IC} />}
