@@ -87,23 +87,24 @@ test('Scénario : un projet sans texte s’ouvre sur le séquencier, sans loglin
   await expect(page.getByTestId('scenario-status')).toContainText('0 séquence · 1 page');
 });
 
-test('Scénario : importer depuis le menu des versions, le seul endroit', async ({ page }) => {
+test('Scénario : importer par le bouton visible de l’en-tête, le seul endroit', async ({ page }) => {
   await page.goto('/#/scenario?seed=fiction');
   await expect(page.getByTestId('script-editor')).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Importer/ })).toHaveCount(0);
+  const btn = page.getByTestId('version-import');
+  await expect(btn).toHaveAccessibleName('Importer');
   await page.getByTestId('version-switcher').click();
-  const item = page.getByTestId('version-import');
-  await expect(item).toHaveText('Importer un texte…');
+  await expect(page.getByRole('menuitem', { name: /Importer/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   const chooser = page.waitForEvent('filechooser');
-  await item.click();
+  await btn.click();
   await (await chooser).setFiles({ name: 'toit.fountain', mimeType: 'text/plain', buffer: Buffer.from('EXT. TOIT - AUBE\n\nLe soleil se lève.\n') });
   await page.getByRole('alertdialog').getByRole('button', { name: 'Créer la V2' }).click();
   await expect(page.getByTestId('version-switcher')).toHaveText('V2');
   await expect(page.getByTestId('script-editor')).toContainText('Le soleil se lève.');
-  // Hors de la page Scénario (Découpage technique), le menu des versions n'importe pas.
+  // Le champ de fichier ne reste pas dans la page.
+  await expect(page.locator('input[type=file]')).toHaveCount(0);
+  // Hors de la page Scénario, pas d'import.
   await page.evaluate(() => void (location.hash = '#/grid'));
-  await page.getByTestId('version-switcher').click();
-  await expect(page.getByTestId('version-new')).toBeVisible();
   await expect(page.getByTestId('version-import')).toHaveCount(0);
 });
 
@@ -201,7 +202,6 @@ test('Scénario sur téléphone : menus entiers, Exporter et version toujours vi
   await page.getByTestId('block-type').click();
   await expect(page.getByRole('listbox', { name: 'Type du paragraphe' }).getByRole('option').last()).toBeInViewport({ ratio: 1 });
   await page.getByTestId('block-type').click();
-  await page.getByTestId('version-switcher').click();
   await expect(page.getByTestId('version-import')).toBeInViewport({ ratio: 1 });
 });
 

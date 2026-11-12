@@ -347,10 +347,18 @@ export async function saveToFile(): Promise<void> {
 
 function pickFileFallback(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
+    // Champ posé dans la page le temps du choix : Safari ignore (ou perd) un champ détaché.
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
-    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0';
+    document.body.appendChild(input);
+    const done = (f: File | null) => {
+      input.remove();
+      resolve(f);
+    };
+    input.addEventListener('change', () => done(input.files?.[0] ?? null), { once: true });
+    input.addEventListener('cancel', () => done(null), { once: true });
     input.click();
   });
 }

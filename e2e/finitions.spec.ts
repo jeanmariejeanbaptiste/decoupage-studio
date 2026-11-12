@@ -28,7 +28,6 @@ test('import d’un scénario Word : séquences, personnages et répliques', asy
     { t: 'Il pleut.' },
   ]);
   const chooser = page.waitForEvent('filechooser');
-  await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'scenario.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: buf });
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();

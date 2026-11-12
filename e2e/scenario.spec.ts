@@ -122,7 +122,6 @@ test.describe('scénario et liaison', () => {
     await page.getByRole('menuitem', { name: 'Fountain', exact: true }).click();
     expect((await dl).suggestedFilename()).toBe('La Consigne.fountain');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByTestId('version-switcher').click();
     await page.getByTestId('version-import').click();
     await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('EXT. TOIT - AUBE\n\nLe soleil se lève.\n') });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
@@ -136,7 +135,6 @@ test.describe('scénario et liaison', () => {
     const fixture = (n: string) => readFileSync(new URL(`../src/domain/__fixtures__/kit/${n}`, import.meta.url));
     await page.goto('/#/scenario?seed=fiction');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByTestId('version-switcher').click();
     await page.getByTestId('version-import').click();
     await (await chooser).setFiles({ name: 'modele.fdx', mimeType: 'application/xml', buffer: fixture('modele-complet.fdx') });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();
@@ -273,7 +271,6 @@ test('scénario : aucune ligne ne sort de sa feuille (sauts de page, blocs vari�
   await page.getByRole('button', { name: 'Écrire ou importer un scénario' }).click();
   await expect(page.getByTestId('script-editor')).toBeVisible();
   page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-pages.fountain'));
-  await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-import').click();
   await expect(page.getByText(/Scénario importé/)).toBeVisible();
   await page.waitForTimeout(800);
@@ -481,7 +478,6 @@ test('versions : un nouveau texte importé devient la V2, chaque scène retrouve
   await page.keyboard.press('Enter');
   await page.getByRole('button', { name: /^Scénario$/ }).first().click();
   page.on('filechooser', (fc) => fc.setFiles('e2e/fixtures-v2.fountain'));
-  await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-import').click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Créer la V2' }).click();
   await expect(page.getByTestId('toast')).toContainText('V2 : 3 séquences reprises dont 1 modifiée · 1 nouvelle, ajoutée au découpage');
@@ -578,7 +574,6 @@ test('scénario : les notes ne comptent ni dans les pages ni dans la durée ; ba
   const src = `Title: Notes\n\n> FONDU D’OUVERTURE :\n\nUne ouverture.\n\n${Array.from({ length: 30 }, (_, k) => scene(k + 1)).join('')}`;
   await page.goto('/#/scenario?seed=fiction');
   const chooser = page.waitForEvent('filechooser');
-  await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'notes.fountain', mimeType: 'text/plain', buffer: Buffer.from(src) });
   await page.getByRole('alertdialog').getByRole('button', { name: /^Remplacer/ }).click();

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Check, ChevronDown, Eraser, FileUp, GitCompare, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
+import { Check, ChevronDown, Eraser, GitCompare, MessageSquare, Pencil, Plus, RotateCcw, X } from 'lucide-react';
 import { scenesOf } from '../../domain/fountain';
 import { useUi } from '../../store/uiStore';
 import { commentsOf, shownComments } from '../../domain/comments';
@@ -31,7 +31,7 @@ const dateFmt =new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short'
  * Versions du film, communes au scénario et au découpage : on passe de l'une à l'autre, on en crée une
  * (copie de la courante : tout ce qui y reste garde sa préparation). Les autres pages suivent la courante.
  */
-export function VersionSwitcher({ doc, onImport }: { doc: ProjectDoc; /** Page Scénario : « Importer un texte… » en fin de menu (un import est une opération de version). */ onImport?: () => void }) {
+export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
   const readOnly = useReadOnly();
   const drive = useDriveReview();
   const [open, setOpen] = useState(false);
@@ -224,20 +224,6 @@ export function VersionSwitcher({ doc, onImport }: { doc: ProjectDoc; /** Page S
             </button>
           )}
           {!readOnly && <ClearScenario doc={doc} name={current.name} onDone={() => setOpen(false)} />}
-          {!readOnly && onImport && (
-            <button
-              type="button"
-              className={s.add}
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onImport();
-              }}
-              data-testid="version-import"
-            >
-              <FileUp size={13} strokeWidth={1.5} /> Importer un texte…
-            </button>
-          )}
         </div>
       )}
     </div>

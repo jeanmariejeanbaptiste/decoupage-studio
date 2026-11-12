@@ -9,6 +9,7 @@ import {
   ChevronDown,
   FilePlus2,
   FileText,
+  FileUp,
   Highlighter,
   Italic,
   MessageSquarePlus,
@@ -481,7 +482,13 @@ function ScenarioMain({ doc, params }: { doc: ProjectDoc; params: URLSearchParam
           ))}
         </div>
         <div className={s.headEnd}>
-          <VersionSwitcher doc={doc} onImport={readOnly ? undefined : () => void importFile()} />
+          <VersionSwitcher doc={doc} />
+          {!readOnly && (
+            <button type="button" className={s.importBtn} onClick={() => void importFile()} aria-label="Importer" data-testid="version-import">
+              <FileUp size={14} strokeWidth={1.5} aria-hidden="true" />
+              <span>Importer</span>
+            </button>
+          )}
           <ExportMenu sections={sections} />
         </div>
       </header>

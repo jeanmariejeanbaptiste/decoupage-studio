@@ -422,7 +422,6 @@ test('relecture : les séquences pas encore découpées figurent dans l’aperç
   // Scénario importé : trois séquences sans plan, avant les trois séquences découpées.
   await host.goto('/#/scenario?seed=fiction');
   const chooser = host.waitForEvent('filechooser');
-  await host.getByTestId('version-switcher').click();
   await host.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.from('INT. ENTREPRISE / ACCUEIL - JOUR\n\nFlora entre.\n\nEXT. RUE - NUIT\n\nUne voiture passe.\n') });
   await host.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();

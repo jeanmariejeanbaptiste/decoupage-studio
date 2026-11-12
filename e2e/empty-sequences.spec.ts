@@ -23,7 +23,6 @@ INT. COULOIR - JOUR
 async function importEmpty(page: Page, script: string | Buffer = SCRIPT, expected = 3) {
   await page.goto('/#/scenario?seed=fiction');
   const chooser = page.waitForEvent('filechooser');
-  await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'court.fountain', mimeType: 'text/plain', buffer: Buffer.isBuffer(script) ? script : Buffer.from(script) });
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remplacer' }).click();

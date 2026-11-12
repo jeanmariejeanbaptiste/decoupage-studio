@@ -3,7 +3,6 @@ import { expect, test, type Page } from '@playwright/test';
 /** Remplace le texte du projet par un import Fountain. */
 async function importScript(page: Page, src: string) {
   const chooser = page.waitForEvent('filechooser');
-  await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-import').click();
   await (await chooser).setFiles({ name: 'texte.fountain', mimeType: 'text/plain', buffer: Buffer.from(src) });
   await page.getByRole('alertdialog').getByRole('button', { name: /^Remplacer/ }).click();
