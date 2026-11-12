@@ -458,3 +458,42 @@ test('relecture : les séquences pas encore découpées figurent dans l’aperç
   await expect(own).toContainText('2, RUE');
   await expect(own).not.toContainText('ACCUEIL');
 });
+
+test('partage robuste : lien fixe par projet, invité arrivé avant l’hôte, reconnexion après un rechargement', async ({ browser }) => {
+  const host = await participant(browser);
+  await host.goto('/#/grid?seed=rav3');
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-start').click();
+  const link = (await host.getByTestId('share-link').textContent())!;
+  const password = (await host.getByTestId('share-password').textContent())!;
+  // Fermé puis rouvert : même lien, même mot de passe.
+  await host.getByTestId('share-stop').click();
+  await host.getByTestId('share-start').click();
+  await expect(host.getByTestId('share-link')).toHaveText(link);
+  await expect(host.getByTestId('share-password')).toHaveText(password);
+  // Nouveau mot de passe : le lien ne change pas.
+  await host.getByTestId('share-renew').click();
+  await expect(host.getByTestId('share-password')).not.toHaveText(password);
+  await expect(host.getByTestId('share-link')).toHaveText(link);
+  const pass2 = (await host.getByTestId('share-password').textContent())!;
+  await host.getByTestId('share-stop').click();
+
+  // L'invité arrive alors que l'hôte n'a pas encore ouvert : il patiente au lieu d'échouer.
+  const guest = await participant(browser);
+  await guest.goto(link);
+  await guest.getByLabel('Votre nom').fill('Morgane');
+  await guest.getByLabel('Mot de passe').fill(pass2);
+  await guest.getByTestId('join-go').click();
+  await expect(guest.getByTestId('join-go')).toHaveText('Connexion…');
+  await host.waitForTimeout(4000);
+  await host.getByTestId('share-start').click();
+  await expect(guest.getByTestId('guest-banner')).toBeVisible({ timeout: 30000 });
+
+  // L'hôte recharge sa page (coupure) puis rouvre le partage : l'invité se reconnecte seul.
+  await host.reload();
+  await expect(guest.getByTestId('guest-banner')).toContainText('reconnexion', { timeout: 15000 });
+  await host.getByTestId('share-button').click();
+  await host.getByTestId('share-start').click();
+  await expect(guest.getByTestId('guest-banner')).not.toContainText('reconnexion', { timeout: 40000 });
+  await expect(host.getByTestId('share-guests')).toContainText('Morgane', { timeout: 20000 });
+});

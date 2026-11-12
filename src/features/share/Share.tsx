@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Eye, MessageSquare, PenLine, QrCode, Users, X } from 'lucide-react';
+import { Check, Copy, Eye, MessageSquare, PenLine, QrCode, RefreshCw, Users, X } from 'lucide-react';
 import { QrScreen } from './QrScreen';
 import { navigate, useLocation } from '../../app/router';
-import { joinSession, kickGuest, leaveSession, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';
+import { joinSession, kickGuest, leaveSession, renewSharePassword, shareLink, startHosting, stopHosting, updateShareSettings, useShare, type ShareMode } from '../../store/share';
 import { useDoc } from '../../store/projectStore';
 import { preloadGoogle } from '../../store/cloud';
 import { syncReview } from '../../store/review';
@@ -117,8 +117,16 @@ export function ShareButton() {
                   <button type="button" onClick={() => copyAs('pass', st.password!)} aria-label="Copier le mot de passe" title="Copier">
                     {copied === 'pass' ? <Check size={13} /> : <Copy size={13} />}
                   </button>
+                  <button type="button" onClick={renewSharePassword} aria-label="Nouveau mot de passe" title="Nouveau mot de passe" data-testid="share-renew">
+                    <RefreshCw size={13} strokeWidth={1.5} />
+                  </button>
                 </div>
               </div>
+              {st.status === 'reconnecting' && (
+                <p className={s.note} role="status" data-testid="share-reconnecting">
+                  Connexion perdue : reconnexion en cours, le lien reste le même.
+                </p>
+              )}
               <div className={s.actions}>
                 <Button size="sm" icon={copied === 'both' ? <Check size={14} /> : <Copy size={14} strokeWidth={1.25} />} onClick={() => copyAs('both', `${link}\nMot de passe : ${st.password}`)}>
                   {copied === 'both' ? 'Copiés' : 'Copier lien et mot de passe'}
@@ -205,10 +213,11 @@ export function JoinPage() {
 /** Bandeau de l'invité : qui partage, quels droits, et quitter. */
 export function GuestBanner() {
   const st = useShare();
-  if (st.role !== 'guest' || st.status !== 'joined') return null;
+  if (st.role !== 'guest' || (st.status !== 'joined' && st.status !== 'reconnecting')) return null;
   return (
     <div className={s.banner} role="status" data-testid="guest-banner">
       <span>
+        {st.status === 'reconnecting' && 'Connexion perdue, reconnexion… · '}
         Projet partagé par <b>{st.hostName}</b> · {st.mode === 'read' ? 'lecture seule' : st.mode === 'review' ? 'relecture' : 'modification'}
         {st.guests.length > 1 ? ` · ${st.guests.length} personnes connectées` : ''}
         {st.keep ? '' : ' · rien n’est enregistré sur cet ordinateur'}
