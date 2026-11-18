@@ -14,7 +14,7 @@
   padding: 22px 24px 18px;
 }
 .title { font-family: var(--font-display); font-weight: 500; font-size: 24px; margin: 0 0 8px; line-height: 1.15; }
-.body { margin: 0 0 14px; color: var(--ink-soft); }
+.body { margin: 0 0 14px; color: var(--ink-soft); white-space: pre-line; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
 @keyframes fade { from { opacity: 0; } }

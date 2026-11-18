@@ -10,18 +10,32 @@ describe('découpage écrit par une IA externe', () => {
     const t = aiCutInstructions([...COLS]);
     expect(t).toContain(CUT_HEADER);
     expect(t).toContain('| Sujet | Valeur | Angle | Mouvement de caméra | Focale | Action | Son |');
+    expect(t).toContain('exactement 7 cellules');
+    expect(t).toContain('Gros plan | Très GP | Insert');
     expect(t).not.toContain('| N° |');
-    const ex = t.slice(t.indexOf('EXEMPLE\n') + 8);
+    expect(t).not.toContain('Ouverture');
+    const ex = t.slice(t.indexOf('EXEMPLE CONFORME\n') + 17);
     const p = parseCutFile(ex);
     expect(p.warnings).toEqual([]);
-    expect(p.sequences).toHaveLength(1);
-    expect(p.sequences[0].rows[0]).toMatchObject({ subject: 'Léa', focal: '50mm', sound: 'Pluie' });
+    expect(p.sequences).toHaveLength(2);
+    expect(p.sequences[0].rows[0]).toMatchObject({ subject: 'Léa', focal: '50mm', sound: 'Pluie sur la vitre' });
+    expect(p.sequences[1].rows[0]).toMatchObject({ movement: 'Trav arrière + Steadicam', action: 'Paul court vers la caméra.\nIl s’arrête net.' });
   });
 
   it('lit un fichier tolérant (bloc de code, colonne courte, barre échappée, <br>)', () => {
     const p = parseCutFile(['```markdown', CUT_HEADER, '', '## EXT. RUE - NUIT', '| Sujet | Mouvement | Action | Inconnue |', '|---|---|---|---|', '| Paul | Travelling | Il court.<br>Il tombe \\| se relève. | x |', '```'].join('\n'));
     expect(p.sequences[0].rows[0]).toEqual({ subject: 'Paul', movement: 'Travelling', action: 'Il court.\nIl tombe | se relève.' });
     expect(p.warnings.join()).toContain('Inconnue');
+  });
+
+  it('signale précisément chaque écart : cellules en trop, terme hors liste, texte hors tableau', () => {
+    const p = parseCutFile([CUT_HEADER, 'Voici le découpage :', '## INT. SALON - NUIT', '| Sujet | Valeur | Mouvement de caméra |', '|---|---|---|', '| Léa | Plan serré | Fixe, Envol |', '| Paul | Gros plan | Fixe | en trop |'].join('\n'));
+    const w = p.warnings.join('\n');
+    expect(w).toContain('Ligne 2 : texte hors tableau');
+    expect(w).toContain('« Plan serré » n’est pas dans la liste Valeur');
+    expect(w).toContain('« Envol » n’est pas dans la liste Mouvement de caméra');
+    expect(w).toContain('Ligne 7 : 4 cellules au lieu de 3');
+    expect(p.sequences[0].rows).toHaveLength(2);
   });
 
   it('refuse un fichier sans en-tête', () => {

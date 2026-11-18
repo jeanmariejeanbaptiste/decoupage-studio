@@ -6,6 +6,7 @@ import { pickFile } from '../../store/persistence';
 import { mutateDoc, undo } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
+import { ask } from '../../ui/dialogStore';
 import s from './GridPage.module.css';
 
 /**
@@ -36,7 +37,7 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
   const importFile = async () => {
     setOpen(false);
     const f = await pickFile('.md,.markdown,.txt,text/markdown,text/plain', false);
-    if (f) apply(await f.text());
+    if (f) await apply(await f.text());
   };
 
   /** Réponse copiée depuis la conversation (bouton « Copier » du bloc de code) : collée d'un clic. */
@@ -49,16 +50,23 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
       useUi.getState().toast({ message: 'Le navigateur refuse la lecture du presse-papiers : importez le fichier .md.', tone: 'warn' });
       return;
     }
-    apply(text);
+    await apply(text);
   };
 
-  const apply = (text: string) => {
+  const apply = async (text: string) => {
     try {
       const cut = parseCutFile(text);
+      // Réponse non conforme aux consignes : chaque écart est montré, ligne par ligne, avant l'import.
+      if (cut.warnings.length) {
+        const n = cut.warnings.length;
+        const shown = cut.warnings.slice(0, 8).join('\n') + (n > 8 ? `\n… et ${n - 8} autre${n - 8 > 1 ? 's' : ''}.` : '');
+        const r = await ask({ title: `${n} écart${n > 1 ? 's' : ''} aux consignes`, body: shown, confirmLabel: 'Importer quand même' });
+        if (!r.ok) return;
+      }
       let r = { sequences: 0, shots: 0, rejected: 0 };
       mutateDoc((d) => void (r = applyCut(d, cut)));
       useUi.getState().toast({
-        message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.shots} plan${r.shots > 1 ? 's' : ''} ajoutés${r.rejected || cut.warnings.length ? ` (${r.rejected + cut.warnings.length} valeur${r.rejected + cut.warnings.length > 1 ? 's' : ''} ignorée${r.rejected + cut.warnings.length > 1 ? 's' : ''})` : ''}.`,
+        message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.shots} plan${r.shots > 1 ? 's' : ''} ajoutés${r.rejected ? ` (${r.rejected} valeur${r.rejected > 1 ? 's' : ''} illisible${r.rejected > 1 ? 's' : ''} laissée${r.rejected > 1 ? 's' : ''} vide${r.rejected > 1 ? 's' : ''})` : ''}.`,
         actionLabel: 'Annuler',
         action: undo,
       });
