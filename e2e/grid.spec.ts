@@ -151,3 +151,28 @@ test('découpage : le nom d’une longue séquence reste visible tant qu’un de
   });
   expect(outside).toEqual([]);
 });
+
+test('mouvement et angle : Entrée valide la cellule une fois le jeton choisi, même si la souris survole la liste', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  const cell = page.locator('[data-cell="0:movement"]');
+  await cell.dblclick();
+  const editor = page.getByTestId('cell-editor');
+  for (let k = 0; k < 6; k++) await page.keyboard.press('Backspace');
+  await page.keyboard.type('Fix');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('token')).toHaveText(['Fixe']);
+  // Survol d'une suggestion : Entrée ne l'ajoute pas, elle valide.
+  await page.getByTestId('suggestions').getByRole('option').nth(2).hover();
+  await page.keyboard.press('Enter');
+  await expect(editor).toHaveCount(0);
+  await expect(cell).toHaveText('Fixe');
+  // Au clavier, ↓ puis Entrée choisit toujours.
+  await page.locator('[data-cell="0:angle"]').dblclick();
+  for (let k = 0; k < 6; k++) await page.keyboard.press('Backspace');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('token')).toHaveText(['Face']);
+  await page.keyboard.press('Enter');
+  await expect(editor).toHaveCount(0);
+});

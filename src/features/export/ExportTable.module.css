@@ -50,7 +50,11 @@
   text-align: center;
   vertical-align: middle;
   padding: 1.6mm 1.2mm;
-  word-break: break-word;
+  /* Un mot trop long se coupe à une syllabe (« Rappro-ché »), jamais en laissant une lettre seule. */
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  hyphenate-limit-chars: 6 3 3;
 }
 .table thead { display: table-header-group; }
 .table th {

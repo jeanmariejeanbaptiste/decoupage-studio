@@ -210,6 +210,9 @@ function TokenEditor({ doc, shotId, col, initial, replace, onCommit, onCancel }:
     [col, tokens, circular, doc],
   );
   const sug = useSuggest(draft, source);
+  // Entrée choisit une suggestion seulement si on l'a visée au clavier ou en tapant ; sinon elle valide
+  // la cellule (le survol de la souris ne retient pas Entrée).
+  const keyed = useRef(false);
   /** Ajoute un jeton choisi (sans doublon) ; « Face → Dos » remplace l'axe de départ. */
   const added = (it: Suggestion | string): string[] => {
     const item = typeof it === 'string' ? { label: it } : it;
@@ -228,6 +231,7 @@ function TokenEditor({ doc, shotId, col, initial, replace, onCommit, onCancel }:
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!(e.metaKey || e.ctrlKey)) e.stopPropagation();
     if (sug.onKey(e)) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') keyed.current = true;
       e.preventDefault();
       return;
     }
@@ -246,16 +250,18 @@ function TokenEditor({ doc, shotId, col, initial, replace, onCommit, onCancel }:
       setTokens(tokens.slice(0, -1));
       return;
     }
-    if (e.key === 'Enter' && sug.picked) {
+    const aimed = sug.picked && (keyed.current || draft.trim()) ? sug.picked : undefined;
+    if (e.key === 'Enter' && aimed) {
       e.preventDefault();
-      setTokens(withDraft(sug.picked));
+      keyed.current = false;
+      setTokens(withDraft(aimed));
       setDraft('');
       return;
     }
     const move = commitKey(e, false);
     if (move) {
       e.preventDefault();
-      onCommit(serialize(withDraft(sug.picked)), move);
+      onCommit(serialize(withDraft(aimed)), move);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onCancel();
