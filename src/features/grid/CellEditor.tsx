@@ -206,7 +206,7 @@ function TokenEditor({ doc, shotId, col, initial, replace, onCommit, onCancel }:
   // l'axe peut aller vers un autre.
   const circular = (doc.shots[shotId]?.movement ?? []).some((m) => matchVocab(m, MOVEMENTS)?.key === 'trav_circulaire');
   const source = useMemo(
-    () => (col === 'angle' ? (q: string) => angleSuggestions(q, tokens, circular, doc.customVocabulary, (k) => <AngleIcon k={k} />) : suggestionSource(doc, col)),
+    () => (col === 'angle' ? (q: string) => angleSuggestions(q, tokens, circular, doc.customVocabulary, (k) => <AngleIcon k={k} size={18} />) : suggestionSource(doc, col)),
     [col, tokens, circular, doc],
   );
   const sug = useSuggest(draft, source);
