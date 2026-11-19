@@ -186,3 +186,18 @@ test('découpage et storyboard : une page, trois vues, même sélection, export 
   await page.getByTestId('storyboard-export-go').click();
   expect((await dl).suggestedFilename()).toMatch(/-storyboard-A4-/);
 });
+
+test('storyboard : n’exporter que les séquences choisies', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByTestId('view-storyboard').click();
+  await page.getByTestId('storyboard-export').click();
+  const pick = page.getByTestId('storyboard-export-sequences');
+  await expect(pick).toContainText('toutes');
+  await pick.locator('summary').click();
+  const boxes = pick.locator('input[type=checkbox]');
+  await boxes.nth(2).uncheck();
+  await expect(pick.locator('summary')).toContainText('2 / 3');
+  const dl = page.waitForEvent('download');
+  await page.getByTestId('storyboard-export-go').click();
+  expect((await dl).suggestedFilename()).toMatch(/storyboard/);
+});

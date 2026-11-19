@@ -28,13 +28,22 @@ import { exportBase } from '../../domain/serialize';
 import { sheetChoices, sheetLayout, sheetPerPage } from '../../domain/storyboardSheet';
 import { useUi } from '../../store/uiStore';
 import { recoverStaleChunk } from '../../ui/staleChunk';
+import { create } from 'zustand';
+
+/** Séquences écartées de l'export du storyboard (le temps de la session, propre à chaque projet). */
+const useSbExclude = create<{ projectId?: string; excluded: string[] }>(() => ({ excluded: [] }));
+const excludedFor = (doc: ProjectDoc) => {
+  const st = useSbExclude.getState();
+  return st.projectId === doc.project.id ? st.excluded : [];
+};
 
 
 /** Planches du storyboard rendues hors écran le temps d'un export (PDF ou images A4). */
 export function StoryboardImaging({ doc, imaging, onDone }: { doc: ProjectDoc; imaging: PageExportOptions; onDone: () => void }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const perPage = doc.project.settings.exportPrefs?.storyboard?.perPage ?? 4;
-  const allShots = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
+  const excluded = excludedFor(doc);
+  const allShots = doc.project.sequenceIds.filter((id) => !excluded.includes(id)).flatMap((id) => doc.sequences[id]?.shotIds ?? []);
   const imagesRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!imagesRef.current) return;
@@ -94,11 +103,42 @@ export function StoryboardPreview({ doc }: { doc: ProjectDoc }) {
 
 /** Réglages de l'export du storyboard (dans le panneau d'export). */
 export function StoryboardExportOptions({ doc }: { doc: ProjectDoc }) {
+  const st = useSbExclude();
+  const excluded = st.projectId === doc.project.id ? st.excluded : [];
+  const seqs = doc.project.sequenceIds.filter((id) => doc.sequences[id]?.shotIds.length);
+  const chosen = seqs.filter((id) => !excluded.includes(id));
+  // Au moins une séquence reste choisie : « Toutes » ne fait que tout rétablir.
+  const setExcluded = (ids: string[]) => ids.length < seqs.length && useSbExclude.setState({ projectId: doc.project.id, excluded: ids });
   return (
-    <label className={s.inkCheck}>
-      <input type="checkbox" checked={!!doc.project.settings.exportInkSaver} onChange={(e) => mutateDoc((d) => void (d.project.settings.exportInkSaver = e.target.checked))} />
-      Économie d’encre (cadres sans fond)
-    </label>
+    <>
+      {seqs.length > 1 && (
+        <details className={s.seqPick} data-testid="storyboard-export-sequences">
+          <summary>
+            Séquences <b>{chosen.length === seqs.length ? 'toutes' : `${chosen.length} / ${seqs.length}`}</b>
+          </summary>
+          <div className={s.seqList}>
+            <label className={s.inkCheck}>
+              <input type="checkbox" checked={chosen.length === seqs.length} disabled={chosen.length === seqs.length} onChange={() => setExcluded([])} />
+              Toutes
+            </label>
+            {seqs.map((id) => (
+              <label key={id} className={s.inkCheck}>
+                <input
+                  type="checkbox"
+                  checked={!excluded.includes(id)}
+                  onChange={(e) => setExcluded(e.target.checked ? excluded.filter((x) => x !== id) : [...excluded, id])}
+                />
+                {sequenceHeading(doc, id)}
+              </label>
+            ))}
+          </div>
+        </details>
+      )}
+      <label className={s.inkCheck}>
+        <input type="checkbox" checked={!!doc.project.settings.exportInkSaver} onChange={(e) => mutateDoc((d) => void (d.project.settings.exportInkSaver = e.target.checked))} />
+        Économie d’encre (cadres sans fond)
+      </label>
+    </>
   );
 }
 
