@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { Fragment, useLayoutEffect, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import s from './SuggestList.module.css';
 
@@ -7,6 +7,12 @@ export interface Suggestion {
   hint?: string;
   /** Valeur insérée (par défaut : `label`). */
   value?: string;
+  /** Rubrique : un intitulé discret sépare les groupes successifs. */
+  group?: string;
+  /** Petit pictogramme devant le libellé. */
+  icon?: ReactNode;
+  /** Remplace le dernier jeton saisi au lieu de s'y ajouter (« Face » → « Face → Dos »). */
+  replaceLast?: boolean;
 }
 
 interface Props {
@@ -46,21 +52,28 @@ export function SuggestList({ anchor, items, active, onPick, onHover, id }: Prop
   return createPortal(
     <ul className={s.list} style={style} role="listbox" id={id} data-testid="suggestions">
       {items.map((item, i) => (
-        <li
-          key={`${item.label}-${i}`}
-          id={`${id}-${i}`}
-          role="option"
-          aria-selected={i === active}
-          className={i === active ? s.active : undefined}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onPick(item);
-          }}
-          onMouseEnter={() => onHover(i)}
-        >
-          <span>{item.label}</span>
-          {item.hint && <em>{item.hint}</em>}
-        </li>
+        <Fragment key={`${item.label}-${i}`}>
+          {item.group && item.group !== items[i - 1]?.group && (
+            <li role="presentation" className={s.group}>
+              {item.group}
+            </li>
+          )}
+          <li
+            id={`${id}-${i}`}
+            role="option"
+            aria-selected={i === active}
+            className={[i === active ? s.active : '', item.icon ? s.withIcon : ''].join(' ')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onPick(item);
+            }}
+            onMouseEnter={() => onHover(i)}
+          >
+            {item.icon && <i className={s.icon}>{item.icon}</i>}
+            <span>{item.label}</span>
+            {item.hint && <em>{item.hint}</em>}
+          </li>
+        </Fragment>
       ))}
     </ul>,
     document.body,

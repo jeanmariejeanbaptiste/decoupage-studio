@@ -1,12 +1,14 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
 import { parseTokens, type TokenSep } from '../../domain/tokens';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
-import { hasAngleConflict, isZoom } from '../../domain/vocabulary';
+import { MOVEMENTS, hasAngleConflict, isZoom, matchVocab } from '../../domain/vocabulary';
+import { canon } from '../../domain/text';
 import { SuggestList, type Suggestion } from '../../ui/SuggestList';
 import { useSuggest } from '../../ui/useSuggest';
 import { useScriptCapture, type CaptureTarget, type PickedRange } from './scriptCapture';
-import { suggestionSource } from './suggestions';
+import { angleSuggestions, suggestionSource } from './suggestions';
+import { AngleIcon } from './AngleIcon';
 import s from './CellEditor.module.css';
 
 export type CommitMove = 'down' | 'right' | 'left' | 'none';
@@ -192,7 +194,7 @@ function TextEditor({ doc, shotId, col, initial, replace, onCommit: commit, onCa
   );
 }
 
-function TokenEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorProps) {
+function TokenEditor({ doc, shotId, col, initial, replace, onCommit, onCancel }: EditorProps) {
   const parsed = parseTokens(initial);
   const [tokens, setTokens] = useState<string[]>(replace !== undefined ? [] : parsed.tokens);
   const [sep, setSep] = useState<TokenSep>(parsed.sep);
@@ -200,16 +202,28 @@ function TokenEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorP
   const ref = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const sug = useSuggest(draft, suggestionSource(doc, col));
+  // Angles : menu rangé (axe, hauteur, point de vue), sans ceux déjà choisis ; travelling circulaire :
+  // l'axe peut aller vers un autre.
+  const circular = (doc.shots[shotId]?.movement ?? []).some((m) => matchVocab(m, MOVEMENTS)?.key === 'trav_circulaire');
+  const source = useMemo(
+    () => (col === 'angle' ? (q: string) => angleSuggestions(q, tokens, circular, doc.customVocabulary, (k) => <AngleIcon k={k} />) : suggestionSource(doc, col)),
+    [col, tokens, circular, doc],
+  );
+  const sug = useSuggest(draft, source);
+  /** Ajoute un jeton choisi (sans doublon) ; « Face → Dos » remplace l'axe de départ. */
+  const added = (it: Suggestion | string): string[] => {
+    const item = typeof it === 'string' ? { label: it } : it;
+    const v = (item.value ?? item.label).trim();
+    const base = item.replaceLast ? tokens.slice(0, -1) : tokens;
+    if (!v || base.some((t) => canon(t) === canon(v))) return base;
+    return [...base, v];
+  };
   const conflict = col === 'angle' && hasAngleConflict(tokens);
 
   useLayoutEffect(() => ref.current?.focus(), []);
 
   const serialize = (list: string[]) => list.join(sep);
-  const withDraft = (extra?: string) => {
-    const t = (extra ?? draft).trim();
-    return t ? [...tokens, t] : tokens;
-  };
+  const withDraft = (extra?: Suggestion | string) => added(extra ?? draft);
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!(e.metaKey || e.ctrlKey)) e.stopPropagation();
@@ -234,14 +248,14 @@ function TokenEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorP
     }
     if (e.key === 'Enter' && sug.picked) {
       e.preventDefault();
-      setTokens(withDraft(sug.picked.label));
+      setTokens(withDraft(sug.picked));
       setDraft('');
       return;
     }
     const move = commitKey(e, false);
     if (move) {
       e.preventDefault();
-      onCommit(serialize(withDraft(sug.picked?.label)), move);
+      onCommit(serialize(withDraft(sug.picked)), move);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onCancel();
@@ -295,7 +309,7 @@ function TokenEditor({ doc, col, initial, replace, onCommit, onCancel }: EditorP
         active={sug.active}
         onHover={sug.setActive}
         onPick={(it) => {
-          setTokens(withDraft(it.label));
+          setTokens(withDraft(it));
           setDraft('');
           ref.current?.focus();
         }}

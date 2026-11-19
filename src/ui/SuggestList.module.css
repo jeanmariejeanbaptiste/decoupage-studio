@@ -25,4 +25,9 @@
 }
 .list li em { color: var(--ink-soft); font-size: 12px; }
 .active { background: var(--selected); }
+.list li.group { display: block; padding: 8px 8px 3px; cursor: default; font-size: 11px; letter-spacing: 0.04em; color: var(--ink-soft); }
+.list li.group:first-child { padding-top: 4px; }
+.list li.withIcon { justify-content: flex-start; gap: 9px; }
+.icon { display: inline-flex; width: 16px; height: 16px; flex: none; color: var(--ink-soft); font-style: normal; }
+.active .icon { color: var(--ink); }
 @keyframes pop { from { opacity: 0; transform: translateY(-2px); } }

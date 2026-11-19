@@ -1,7 +1,9 @@
 import { sortedCharacters } from '../../domain/characters';
 import { fold } from '../../domain/text';
-import type { ColumnKey, ProjectDoc } from '../../domain/types';
-import { COMMON_FOCALS, suggest, vocabularyFor } from '../../domain/vocabulary';
+import type { ReactNode } from 'react';
+import { canon } from '../../domain/text';
+import type { ColumnKey, CustomVocabulary, ProjectDoc, VocabEntry } from '../../domain/types';
+import { AXES, COMMON_FOCALS, matchVocab, suggest, vocabularyFor } from '../../domain/vocabulary';
 import type { Suggestion } from '../../ui/Suggestion';
 
 const STATUS = ['à tourner', 'tourné', 'abandonné'];
@@ -50,4 +52,37 @@ export function suggestionSource(doc: ProjectDoc, col: ColumnKey): ((q: string) 
     default:
       return undefined;
   }
+}
+
+const AXIS_ORDER = ['face', 'trois_quarts_face', 'profil_gauche', 'profil_droit', 'trois_quarts_dos', 'dos'];
+const HEIGHT_ORDER = ['hauteur_regard', 'plongee', 'contre_plongee', 'top_shot', 'low_angle'];
+/** Retiré de la liste (« Profil » sans côté : Profil gauche ou droit le précisent) ; toujours reconnu. */
+const HIDDEN_ANGLES = ['profil'];
+
+/**
+ * Menu des angles, rangé : l'axe (autour du sujet), puis la hauteur, puis le point de vue. Les angles
+ * déjà choisis n'y figurent plus. Travelling circulaire : l'axe choisi peut aller vers un autre
+ * (« Face → Dos »), comme une focale va vers une autre pendant un zoom.
+ */
+export function angleSuggestions(q: string, tokens: readonly string[], circular: boolean, custom: CustomVocabulary | undefined, icon: (key: string) => ReactNode): Suggestion[] {
+  const all = vocabularyFor('angle', custom).filter((e) => !HIDDEN_ANGLES.includes(e.key));
+  const taken = new Set(tokens.map((t) => matchVocab(t, all)?.key ?? canon(t)));
+  const query = q.trim();
+  const hits = query ? new Set(suggest(query, all, 40).map((e) => e.key)) : null;
+  const keep = (e: VocabEntry) => !taken.has(e.key) && (!hits || hits.has(e.key));
+  const byKey = new Map(all.map((e) => [e.key, e]));
+  const pick = (keys: string[]) => keys.map((k) => byKey.get(k)).filter((e): e is VocabEntry => !!e);
+  const last = tokens.at(-1);
+  const lastAxis = last && !last.includes('→') ? AXES.find((a) => a === matchVocab(last, AXES)) : undefined;
+  const out: Suggestion[] = [];
+  for (const e of pick(AXIS_ORDER)) {
+    if (circular && lastAxis) {
+      if (e.key === lastAxis.key || (hits && !hits.has(e.key))) continue;
+      out.push({ label: `${lastAxis.short} → ${e.short}`, value: `${lastAxis.short} → ${e.short}`, replaceLast: true, group: 'Axe', icon: icon(e.key) });
+    } else if (keep(e)) out.push({ label: e.short, group: 'Axe', icon: icon(e.key) });
+  }
+  for (const e of pick(HEIGHT_ORDER)) if (keep(e)) out.push({ label: e.short, group: 'Hauteur', icon: icon(e.key) });
+  for (const e of pick(['subjectif'])) if (keep(e)) out.push({ label: e.short, group: 'Point de vue', icon: icon(e.key) });
+  for (const e of all.filter((x) => !AXIS_ORDER.includes(x.key) && !HEIGHT_ORDER.includes(x.key) && x.key !== 'subjectif')) if (keep(e)) out.push({ label: e.short, group: 'Personnalisés' });
+  return out;
 }
