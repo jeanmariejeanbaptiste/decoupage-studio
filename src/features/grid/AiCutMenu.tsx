@@ -63,10 +63,12 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
         const r = await ask({ title: `${n} écart${n > 1 ? 's' : ''} aux consignes`, body: shown, confirmLabel: 'Importer quand même' });
         if (!r.ok) return;
       }
-      let r = { sequences: 0, shots: 0, rejected: 0 };
+      let r = { sequences: 0, merged: 0, shots: 0, rejected: 0 };
       mutateDoc((d) => void (r = applyCut(d, cut)));
+      const pl = (k: number, w: string) => `${k} ${w}${k > 1 ? 's' : ''}`;
+      const parts = [r.sequences ? `${pl(r.sequences, 'séquence')} ${r.sequences > 1 ? 'nouvelles' : 'nouvelle'}` : '', r.merged ? `${pl(r.merged, 'séquence')} ${r.merged > 1 ? 'complétées' : 'complétée'}` : ''].filter(Boolean);
       useUi.getState().toast({
-        message: `${r.sequences} séquence${r.sequences > 1 ? 's' : ''} et ${r.shots} plan${r.shots > 1 ? 's' : ''} ajoutés${r.rejected ? ` (${r.rejected} valeur${r.rejected > 1 ? 's' : ''} illisible${r.rejected > 1 ? 's' : ''} laissée${r.rejected > 1 ? 's' : ''} vide${r.rejected > 1 ? 's' : ''})` : ''}.`,
+        message: `${pl(r.shots, 'plan')} ${r.shots > 1 ? 'ajoutés' : 'ajouté'}${parts.length ? ` (${parts.join(', ')})` : ''}${r.rejected ? ` ; ${pl(r.rejected, 'valeur')} illisible${r.rejected > 1 ? 's' : ''} laissée${r.rejected > 1 ? 's' : ''} vide${r.rejected > 1 ? 's' : ''}` : ''}.`,
         actionLabel: 'Annuler',
         action: undo,
       });

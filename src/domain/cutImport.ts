@@ -1,7 +1,7 @@
 import { isEditable, setCellText } from './cells';
 import { ALL_COLUMNS, COLUMN_DEFS } from './columns';
 import { parseHeading } from './fountain';
-import { addSequence, addShot } from './ops';
+import { addSequence, addShot, deleteShot } from './ops';
 import { fold } from './text';
 import { ANGLES, MOVEMENTS, SHOT_VALUES, matchVocab } from './vocabulary';
 import { parseTokens } from './tokens';
@@ -62,9 +62,26 @@ export function aiCutInstructions(cols: readonly ColumnKey[]): string {
   const row = (r: Partial<Record<ColumnKey, string>>) => `| ${keys.map((c) => r[c] ?? '').join(' | ')} |`;
   const n = keys.length;
   const vocab = keys.filter((c) => c === 'value' || c === 'angle' || c === 'movement').map((c) => COLUMN_DEFS[c].label);
-  return `CONSIGNES DE FORMAT — DÉCOUPAGE STUDIO (import automatique)
+  return `CONSIGNES — DÉCOUPAGE TECHNIQUE POUR DÉCOUPAGE STUDIO
 
-Tu convertis un découpage technique de film (tableau, PDF, photo, texte) en un fichier lu par une machine. Le moindre écart de format fait échouer l'import. Tu ne prends AUCUNE liberté de mise en forme.
+Tu es l'assistant réalisateur d'un cinéaste. Tu produis un découpage technique de film, plan par plan, qui sera importé tel quel dans le logiciel Découpage Studio. La mise en page, le storyboard et les exports sont faits par le logiciel : toi, tu ne livres que le contenu, au format exact ci-dessous.
+
+MÉTHODE
+- Deux cas :
+  1. Le cinéaste te fournit un découpage existant (tableau, PDF, photo, texte) : tu le convertis fidèlement, sans rien ajouter.
+  2. Le cinéaste te parle ou te dicte ses intentions (souvent une transcription orale, désordonnée) : tu en déduis les séquences et les plans, avec les termes techniques justes.
+- Dans le cas 2 :
+  - Si une information manque pour décider (lieu, moment, qui est cadré), pose au plus 3 questions courtes, toutes en une fois, puis attends la réponse.
+  - Ne demande jamais ce que tu peux déduire.
+  - Avant la version finale, montre le découpage sous forme de tableau lisible et demande « Je valide ? ».
+  - Dès que le cinéaste valide, livre le bloc final au format ci-dessous, et rien d'autre.
+- Chaque nouvelle livraison peut ne contenir qu'une partie du film. Le logiciel ajoute les plans à la suite des séquences de même intitulé, sans rien effacer. Ne renvoie donc que les nouveaux plans, jamais ceux déjà livrés.
+- Choix du vocabulaire :
+  - Valeur : la taille du sujet dans le cadre, du plus large (Général) au plus serré (Très GP), Insert pour un objet ou un détail.
+  - Angle : la position de la caméra par rapport au sujet.
+  - Mouvement : ce que fait la caméra pendant le plan (Fixe si elle ne bouge pas).
+
+FORMAT (import automatique : le moindre écart fait échouer l'import ; tu ne prends AUCUNE liberté de mise en forme)
 
 LIVRABLE
 - Réponds UNIQUEMENT par un bloc de code Markdown (\`\`\`markdown … \`\`\`). Aucun texte avant, aucun texte après, aucun commentaire, aucune explication.
@@ -210,23 +227,49 @@ export function parseCutFile(text: string): ParsedCut {
   return out;
 }
 
-/** Ajoute le découpage lu à la fin du projet. Renvoie ce qui a été créé. */
-export function applyCut(doc: ProjectDoc, cut: ParsedCut): { sequences: number; shots: number; rejected: number } {
+/** Plan encore vierge (créé avec sa séquence, jamais rempli). */
+function blankShot(doc: ProjectDoc, id: ID): boolean {
+  const sh = doc.shots[id];
+  if (!sh) return false;
+  const b = doc.blocks[sh.actionBlockId];
+  return !sh.subject && !sh.value && !sh.angle.length && !sh.movement.length && sh.focal.from === undefined && !(b?.text ?? '').trim() && !sh.oneShot && !sh.interview;
+}
+
+/**
+ * Ajoute le découpage lu au projet, sans rien effacer : une séquence déjà présente (même intitulé)
+ * reçoit les nouveaux plans à la suite des siens ; une nouvelle séquence se place à la fin.
+ */
+export function applyCut(doc: ProjectDoc, cut: ParsedCut): { sequences: number; merged: number; shots: number; rejected: number } {
   let shots = 0;
   let rejected = 0;
+  let merged = 0;
   for (const s of cut.sequences) {
     const h = parseHeading(s.heading);
-    const seqId: ID = addSequence(doc, undefined, {}, false);
-    const seq = doc.sequences[seqId];
-    seq.label = (h.location || s.heading).toUpperCase();
-    seq.intExt = h.intExt ?? seq.intExt;
-    seq.effect = h.effect ?? seq.effect;
-    if (!s.rows.length) addShot(doc, seqId);
+    const label = (h.location || s.heading).toUpperCase();
+    const same = doc.project.sequenceIds.find((id) => {
+      const q = doc.sequences[id];
+      return q && fold(q.label) === fold(label) && (q.intExt ?? null) === (h.intExt ?? null) && (q.effect ?? null) === (h.effect ?? null);
+    });
+    let seqId: ID;
+    if (same) {
+      seqId = same;
+      merged++;
+    } else {
+      seqId = addSequence(doc, undefined, {}, false);
+      const seq = doc.sequences[seqId];
+      seq.label = label;
+      seq.intExt = h.intExt ?? seq.intExt;
+      seq.effect = h.effect ?? seq.effect;
+      if (!s.rows.length) addShot(doc, seqId);
+    }
+    // Séquence existante réduite à un plan vierge : il cède la place aux plans importés.
+    const placeholder = same && s.rows.length && doc.sequences[seqId].shotIds.length === 1 && blankShot(doc, doc.sequences[seqId].shotIds[0]) ? doc.sequences[seqId].shotIds[0] : null;
     for (const row of s.rows) {
       const id = addShot(doc, seqId);
       shots++;
       for (const [k, v] of Object.entries(row) as [ColumnKey, string][]) if (!setCellText(doc, id, k, v)) rejected++;
     }
+    if (placeholder) deleteShot(doc, placeholder);
   }
-  return { sequences: cut.sequences.length, shots, rejected };
+  return { sequences: cut.sequences.length - merged, merged, shots, rejected };
 }
