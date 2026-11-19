@@ -33,21 +33,30 @@ export function SuggestList({ anchor, items, active, onPick, onHover, id }: Prop
     update();
     // L'ancre est parfois rattachée après ce composant (liste placée dans l'élément d'ancrage) : nouvelle mesure à l'image suivante.
     const raf = requestAnimationFrame(update);
+    const vv = window.visualViewport;
     window.addEventListener('scroll', update, true);
     window.addEventListener('resize', update);
+    // Zoom au trackpad (pincement) : seule la fenêtre visible change, la liste doit suivre la cellule.
+    vv?.addEventListener('resize', update);
+    vv?.addEventListener('scroll', update);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
+      vv?.removeEventListener('resize', update);
+      vv?.removeEventListener('scroll', update);
     };
     // Mesure aussi quand la liste s'ouvre : au montage, le champ d'ancrage n'existe pas toujours encore.
   }, [anchor, hasItems]);
   if (!rect || items.length === 0) return null;
+  // Placée dans la page (et non sur l'écran) : un zoom ou un défilement la gardent collée à sa cellule.
+  const sx = window.scrollX;
+  const sy = window.scrollY;
   const below = window.innerHeight - rect.bottom > 220;
   const style = {
-    left: Math.min(rect.left, window.innerWidth - 260),
+    left: Math.min(rect.left, window.innerWidth - 260) + sx,
     minWidth: Math.max(rect.width, 180),
-    ...(below ? { top: rect.bottom + 2 } : { bottom: window.innerHeight - rect.top + 2 }),
+    ...(below ? { top: rect.bottom + 2 + sy } : { top: rect.top - 2 + sy, translate: '0 -100%' }),
   };
   return createPortal(
     <ul className={s.list} style={style} role="listbox" id={id} data-testid="suggestions">

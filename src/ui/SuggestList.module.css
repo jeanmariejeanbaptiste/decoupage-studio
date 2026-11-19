@@ -1,5 +1,5 @@
 .list {
-  position: fixed;
+  position: absolute;
   z-index: 100;
   max-height: 320px;
   max-width: 340px;
