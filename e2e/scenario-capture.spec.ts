@@ -97,3 +97,22 @@ test('scénario du découpage : lecture seule ; panneau fermé, la saisie se val
   await expect(page.getByTestId('cell-editor')).toHaveCount(0);
   await expect(action).toHaveText('Texte libre');
 });
+
+test('panneau du scénario : séquences numérotées, et marque-page du dernier passage découpé', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByTestId('toggle-scenario').click();
+  const panel = page.getByTestId('scenario-panel');
+  const heads = panel.locator('p[data-n]');
+  await expect(heads).toHaveCount(3);
+  expect(await heads.nth(2).evaluate((el) => getComputedStyle(el, '::before').content)).toContain('3');
+  await expect(panel.getByTestId('script-bookmark')).toHaveCount(0);
+  await drag(page, panel.getByTestId('script-sentence').nth(4).locator('span').first());
+  await expect(panel.getByTestId('script-bookmark')).toHaveCount(1);
+  // Panneau refermé puis rouvert : le signet est toujours là, au même passage.
+  await page.getByTestId('toggle-scenario').click();
+  await page.getByTestId('toggle-scenario').click();
+  await expect(panel.getByTestId('script-bookmark')).toHaveCount(1);
+  // La sélection ne prend jamais le numéro.
+  const text = await panel.locator('p[data-n]').first().innerText();
+  expect(text.startsWith('INT.')).toBe(true);
+});

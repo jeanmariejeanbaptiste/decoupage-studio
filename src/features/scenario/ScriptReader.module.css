@@ -1,7 +1,9 @@
 /* Scénario mis en page, actif : marges proportionnelles pour tenir aussi dans un panneau étroit. */
 .reader { position: relative; font-family: var(--font-script); font-size: 12pt; line-height: 1.4; color: var(--ink); }
 .reader p { margin: 0 0 11pt; white-space: pre-wrap; }
-.el_heading { font-weight: 700; text-transform: uppercase; margin-top: 16pt !important; }
+.el_heading { position: relative; font-weight: 700; text-transform: uppercase; margin-top: 16pt !important; }
+/* Numéro de séquence : devant l'intitulé, hors du texte sélectionnable. */
+.el_heading[data-n]::before { content: attr(data-n) '. '; user-select: none; }
 .el_character { margin: 0 0 0 38% !important; text-transform: uppercase; }
 .el_dialogue { margin: 0 14% 0 18% !important; }
 .el_parenthetical { margin: 0 20% 0 28% !important; }
@@ -26,3 +28,9 @@
    teinte comme un texte déjà versé, la marque de fin de phrase devient une flèche tournée vers la grille. */
 .reader[data-capturing] { cursor: text; }
 .reader[data-capturing] ::selection { background: color-mix(in srgb, var(--ink) 16%, transparent); color: var(--ink); }
+
+/* Marque-page : un petit signet dans la marge, en face du dernier passage découpé. */
+.bookmark { position: absolute; left: -14px; margin-top: 3px; fill: color-mix(in srgb, var(--ink) 38%, transparent); stroke: none; pointer-events: none; }
+/* Retour au dernier passage, à l'ouverture : il s'éclaire un instant, puis le texte redevient vierge. */
+.resumeFlash { animation: resumeFlash 1.8s ease-out; border-radius: 2px; }
+@keyframes resumeFlash { 0%, 35% { background: color-mix(in srgb, var(--ink) 14%, transparent); } 100% { background: transparent; } }

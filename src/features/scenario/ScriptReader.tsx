@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { create } from 'zustand';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading } from '../../domain/numbering';
 import { createShotsFromSelection, passageInsertText, sentencesOf, splitByScene } from '../../domain/scriptToShot';
@@ -7,6 +8,28 @@ import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { useScriptCapture } from '../grid/scriptCapture';
 import s from './ScriptReader.module.css';
+
+/** Marque-page : fin du dernier passage mis dans le découpage, gardée par projet dans ce navigateur. */
+const useResume = create<{ pid?: string; pos?: number }>(() => ({}));
+const resumeKey = (pid: string) => `ds-resume:${pid}`;
+function storedResume(pid: string): number | undefined {
+  try {
+    const v = Number(localStorage.getItem(resumeKey(pid)));
+    return Number.isFinite(v) && v > 0 ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+export function rememberPassage(end: number) {
+  const pid = useProjectStore.getState().doc?.project.id;
+  if (!pid) return;
+  try {
+    localStorage.setItem(resumeKey(pid), String(end));
+  } catch {
+    /* stockage indisponible : le marque-page vaut pour la session */
+  }
+  useResume.setState({ pid, pos: end });
+}
 
 /**
  * Crée un plan à partir d'un passage du scénario : en mode lié, directement dans la séquence de la
@@ -17,6 +40,7 @@ export function addPassageAsShot(start: number, end: number, at: { x: number; y:
   const source = doc?.scenario ?? '';
   if (!doc || end <= start) return;
   const dialogueShown = doc.project.settings.gridColumns.includes('dialogue');
+  rememberPassage(end);
   // Pas de message : le plan apparaît aussitôt dans le découpage (et la liste de l'onglet Scénario).
   const done = (shotIds: ID[] | undefined) => void shotIds;
 
@@ -69,12 +93,47 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
     return () => useScriptCapture.setState({ reader: false, holding: false });
   }, [capture]);
   const capturing = useScriptCapture((c) => !!capture && !!c.target);
+  // Marque-page : à l'ouverture, le lecteur revient au dernier passage découpé (bref éclairage) ; un
+  // petit signet dans la marge le situe ensuite d'un coup d'œil.
+  const pid = doc.project.id;
+  const live = useResume((r) => (r.pid === pid ? r.pos : undefined));
+  const resume = live ?? storedResume(pid);
+  const [mark, setMark] = useState<number | null>(null);
+  const segAt = (pos: number) => {
+    const all = root.current ? [...root.current.querySelectorAll<HTMLElement>('[data-o]')] : [];
+    let hit: HTMLElement | null = null;
+    for (const el of all) if (Number(el.dataset.o) < pos) hit = el;
+    return hit;
+  };
+  useLayoutEffect(() => {
+    const el = resume ? segAt(resume) : null;
+    if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    el.classList.add(s.resumeFlash);
+    const t = window.setTimeout(() => el.classList.remove(s.resumeFlash), 1800);
+    return () => window.clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const place = () => {
+      const el = resume && root.current ? segAt(resume) : null;
+      if (!el || !root.current) return setMark(null);
+      const rects = el.getClientRects();
+      const last = rects[rects.length - 1];
+      setMark(last ? last.top - root.current.getBoundingClientRect().top : null);
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    if (root.current) ro.observe(root.current);
+    return () => ro.disconnect();
+  }, [resume, source]);
   const pour = (start: number, end: number) => {
     const t = useScriptCapture.getState().target;
     if (!t) return false;
     const text = passageInsertText(doc, source, start, end);
-    if (text) t.insert(text, { start, end });
-    else t.refocus();
+    if (text) {
+      t.insert(text, { start, end });
+      rememberPassage(end);
+    } else t.refocus();
     return true;
   };
 
@@ -86,6 +145,8 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
 
   // Rendu : répliques groupées (nom, didascalie, texte), actions découpées en phrases.
   const blocks: ReactNode[] = [];
+  // Numéro de séquence en marge, comme à l'impression : hors du texte (la sélection n'en tient pas compte).
+  let headingNo = 0;
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i];
     // Page de garde (« Title: », « Credit: »…) : elle a son propre éditeur, le lecteur ne la montre pas.
@@ -126,7 +187,7 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
       continue;
     }
     blocks.push(
-      <p key={el.start} className={s[`el_${el.type}`]}>
+      <p key={el.start} className={s[`el_${el.type}`]} data-n={el.type === 'heading' ? ++headingNo : undefined}>
         {seg(el.text, el.start, 0)}
       </p>,
     );
@@ -180,6 +241,11 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
       data-testid="script-reader"
     >
       {blocks.length === 0 && <p className={s.muted}>Le scénario est vide.</p>}
+      {mark !== null && (
+        <svg className={s.bookmark} style={{ top: mark }} width="8" height="13" viewBox="0 0 8 13" aria-label="Dernier passage découpé" data-testid="script-bookmark">
+          <path d="M0.5 0.5h7v11.5L4 9.2 0.5 12z" />
+        </svg>
+      )}
       {blocks}
     </div>
   );
