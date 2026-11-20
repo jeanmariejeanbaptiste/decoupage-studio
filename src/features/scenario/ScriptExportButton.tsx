@@ -8,6 +8,7 @@ import { useUi } from '../../store/uiStore';
 import { recoverStaleChunk } from '../../ui/staleChunk';
 import { finish } from '../export/imageExport';
 import s from './ScriptExportButton.module.css';
+import { scriptToMarkdown } from '../../domain/scriptMarkdown';
 
 /** Une entrée du menu Exporter : un clic, un fichier, sans boîte de dialogue. */
 export interface ExportItem {
@@ -51,6 +52,15 @@ export function scriptExportSection(current: () => ProjectDoc, title: string): E
         key: 'images',
         label: 'Images',
         run: async () => finish(await (await lib()).scriptCanvases(source()), `${title}-A4`, { format: 'images', orientation: 'portrait', numbers: false }),
+      },
+      {
+        // Pour une IA : le scénario en Markdown, copié (rien à télécharger).
+        key: 'markdown',
+        label: 'Copier en Markdown',
+        run: async () => {
+          await navigator.clipboard.writeText(scriptToMarkdown(source(), current().project.title));
+          useUi.getState().toast({ message: 'Scénario copié en Markdown.' });
+        },
       },
     ],
   };

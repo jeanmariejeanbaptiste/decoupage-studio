@@ -116,7 +116,7 @@ test('Scénario : menu Exporter à sections fixes', async ({ page }) => {
   };
   let menu = await open();
   await expect(menu.getByRole('group')).toHaveCount(2);
-  await expect(menu.getByRole('group', { name: 'Scénario' }).getByRole('menuitem')).toHaveText(['PDF', 'Word', 'Final Draft', 'Fountain', 'Images']);
+  await expect(menu.getByRole('group', { name: 'Scénario' }).getByRole('menuitem')).toHaveText(['PDF', 'Word', 'Final Draft', 'Fountain', 'Images', 'Copier en Markdown']);
   await expect(menu.getByRole('group', { name: 'Séquencier' }).getByRole('menuitem')).toHaveText(['PDF', 'Word']);
   const dl = page.waitForEvent('download');
   await menu.getByRole('menuitem', { name: 'Fountain' }).click();
@@ -196,7 +196,7 @@ test('Scénario sur téléphone : menus entiers, Exporter et version toujours vi
   expect(await inside(page, page.getByTestId('version-switcher'))).toBe(true);
   await page.getByTestId('scenario-export').click();
   const items = page.getByTestId('scenario-export-menu').getByRole('menuitem');
-  await expect(items).toHaveCount(7);
+  await expect(items).toHaveCount(8);
   for (const it of await items.all()) await expect(it).toBeInViewport({ ratio: 1 });
   await page.keyboard.press('Escape');
   await page.getByTestId('block-type').click();
@@ -236,4 +236,15 @@ test('Scénario au clavier : Exporter (Échap, Tab), ⌘\\ hors panneau, poigné
   await expect(grip).toHaveAttribute('aria-valuenow', '416');
   await page.keyboard.press('Enter');
   await expect(grip).toHaveAttribute('aria-valuenow', '344');
+});
+
+test('Scénario : copier en Markdown pour une IA', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/#/scenario?seed=fiction&view=script');
+  await page.getByTestId('scenario-export').click();
+  await page.getByTestId('scenario-export-menu').getByRole('menuitem', { name: 'Copier en Markdown' }).click();
+  const md = await page.evaluate(() => navigator.clipboard.readText());
+  expect(md).toContain('# La Consigne');
+  expect(md).toContain('## 1. INT. GARE — HALL - JOUR');
+  expect(md).toMatch(/\*\*GUICHETIER\*\*\n> C'est pour combien de temps \?/);
 });
