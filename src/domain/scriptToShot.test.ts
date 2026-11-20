@@ -38,7 +38,7 @@ describe('du scénario au découpage', () => {
     const [a, b] = at('MARC\n(à voix basse)\nTu es en avance, comme toujours.');
     const p = passageOf(doc, SCRIPT, a, b, { dialogueShown: false });
     expect(p.subject).toBe('Marc');
-    expect(p.action).toBe('(à voix basse)');
+    expect(p.action).toBe('Réplique de MARC (à voix basse).');
     expect(p.dialogue).toBe('MARC : Tu es en avance, comme toujours.');
     expect(p.sound).toBe('Rép. « Tu es en avance, comme… »');
     expect(passageOf(doc, SCRIPT, a, b, { dialogueShown: true }).sound).toBe('');

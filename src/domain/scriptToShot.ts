@@ -74,6 +74,8 @@ export interface Passage {
   subject: string;
   sound: string;
   scene?: Scene;
+  /** Passage fait seulement de répliques (l'action dit qui parle). */
+  replyOnly?: boolean;
 }
 
 const STOP_UPPER = new Set(['INT', 'EXT', 'JOUR', 'NUIT', 'OFF', 'VO', 'V', 'O', 'CONT', 'SUITE', 'FIN', 'TV', 'OK', 'TGV', 'SMS', 'USA', 'PDG', 'SNCF', 'RER', 'GPS', 'DJ', 'OVNI']);
@@ -122,8 +124,14 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
       action.push(part);
     }
   }
-  // Réplique seule : sa didascalie reste l'action du plan.
-  if (!action.length && pending?.length) action.push(...pending);
+  // Réplique seule : l'action dit qui parle (« Réplique de LA DIRECTRICE (sèchement). »), pour que la
+  // cellule ne reste pas vide et qu'on sache, au tableau, que le plan est un plan parlé.
+  const replyOnly = !action.length && replies.length > 0;
+  if (replyOnly) {
+    const names = [...new Set(replies.map((r) => r.name.toLocaleUpperCase('fr')))];
+    const who = names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names.at(-1)}` : names[0];
+    action.push(`Réplique${names.length > 1 ? 's' : ''} de ${who}${pending?.length ? ` ${pending.join(' ')}` : ''}.`);
+  } else if (!action.length && pending?.length) action.push(...pending);
   const speakers = [...new Set(replies.map((r) => r.name))];
   const actionText = action.join(' ');
   const subject = speakers[0] ?? upperName(actionText, doc) ?? '';
@@ -133,7 +141,7 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
       ? // Le nom est déjà dans Sujet : on ne le répète que s'il y a plusieurs personnages.
         replies.map((r) => (speakers.length > 1 ? `Rép. ${r.name.toLocaleUpperCase('fr')} « ${shortQuote(r.line)} »` : `Rép. « ${shortQuote(r.line)} »`)).join(' · ')
       : '';
-  return { action: actionText, dialogue, subject, sound, scene: sceneAt(scenesOf(source, elements), start) };
+  return { action: actionText, dialogue, subject, sound, scene: sceneAt(scenesOf(source, elements), start), replyOnly };
 }
 
 /** Début de réplique reconnaissable : cinq mots au plus. */
@@ -357,7 +365,8 @@ export function shotsFromSequenceText(doc: ProjectDoc, seqId: ID, opts: { dialog
 /** Texte versé dans une cellule Action depuis un passage du scénario : l'action, sinon la réplique. */
 export function passageInsertText(doc: ProjectDoc, source: string, start: number, end: number): string {
   const p = passageOf(doc, source, start, end, { dialogueShown: true });
-  return (p.action || p.dialogue).trim();
+  // Versée à la main dans une cellule Action, une réplique seule y entre telle quelle.
+  return (p.replyOnly ? p.dialogue : p.action || p.dialogue).trim();
 }
 
 /**
