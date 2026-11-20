@@ -25,7 +25,7 @@ export function formatShotCode(seqNumber: number, shotNumber: number, format: Sh
 
 /** Numéro de séquence dérivé de sa position (1-based), 0 si absente. */
 export function sequenceNumber(doc: ProjectDoc, seqId: ID): number {
-  return doc.project.sequenceIds.indexOf(seqId) + 1;
+  return doc.display?.seqNumbers?.[seqId] ?? doc.project.sequenceIds.indexOf(seqId) + 1;
 }
 
 /**
@@ -33,6 +33,8 @@ export function sequenceNumber(doc: ProjectDoc, seqId: ID): number {
  * même cadre d'interview, filmées ensemble, partagent un numéro (2.3A, 2.3B).
  */
 export function shotNumber(doc: ProjectDoc, shotId: ID): number {
+  const fixed = doc.display?.shotNumbers?.[shotId];
+  if (fixed !== undefined) return fixed;
   const shot = doc.shots[shotId];
   if (!shot) return 0;
   let n = 0;

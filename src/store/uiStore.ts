@@ -31,6 +31,8 @@ export interface UiState {
   toasts: Toast[];
   theme: 'papier' | 'encre';
   printView: boolean;
+  /** Vue triée pour le tournage (découpage rangé par valeur, sujet, dialogue…). */
+  sortView: boolean;
   /** Institutionnel : volet affiché (la fiche d'interview, ou le tableau du découpage). */
   itwTab: 'itw' | 'broll';
   /** Fiche d'interview à ouvrir sur cet intervenant et ce cadre (depuis la bande du découpage). */
@@ -75,6 +77,7 @@ export const useUi = create<UiState>()((set) => ({
   toasts: [],
   theme: initialTheme(),
   printView: false,
+  sortView: false,
   itwTab: (() => {
     try {
       return localStorage.getItem('ds-itw-tab') === 'broll' ? 'broll' : 'itw';

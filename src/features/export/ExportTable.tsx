@@ -228,7 +228,9 @@ export function ExportTable({ doc, columns, theme, showTitle = true, paper, foot
   const sheetClass = [s.sheet, paper ? s.paged : ''].join(' ');
   const title = showTitle && <h1 className={s.title}>Découpage technique</h1>;
 
-  if (paper && pages)
+  // Pages calculées pour un autre jeu de séquences (changement en cours) : on attend la nouvelle mise en pages.
+  const stale = !!pages?.some((pg) => pg.some((sl) => !sequences[sl.seq]));
+  if (paper && pages && !stale)
     return (
       <div ref={paged} className={sheetClass} data-theme-export={th}>
         {/* Aucun plan : une page, son titre et ses intitulés. */}

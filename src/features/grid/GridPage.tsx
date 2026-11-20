@@ -4,7 +4,7 @@ import { useReadOnly } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
+import { ArrowDownUp, ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, columnMenuLabel, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
@@ -17,6 +17,7 @@ import { cutComments } from '../../domain/comments';
 import { linkSelection, newSequenceAfter, rowOfShot, unlinkSelection } from './actions';
 import { CutExport } from './CutExport';
 import { AiCutMenu } from './AiCutMenu';
+import { SortView } from './SortView';
 import { VersionSwitcher } from '../versions/VersionSwitcher';
 import { StoryboardPage, StoryboardPreview } from '../storyboard/StoryboardPage';
 import { Grid } from './Grid';
@@ -43,6 +44,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
   // Trois vues (Interview, Tableau, Storyboard) ; l'Aperçu montre celle qui est choisie, rien d'autre.
   const itwSelected = institutional && itwTab && !board;
   const printView = printViewRaw;
+  const sortView = useUi((u) => u.sortView);
   const interviewView = itwSelected && !printView;
   const pickItw = (on: boolean) => {
     setUi({ itwTab: on ? 'itw' : 'broll' });
@@ -176,6 +178,9 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
     </button>
   );
 
+  // Tri pour le tournage : une vue à part, qu'on quitte par « Découpage ».
+  if (sortView && !readOnly && nSeq > 0) return <SortView doc={storeDoc} />;
+
   // Storyboard : les planches seulement sur demande ; en lecture seule, les cartes restent la vue.
   if (board && printView && !readOnly) {
     return (
@@ -250,6 +255,9 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <div className={s.right}>
             {!printView && !interviewView && (
               <div className={s.icons}>
+                {!readOnly && nSeq > 0 && (
+                  <Button variant="icon" icon={<ArrowDownUp {...IC} />} aria-label="Trier pour le tournage" title="Trier pour le tournage" onClick={() => setUi({ sortView: true, printView: false, editing: null })} data-testid="open-sort" />
+                )}
                 {!readOnly && <AiCutMenu doc={storeDoc} />}
                 <Button
                   variant="icon"
