@@ -79,3 +79,6 @@
 .aiMeta .error { font-size: 12.5px; }
 .keyLink { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--rule); }
 .keyLink:hover { text-decoration-color: currentColor; }
+/* Claude Desktop : séparé des réglages du fournisseur. */
+.block { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.link { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }

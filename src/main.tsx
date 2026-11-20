@@ -7,6 +7,7 @@ import './styles/tokens.css';
 import './styles/paper.css';
 import './styles/print.css';
 import { App } from './app/App';
+import { startBridge } from './store/aiBridge';
 import { checkInvariants } from './domain/ops';
 import { mutateDoc, useProjectStore } from './store/projectStore';
 import { applyTemplate } from './domain/production';
@@ -34,6 +35,9 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // Projets gardés durablement par le navigateur (Safari efface sinon les données d'un site inactif).
 void navigator.storage?.persist?.().catch(() => undefined);
+
+// IA locale (Claude Desktop) : connexion si l'accès est ouvert dans ce navigateur.
+startBridge();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

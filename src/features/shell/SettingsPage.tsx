@@ -9,6 +9,7 @@ import type { ProjectDoc, ProjectSettings, Sensor, ShotCodeFormat, VocabEntry } 
 import { vocabularyFor, type VocabKind } from '../../domain/vocabulary';
 import { mutateDoc } from '../../store/projectStore';
 import { registerFlush } from '../../store/persistence';
+import { setBridgeAccess, useBridge } from '../../store/aiBridge';
 import { Button } from '../../ui/Button';
 import { Hand } from '../../ui/Hand';
 import { accessOf, forgetProbe, refreshAiStatus, rememberProbe, verifiedFor } from '../assistant/aiStatus';
@@ -584,6 +585,7 @@ function AssistantSection() {
           )
         )}
       </div>
+      <ClaudeDesktop />
     </Section>
   );
 }
@@ -726,5 +728,35 @@ function VocabularySection() {
         </Button>
       </form>
     </Section>
+  );
+}
+
+
+/**
+ * Claude Desktop : l'extension Découpage Studio (un fichier à ouvrir une fois) et l'accès qu'on lui
+ * accorde dans ce navigateur. Réglage immédiat, hors du brouillon des Paramètres.
+ */
+function ClaudeDesktop() {
+  const { access, connected } = useBridge();
+  return (
+    <div className={s.block} data-testid="claude-desktop">
+      <Row label="Claude Desktop" hint={access === 'off' ? undefined : connected ? 'Connecté' : 'En attente de Claude Desktop'}>
+        <Radio
+          name="Accès de Claude Desktop"
+          value={access}
+          options={[
+            ['off', 'Aucun'],
+            ['read', 'Lecture'],
+            ['write', 'Écriture'],
+          ]}
+          onChange={setBridgeAccess}
+        />
+      </Row>
+      <Row label="Extension">
+        <a className={s.link} href={`${import.meta.env.BASE_URL}decoupage-studio.mcpb`} download data-testid="mcpb-download">
+          Télécharger decoupage-studio.mcpb
+        </a>
+      </Row>
+    </div>
   );
 }
