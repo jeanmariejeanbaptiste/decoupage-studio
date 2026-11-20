@@ -5,7 +5,7 @@ import { sequenceHeading, shotNumberLabel } from './numbering';
 import { formatTc } from './timecode';
 import { shotTcLabel, type Timing, shotOwnSec } from './timing';
 import { renderTokens } from './tokens';
-import { isZoom, valueLabel } from './vocabulary';
+import { isZoom, orderAngles, valueLabel } from './vocabulary';
 import { BEAT_COLUMNS, beatColumnText, beatSubLines, formatOneShotDuration, oneShotTiming } from './oneshot';
 import type { ColumnKey, ID, ProjectDoc, Shot } from './types';
 
@@ -32,7 +32,7 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
     case 'value':
       return valueLabel(shot.value, settings.labelStyle, doc.customVocabulary);
     case 'angle':
-      return renderTokens(shot.angle);
+      return renderTokens(orderAngles(shot.angle));
     case 'movement':
       return renderTokens(shot.movement, shot.movementSep);
     case 'focal':

@@ -1,3 +1,4 @@
+import { orderAngles } from '../../domain/vocabulary';
 import { useMemo, useRef, useState } from 'react';
 import { useA4Pages } from '../../ui/useA4Pages';
 import { navigate } from '../../app/router';
@@ -403,7 +404,7 @@ export function CallSheetPage({ doc }: { doc: ProjectDoc }) {
                       <td>{sequenceHeading(doc, seqId)}</td>
                       <td>{sh.subject}</td>
                       <td>{sh.value}</td>
-                      <td>{renderTokens(sh.angle)}</td>
+                      <td>{renderTokens(orderAngles(sh.angle))}</td>
                       <td>{renderTokens(sh.movement, sh.movementSep)}</td>
                       <td>{formatFocal(sh.focal, isZoom(sh.movement))}</td>
                       <td>{doc.blocks[sh.actionBlockId]?.text}</td>

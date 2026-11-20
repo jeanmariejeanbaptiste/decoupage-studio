@@ -68,3 +68,12 @@ describe('vocabulaire', () => {
     expect(vocabularyFor('angle')).toHaveLength(ANGLES.length);
   });
 });
+
+import { orderAngles } from './vocabulary';
+describe('ordre universel des angles', () => {
+  it('axe, puis hauteur, puis point de vue, quel que soit l’ordre de saisie', () => {
+    expect(orderAngles(['Plongée', '3/4 Face droit'])).toEqual(['3/4 Face droit', 'Plongée']);
+    expect(orderAngles(['Subjectif', 'Contre-plongée', 'Face → Dos'])).toEqual(['Face → Dos', 'Contre-plongée', 'Subjectif']);
+    expect(orderAngles(['Dutch', 'Hauteur regard', 'Face'])).toEqual(['Face', 'Hauteur regard', 'Dutch']);
+  });
+});

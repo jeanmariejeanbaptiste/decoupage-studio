@@ -7,6 +7,7 @@ import { setShotSubject } from './ops';
 import { formatRange, formatTc, parseRange, parseTc } from './timecode';
 import { parseTokens } from './tokens';
 import { fold } from './text';
+import { orderAngles } from './vocabulary';
 import type { ColumnKey, ID, ProjectDoc, ShotStatus } from './types';
 
 export const READONLY_COLUMNS: readonly ColumnKey[] = ['number', 'characters', 'grip', 'shotDuration', 'storyboard'];
@@ -30,7 +31,7 @@ export function editableText(doc: ProjectDoc, shotId: ID, col: ColumnKey): strin
     case 'value':
       return shot.value;
     case 'angle':
-      return shot.angle.join(', ');
+      return orderAngles(shot.angle).join(', ');
     case 'movement':
       return shot.movement.join(shot.movementSep ?? ', ');
     case 'focal': {
@@ -98,7 +99,7 @@ export function setCellText(doc: ProjectDoc, shotId: ID, col: ColumnKey, text: s
       shot.value = t.trim();
       return true;
     case 'angle':
-      shot.angle = t.trim() === '-' ? ['-'] : parseTokens(t).tokens;
+      shot.angle = t.trim() === '-' ? ['-'] : orderAngles(parseTokens(t).tokens);
       return true;
     case 'movement': {
       const { tokens, sep } = parseTokens(t);

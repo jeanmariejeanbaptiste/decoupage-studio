@@ -145,6 +145,19 @@ export function angleKind(token: string): 'axis' | 'height' | 'pov' | undefined 
   return AXES.includes(m) ? 'axis' : 'height';
 }
 
+/**
+ * Ordre universel des angles, quel que soit l'ordre de saisie : l'axe (« Face → Dos » compris), puis la
+ * hauteur, puis le point de vue, puis le reste (termes personnels), chacun gardant son ordre relatif.
+ */
+export function orderAngles(tokens: readonly string[]): string[] {
+  const rank = (t: string) => {
+    if (t.includes('→')) return 0;
+    const k = angleKind(t);
+    return k === 'axis' ? 0 : k === 'height' ? 1 : k === 'pov' ? 2 : 3;
+  };
+  return tokens.map((t, i) => ({ t, i, r: rank(t) })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.t);
+}
+
 /** Avertissement doux : deux axes, ou deux hauteurs, dans la même saisie (§5.2). */
 export function hasAngleConflict(tokens: readonly string[]): boolean {
   const kinds = tokens.map(angleKind);

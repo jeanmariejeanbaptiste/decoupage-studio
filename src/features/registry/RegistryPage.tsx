@@ -1,3 +1,4 @@
+import { orderAngles } from '../../domain/vocabulary';
 import { useMemo, useState } from 'react';
 import { Plus, Search, Trash2 } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
@@ -581,7 +582,7 @@ function ShotsTab({ doc, search }: { doc: ProjectDoc; search: string }) {
     { key: 'seq', label: 'Séquence', render: (r) => r.seq.label.toUpperCase(), text: (r) => r.seq.label },
     { key: 'subject', label: 'Sujet', render: (r) => r.shot.subject, text: (r) => r.shot.subject },
     { key: 'value', label: 'Valeur', render: (r) => r.shot.value, text: (r) => r.shot.value },
-    { key: 'angle', label: 'Angle', render: (r) => renderTokens(r.shot.angle), text: (r) => r.shot.angle.join(' ') },
+    { key: 'angle', label: 'Angle', render: (r) => renderTokens(orderAngles(r.shot.angle)), text: (r) => r.shot.angle.join(' ') },
     { key: 'movement', label: 'Mouvement', render: (r) => renderTokens(r.shot.movement, r.shot.movementSep), text: (r) => r.shot.movement.join(' ') },
     { key: 'focal', label: 'Focale', render: focalOf, sort: (r) => r.shot.focal.from ?? 0, text: focalOf },
     { key: 'action', label: 'Action', render: (r) => doc.blocks[r.shot.actionBlockId]?.text ?? '', text: (r) => doc.blocks[r.shot.actionBlockId]?.text ?? '' },

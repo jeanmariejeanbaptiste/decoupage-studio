@@ -1,3 +1,4 @@
+import { orderAngles } from '../../domain/vocabulary';
 import { NO_CROP, addKeyframe, clampCrop, cropStyle, framesOf, imageCount, removeFrame, setFrame, type Crop as CropT, type Frame } from '../../domain/keyframes';
 import { createPortal } from 'react-dom';
 import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
@@ -669,7 +670,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
             {[
               shot.subject && <b key="s">{shot.subject}</b>,
               valueLabel(shot.value, doc.project.settings.labelStyle, doc.customVocabulary),
-              renderTokens(shot.angle),
+              renderTokens(orderAngles(shot.angle)),
               renderTokens(shot.movement, shot.movementSep),
               formatFocal(shot.focal, isZoom(shot.movement)),
               block?.text,
@@ -686,7 +687,7 @@ function Card({ doc, shot, timing, printing = false }: { doc: ProjectDoc; shot: 
           {[
             <b key="s">{shot.subject || <em>sans sujet</em>}</b>,
             valueLabel(shot.value, doc.project.settings.labelStyle, doc.customVocabulary) && <span key="v" className={s.tValue}>{valueLabel(shot.value, doc.project.settings.labelStyle, doc.customVocabulary)}</span>,
-            renderTokens(shot.angle) && <span key="a" className={s.tAngle}>{renderTokens(shot.angle)}</span>,
+            renderTokens(orderAngles(shot.angle)) && <span key="a" className={s.tAngle}>{renderTokens(orderAngles(shot.angle))}</span>,
             renderTokens(shot.movement, shot.movementSep) && <span key="m" className={s.tMove}>{renderTokens(shot.movement, shot.movementSep)}</span>,
             formatFocal(shot.focal, isZoom(shot.movement)) && <span key="f" className={s.tFocal}>{formatFocal(shot.focal, isZoom(shot.movement))}</span>,
             block?.text && <span key="t">{block.text}</span>,

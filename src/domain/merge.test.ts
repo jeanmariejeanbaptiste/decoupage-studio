@@ -82,7 +82,7 @@ describe('computeMerges — seed RAV3, colonne par colonne', () => {
       '3/4 Face, Hauteur regard',
       '3/4 Dos',
       'Plongé',
-      'Hauteur regard, Profil',
+      'Profil, Hauteur regard',
     ]);
     expect(m1.get('movement')![0].value).toBe('Tilt haut, trav avant');
     expect(m1.get('focal')![0].value).toBe('16mm');
