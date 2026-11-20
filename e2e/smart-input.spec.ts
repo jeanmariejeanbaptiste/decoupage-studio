@@ -34,9 +34,10 @@ test.describe('saisie intelligente', () => {
     await page.keyboard.type('3/4 f');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
-    await expect(page.getByTestId('token')).toHaveText(['Plongée', '3/4 Face']);
+    // Le côté est toujours précisé : 3/4 Face gauche, puis droit.
+    await expect(page.getByTestId('token')).toHaveText(['Plongée', '3/4 Face gauche']);
     await page.keyboard.press('Enter');
-    await expect(cell(page, 1, 'angle')).toHaveText('Plongée, 3/4 Face');
+    await expect(cell(page, 1, 'angle')).toHaveText('Plongée, 3/4 Face gauche');
     await select(page, 1, 'angle');
     await page.keyboard.type('Face, Dos');
     await page.keyboard.press('Enter');

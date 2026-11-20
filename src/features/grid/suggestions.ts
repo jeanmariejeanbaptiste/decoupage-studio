@@ -54,10 +54,11 @@ export function suggestionSource(doc: ProjectDoc, col: ColumnKey): ((q: string) 
   }
 }
 
-const AXIS_ORDER = ['face', 'trois_quarts_face', 'profil_gauche', 'profil_droit', 'trois_quarts_dos', 'dos'];
+// Tour du sujet, dans l'ordre d'un travelling circulaire : face, côté gauche, dos, côté droit.
+const AXIS_ORDER = ['face', 'trois_quarts_face_gauche', 'profil_gauche', 'trois_quarts_dos_gauche', 'dos', 'trois_quarts_dos_droit', 'profil_droit', 'trois_quarts_face_droit'];
 const HEIGHT_ORDER = ['hauteur_regard', 'plongee', 'contre_plongee', 'top_shot', 'low_angle'];
-/** Retiré de la liste (« Profil » sans côté : Profil gauche ou droit le précisent) ; toujours reconnu. */
-const HIDDEN_ANGLES = ['profil'];
+/** Retirés de la liste (côté non précisé : leurs versions gauche / droite le disent) ; toujours reconnus. */
+const HIDDEN_ANGLES = ['profil', 'trois_quarts_face', 'trois_quarts_dos'];
 
 /**
  * Menu des angles, rangé : l'axe (autour du sujet), puis la hauteur, puis le point de vue. Les angles

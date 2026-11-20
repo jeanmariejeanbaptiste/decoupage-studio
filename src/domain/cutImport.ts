@@ -32,7 +32,7 @@ function columnRule(c: ColumnKey): string {
     case 'value':
       return `Valeur : UNE seule valeur, écrite exactement comme dans cette liste :\n  ${list(SHOT_VALUES)}`;
     case 'angle':
-      return `Angle : un ou plusieurs termes de cette liste, séparés par une virgule :\n  ${list(ANGLES)}`;
+      return `Angle : un ou plusieurs termes de cette liste, séparés par une virgule (gauche / droite : le côté vers lequel le sujet est tourné, vu de la caméra) :\n  ${list(ANGLES.filter((a) => !['profil', 'trois_quarts_face', 'trois_quarts_dos'].includes(a.key)))}`;
     case 'movement':
       return `Mouvement de caméra : un ou plusieurs termes de cette liste. Virgule si les mouvements se suivent, « + » s'ils sont simultanés :\n  ${list(MOVEMENTS)}`;
     case 'focal':

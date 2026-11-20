@@ -29,10 +29,14 @@ export const WIDE_VALUE_KEYS: readonly string[] = ['general', 'ensemble', 'moyen
 export const AXES: readonly VocabEntry[] = [
   e('face', 'Face', 'Face', undefined, ['de face']),
   e('trois_quarts_face', '3/4 Face', 'Trois-quarts face', '3/4F', ['trois quarts face', '3/4']),
+  e('trois_quarts_face_gauche', '3/4 Face gauche', 'Trois-quarts face gauche', '3/4FG', ['trois quarts face gauche']),
+  e('trois_quarts_face_droit', '3/4 Face droit', 'Trois-quarts face droit', '3/4FD', ['trois quarts face droit', '3/4 face droite']),
   e('profil', 'Profil', 'Profil (côté à préciser)', undefined),
   e('profil_gauche', 'Profil gauche', 'Profil gauche', undefined),
   e('profil_droit', 'Profil droit', 'Profil droit', undefined),
   e('trois_quarts_dos', '3/4 Dos', 'Trois-quarts dos', '3/4D', ['trois quarts dos']),
+  e('trois_quarts_dos_gauche', '3/4 Dos gauche', 'Trois-quarts dos gauche', '3/4DG', ['trois quarts dos gauche']),
+  e('trois_quarts_dos_droit', '3/4 Dos droit', 'Trois-quarts dos droit', '3/4DD', ['trois quarts dos droit', '3/4 dos droite']),
   e('dos', 'Dos', 'Dos', undefined, ['de dos']),
 ];
 

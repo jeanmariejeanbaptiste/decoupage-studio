@@ -117,10 +117,14 @@ export function backdropFor(intExt: string | undefined, place: string): Backdrop
 const AXIS: Record<string, [Axis, 1 | -1]> = {
   face: ['face', 1],
   trois_quarts_face: ['tq', 1],
+  trois_quarts_face_gauche: ['tq', -1],
+  trois_quarts_face_droit: ['tq', 1],
   profil: ['profil', 1],
   profil_droit: ['profil', 1],
   profil_gauche: ['profil', -1],
   trois_quarts_dos: ['tqdos', 1],
+  trois_quarts_dos_gauche: ['tqdos', -1],
+  trois_quarts_dos_droit: ['tqdos', 1],
   dos: ['dos', 1],
 };
 

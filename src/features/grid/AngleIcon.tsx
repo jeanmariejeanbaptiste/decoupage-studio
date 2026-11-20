@@ -136,9 +136,18 @@ const ICONS: Record<string, JSX.Element> = {
   ),
 };
 
+/** Trois-quarts avec leur côté : le dessin de base regarde vers la gauche, le côté droit en est le miroir. */
+const SIDED: Record<string, [string, boolean]> = {
+  trois_quarts_face_gauche: ['trois_quarts_face', false],
+  trois_quarts_face_droit: ['trois_quarts_face', true],
+  trois_quarts_dos_gauche: ['trois_quarts_dos', false],
+  trois_quarts_dos_droit: ['trois_quarts_dos', true],
+};
+
 export function AngleIcon({ k, size = 16 }: { k: string; size?: number }): JSX.Element | null {
-  if (!Object.prototype.hasOwnProperty.call(ICONS, k)) return null;
-  const icon = ICONS[k];
+  const [base, mirror] = Object.prototype.hasOwnProperty.call(SIDED, k) ? SIDED[k] : [k, false];
+  if (!Object.prototype.hasOwnProperty.call(ICONS, base)) return null;
+  const icon = mirror ? <g transform="matrix(-1 0 0 1 24 0)">{ICONS[base]}</g> : ICONS[base];
   return (
     <svg
       viewBox="0 0 24 24"
