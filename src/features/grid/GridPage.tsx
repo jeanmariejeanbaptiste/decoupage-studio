@@ -285,17 +285,23 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
           <InterviewPreview doc={storeDoc} />
         </div>
       ) : nSeq === 0 ? (
-        <div className="card empty">
-          <span className="hand">Aucune séquence pour l’instant</span>
-          <p>Créez la première, ou importez un scénario.</p>
-          <div className={s.emptyActions}>
-            <Button ref={createFirst} variant="primary" autoFocus onClick={newSequenceAfter} data-testid="create-first">
-              Créer la première séquence
-            </Button>
-            <Button variant="outline" onClick={() => navigate('scenario', { view: 'script' })}>
-              Écrire ou importer un scénario
-            </Button>
+        // Aucune séquence : le scénario reste consultable à côté, c'est de là qu'on commence le découpage.
+        <div className={s.workspace}>
+          <div className={s.main}>
+            <div className="card empty">
+              <span className="hand">Aucune séquence pour l’instant</span>
+              <p>Créez la première, ou importez un scénario.</p>
+              <div className={s.emptyActions}>
+                <Button ref={createFirst} variant="primary" autoFocus onClick={newSequenceAfter} data-testid="create-first">
+                  Créer la première séquence
+                </Button>
+                <Button variant="outline" onClick={() => navigate('scenario', { view: 'script' })}>
+                  Écrire ou importer un scénario
+                </Button>
+              </div>
+            </div>
           </div>
+          {rightPanel === 'scenario' && <ScenarioPanel doc={storeDoc} />}
         </div>
       ) : printView ? (
         <div className={[s.printPreview, 'paper-light'].join(' ')}>

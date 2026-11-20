@@ -197,3 +197,13 @@ test('colonne facultative Storyboard : étroite, après Action, une image posée
   await expect(page.getByTestId('storyboard-card').first().getByRole('img', { name: /Storyboard du plan 1\.1/ })).toHaveCount(1);
   expect(await page.evaluate(() => (window as unknown as { __ds: { doc: () => { project: { settings: { exportColumns: string[] } } } } }).__ds.doc().project.settings.exportColumns)).not.toContain('storyboard');
 });
+
+test('sans séquence, le scénario reste consultable à côté', async ({ page }) => {
+  await page.goto('/#/');
+  await page.getByTestId('new-project').click();
+  await page.getByLabel('Titre du projet').fill('Vide');
+  await page.getByTestId('wizard-next').click();
+  await expect(page.getByTestId('create-first')).toBeVisible();
+  await page.getByTestId('toggle-scenario').click();
+  await expect(page.getByTestId('scenario-panel')).toBeVisible();
+});
