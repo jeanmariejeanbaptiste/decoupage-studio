@@ -20,12 +20,12 @@ const PAD_X = 10;
 const PAD_Y = 6;
 /** Bande du pied de page (titre, version, date) sous les cases, qu'il soit affiché ou non. */
 const FOOT = 3.5;
-/** En-tête (titre, planche n / N) et son espacement. */
-const HEAD = 6.5 + 4;
+/** En-tête de planche : aucun (la place va aux légendes). */
+const HEAD = 0;
 /** Espace entre deux cases. */
 const GAP = 5;
-/** Légende sous l'image (deux lignes), marge du cadre et bordures. */
-const CAPTION = 9.5;
+/** Légende sous l'image (trois lignes), marge du cadre et bordures. */
+const CAPTION = 13;
 const FRAME_ROOM = 4.2;
 const BORDER = 0.6;
 

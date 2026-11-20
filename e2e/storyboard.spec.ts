@@ -22,14 +22,16 @@ test('storyboard : cartes, réordonnancement et planche imprimable', async ({ pa
   await expect(cards.first()).toContainText('1.1');
   // Planche PDF : 11 plans, 4 par page = 3 planches.
   await page.emulateMedia({ media: 'print' });
-  await expect(page.getByText('planche 3 / 3')).toBeVisible();
+  // Plus d'en-tête de planche : la place va aux légendes (trois lignes).
+  await expect(page.getByTestId('storyboard-sheet').filter({ visible: true })).toHaveCount(3);
+  await expect(page.getByText(/planche \d/)).toHaveCount(0);
   await page.emulateMedia({ media: 'screen' });
   await page.getByTestId('storyboard-export').click();
   // 16:9 en paysage : 1, 4 ou 9 par feuille (6 laisserait trop de vide).
   await page.getByTestId('storyboard-export-panel').getByLabel('9', { exact: true }).check({ force: true });
   await page.keyboard.press('Escape');
   await page.emulateMedia({ media: 'print' });
-  await expect(page.getByText('planche 2 / 2')).toBeVisible();
+  await expect(page.getByTestId('storyboard-sheet').filter({ visible: true })).toHaveCount(2);
   const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
   expect(pdf.byteLength).toBeGreaterThan(5000);
 });
@@ -178,7 +180,7 @@ test('découpage et storyboard : une page, trois vues, même sélection, export 
   // Aperçu : les planches telles qu'à l'export, puis retour aux cartes.
   await page.getByTestId('toggle-print').click();
   await expect(page.getByTestId('storyboard-preview').getByTestId('storyboard-sheet').first()).toBeVisible();
-  await expect(page.getByTestId('storyboard-preview')).toContainText('planche 1 /');
+  await expect(page.getByTestId('storyboard-preview')).not.toContainText('planche');
   await page.getByTestId('toggle-print').click();
   await expect(page.getByTestId('storyboard-preview')).toHaveCount(0);
   // Choisir une carte la sélectionne dans le tableau.

@@ -272,13 +272,6 @@ function Sheets({ doc, shots, perPage, timing, className, orientation, visible =
     <div className={className} aria-hidden={visible ? undefined : true} style={size as React.CSSProperties | undefined}>
       {pages.map((ids, i) => (
         <div key={i} className={[s.sheet, ink ? s.ink : ''].join(' ')} data-testid="storyboard-sheet">
-          <header className={s.sheetHead}>
-            <strong>{doc.project.title}</strong>
-            <span>Storyboard · {doc.project.version}</span>
-            <span>
-              planche {i + 1} / {pages.length}
-            </span>
-          </header>
           <div className={s.sheetGrid} style={gridStyle} data-grid={`${cols}x${rows}`}>
             {ids.map(({ id, span }) => (
               <div key={id} className={s.cell} style={{ gridColumn: `span ${span}` }}>
