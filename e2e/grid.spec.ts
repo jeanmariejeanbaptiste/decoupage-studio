@@ -207,3 +207,17 @@ test('sans séquence, le scénario reste consultable à côté', async ({ page }
   await page.getByTestId('toggle-scenario').click();
   await expect(page.getByTestId('scenario-panel')).toBeVisible();
 });
+
+test('angle : une fois l’axe et la hauteur choisis, Entrée valide, même après les flèches et la souris', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.locator('[data-cell="2:angle"]').dblclick();
+  for (let k = 0; k < 6; k++) await page.keyboard.press('Backspace');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.getByTestId('suggestions').getByRole('option').first().click();
+  await page.getByTestId('suggestions').getByRole('option').first().click();
+  await expect(page.getByTestId('token')).toHaveCount(2);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('cell-editor')).toHaveCount(0);
+});

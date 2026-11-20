@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Keyb
 import { X } from 'lucide-react';
 import { parseTokens, type TokenSep } from '../../domain/tokens';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
-import { MOVEMENTS, hasAngleConflict, isZoom, matchVocab } from '../../domain/vocabulary';
+import { MOVEMENTS, angleKind, hasAngleConflict, isZoom, matchVocab } from '../../domain/vocabulary';
 import { canon } from '../../domain/text';
 import { SuggestList, type Suggestion } from '../../ui/SuggestList';
 import { useSuggest } from '../../ui/useSuggest';
@@ -250,7 +250,9 @@ function TokenEditor({ doc, shotId, col, initial, replace, onCommit, onCancel }:
       setTokens(tokens.slice(0, -1));
       return;
     }
-    const aimed = sug.picked && (keyed.current || draft.trim()) ? sug.picked : undefined;
+    // Angle complet (un axe et une hauteur) et rien en cours de frappe : Entrée valide, sans rien ajouter.
+    const complete = col === 'angle' && !draft.trim() && ['axis', 'height'].every((k) => tokens.some((t) => (t.includes('→') ? 'axis' : angleKind(t)) === k));
+    const aimed = !complete && sug.picked && (keyed.current || draft.trim()) ? sug.picked : undefined;
     if (e.key === 'Enter' && aimed) {
       e.preventDefault();
       keyed.current = false;
@@ -315,6 +317,7 @@ function TokenEditor({ doc, shotId, col, initial, replace, onCommit, onCancel }:
         active={sug.active}
         onHover={sug.setActive}
         onPick={(it) => {
+          keyed.current = false;
           setTokens(withDraft(it));
           setDraft('');
           ref.current?.focus();

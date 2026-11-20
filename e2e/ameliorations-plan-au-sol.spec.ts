@@ -242,9 +242,10 @@ test('plan au sol : bouton du milieu ou Espace + glisser déplacent la vue, sans
   await page.mouse.down({ button: 'middle' });
   await page.mouse.move(c.x - 200, c.y, { steps: 5 });
   await page.mouse.up({ button: 'middle' });
+  // La vue se met à jour à l'image suivante : on attend qu'elle ait bougé.
+  await expect.poll(async () => Math.abs((await vb())[0] - x0 - step)).toBeLessThan(2);
   const [x1, , w1] = await vb();
   expect(w1).toBe(w0);
-  expect(Math.abs(x1 - x0 - step)).toBeLessThan(2);
   expect(await items(page)).toEqual(before);
   // Espace maintenu : même geste au bouton principal, sans cadre de sélection.
   await canvas.focus();
@@ -255,7 +256,6 @@ test('plan au sol : bouton du milieu ou Espace + glisser déplacent la vue, sans
   await expect(page.getByTestId('fp-marquee')).toHaveCount(0);
   await page.mouse.up();
   await page.keyboard.up(' ');
-  const [x2] = await vb();
-  expect(Math.abs(x2 - x1 - step)).toBeLessThan(2);
+  await expect.poll(async () => Math.abs((await vb())[0] - x1 - step)).toBeLessThan(2);
   expect(await items(page)).toEqual(before);
 });
