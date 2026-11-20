@@ -13,10 +13,51 @@ export interface Crop {
 
 export const NO_CROP: Crop = { zoom: 1, x: 0, y: 0, rot: 0 };
 
-/** Style CSS d'une image cadrée : « remplir » par défaut, « ajuster » sur demande. */
-export function cropStyle(f: Frame): { objectFit: 'cover' | 'contain'; transform: string } {
-  const c = f.crop ?? NO_CROP;
-  return { objectFit: f.fit ?? 'cover', transform: `translate(${c.x}%, ${c.y}%) rotate(${c.rot}deg) scale(${c.zoom})` };
+/**
+ * Cadrage « remplir » toujours plein : l'image (zoomée, tournée, déplacée) couvre tout le cadre, sans
+ * bande vide. `ratio` = largeur / hauteur du cadre. Le zoom remonte au minimum utile, puis le
+ * déplacement est ramené vers le centre juste assez.
+ */
+export function clampCrop(c: Crop, ratio: number): Crop {
+  const W = ratio > 0 && Number.isFinite(ratio) ? ratio : 16 / 9;
+  const H = 1;
+  const a = (c.rot * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  const corners = [[-W / 2, -H / 2], [W / 2, -H / 2], [W / 2, H / 2], [-W / 2, H / 2]];
+  // Coin du cadre exprimé dans le repère de l'image (centrée en t, tournée de rot) : |u| ≤ zW/2, |v| ≤ zH/2.
+  const need = (tx: number, ty: number) =>
+    Math.max(...corners.map(([px, py]) => {
+      const dx = px - tx;
+      const dy = py - ty;
+      const u = cos * dx + sin * dy;
+      const v = -sin * dx + cos * dy;
+      return Math.max((2 * Math.abs(u)) / W, (2 * Math.abs(v)) / H);
+    }));
+  const zoom = Math.max(c.zoom, need(0, 0));
+  let tx = (c.x / 100) * W;
+  let ty = (c.y / 100) * H;
+  if (need(tx, ty) > zoom + 1e-9) {
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 30; i++) {
+      const m = (lo + hi) / 2;
+      if (need(tx * m, ty * m) <= zoom + 1e-9) lo = m;
+      else hi = m;
+    }
+    tx *= lo;
+    ty *= lo;
+  }
+  const r4 = (n: number) => Math.round(n * 1e4) / 1e4 || 0;
+  return { zoom, x: r4((tx / W) * 100), y: r4((ty / H) * 100), rot: c.rot };
+}
+
+/** Style CSS d'une image cadrée : « remplir » par défaut (jamais de vide si le format du cadre est donné), « ajuster » sur demande. */
+export function cropStyle(f: Frame, ratio?: number): { objectFit: 'cover' | 'contain'; transform: string } {
+  const fit = f.fit ?? 'cover';
+  const raw = f.crop ?? NO_CROP;
+  const c = fit === 'cover' && ratio ? clampCrop(raw, ratio) : raw;
+  return { objectFit: fit, transform: `translate(${c.x}%, ${c.y}%) rotate(${c.rot}deg) scale(${c.zoom})` };
 }
 
 export interface Frame {

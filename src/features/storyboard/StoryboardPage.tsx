@@ -1,4 +1,4 @@
-import { NO_CROP, addKeyframe, cropStyle, framesOf, imageCount, removeFrame, setFrame, type Crop as CropT, type Frame } from '../../domain/keyframes';
+import { NO_CROP, addKeyframe, clampCrop, cropStyle, framesOf, imageCount, removeFrame, setFrame, type Crop as CropT, type Frame } from '../../domain/keyframes';
 import { createPortal } from 'react-dom';
 import { ASPECT_PRESETS, DEFAULT_ASPECT, aspectRatio, formatAspect, parseAspect } from '../../domain/aspect';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
@@ -463,50 +463,19 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
   const url = useBlobUrl(frame.blobKey);
   const [over, setOver] = useState(false);
   const [sketching, setSketching] = useState(false);
-  // Recadrage : réglage local, enregistré d'un coup à la validation (un seul pas d'annulation).
-  const [crop, setCrop] = useState<{ c: CropT; fit: 'cover' | 'contain' } | null>(null);
-  const frameRef = useRef<HTMLDivElement>(null);
-  const panFrom = useRef<{ x: number; y: number } | null>(null);
+  // Recadrage : dans sa fenêtre, enregistré d'un coup à la validation (un seul pas d'annulation).
+  const [cropping, setCropping] = useState(false);
   const label = `${shotCode(doc, shot.id)}${count > 1 ? ` · K${index + 1}` : ''}`;
   const importImage = async (f: File | undefined) => {
     if (!f?.type.startsWith('image/')) return;
     const key = await putBlob(doc.project.id, f.name, f);
     mutateDoc((d) => setFrame(d, shot.id, index, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined }));
   };
-  const shown: Frame = crop ? { ...frame, crop: crop.c, fit: crop.fit } : frame;
-  const editing = !!crop;
-  useEffect(() => {
-    const el = frameRef.current;
-    if (!el || !editing) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      setCrop((v) => (v ? { ...v, c: { ...v.c, zoom: Math.max(0.3, Math.min(6, v.c.zoom * Math.exp(-e.deltaY * 0.0025))) } } : v));
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [editing]);
-  const zoomBy = (k: number) => setCrop((v) => (v ? { ...v, c: { ...v.c, zoom: Math.max(0.3, Math.min(6, v.c.zoom * k)) } } : v));
   return (
     <div className={s.frameWrap}>
       <div
-        ref={frameRef}
-        data-fit={shown.fit ?? 'cover'}
-        data-crop={JSON.stringify(shown.crop ?? NO_CROP)}
-        onPointerDownCapture={(e) => {
-          if (!editing || (e.target as Element).closest('button')) return;
-          e.stopPropagation();
-          panFrom.current = { x: e.clientX, y: e.clientY };
-          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          const p = panFrom.current;
-          if (!editing || !p) return;
-          const r = e.currentTarget.getBoundingClientRect();
-          const [dx, dy] = [((e.clientX - p.x) / r.width) * 100, ((e.clientY - p.y) / r.height) * 100];
-          panFrom.current = { x: e.clientX, y: e.clientY };
-          setCrop((v) => (v ? { ...v, c: { ...v.c, x: v.c.x + dx, y: v.c.y + dy } } : v));
-        }}
-        onPointerUp={() => (panFrom.current = null)}
+        data-fit={frame.fit ?? 'cover'}
+        data-crop={JSON.stringify(frame.crop ?? NO_CROP)}
         className={[s.frame, over ? s.over : ''].join(' ')}
         style={{ aspectRatio: String(ratio) }}
         onDragOver={(e) => {
@@ -522,7 +491,7 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
           void importImage(e.dataTransfer.files[0]);
         }}
       >
-        {url ? <img src={url} alt={`Storyboard du plan ${label}`} style={cropStyle(shown)} draggable={false} /> : !printing && <ShotSketch doc={doc} shot={shot} ratio={ratio} />}
+        {url ? <img src={url} alt={`Storyboard du plan ${label}`} style={cropStyle(frame, ratio)} draggable={false} /> : !printing && <ShotSketch doc={doc} shot={shot} ratio={ratio} />}
         <span className={s.code} data-label>
           {label}
         </span>
@@ -549,41 +518,105 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
           </button>
         )}
         {sketching && createPortal(<SketchEditor doc={doc} shotId={shot.id} frame={index} onClose={() => setSketching(false)} />, document.body)}
-        {!printing && url && !editing && (
-          <button type="button" className={s.cropBtn} onPointerDown={(e) => e.stopPropagation()} onClick={() => setCrop({ c: frame.crop ?? NO_CROP, fit: frame.fit ?? 'cover' })} title="Recadrer : zoom, déplacement, rotation, remplir ou ajuster" data-testid="storyboard-crop">
+        {!printing && url && (
+          <button type="button" className={s.cropBtn} onPointerDown={(e) => e.stopPropagation()} onClick={() => setCropping(true)} title="Recadrer" data-testid="storyboard-crop">
             <Crop size={13} strokeWidth={1.5} />
           </button>
         )}
-        {editing && crop && (
-          <div className={s.cropBar} onPointerDown={(e) => e.stopPropagation()}>
-            <button type="button" onClick={() => zoomBy(1 / 1.15)} aria-label="Dézoomer">−</button>
-            <button type="button" onClick={() => zoomBy(1.15)} aria-label="Zoomer">+</button>
-            <button type="button" onClick={() => setCrop({ ...crop, c: { ...crop.c, rot: crop.c.rot - 90 } })} aria-label="Pivoter à gauche">⟲</button>
-            <button type="button" onClick={() => setCrop({ ...crop, c: { ...crop.c, rot: crop.c.rot + 90 } })} aria-label="Pivoter à droite">⟳</button>
-            <input type="range" min={-45} max={45} step={0.5} value={((crop.c.rot % 90) + 135) % 90 - 45} onChange={(e) => setCrop({ ...crop, c: { ...crop.c, rot: Math.round(crop.c.rot / 90) * 90 + Number(e.target.value) } })} aria-label="Rotation fine" />
-            <button type="button" className={s.fitSwitch} onClick={() => setCrop({ ...crop, fit: crop.fit === 'cover' ? 'contain' : 'cover' })} data-testid="storyboard-fit">
-              {crop.fit === 'cover' ? 'Remplir' : 'Ajuster'}
-            </button>
-            <button type="button" onClick={() => setCrop({ c: NO_CROP, fit: 'cover' })}>Réinit.</button>
-            <button type="button" onClick={() => setCrop(null)}>Annuler</button>
-            <button
-              type="button"
-              className={s.cropOk}
-              onClick={() => {
-                mutateDoc((d) => setFrame(d, shot.id, index, { crop: crop.c, fit: crop.fit }));
-                setCrop(null);
-              }}
-              data-testid="storyboard-crop-ok"
-            >
-              OK
-            </button>
-          </div>
-        )}
+        {cropping && url && createPortal(<CropDialog url={url} frame={frame} ratio={ratio} label={label} onClose={() => setCropping(false)} onSave={(c, fit) => mutateDoc((d) => setFrame(d, shot.id, index, { crop: c, fit }))} />, document.body)}
         {!printing && (url || count > 1) && (
           <button type="button" className={s.remove} onPointerDown={(e) => e.stopPropagation()} onClick={() => mutateDoc((d) => removeFrame(d, shot.id, index))} aria-label={`Retirer l’image ${label}`}>
             ×
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Fenêtre de recadrage d'une image du storyboard : grand cadre au format du storyboard, glisser pour
+ * déplacer, molette ou curseur pour zoomer, rotation, remplir ou ajuster. En « remplir », l'image
+ * couvre toujours tout le cadre : impossible de laisser une bande vide.
+ */
+function CropDialog({ url, frame, ratio, label, onClose, onSave }: { url: string; frame: Frame; ratio: number; label: string; onClose: () => void; onSave: (c: CropT, fit: 'cover' | 'contain') => void }) {
+  const [c, setC] = useState<CropT>(frame.crop ?? NO_CROP);
+  const [fit, setFit] = useState<'cover' | 'contain'>(frame.fit ?? 'cover');
+  const boxRef = useRef<HTMLDivElement>(null);
+  const panFrom = useRef<{ x: number; y: number } | null>(null);
+  const shown = fit === 'cover' ? clampCrop(c, ratio) : c;
+  const zoomBy = (k: number) => setC((v) => ({ ...v, zoom: Math.max(0.3, Math.min(6, (fit === 'cover' ? clampCrop(v, ratio) : v).zoom * k)) }));
+  const save = () => {
+    onSave(shown, fit);
+    onClose();
+  };
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomBy(Math.exp(-e.deltaY * 0.0025));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
+  const fine = ((c.rot % 90) + 135) % 90 - 45;
+  return (
+    <div className={s.cropOverlay} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        className={s.cropDialog}
+        role="dialog"
+        aria-label={`Recadrer l’image du plan ${label}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose();
+          if (e.key === 'Enter' && !(e.target as Element).closest('button')) save();
+        }}
+        data-testid="storyboard-crop-dialog"
+      >
+        <div
+          ref={boxRef}
+          className={s.cropStage}
+          style={{ aspectRatio: String(ratio) }}
+          onPointerDown={(e) => {
+            panFrom.current = { x: e.clientX, y: e.clientY };
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setC(shown);
+          }}
+          onPointerMove={(e) => {
+            const p = panFrom.current;
+            if (!p) return;
+            const r = e.currentTarget.getBoundingClientRect();
+            const [dx, dy] = [((e.clientX - p.x) / r.width) * 100, ((e.clientY - p.y) / r.height) * 100];
+            panFrom.current = { x: e.clientX, y: e.clientY };
+            setC((v) => {
+              const n = { ...v, x: v.x + dx, y: v.y + dy };
+              return fit === 'cover' ? clampCrop(n, ratio) : n;
+            });
+          }}
+          onPointerUp={() => (panFrom.current = null)}
+        >
+          <img src={url} alt="" style={cropStyle({ crop: shown, fit })} draggable={false} />
+        </div>
+        <div className={s.cropTools}>
+          <div className={s.cropGroup}>
+            <button type="button" onClick={() => zoomBy(1 / 1.15)} aria-label="Dézoomer" title="Dézoomer">−</button>
+            <input type="range" min={fit === 'cover' ? clampCrop({ ...c, zoom: 0.3 }, ratio).zoom : 0.3} max={6} step={0.01} value={shown.zoom} onChange={(e) => setC({ ...shown, zoom: Number(e.target.value) })} aria-label="Zoom" />
+            <button type="button" onClick={() => zoomBy(1.15)} aria-label="Zoomer" title="Zoomer">+</button>
+          </div>
+          <div className={s.cropGroup}>
+            <button type="button" onClick={() => setC({ ...shown, rot: shown.rot - 90 })} aria-label="Pivoter à gauche" title="Pivoter à gauche">⟲</button>
+            <input type="range" min={-45} max={45} step={0.5} value={fine} onChange={(e) => setC({ ...shown, rot: Math.round(c.rot / 90) * 90 + Number(e.target.value) })} aria-label="Rotation fine" />
+            <button type="button" onClick={() => setC({ ...shown, rot: shown.rot + 90 })} aria-label="Pivoter à droite" title="Pivoter à droite">⟳</button>
+          </div>
+          <div className={s.cropSeg} role="radiogroup" aria-label="Cadrage">
+            <button type="button" role="radio" aria-checked={fit === 'cover'} className={fit === 'cover' ? s.cropSegOn : ''} onClick={() => setFit('cover')} data-testid={fit === 'contain' ? 'storyboard-fit' : undefined}>Remplir</button>
+            <button type="button" role="radio" aria-checked={fit === 'contain'} className={fit === 'contain' ? s.cropSegOn : ''} onClick={() => setFit('contain')} data-testid={fit === 'cover' ? 'storyboard-fit' : undefined}>Ajuster</button>
+          </div>
+          <span className={s.cropSpacer} />
+          <button type="button" className={s.cropText} onClick={() => { setC(NO_CROP); setFit('cover'); }}>Réinitialiser</button>
+          <button type="button" className={s.cropText} onClick={onClose}>Annuler</button>
+          <button type="button" className={s.cropOk} onClick={save} data-testid="storyboard-crop-ok" autoFocus>Valider</button>
+        </div>
       </div>
     </div>
   );

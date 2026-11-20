@@ -145,10 +145,22 @@ test('storyboard : recadrer une image (zoom, rotation, remplir / ajuster)', asyn
   await expect(img).toHaveCSS('object-fit', 'cover'); // remplit le cadre par défaut
   await card.hover();
   await card.getByTestId('storyboard-crop').click();
-  await card.getByRole('button', { name: 'Zoomer', exact: true }).click();
-  await card.getByRole('button', { name: 'Pivoter à droite' }).click();
-  await card.getByTestId('storyboard-fit').click();
-  await card.getByTestId('storyboard-crop-ok').click();
+  // Le recadrage s'ouvre dans sa propre fenêtre, pas sur la carte.
+  const dlg = page.getByTestId('storyboard-crop-dialog');
+  await expect(dlg).toBeVisible();
+  // Remplir : un déplacement qui découvrirait un bord est ramené, le cadre reste plein.
+  const stage = dlg.locator('img').locator('..');
+  const b = (await stage.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width - 5, b.y + b.height - 5, { steps: 4 });
+  await page.mouse.up();
+  expect(await dlg.locator('img').evaluate((el) => (el as HTMLElement).style.transform)).toContain('translate(0%, 0%)');
+  await dlg.getByRole('button', { name: 'Zoomer', exact: true }).click();
+  await dlg.getByRole('button', { name: 'Pivoter à droite' }).click();
+  await dlg.getByTestId('storyboard-fit').click();
+  await dlg.getByTestId('storyboard-crop-ok').click();
+  await expect(dlg).toHaveCount(0);
   await expect(img).toHaveCSS('object-fit', 'contain');
   expect(await img.evaluate((el) => (el as HTMLElement).style.transform)).toContain('rotate(90deg) scale(1.15)');
 });

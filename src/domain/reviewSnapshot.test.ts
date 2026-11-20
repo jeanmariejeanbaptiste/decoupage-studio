@@ -19,7 +19,7 @@ function privateDoc(): ProjectDoc {
     lea.costume = 'Manteau rouge';
     d.research = { synopsis: 'Synopsis confidentiel', docs: [{ id: 'r1', title: 'Doc', text: 'Recherche confidentielle' }] };
     d.calendar = [{ id: 'c1', title: 'Rendez-vous banque', start: '2026-11-10T10:00:00Z' } as never];
-    d.schedule = { days: [{ id: 'j1', date: '2026-11-20', seqIds: [] }] } as never;
+    d.schedule = { days: [{ id: 'j1', date: '1999-03-17', seqIds: [] }] } as never;
     d.clearedScenarios = [{ id: 'x', at: '2026-01-01', versionId: 'v', text: 'Ancien texte effacé' } as never];
     d.breakdown = { [d.project.sequenceIds[0]]: { items: [{ id: 'b', cat: 'Accessoires', label: 'Pistolet secret' }] } } as never;
     d.floorPlans = { [d.project.sequenceIds[0]]: { items: [], bg: { blobKey: 'p:plan-sol' } } } as never;
@@ -62,7 +62,7 @@ describe('instantané de relecture', () => {
     const doc = privateDoc();
     const snap = reviewSnapshot(doc, { 'p:story': { type: 'image/jpeg', data: 'AAA' }, 'p:base': { type: 'image/jpeg', data: 'BBB' }, 'p:audio': { type: 'audio/mpeg', data: 'CCC' } }, '2026-11-09T10:00:00Z');
     const text = JSON.stringify(snap);
-    for (const secret of ['12 rue Secrète', 'Régisseur', 'Lycée Voltaire', 'Note de repérage', 'Alice Martin', 'Agent :', 'Manteau rouge', 'Synopsis confidentiel', 'Recherche confidentielle', 'Rendez-vous banque', '2026-11-20', 'Ancien texte effacé', 'Pistolet secret', 'p:plan-sol', 'Morceau inédit', 'p:audio', 'p:base', 'Chef op privé', 'Une gare, une valise, une décision'])
+    for (const secret of ['12 rue Secrète', 'Régisseur', 'Lycée Voltaire', 'Note de repérage', 'Alice Martin', 'Agent :', 'Manteau rouge', 'Synopsis confidentiel', 'Recherche confidentielle', 'Rendez-vous banque', '1999-03-17', 'Ancien texte effacé', 'Pistolet secret', 'p:plan-sol', 'Morceau inédit', 'p:audio', 'p:base', 'Chef op privé', 'Une gare, une valise, une décision'])
       expect(text, secret).not.toContain(secret);
     expect(snap.doc.intentionHtml).toBeUndefined();
     expect(snap.doc.schedule).toBeUndefined();

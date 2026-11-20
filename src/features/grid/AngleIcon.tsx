@@ -1,9 +1,10 @@
 // Têtes au trait pour les angles de prise de vue, toujours vues depuis la caméra.
 // La masse des cheveux (aplat léger) porte l'orientation : frange en face, arrière
-// du crâne de profil, tête couverte de dos, sommet et raie en plongée, liseré en
-// contre-plongée. Les épaules disent la hauteur : buste à hauteur d'homme, anneau
-// vu d'en haut en plongée, ellipse autour de la tête en top shot, cou qui s'évase
-// en contre-plongée, sol et flèche en low angle. Grille 24 × 24, trait 1,5.
+// du crâne de profil, tête couverte de dos, chevelure couvrante en plongée, liseré en
+// contre-plongée. Les épaules disent la hauteur : buste à hauteur d'homme, épaules
+// écrasées en plongée, ellipse autour de la tête en top shot, épaules larges en
+// contre-plongée, sol et flèche en low angle ; une flèche en biais indique d'où vient
+// le regard en plongée et en contre-plongée. Grille 24 × 24, trait 1,5.
 
 const HAIR = { fill: 'currentColor', fillOpacity: 0.4, stroke: 'none' } as const;
 const DOT = { strokeWidth: 2.2 } as const;
@@ -78,25 +79,31 @@ const ICONS: Record<string, JSX.Element> = {
       <path d="M.9 11.2h3.3M19.8 11.2h3.3" />
     </>
   ),
+  // Caméra au-dessus : tête descendue dans le cadre, chevelure qui couvre le haut du crâne,
+  // oreilles au-dessus des yeux, visage court, épaules écrasées ; flèche qui descend en biais.
   plongee: (
     <>
-      <path {...HAIR} d="M5.6 11.6C5 6 8 2 12 2s7 4 6.4 9.6c-2.4 1.8-10.4 1.8-12.8 0Z" />
-      <path d="M12 2c4.2 0 6.8 3.4 6.6 8-.2 4.4-3 7.4-6.6 7.4S5.6 14.4 5.4 10C5.2 5.4 7.8 2 12 2Z" />
-      <path {...EDGE} d="M5.6 11.6c2.4 1.8 10.4 1.8 12.8 0M12.6 4.4c-.6 2.2-1.6 4-3.4 5.4" />
-      <path d="M5.5 9.6c-1-.2-1.3 2 0 2.4M18.5 9.6c1-.2 1.3 2 0 2.4" />
-      <path {...DOT} d="M9.8 14.6h.01M14.2 14.6h.01" />
-      <path d="M6.06 13.26A10.2 4.6 0 1 0 17.94 13.26" />
+      <path {...HAIR} d="M6.4 11.2C5.8 6.8 8.4 3.6 12 3.6s6.2 3.2 5.6 7.6c-1-1.4-2.2-2-3.6-1.6-2.2.8-4.6 1.8-7.6 1.6Z" />
+      <path d="M6.4 11.2C5.8 6.8 8.4 3.6 12 3.6s6.2 3.2 5.6 7.6C17.4 15 15 17.4 12 17.4s-5.4-2.4-5.6-6.2Z" />
+      <path {...EDGE} d="M17.6 11.2c-1-1.4-2.2-2-3.6-1.6-2.2.8-4.6 1.8-7.6 1.6" />
+      <path d="M6.3 9.8c-.9-.3-1.3 1.7 0 2M17.7 9.8c.9-.3 1.3 1.7 0 2" />
+      <path {...DOT} d="M9.8 13.4h.01M14.2 13.4h.01" />
+      <path d="M11 15.6q1 .4 2 0" />
+      <path d="M8.2 16C5.4 16.8 3.2 18.2 2.4 20.8M15.8 16c2.8.8 5 2.2 5.8 4.8" />
+      <path d="M1.4 1.4 5 5M5 2.6V5H2.6" />
     </>
   ),
+  // Caméra en dessous : tête remontée, simple liseré de cheveux, yeux hauts et oreilles basses,
+  // menton large, épaules qui s'ouvrent hors du cadre ; flèche qui monte en biais.
   contre_plongee: (
     <>
-      <path {...HAIR} d="M7.5 7.2C8 4.6 9.6 3.2 12 3.2s4 1.4 4.5 4C15.1 6.2 13.6 5.6 12 5.6s-3.1.6-4.5 1.6Z" />
-      <path d="M12 3.2c-2.6 0-4.2 1.6-4.6 4-.4 2.2-1 4.2-.8 6 .4 2.2 2.8 4 5.4 4s5-1.8 5.4-4c.2-1.8-.4-3.8-.8-6-.4-2.4-2-4-4.6-4Z" />
-      <path d="M9 8.2h1.6M13.4 8.2h1.6" />
-      <path d="M11 11.2 12 9.4l1 1.8" />
-      <path {...DOT} strokeWidth={1.8} d="M11.2 12.2h.01M12.8 12.2h.01" />
-      <path d="M10.8 14.2q1.2-.3 2.4 0" />
-      <path d="M7.2 14.8 6.8 18c-1.8.8-3.4 2.4-3.8 5M16.8 14.8l.4 3.2c1.8.8 3.4 2.4 3.8 5" />
+      <path {...HAIR} d="M6.9 5.6C7.7 3.1 9.6 1.8 12 1.8s4.3 1.3 5.1 3.8C15.6 4.7 13.9 4.2 12 4.2s-3.6.5-5.1 1.4Z" />
+      <path d="M12 1.8C9 1.8 6.8 3.8 6.6 7.2c-.1 2.6.4 4.4 1.6 5.6 1 1 2.4 1.6 3.8 1.6s2.8-.6 3.8-1.6c1.2-1.2 1.7-3 1.6-5.6C17.2 3.8 15 1.8 12 1.8Z" />
+      <path d="M6.6 8.6c-.9-.2-1.2 1.9.1 2.2M17.4 8.6c.9-.2 1.2 1.9-.1 2.2" />
+      <path {...DOT} d="M9.8 7.2h.01M14.2 7.2h.01" />
+      <path d="M10.9 10.4q1.1.5 2.2 0" />
+      <path d="M9.6 13.8l-.3 1.4c-3.6.4-6.6 1.6-7.8 4.4M14.4 13.8l.3 1.4c3.6.4 6.6 1.6 7.8 4.4" />
+      <path d="M1.4 22.6 5 19M2.6 19H5v2.4" />
     </>
   ),
   top_shot: (
