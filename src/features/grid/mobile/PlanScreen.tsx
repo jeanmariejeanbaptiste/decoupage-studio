@@ -1,6 +1,7 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, Copy, List, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
-import { activeColumns, COLUMN_DEFS, shortLabel, tcLast } from '../../../domain/columns';
+import { activeColumns, ALL_COLUMNS, COLUMN_DEFS, setColumnShown, shortLabel, tcLast } from '../../../domain/columns';
+import { mutateDoc } from '../../../store/projectStore';
 import { editableText, isEditable } from '../../../domain/cells';
 import { aspectRatio } from '../../../domain/aspect';
 import { cropStyle } from '../../../domain/keyframes';
@@ -92,6 +93,14 @@ export function PlanScreen({
   if (shown('focal')) subItem('focal', focalLabel(shot.focal));
 
   const rows = cols.filter((c) => !HEAD_COLS.includes(c) && !HIDDEN.includes(c));
+  // Champs que le projet n'affiche pas encore : un appui les ajoute (comme le menu Colonnes) et les ouvre.
+  const more = readOnly || shot.interview ? [] : ALL_COLUMNS.filter((c) => !cols.includes(c) && isEditable(c) && !HIDDEN.includes(c) && !['storyboard', 'shootingDay', 'status'].includes(c));
+  const sheetOf = (c: ColumnKey): SheetKind =>
+    c === 'movement' ? { kind: 'movement' } : c === 'action' ? { kind: 'action' } : c === 'value' ? { kind: 'value' } : { kind: 'text', col: c, label: fieldLabel(c) };
+  const addField = (c: ColumnKey) => {
+    mutateDoc((d) => setColumnShown(d.project.settings, c, true));
+    if (!HEAD_COLS.includes(c) || c === 'subject' || c === 'value') onOpen(sheetOf(c));
+  };
   const block = doc.blocks[shot.actionBlockId];
   const ticks = seq?.shotIds ?? [];
   return (
@@ -183,7 +192,7 @@ export function PlanScreen({
             className={s.field}
             disabled={!editable(c)}
             data-field={c}
-            onClick={() => onOpen(c === 'movement' ? { kind: 'movement' } : c === 'action' ? { kind: 'action' } : { kind: 'text', col: c, label: fieldLabel(c) })}
+            onClick={() => onOpen(sheetOf(c))}
           >
             <span className={s.dt}>{fieldLabel(c)}</span>
             {c === 'movement' ? (
@@ -194,6 +203,16 @@ export function PlanScreen({
           </button>
         ))}
       </div>
+      {more.length > 0 && (
+        <div className={s.more} data-testid="mobile-more-fields">
+          {more.map((c) => (
+            <button key={c} type="button" onClick={() => addField(c)} data-add-field={c}>
+              <Plus size={13} strokeWidth={1.4} aria-hidden="true" />
+              {fieldLabel(c)}
+            </button>
+          ))}
+        </div>
+      )}
 
       <footer className={s.foot}>
         <button type="button" className={s.nav} disabled={!prev} onClick={() => prev && onGo(prev)} aria-label="Plan précédent" data-testid="mobile-prev">

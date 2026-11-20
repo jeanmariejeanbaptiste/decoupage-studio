@@ -62,3 +62,19 @@ test('IA externe : une nouvelle version d’une séquence met ses plans à jour 
   await expect(page.getByText('Elle boit son café, pensive.')).toBeVisible();
   await expect(page.getByText('Elle boit.', { exact: true })).toHaveCount(0);
 });
+
+test('le découpage se copie en Markdown depuis Exporter', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/#/grid?seed=rav3');
+  await expect(page.locator('[data-testid="shot-row"]').first()).toBeVisible();
+  await page.getByTestId('grid-export').click();
+  const panel = page.getByTestId('grid-export-panel');
+  await panel.getByText('Markdown', { exact: true }).click();
+  await expect(page.getByTestId('grid-export-nomerge')).toHaveCount(0);
+  await panel.getByTestId('grid-export-go').click();
+  await expect(page.getByTestId('toast')).toContainText('Découpage copié en Markdown');
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text).toContain('# DECOUPAGE DECOUPAGE-STUDIO v1');
+  expect(text).toContain('## 1. INT. CHAMBRE ADMIRATRICE - JOUR');
+  expect(text).toContain('| 1.1 | Admiratrice | Taille |');
+});

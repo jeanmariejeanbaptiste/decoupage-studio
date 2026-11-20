@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { CUT_HEADER, aiCutInstructions, applyCut, cutOverlap, parseCutFile } from './cutImport';
+import { produce } from 'immer';
+import { CUT_HEADER, aiCutInstructions, applyCut, cutOverlap, cutToMarkdown, parseCutFile } from './cutImport';
 import { addSequence, checkInvariants } from './ops';
 
 const COLS = ['sequence', 'number', 'subject', 'value', 'angle', 'movement', 'focal', 'action', 'tc', 'sound'] as const;
@@ -92,5 +93,20 @@ describe('découpage écrit par une IA externe', () => {
     // Colonne absente du tableau (Valeur) et image du plan : inchangées.
     expect(doc.shots[ids[0]]).toMatchObject({ value: 'Gros plan', storyboard: { blobKey: 'p:image' } });
     expect(checkInvariants(doc)).toEqual([]);
+  });
+});
+
+describe('cutToMarkdown', () => {
+  it('se relit sans avertissement et se réimporte à l’identique en mise à jour', () => {
+    const doc = buildRav3();
+    const md = cutToMarkdown(doc);
+    expect(md).toContain('| N° |');
+    const cut = parseCutFile(md);
+    expect(cut.warnings.filter((w) => !w.includes('pas dans la liste'))).toEqual([]);
+    expect(cut.sequences).toHaveLength(doc.project.sequenceIds.length);
+    expect(cut.sequences.flatMap((s) => s.rows)).toHaveLength(Object.keys(doc.shots).length);
+    expect(cutOverlap(doc, cut)).toBe(doc.project.sequenceIds.length);
+    const next = produce(doc, (d) => void applyCut(d, cut, 'update'));
+    expect(cutToMarkdown(next)).toBe(md);
   });
 });

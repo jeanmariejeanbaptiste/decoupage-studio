@@ -6,6 +6,9 @@ import { fold } from './text';
 import { ANGLES, MOVEMENTS, SHOT_VALUES, matchVocab } from './vocabulary';
 import { parseTokens } from './tokens';
 import type { ColumnKey, ID, ProjectDoc } from './types';
+import { exportCellText } from './rows';
+import { sequenceNumber, shotCode } from './numbering';
+import { computeTiming } from './timing';
 
 /**
  * Découpage écrit par une IA externe (Claude, ChatGPT, Gemini…), à partir d'un découpage fait ailleurs.
@@ -207,9 +210,11 @@ export function parseCutFile(text: string): ParsedCut {
     }
     const cs = cells(line);
     if (!header) {
-      header = cs.map((c) => LABELS.get(fold(c)) ?? null);
+      const keys = cs.map((c) => LABELS.get(fold(c)) ?? null);
+      keys.forEach((k, j) => k === null && cs[j] && out.warnings.push(`Ligne ${i + 1} : colonne « ${cs[j]} » inconnue, ignorée.`));
+      // N°, Séquence, TC : calculés par l'outil (présents dans un découpage copié d'ici), passés sans bruit.
+      header = keys.map((k) => (k && isEditable(k) ? k : null));
       cur.columns = header.filter((k): k is ColumnKey => !!k);
-      header.forEach((k, j) => k === null && cs[j] && out.warnings.push(`Ligne ${i + 1} : colonne « ${cs[j]} » inconnue, ignorée.`));
       continue;
     }
     if (cs.every((c) => /^:?-{2,}:?$/.test(c))) continue;
@@ -300,4 +305,31 @@ export function applyCut(doc: ProjectDoc, cut: ParsedCut, mode: 'append' | 'upda
     if (placeholder) deleteShot(doc, placeholder);
   }
   return { sequences: cut.sequences.length - merged, merged, shots, updated, rejected };
+}
+
+/**
+ * Le découpage en Markdown, pour une IA : la grammaire de l'import (en-tête, « ## » par séquence,
+ * un tableau), plus la colonne N°. Rendu tel quel par l'IA, il se réimporte en « Mettre à jour ».
+ */
+export function cutToMarkdown(doc: ProjectDoc): string {
+  const timing = computeTiming(doc);
+  const cols = aiColumns(doc.project.settings.exportColumns);
+  const esc = (t: string) => t.replace(/\|/g, '\\|').replace(/\n+/g, '<br>').trim();
+  const head = `| N° | ${cols.map((c) => COLUMN_DEFS[c].label).join(' | ')} |`;
+  const sep = `|${' --- |'.repeat(cols.length + 1)}`;
+  const nShots = doc.project.sequenceIds.reduce((n, id) => n + (doc.sequences[id]?.shotIds.length ?? 0), 0);
+  const out = [`# ${doc.project.title || 'Découpage'}`, '', `Découpage technique · ${doc.project.sequenceIds.length} séquences · ${nShots} plans`, '', CUT_HEADER];
+  doc.project.sequenceIds.forEach((seqId) => {
+    const seq = doc.sequences[seqId];
+    if (!seq) return;
+    const heading = [seq.intExt ? `${seq.intExt}.` : '', seq.label.toUpperCase(), seq.effect ? `- ${seq.effect}` : ''].filter(Boolean).join(' ');
+    out.push('', `## ${sequenceNumber(doc, seqId)}. ${heading}`);
+    if (!seq.shotIds.length) return;
+    out.push('', head, sep);
+    seq.shotIds.forEach((id, i) => {
+      const shot = doc.shots[id];
+      if (shot) out.push(`| ${shotCode(doc, id)} | ${cols.map((c) => esc(exportCellText(doc, timing, shot, c, i))).join(' | ')} |`);
+    });
+  });
+  return `${out.join('\n')}\n`;
 }

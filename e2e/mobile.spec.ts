@@ -288,3 +288,15 @@ test('téléphone : invité en lecture seule, le découpage se lit sans rien pou
     (server as unknown as { close?: () => void }).close?.();
   }
 });
+
+test('téléphone : un champ absent du projet s’ajoute d’un appui et s’ouvre', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await expect(plan(page)).toBeVisible();
+  const add = page.getByTestId('mobile-more-fields').locator('[data-add-field="dialogue"]');
+  await add.click();
+  const input = page.locator('input[aria-label], textarea').last();
+  await input.fill('LÉA : Attends.');
+  await done(page);
+  await expect(field(page, 'dialogue')).toContainText('Attends.');
+  await expect(add).toHaveCount(0);
+});

@@ -91,6 +91,12 @@ export function syncExportColumn(exportCols: readonly ColumnKey[], col: ColumnKe
   return tcLast([...exportCols.slice(0, at), col, ...exportCols.slice(at)]);
 }
 
+/** Affiche ou masque une colonne de la grille ; l'export suit (sauf la vignette du storyboard, outil de saisie). */
+export function setColumnShown(settings: { gridColumns: ColumnKey[]; exportColumns: ColumnKey[] }, col: ColumnKey, shown: boolean): void {
+  settings.gridColumns = syncExportColumn(settings.gridColumns, col, shown);
+  if (col !== 'storyboard') settings.exportColumns = syncExportColumn(settings.exportColumns, col, shown);
+}
+
 /** Colonnes figées en tête (SÉQUENCE, N°) et en fin (TC) : les autres se réordonnent entre elles. */
 const PINNED: readonly ColumnKey[] = ['sequence', 'number', 'tc'];
 export const isMovableColumn = (c: ColumnKey) => !PINNED.includes(c);

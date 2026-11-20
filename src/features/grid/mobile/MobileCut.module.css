@@ -81,6 +81,9 @@
 .field .dt { display: block; font-size: 12px; color: var(--m-faint); letter-spacing: 0.01em; margin-bottom: 4px; }
 .field .dd { display: block; font-size: 16px; line-height: 1.45; letter-spacing: -0.008em; color: var(--m-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .quote { border-left: 1.5px solid var(--m-ghost); padding-left: 12px; text-wrap: pretty; }
+.more { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 16px 24px 8px; }
+.more button { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--m-faint); padding: 6px 0; }
+.more button:active { color: var(--m-ink); }
 .field .mv { display: flex; align-items: center; justify-content: space-between; gap: 12px; white-space: normal; }
 .mv i { font-style: normal; color: var(--m-soft); }
 .mv b { display: flex; gap: 2px; flex: none; font-weight: 400; }

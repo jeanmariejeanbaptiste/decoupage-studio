@@ -11,6 +11,7 @@ import { ExportTable } from '../export/ExportTable';
 import { exportDocumentPages, exportNodePages, waitForPages, type PageExportOptions } from '../export/imageExport';
 import { oneShotAnnexDocument } from '../../domain/documents';
 import { exportFooterText } from '../../domain/exports';
+import { cutToMarkdown } from '../../domain/cutImport';
 import { ExportPanel } from '../export/ExportPanel';
 import { StoryboardExportOptions, StoryboardImaging } from '../storyboard/StoryboardPage';
 import x from '../export/ExportPanel.module.css';
@@ -79,12 +80,13 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
             ...(Object.values(doc.shots).some((sh) => sh.oneShot)
               ? [{ key: 'annex', label: 'Annexe plans-séquences', hint: 'PDF A4 : une page par plan-séquence (frise des temps, tableau, transitions en clair, plan au sol dédié).' }]
               : []),
+            { key: 'markdown', label: 'Markdown', hint: 'Le tableau copié en Markdown, pour une IA.' },
           ]}
           // Sans plan, rien à mettre en page ; Excel garde les séquences (onglet Registre).
           disabled={nSeq === 0 || busy}
           unavailable={nShots === 0 ? ['pdf', 'images'] : undefined}
           options={(format) =>
-            format !== 'annex' && (
+            format !== 'annex' && format !== 'markdown' && (
               <label className={x.check} title="Chaque cellule répétée en entier (utile pour retraiter le tableau)">
                 <input
                   type="checkbox"
@@ -99,7 +101,10 @@ export function CutExport({ doc, defaultContent }: { doc: ProjectDoc; defaultCon
           onExport={async ({ format, orientation, numbers }) => {
             try {
               if (format === 'pdf' || format === 'images') setCutImaging({ format, orientation, numbers, ...footer() });
-              else if (format === 'annex') await exportDocumentPages(oneShotAnnexDocument(doc).html, `${base}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
+              else if (format === 'markdown') {
+                await navigator.clipboard.writeText(cutToMarkdown(doc));
+                useUi.getState().toast({ message: 'Découpage copié en Markdown.' });
+              } else if (format === 'annex') await exportDocumentPages(oneShotAnnexDocument(doc).html, `${base}-annexe-plans-sequences`, { format: 'pdf', orientation: 'portrait', numbers });
               else {
                 const { exportXlsx } = await import('../export/xlsx');
                 downloadBlob(await exportXlsx(doc), `${base}.xlsx`);

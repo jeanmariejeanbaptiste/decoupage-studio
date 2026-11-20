@@ -7,7 +7,7 @@ import { OneShotStudio } from '../oneshot/OneShotStudio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownUp, ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
-import { ALL_COLUMNS, COLUMN_DEFS, columnMenuLabel, followOrder, isMovableColumn, moveColumn, syncExportColumn, tcLast } from '../../domain/columns';
+import { ALL_COLUMNS, COLUMN_DEFS, columnMenuLabel, followOrder, isMovableColumn, moveColumn, setColumnShown, tcLast } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -370,15 +370,8 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
     return () => window.removeEventListener('mousedown', close);
   }, [open]);
   const toggle = (c: ColumnKey) =>
-    mutateDoc((d) => {
-      const g = d.project.settings.gridColumns;
-      const shown = !g.includes(c);
-      // Une colonne ajoutée prend sa place naturelle ; l'ordre choisi pour les autres est conservé.
-      d.project.settings.gridColumns = syncExportColumn(g, c, shown);
-      // Ce qu'on affiche dans la grille, on veut l'exporter (et inversement).
-      // La vignette du storyboard sert à la saisie : elle ne part pas dans les exports en tableau.
-      if (c !== 'storyboard') d.project.settings.exportColumns = syncExportColumn(d.project.settings.exportColumns, c, shown);
-    });
+    // Une colonne ajoutée prend sa place naturelle ; ce qu'on affiche, on l'exporte (et inversement).
+    mutateDoc((d) => setColumnShown(d.project.settings, c, !d.project.settings.gridColumns.includes(c)));
   const move = (c: ColumnKey, delta: -1 | 1) =>
     mutateDoc((d) => {
       const st = d.project.settings;
