@@ -39,6 +39,18 @@ export type DefaultColumnKey = (typeof DEFAULT_COLUMNS)[number];
 export type OptionalColumnKey = (typeof OPTIONAL_COLUMNS)[number];
 export type ColumnKey = DefaultColumnKey | OptionalColumnKey;
 
+/** Règle « si… alors… » du découpage (portée : le projet, ou une séquence). */
+export interface ShotRule {
+  id: ID;
+  /** Séquence concernée ; absente : tout le projet. */
+  seqId?: ID;
+  /** Condition sur une colonne du plan ; absente : valeur par défaut. */
+  when?: { col: ColumnKey; value: string };
+  then: { col: ColumnKey; value: string };
+  /** Désactivée sans être supprimée. */
+  off?: boolean;
+}
+
 export interface AudioTrack {
   name: string;
   durationSec: number;
@@ -274,6 +286,8 @@ export interface ProjectDoc {
   validatedSteps: number[];
   customVocabulary: CustomVocabulary;
   manualEquipment: ManualEquipment[];
+  /** Règles « si… alors… » : une cellule vide prend la valeur prévue par la règle la plus précise. */
+  rules?: ShotRule[];
   scenario?: string;
   /** Note d'intention en texte brut (comptes de mots, assistant, export texte), tenue à jour par l'éditeur. */
   intention?: string;

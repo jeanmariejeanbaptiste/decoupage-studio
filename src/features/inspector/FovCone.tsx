@@ -1,5 +1,5 @@
 /** Schéma en cône de l'angle de champ horizontal (vue de dessus). */
-export function FovCone({ degrees, secondary, size = 120 }: { degrees: number; secondary?: number; size?: number }) {
+export function FovCone({ degrees, secondary, size = 96 }: { degrees: number; secondary?: number; size?: number }) {
   const cx = size / 2;
   const cy = size - 10;
   const r = size - 22;
@@ -12,12 +12,9 @@ export function FovCone({ degrees, secondary, size = 120 }: { degrees: number; s
   };
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`Angle de champ horizontal ${degrees.toFixed(1)} degrés`}>
-      <path d={path(degrees)} fill="var(--tint)" stroke="var(--rust)" strokeWidth="1.25" />
+      <path d={path(degrees)} fill="var(--tint)" stroke="var(--rust)" strokeWidth="1" />
       {secondary !== undefined && <path d={path(secondary)} fill="none" stroke="var(--navy)" strokeWidth="1" strokeDasharray="3 3" />}
       <rect x={cx - 7} y={cy - 3} width="14" height="9" rx="1.5" fill="var(--ink)" />
-      <text x={cx} y={14} textAnchor="middle" fontFamily="var(--font-hand)" fontSize="16" fill="var(--rust)">
-        {degrees.toFixed(0)}°
-      </text>
     </svg>
   );
 }

@@ -6,12 +6,14 @@ import { formatTc } from './timecode';
 import { shotTcLabel, type Timing, shotOwnSec } from './timing';
 import { renderTokens } from './tokens';
 import { isZoom, orderAngles, valueLabel } from './vocabulary';
+import { effectiveShot } from './rules';
 import { BEAT_COLUMNS, beatColumnText, beatSubLines, formatOneShotDuration, oneShotTiming } from './oneshot';
 import type { ColumnKey, ID, ProjectDoc, Shot } from './types';
 
 /** Valeur affichée (et exportée) d'une cellule. */
-export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: ColumnKey, index: number): string {
-  const block = doc.blocks[shot.actionBlockId];
+export function cellText(doc: ProjectDoc, timing: Timing, raw: Shot, col: ColumnKey, index: number): string {
+  // Cellules vides complétées par les règles « si… alors… » (affichées en gris, imprimées normalement).
+  const { shot, block } = effectiveShot(doc, raw);
   const settings = doc.project.settings;
   const beats = shot.oneShot?.beats;
   if (beats) {

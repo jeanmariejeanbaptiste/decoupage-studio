@@ -1,4 +1,5 @@
 import { StoryboardCell } from './StoryboardCell';
+import { effectiveShot, ruleSentence } from '../../domain/rules';
 import { SeqMeta } from './SeqMeta';
 import { Plus, Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
@@ -270,6 +271,7 @@ export function SequenceBody({
                   const isFocus = col !== 'number' && focus?.row === row && focus.col === col;
                   const isEditing = editing?.pos.row === row && editing.pos.col === col;
                   const repeated = seq.repeated[col]?.[i] ?? false;
+                  const rule = shot ? effectiveShot(doc, shot).ruled.get(col) : undefined;
                   const text = r.cells[col] ?? '';
                   const linked = col === 'action' && span > 1;
                   const conflict = col === 'angle' && hasAngleConflict(shot.angle);
@@ -380,7 +382,11 @@ export function SequenceBody({
                         </>
                       ) : (
                         <>
-                          {repeated && text ? (
+                          {rule && text ? (
+                            <span className={s.faded} title={ruleSentence(doc, rule)} data-ruled="">
+                              {text}
+                            </span>
+                          ) : repeated && text ? (
                             <span className={s.repeat} title={text}>
                               <span className={s.ditto} aria-hidden="true">
                                 〃
