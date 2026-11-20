@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { aiCutInstructions, applyCut, parseCutFile } from '../../domain/cutImport';
+import { aiCutInstructions, applyCut, cutOverlap, parseCutFile } from '../../domain/cutImport';
 import type { ProjectDoc } from '../../domain/types';
 import { pickFile } from '../../store/persistence';
-import { mutateDoc, undo } from '../../store/projectStore';
+import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { ask } from '../../ui/dialogStore';
@@ -63,12 +63,26 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
         const r = await ask({ title: `${n} écart${n > 1 ? 's' : ''} aux consignes`, body: shown, confirmLabel: 'Importer quand même' });
         if (!r.ok) return;
       }
-      let r = { sequences: 0, merged: 0, shots: 0, rejected: 0 };
-      mutateDoc((d) => void (r = applyCut(d, cut)));
+      // Séquences déjà découpées : nouvelle version (les plans sont mis à jour en place) ou autre morceau (à la suite).
+      let mode: 'append' | 'update' = 'append';
+      const doc0 = useProjectStore.getState().doc;
+      const overlap = doc0 ? cutOverlap(doc0, cut) : 0;
+      if (overlap) {
+        const q = await ask({
+          title: overlap > 1 ? `${overlap} séquences existent déjà` : 'Cette séquence existe déjà',
+          body: 'Mettre à jour : leurs plans prennent le nouveau texte, dans l’ordre (images et préparation gardées). Ajouter : les plans importés viennent à la suite.',
+          confirmLabel: 'Mettre à jour',
+          altLabel: 'Ajouter à la suite',
+        });
+        if (!q.ok && !q.alt) return;
+        mode = q.ok ? 'update' : 'append';
+      }
+      let r = { sequences: 0, merged: 0, shots: 0, updated: 0, rejected: 0 };
+      mutateDoc((d) => void (r = applyCut(d, cut, mode)));
       const pl = (k: number, w: string) => `${k} ${w}${k > 1 ? 's' : ''}`;
       const parts = [r.sequences ? `${pl(r.sequences, 'séquence')} ${r.sequences > 1 ? 'nouvelles' : 'nouvelle'}` : '', r.merged ? `${pl(r.merged, 'séquence')} ${r.merged > 1 ? 'complétées' : 'complétée'}` : ''].filter(Boolean);
       useUi.getState().toast({
-        message: `${pl(r.shots, 'plan')} ${r.shots > 1 ? 'ajoutés' : 'ajouté'}${parts.length ? ` (${parts.join(', ')})` : ''}${r.rejected ? ` ; ${pl(r.rejected, 'valeur')} illisible${r.rejected > 1 ? 's' : ''} laissée${r.rejected > 1 ? 's' : ''} vide${r.rejected > 1 ? 's' : ''}` : ''}.`,
+        message: `${[r.updated ? `${pl(r.updated, 'plan')} mis à jour` : '', r.shots || !r.updated ? `${pl(r.shots, 'plan')} ${r.shots > 1 ? 'ajoutés' : 'ajouté'}` : ''].filter(Boolean).join(', ')}${parts.length ? ` (${parts.join(', ')})` : ''}${r.rejected ? ` ; ${pl(r.rejected, 'valeur')} illisible${r.rejected > 1 ? 's' : ''} laissée${r.rejected > 1 ? 's' : ''} vide${r.rejected > 1 ? 's' : ''}` : ''}.`,
         actionLabel: 'Annuler',
         action: undo,
       });

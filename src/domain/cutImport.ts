@@ -75,7 +75,9 @@ MÉTHODE
   - Ne demande jamais ce que tu peux déduire.
   - Avant la version finale, montre le découpage sous forme de tableau lisible et demande « Je valide ? ».
   - Dès que le cinéaste valide, livre le bloc final au format ci-dessous, et rien d'autre.
-- Chaque nouvelle livraison peut ne contenir qu'une partie du film. Le logiciel ajoute les plans à la suite des séquences de même intitulé, sans rien effacer. Ne renvoie donc que les nouveaux plans, jamais ceux déjà livrés.
+- Une livraison peut ne contenir qu'une partie du film :
+  - nouveau morceau : ne renvoie que les nouveaux plans ; le logiciel les ajoute à la suite des séquences de même intitulé ;
+  - nouvelle version d'une séquence déjà livrée (actions reformulées, plans corrigés) : renvoie la séquence ENTIÈRE, tous ses plans dans l'ordre, avec le même intitulé ; le logiciel met ses plans à jour en place.
 - Choix du vocabulaire :
   - Valeur : la taille du sujet dans le cadre, du plus large (Général) au plus serré (Très GP), Insert pour un objet ou un détail.
   - Angle : la position de la caméra par rapport au sujet.
@@ -143,7 +145,7 @@ const EXAMPLE: Partial<Record<ColumnKey, string>>[] = [
 ];
 
 export interface ParsedCut {
-  sequences: { heading: string; rows: Partial<Record<ColumnKey, string>>[] }[];
+  sequences: { heading: string; rows: Partial<Record<ColumnKey, string>>[]; /** Colonnes du tableau importé. */ columns: ColumnKey[] }[];
   /** Problèmes relevés (ligne par ligne), sans bloquer ce qui se lit. */
   warnings: string[];
 }
@@ -190,7 +192,7 @@ export function parseCutFile(text: string): ParsedCut {
     const line = lines[i].trim();
     if (!line || line.startsWith('```')) continue;
     if (/^##\s+/.test(line)) {
-      cur = { heading: line.replace(/^##\s+/, '').trim(), rows: [] };
+      cur = { heading: line.replace(/^##\s+/, '').trim(), rows: [], columns: [] };
       out.sequences.push(cur);
       header = null;
       continue;
@@ -206,6 +208,7 @@ export function parseCutFile(text: string): ParsedCut {
     const cs = cells(line);
     if (!header) {
       header = cs.map((c) => LABELS.get(fold(c)) ?? null);
+      cur.columns = header.filter((k): k is ColumnKey => !!k);
       header.forEach((k, j) => k === null && cs[j] && out.warnings.push(`Ligne ${i + 1} : colonne « ${cs[j]} » inconnue, ignorée.`));
       continue;
     }
@@ -235,21 +238,40 @@ function blankShot(doc: ProjectDoc, id: ID): boolean {
   return !sh.subject && !sh.value && !sh.angle.length && !sh.movement.length && sh.focal.from === undefined && !(b?.text ?? '').trim() && !sh.oneShot && !sh.interview;
 }
 
+/** Séquence du projet portant le même intitulé que celle importée. */
+function sameSequence(doc: ProjectDoc, heading: string): ID | undefined {
+  const h = parseHeading(heading);
+  const label = (h.location || heading).toUpperCase();
+  return doc.project.sequenceIds.find((id) => {
+    const q = doc.sequences[id];
+    return q && fold(q.label) === fold(label) && (q.intExt ?? null) === (h.intExt ?? null) && (q.effect ?? null) === (h.effect ?? null);
+  });
+}
+
+/** Séquences importées qui existent déjà dans le projet avec des plans (et combien). */
+export function cutOverlap(doc: ProjectDoc, cut: ParsedCut): number {
+  return cut.sequences.filter((s) => {
+    const id = sameSequence(doc, s.heading);
+    return id && s.rows.length && doc.sequences[id].shotIds.some((sh) => !blankShot(doc, sh));
+  }).length;
+}
+
 /**
- * Ajoute le découpage lu au projet, sans rien effacer : une séquence déjà présente (même intitulé)
- * reçoit les nouveaux plans à la suite des siens ; une nouvelle séquence se place à la fin.
+ * Ajoute le découpage lu au projet. Une nouvelle séquence se place à la fin. Une séquence déjà présente
+ * (même intitulé) reçoit les plans :
+ * - `append` : à la suite des siens (un autre morceau du découpage) ;
+ * - `update` : sur ses plans, dans l'ordre (nouvelle version : actions reformulées…). Seules les colonnes
+ *   du tableau importé changent ; images, dessins et préparation restent ; les plans en plus s'ajoutent,
+ *   ceux en moins sont gardés.
  */
-export function applyCut(doc: ProjectDoc, cut: ParsedCut): { sequences: number; merged: number; shots: number; rejected: number } {
+export function applyCut(doc: ProjectDoc, cut: ParsedCut, mode: 'append' | 'update' = 'append'): { sequences: number; merged: number; shots: number; updated: number; rejected: number } {
   let shots = 0;
+  let updated = 0;
   let rejected = 0;
   let merged = 0;
   for (const s of cut.sequences) {
     const h = parseHeading(s.heading);
-    const label = (h.location || s.heading).toUpperCase();
-    const same = doc.project.sequenceIds.find((id) => {
-      const q = doc.sequences[id];
-      return q && fold(q.label) === fold(label) && (q.intExt ?? null) === (h.intExt ?? null) && (q.effect ?? null) === (h.effect ?? null);
-    });
+    const same = sameSequence(doc, s.heading);
     let seqId: ID;
     if (same) {
       seqId = same;
@@ -257,19 +279,25 @@ export function applyCut(doc: ProjectDoc, cut: ParsedCut): { sequences: number; 
     } else {
       seqId = addSequence(doc, undefined, {}, false);
       const seq = doc.sequences[seqId];
-      seq.label = label;
+      seq.label = (h.location || s.heading).toUpperCase();
       seq.intExt = h.intExt ?? seq.intExt;
       seq.effect = h.effect ?? seq.effect;
       if (!s.rows.length) addShot(doc, seqId);
     }
     // Séquence existante réduite à un plan vierge : il cède la place aux plans importés.
-    const placeholder = same && s.rows.length && doc.sequences[seqId].shotIds.length === 1 && blankShot(doc, doc.sequences[seqId].shotIds[0]) ? doc.sequences[seqId].shotIds[0] : null;
-    for (const row of s.rows) {
-      const id = addShot(doc, seqId);
-      shots++;
-      for (const [k, v] of Object.entries(row) as [ColumnKey, string][]) if (!setCellText(doc, id, k, v)) rejected++;
-    }
+    const existing = [...doc.sequences[seqId].shotIds];
+    const placeholder = same && s.rows.length && existing.length === 1 && blankShot(doc, existing[0]) ? existing[0] : null;
+    const targets = same && mode === 'update' && !placeholder ? existing.filter((id) => !doc.shots[id]?.interview) : [];
+    s.rows.forEach((row, i) => {
+      const target = targets[i];
+      const id = target ?? addShot(doc, seqId);
+      if (target) updated++;
+      else shots++;
+      // Mise à jour : toutes les colonnes du tableau importé (une cellule vide efface) ; ajout : les cellules remplies.
+      const keys = target ? s.columns : (Object.keys(row) as ColumnKey[]);
+      for (const k of keys) if (!setCellText(doc, id, k, row[k] ?? '')) rejected++;
+    });
     if (placeholder) deleteShot(doc, placeholder);
   }
-  return { sequences: cut.sequences.length - merged, merged, shots, rejected };
+  return { sequences: cut.sequences.length - merged, merged, shots, updated, rejected };
 }

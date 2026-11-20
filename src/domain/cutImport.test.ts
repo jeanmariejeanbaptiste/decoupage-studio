@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { CUT_HEADER, aiCutInstructions, applyCut, parseCutFile } from './cutImport';
+import { CUT_HEADER, aiCutInstructions, applyCut, cutOverlap, parseCutFile } from './cutImport';
 import { addSequence, checkInvariants } from './ops';
 
 const COLS = ['sequence', 'number', 'subject', 'value', 'angle', 'movement', 'focal', 'action', 'tc', 'sound'] as const;
@@ -73,6 +73,24 @@ describe('découpage écrit par une IA externe', () => {
     const id = addSequence(doc, undefined, { label: 'SALON', intExt: 'INT' });
     applyCut(doc, parseCutFile([CUT_HEADER, '## INT. SALON', '| Sujet |', '|---|', '| Léa |', '| Paul |'].join('\n')));
     expect(doc.sequences[id].shotIds.map((s) => doc.shots[s].subject)).toEqual(['Léa', 'Paul']);
+    expect(checkInvariants(doc)).toEqual([]);
+  });
+
+  it('mise à jour : une nouvelle version reformule les plans en place, sans doublon ni perte', () => {
+    const doc = buildRav3();
+    applyCut(doc, parseCutFile([CUT_HEADER, '## INT. CUISINE - JOUR', '| Sujet | Valeur | Action |', '|---|---|---|', '| Léa | Gros plan | Elle boit. |', '| Tasse | Insert | Vapeur. |'].join('\n')));
+    const seqId = doc.project.sequenceIds.at(-1)!;
+    const ids = [...doc.sequences[seqId].shotIds];
+    doc.shots[ids[0]].storyboard = { blobKey: 'p:image' };
+    const v2 = parseCutFile([CUT_HEADER, '## INT. CUISINE - JOUR', '| Sujet | Action |', '|---|---|', '| Léa | Elle boit son café, pensive. |', '| Tasse | La vapeur monte doucement. |', '| Fenêtre | La pluie tombe. |'].join('\n'));
+    expect(cutOverlap(doc, v2)).toBe(1);
+    const r = applyCut(doc, v2, 'update');
+    expect(r).toMatchObject({ merged: 1, updated: 2, shots: 1 });
+    const now = doc.sequences[seqId].shotIds;
+    expect(now.slice(0, 2)).toEqual(ids);
+    expect(now.map((id) => doc.blocks[doc.shots[id].actionBlockId].text)).toEqual(['Elle boit son café, pensive.', 'La vapeur monte doucement.', 'La pluie tombe.']);
+    // Colonne absente du tableau (Valeur) et image du plan : inchangées.
+    expect(doc.shots[ids[0]]).toMatchObject({ value: 'Gros plan', storyboard: { blobKey: 'p:image' } });
     expect(checkInvariants(doc)).toEqual([]);
   });
 });

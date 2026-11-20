@@ -39,3 +39,26 @@ test('découpage par une IA externe : consignes copiées, réponse .md importée
   await dialog.getByRole('button', { name: 'Annuler' }).click();
   await expect(rows).toHaveCount(n + 2);
 });
+
+test('IA externe : une nouvelle version d’une séquence met ses plans à jour au lieu de les doubler', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/#/grid?seed=fiction');
+  const rows = page.locator('[data-testid="shot-row"]');
+  await expect(rows.first()).toBeVisible();
+  const n = await rows.count();
+  const paste = async (md: string) => {
+    await page.evaluate((t) => navigator.clipboard.writeText(t), md);
+    await page.getByTestId('ai-cut').click();
+    await page.getByTestId('ai-cut-paste').click();
+  };
+  const v1 = ['# DECOUPAGE DECOUPAGE-STUDIO v1', '## INT. CUISINE - JOUR', '| Sujet | Action |', '|---|---|', '| Léa | Elle boit. |', '| Tasse | Vapeur. |'].join('\n');
+  await paste(v1);
+  await expect(rows).toHaveCount(n + 2);
+  await paste(v1.replace('Elle boit.', 'Elle boit son café, pensive.'));
+  const dlg = page.getByRole('alertdialog');
+  await expect(dlg).toContainText('Cette séquence existe déjà');
+  await dlg.getByRole('button', { name: 'Mettre à jour' }).click();
+  await expect(rows).toHaveCount(n + 2);
+  await expect(page.getByText('Elle boit son café, pensive.')).toBeVisible();
+  await expect(page.getByText('Elle boit.', { exact: true })).toHaveCount(0);
+});
