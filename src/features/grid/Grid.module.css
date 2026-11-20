@@ -140,6 +140,7 @@ thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); 
 .draggingRow .cell { background: var(--tint) !important; }
 /* Ligne ou séquence tenue en main : soulevée au-dessus des autres, qui s'écartent pour lui faire place. */
 [data-lifted] { position: relative; z-index: 5; cursor: grabbing; }
+[data-lifted][data-copy] { cursor: copy; }
 tr[data-lifted] > td, tbody[data-lifted] td { background: var(--paper-card); box-shadow: 0 -1px 0 var(--ink-soft) inset, 0 1px 0 var(--ink-soft) inset; }
 tr[data-lifted], tbody[data-lifted] { filter: drop-shadow(0 8px 16px rgba(17, 19, 24, 0.18)); }
 

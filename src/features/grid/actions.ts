@@ -10,6 +10,7 @@ import {
   addShot,
   addShotAfter,
   consecutiveRun,
+  copyShotTo,
   deleteSequence,
   deleteShot,
   duplicateShot,
@@ -340,6 +341,15 @@ export async function dropShot(shotId: ID, toSeqId: ID, toIndex: number, among =
   const splits = mutateDoc((x) => (among ? moveShotTo : moveShot)(x, shotId, toSeqId, toIndex)) ?? 0;
   select(shotId);
   if (splits) notifySplit(splits);
+}
+
+/** Option tenue au dépôt : une copie du plan prend la place visée, l'original reste. Renvoie la copie. */
+export function dropShotCopy(shotId: ID, toSeqId: ID, toIndex: number): ID | undefined {
+  const r = mutateDoc((x) => copyShotTo(x, shotId, toSeqId, toIndex));
+  if (!r) return undefined;
+  select(r.id);
+  if (r.splits) notifySplit(r.splits);
+  return r.id;
 }
 
 /** Plans sélectionnés hors caméras d'interview (leur action commune suit la fiche, elle ne se lie ni ne se délie). */

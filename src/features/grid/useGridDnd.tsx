@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { interviewGroupOf, moveSequence, moveShotTo } from '../../domain/ops';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
-import { dropShot } from './actions';
+import { dropShot, dropShotCopy } from './actions';
 import { parseDndId } from './dnd';
 
 /** Glissement en cours ; la cible est une place comptée parmi les éléments qui restent (0 = en tête). */
@@ -113,6 +113,7 @@ export function useGridDnd(doc: ProjectDoc) {
     for (const el of held) {
       el.style.transform = '';
       delete el.dataset.lifted;
+      el.removeAttribute('data-copy');
     }
   };
   useLayoutEffect(() => {
@@ -130,11 +131,24 @@ export function useGridDnd(doc: ProjectDoc) {
   // La main est lue directement (pointeur) : dnd-kit ne transmet ses mouvements qu'après le rendu,
   // trop tard quand la grille se redessine. Le clavier passe par onDragMove.
   const down = useRef<number | undefined>(undefined);
+  // Option (Alt) tenue : le dépôt pose une copie du plan, l'original reste à sa place.
+  const alt = useRef(false);
+  const hold = (on: boolean) => {
+    alt.current = on;
+    const l = lift.current;
+    if (!l || dragRef.current?.kind !== 'shot') return;
+    for (const el of els(l.sels)) el.toggleAttribute('data-copy', on);
+  };
   const viaPointer = useRef(false);
   useEffect(() => {
-    const onDown = (e: PointerEvent) => void (down.current = e.clientY);
+    const onDown = (e: PointerEvent) => {
+      down.current = e.clientY;
+      hold(e.altKey);
+    };
     let frame = 0;
+    const onKey = (e: KeyboardEvent) => e.key === 'Alt' && hold(e.type === 'keydown');
     const onMove = (e: PointerEvent) => {
+      hold(e.altKey);
       const l = lift.current;
       if (!l || !viaPointer.current) return;
       l.dy = e.clientY - (l.startY ?? l.fallbackY);
@@ -146,7 +160,11 @@ export function useGridDnd(doc: ProjectDoc) {
     window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointermove', onMove, true);
     window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
     return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
       window.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('pointerup', onUp, true);
       window.removeEventListener('pointermove', onMove, true);
@@ -169,6 +187,7 @@ export function useGridDnd(doc: ProjectDoc) {
     down.current = undefined;
     update(d);
     place();
+    hold(alt.current);
   };
 
   const onDragMove = (e: DragMoveEvent) => {
@@ -185,7 +204,12 @@ export function useGridDnd(doc: ProjectDoc) {
     release();
     update(null);
     if (!d?.target) return;
-    if (d.kind === 'shot') void dropShot(d.id, d.target.seqId, d.target.index, true);
+    if (d.kind === 'shot' && alt.current) {
+      // La copie part de la main ; l'original revient à sa place sans glisser.
+      const from = settle.current?.from[0];
+      const id = dropShotCopy(d.id, d.target.seqId, d.target.index);
+      settle.current = id && from !== undefined ? { sels: [rowSel(id)], from: [from] } : null;
+    } else if (d.kind === 'shot') void dropShot(d.id, d.target.seqId, d.target.index, true);
     else {
       const index = d.target.index;
       mutateDoc((x) => moveSequence(x, d.id, index));

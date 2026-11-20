@@ -91,3 +91,15 @@ test.describe('couverture et réordonnancement', () => {
     expect(await invariants(page)).toEqual([]);
   });
 });
+
+test('Option pendant le glisser duplique le plan', async ({ page }) => {
+  await page.goto('/#/grid?seed=rav3');
+  const rows = page.locator(ROWS);
+  await expect(rows).toHaveCount(53);
+  await page.keyboard.down('Alt');
+  await dragTo(page, rows.nth(5).getByTestId('shot-handle'), rows.nth(0));
+  await page.keyboard.up('Alt');
+  await expect(rows).toHaveCount(54);
+  await expect(seqRows(page, 1)).toHaveCount(7);
+  expect(await invariants(page)).toEqual([]);
+});

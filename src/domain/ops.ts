@@ -221,6 +221,22 @@ export function moveShotTo(doc: ProjectDoc, shotId: ID, toSeqId: ID, at: number)
   return 0;
 }
 
+/**
+ * Copie d'un plan déposée à une place du glisser-déposer (Option tenue) : `at` est compté parmi les
+ * plans qui restent hors de celui qu'on tient (et de son cadre d'interview). L'original ne bouge pas.
+ * Renvoie l'identifiant de la copie et le nombre de scissions.
+ */
+export function copyShotTo(doc: ProjectDoc, shotId: ID, toSeqId: ID, at: number): { id: ID; splits: number } {
+  const group = interviewGroupOf(doc, shotId);
+  const others = seqOf(doc, toSeqId).shotIds.filter((id) => !group.includes(id));
+  const before = others[Math.max(0, at)];
+  const id = duplicateShot(doc, shotId);
+  const rest = seqOf(doc, toSeqId).shotIds.filter((x) => x !== id);
+  const k = before ? rest.indexOf(before) : rest.length;
+  const splits = moveShot(doc, id, toSeqId, k < 0 ? rest.length : k);
+  return { id, splits };
+}
+
 /** Vrai si une insertion à `at` tomberait entre deux caméras d'un même cadre d'interview. */
 export function insideGroup(doc: ProjectDoc, ids: readonly ID[], at: number): boolean {
   const a = doc.shots[ids[at - 1]]?.interview?.setupId;

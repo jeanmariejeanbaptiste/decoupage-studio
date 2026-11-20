@@ -12,6 +12,7 @@ import {
   deleteSequence,
   deleteShot,
   duplicateShot,
+  copyShotTo,
   linkAction,
   mergeCharacters,
   moveSequence,
@@ -267,5 +268,24 @@ describe('actions liées : aucune donnée de minutage perdue', () => {
     expect(b.overrideSec).toBe(12);
     expect(b.tc).toEqual({ in: 0, out: 12 });
     expect(b.text).toBe('Elle entre. Elle sort.');
+  });
+});
+
+describe('copyShotTo', () => {
+  it('pose une copie à la place visée, l’original reste', () => {
+    const doc = fresh();
+    const [s0, s1, s2] = seqA(doc).shotIds;
+    let copy = '';
+    const next = produce(doc, (d) => void (copy = copyShotTo(d, s0, seqA(d).id, 2).id));
+    expect(seqA(next).shotIds.slice(0, 4)).toEqual([s0, s1, s2, copy]);
+  });
+  it('vers une autre séquence', () => {
+    const doc = fresh();
+    const s0 = seqA(doc).shotIds[0];
+    let copy = '';
+    const next = produce(doc, (d) => void (copy = copyShotTo(d, s0, seqB(d).id, 0).id));
+    expect(seqA(next).shotIds).toHaveLength(4);
+    expect(seqB(next).shotIds[0]).toBe(copy);
+    expect(next.shots[copy].sequenceId).toBe(seqB(next).id);
   });
 });
