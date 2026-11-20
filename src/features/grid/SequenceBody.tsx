@@ -1,3 +1,4 @@
+import { StoryboardCell } from './StoryboardCell';
 import { SeqMeta } from './SeqMeta';
 import { Plus, Trash2 } from 'lucide-react';
 import { BEAT_COLUMNS } from '../../domain/oneshot';
@@ -350,6 +351,8 @@ export function SequenceBody({
                             </span>
                           )}
                         </span>
+                      ) : col === 'storyboard' ? (
+                        shot && <StoryboardCell doc={doc} shot={shot} label={`${seqNumber}.${r.cells.number ?? i + 1}`} />
                       ) : col === 'number' ? (
                         <>
                           <NumberHandle

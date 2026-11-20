@@ -9,7 +9,7 @@ import { parseTokens } from './tokens';
 import { fold } from './text';
 import type { ColumnKey, ID, ProjectDoc, ShotStatus } from './types';
 
-export const READONLY_COLUMNS: readonly ColumnKey[] = ['number', 'characters', 'grip', 'shotDuration'];
+export const READONLY_COLUMNS: readonly ColumnKey[] = ['number', 'characters', 'grip', 'shotDuration', 'storyboard'];
 
 export function isEditable(col: ColumnKey): boolean {
   return !READONLY_COLUMNS.includes(col);

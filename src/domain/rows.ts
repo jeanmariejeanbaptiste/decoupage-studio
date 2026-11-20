@@ -64,6 +64,8 @@ export function cellText(doc: ProjectDoc, timing: Timing, shot: Shot, col: Colum
       return shot.status;
     case 'notes':
       return shot.notes ?? '';
+    case 'storyboard':
+      return '';
   }
 }
 

@@ -341,7 +341,8 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
       // Une colonne ajoutée prend sa place naturelle ; l'ordre choisi pour les autres est conservé.
       d.project.settings.gridColumns = syncExportColumn(g, c, shown);
       // Ce qu'on affiche dans la grille, on veut l'exporter (et inversement).
-      d.project.settings.exportColumns = syncExportColumn(d.project.settings.exportColumns, c, shown);
+      // La vignette du storyboard sert à la saisie : elle ne part pas dans les exports en tableau.
+      if (c !== 'storyboard') d.project.settings.exportColumns = syncExportColumn(d.project.settings.exportColumns, c, shown);
     });
   const move = (c: ColumnKey, delta: -1 | 1) =>
     mutateDoc((d) => {

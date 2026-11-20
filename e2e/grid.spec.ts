@@ -176,3 +176,24 @@ test('mouvement et angle : Entrée valide la cellule une fois le jeton choisi, m
   await page.keyboard.press('Enter');
   await expect(editor).toHaveCount(0);
 });
+
+test('colonne facultative Storyboard : étroite, après Action, une image posée d’un clic, absente des exports', async ({ page }) => {
+  const red = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP8z4AdMOEQH4QSAEQOAQ8ElHdbAAAAAElFTkSuQmCC', 'base64');
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByRole('button', { name: 'Colonnes' }).click();
+  await page.getByRole('menu').getByText('Storyboard', { exact: true }).click();
+  await page.keyboard.press('Escape');
+  const heads = await page.locator('thead th[title]').evaluateAll((ths) => ths.map((t) => t.getAttribute('title')));
+  expect(heads[heads.indexOf('Action') + 1]).toBe('Storyboard');
+  const w = await page.locator('thead th[title="Storyboard"]').evaluate((el) => el.getBoundingClientRect().width);
+  const wn = await page.locator('thead th[title="N°"]').evaluate((el) => el.getBoundingClientRect().width);
+  expect(w).toBeLessThan(wn * 1.6);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('grid-storyboard-add').first().click();
+  await (await chooser).setFiles({ name: 'a.png', mimeType: 'image/png', buffer: red });
+  await expect(page.locator('[data-cell="0:storyboard"] img')).toHaveCount(1);
+  // La même image est celle du storyboard.
+  await page.getByTestId('view-storyboard').click();
+  await expect(page.getByTestId('storyboard-card').first().getByRole('img', { name: /Storyboard du plan 1\.1/ })).toHaveCount(1);
+  expect(await page.evaluate(() => (window as unknown as { __ds: { doc: () => { project: { settings: { exportColumns: string[] } } } } }).__ds.doc().project.settings.exportColumns)).not.toContain('storyboard');
+});

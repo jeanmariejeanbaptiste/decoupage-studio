@@ -14,7 +14,8 @@ import { Button } from '../../ui/Button';
 import { CsvImport } from './CsvImport';
 import s from './ExportPage.module.css';
 
-const ALL: ColumnKey[] = [...ALL_COLUMNS];
+// La vignette du storyboard ne s'exporte pas en tableau.
+const ALL: ColumnKey[] = ALL_COLUMNS.filter((c) => c !== 'storyboard');
 
 export function ExportPage({ doc }: { doc: ProjectDoc }) {
   const settings = doc.project.settings;

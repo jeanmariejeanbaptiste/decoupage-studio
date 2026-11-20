@@ -33,6 +33,7 @@ export const COLUMN_DEFS: Readonly<Record<ColumnKey, ColumnDef>> = {
   shootingDay: { key: 'shootingDay', label: 'Jour', width: 4, optional: true },
   status: { key: 'status', label: 'Statut', width: 6, optional: true },
   notes: { key: 'notes', label: 'Image', width: 12, optional: true },
+  storyboard: { key: 'storyboard', label: 'Storyboard', width: 2.5, optional: true, short: '' },
 };
 
 /**
@@ -58,6 +59,9 @@ export const activeColumns = (cols: readonly ColumnKey[]): ColumnKey[] => cols.f
 export const ALL_COLUMNS: readonly ColumnKey[] = (() => {
   const all = activeColumns([...DEFAULT_COLUMNS, ...OPTIONAL_COLUMNS.filter((c) => c !== 'aperture')] as ColumnKey[]);
   all.splice(all.indexOf('focal') + 1, 0, 'aperture');
+  // Vignette du storyboard : juste après l'action, qu'on vient d'écrire.
+  all.splice(all.indexOf('storyboard'), 1);
+  all.splice(all.indexOf('action') + 1, 0, 'storyboard');
   return all;
 })();
 

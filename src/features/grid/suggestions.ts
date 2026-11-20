@@ -75,15 +75,22 @@ export function angleSuggestions(q: string, tokens: readonly string[], circular:
   const pick = (keys: string[]) => keys.map((k) => byKey.get(k)).filter((e): e is VocabEntry => !!e);
   const last = tokens.at(-1);
   const lastAxis = last && !last.includes('→') ? AXES.find((a) => a === matchVocab(last, AXES)) : undefined;
-  const out: Suggestion[] = [];
+  const axis: Suggestion[] = [];
   for (const e of pick(AXIS_ORDER)) {
     if (circular && lastAxis) {
       if (e.key === lastAxis.key || (hits && !hits.has(e.key))) continue;
-      out.push({ label: `${lastAxis.short} → ${e.short}`, value: `${lastAxis.short} → ${e.short}`, replaceLast: true, group: 'Axe', icon: icon(e.key) });
-    } else if (keep(e)) out.push({ label: e.short, group: 'Axe', icon: icon(e.key) });
+      axis.push({ label: `${lastAxis.short} → ${e.short}`, value: `${lastAxis.short} → ${e.short}`, replaceLast: true, group: 'Axe', icon: icon(e.key) });
+    } else if (keep(e)) axis.push({ label: e.short, group: 'Axe', icon: icon(e.key) });
   }
-  for (const e of pick(HEIGHT_ORDER)) if (keep(e)) out.push({ label: e.short, group: 'Hauteur', icon: icon(e.key) });
-  for (const e of pick(['subjectif'])) if (keep(e)) out.push({ label: e.short, group: 'Point de vue', icon: icon(e.key) });
-  for (const e of all.filter((x) => !AXIS_ORDER.includes(x.key) && !HEIGHT_ORDER.includes(x.key) && x.key !== 'subjectif')) if (keep(e)) out.push({ label: e.short, group: 'Personnalisés' });
+  const height: Suggestion[] = pick(HEIGHT_ORDER).filter(keep).map((e) => ({ label: e.short, group: 'Hauteur', icon: icon(e.key) }));
+  const pov: Suggestion[] = pick(['subjectif']).filter(keep).map((e) => ({ label: e.short, group: 'Point de vue', icon: icon(e.key) }));
+  const other: Suggestion[] = all.filter((x) => !AXIS_ORDER.includes(x.key) && !HEIGHT_ORDER.includes(x.key) && x.key !== 'subjectif' && keep(x)).map((e) => ({ label: e.short, group: 'Personnalisés' }));
+  // Ce qui reste à choisir vient en tête : l'axe choisi (hors travelling circulaire), la hauteur passe
+  // devant ; la hauteur choisie aussi, le point de vue suit.
+  const kinds = tokens.map((t) => matchVocab(t, all)?.key);
+  const hasAxis = kinds.some((k) => k && AXIS_ORDER.includes(k)) || tokens.some((t) => t.includes('→'));
+  const hasHeight = kinds.some((k) => k && HEIGHT_ORDER.includes(k));
+  const groups = hasAxis && !(circular && lastAxis) ? (hasHeight ? [pov, height, axis] : [height, pov, axis]) : [axis, height, pov];
+  const out: Suggestion[] = [...groups.flat(), ...other];
   return out;
 }

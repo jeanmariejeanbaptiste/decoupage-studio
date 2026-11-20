@@ -1,3 +1,4 @@
+import { Image as ImageIcon } from 'lucide-react';
 import { useFlip } from '../../ui/useFlip';
 import { useEvenRowSpans } from './useEvenRowSpans';
 import { isShortcut } from '../../store/shortcuts';
@@ -373,6 +374,12 @@ function HeadLabel({ col }: { col: ColumnKey }) {
     ro.observe(th);
     return () => ro.disconnect();
   }, [def.label]);
+  if (col === 'storyboard')
+    return (
+      <span ref={ref} className={[s.thLabel, s.thIcon].join(' ')} aria-label="Storyboard">
+        <ImageIcon size={13} strokeWidth={1.4} aria-hidden="true" />
+      </span>
+    );
   return (
     <span ref={ref} className={s.thLabel}>
       {short ? shortLabel(def) : def.label}

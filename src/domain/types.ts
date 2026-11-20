@@ -32,6 +32,7 @@ export const OPTIONAL_COLUMNS = [
   'shootingDay',
   'status',
   'notes',
+  'storyboard',
 ] as const;
 
 export type DefaultColumnKey = (typeof DEFAULT_COLUMNS)[number];
