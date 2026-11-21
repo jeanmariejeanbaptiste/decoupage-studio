@@ -35,9 +35,8 @@ test('assistant : réglé dans les paramètres, il apparaît en haut à droite e
     if (!body.tools) {
       probes.push(body);
       return route.fulfill({
-        contentType: 'application/json',
         headers: CORS,
-        body: JSON.stringify({ id: 'msg_probe', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', stop_sequence: null, content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 5, output_tokens: 1 } }),
+        ...anthropicBody(route, { id: 'msg_probe', type: 'message', role: 'assistant', model: body.model ?? '', stop_reason: 'end_turn', stop_sequence: null, content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 5, output_tokens: 1 } }),
       });
     }
     bodies.push(body);

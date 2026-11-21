@@ -35,7 +35,7 @@ async function mockAssistant(page: Page, reply: (n: number, body: Body) => Reply
     if (req.method() === 'GET') return route.fulfill({ contentType: 'application/json', headers: CORS, body: JSON.stringify({ data: [{ id: 'claude-haiku-5-5', type: 'model' }], has_more: false }) });
     const body = req.postDataJSON() as Body;
     const msg = (content: unknown[], stop: string) => ({ id: 'msg', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', stop_reason: stop, stop_sequence: null, content, usage: { input_tokens: 1, output_tokens: 1 } });
-    if (!body.tools) return route.fulfill({ contentType: 'application/json', headers: CORS, body: JSON.stringify(msg([{ type: 'text', text: 'ok' }], 'end_turn')) });
+    if (!body.tools) return route.fulfill({ headers: CORS, ...anthropicBody(route, msg([{ type: 'text', text: 'ok' }], 'end_turn') as never) });
     bodies.push(JSON.parse(JSON.stringify(body)) as Body);
     const r = await reply(bodies.length, body);
     if (r.status && r.status !== 200) {
