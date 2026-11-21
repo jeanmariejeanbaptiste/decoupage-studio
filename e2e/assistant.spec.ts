@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { anthropicBody } from './anthropicMock';
 
 interface Body {
   model?: string;
@@ -43,9 +44,8 @@ test('assistant : réglé dans les paramètres, il apparaît en haut à droite e
     const first = bodies.length === 1;
     await route.fulfill({
       status: 200,
-      contentType: 'application/json',
       headers: CORS,
-      body: JSON.stringify({
+      ...anthropicBody(route, {
         id: `msg_${bodies.length}`,
         type: 'message',
         role: 'assistant',

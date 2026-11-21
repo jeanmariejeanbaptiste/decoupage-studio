@@ -111,7 +111,8 @@ export interface ChatSession {
   provider: ProviderId;
   model: string;
   addUser(text: string, files?: readonly ChatFile[]): void;
-  step(signal?: AbortSignal): Promise<TurnResult>;
+  /** Un tour du modèle ; `onText` reçoit le texte au fil de l'eau quand le fournisseur le permet. */
+  step(signal?: AbortSignal, onText?: (soFar: string) => void): Promise<TurnResult>;
   addToolResults(results: readonly ToolResult[]): void;
   /** Longueur de l'historique, pour revenir en arrière après un tour en échec. */
   size(): number;
@@ -172,16 +173,17 @@ function anthropicSession(key: string, model: string, system: string, tools: rea
     truncate: (n) => void messages.splice(n),
     addToolResults: (results) =>
       messages.push({ role: 'user', content: results.map((r) => ({ type: 'tool_result', tool_use_id: r.id, content: r.output, ...(r.isError ? { is_error: true } : {}) })) }),
-    async step(signal) {
+    async step(signal, onText) {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
       // Repli automatique du serveur en cas de refus (Opus et Sonnet) ; Haiku n'en a pas.
       const fallback = /^claude-(opus|sonnet)-5/.test(model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {};
       try {
-        const r = await client.beta.messages.create(
+        // En flux : réponses longues sans délai d'attente, texte affiché au fil de l'eau.
+        const stream = client.beta.messages.stream(
           {
             model,
-            max_tokens: 16000,
+            max_tokens: 64000,
             system,
             // Sans outils (essai de la clé) : ni liste vide ni choix d'outil, que l'API refuserait.
             ...(tools.length ? { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema as { type: 'object' } })), tool_choice: { type: 'auto' as const } } : {}),
@@ -191,6 +193,9 @@ function anthropicSession(key: string, model: string, system: string, tools: rea
           },
           { signal },
         );
+        let soFar = '';
+        if (onText) stream.on('text', (d) => onText((soFar += d)));
+        const r = await stream.finalMessage();
         // Réponse renvoyée telle quelle (blocs de réflexion compris) : l'historique ne se réécrit jamais.
         messages.push({ role: 'assistant', content: r.content });
         const text = r.content.map((b) => (b.type === 'text' ? b.text : '')).join('');

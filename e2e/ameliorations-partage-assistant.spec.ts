@@ -1,3 +1,4 @@
+import { anthropicBody } from './anthropicMock';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { PeerServer } from 'peer';
 
@@ -8,7 +9,7 @@ interface Body {
   tools?: unknown[];
   messages?: Array<{ role: string; content: unknown }>;
 }
-type Reply = { status?: number; text?: string; tool?: { name: string; input: unknown } };
+type Reply = { status?: number; text?: string; tool?: { name: string; input: unknown }; cut?: boolean };
 
 const CORS = { 'access-control-allow-origin': '*' };
 const PREFLIGHT = { status: 204, headers: { ...CORS, 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST' } };
@@ -44,7 +45,7 @@ async function mockAssistant(page: Page, reply: (n: number, body: Body) => Reply
     if (r.text) content.push({ type: 'text', text: r.text });
     if (r.tool) content.push({ type: 'tool_use', id: `toolu_${bodies.length}`, name: r.tool.name, input: r.tool.input });
     // Requête abandonnée entre-temps (nouvelle conversation) : plus personne n'attend la réponse.
-    await route.fulfill({ contentType: 'application/json', headers: CORS, body: JSON.stringify(msg(content, r.tool ? 'tool_use' : 'end_turn')) }).catch(() => undefined);
+    await route.fulfill({ headers: CORS, ...anthropicBody(route, msg(content, r.cut ? 'max_tokens' : r.tool ? 'tool_use' : 'end_turn') as never) }).catch(() => undefined);
   });
   return bodies;
 }
@@ -438,4 +439,17 @@ test('assistant : plein écran, documents joints envoyés à Claude (PDF et text
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await panel.boundingBox())!.width).toBeLessThan(vw - 100);
   await expect(panel).toBeVisible();
+});
+
+test('assistant : une réponse coupée à la limite reprend seule, d’un seul tenant', async ({ page }) => {
+  const bodies = await mockAssistant(page, (n) => (n === 1 ? { text: 'Valeurs : Général, Moyen, Ital', cut: true } : { text: 'ien, Américain.' }));
+  await page.goto('/#/grid?seed=fiction');
+  const panel = await openPanel(page);
+  await panel.getByTestId('assistant-input').fill('Liste les valeurs de plan.');
+  await panel.getByTestId('assistant-send').click();
+  await expect(panel.getByTestId('assistant-assistant')).toHaveText('Valeurs : Général, Moyen, Italien, Américain.');
+  await expect(panel.getByTestId('assistant-error')).toHaveCount(0);
+  expect(bodies).toHaveLength(2);
+  // La relance demande la suite exacte.
+  expect(JSON.stringify(bodies[1].messages!.at(-1))).toContain('Reprends exactement');
 });

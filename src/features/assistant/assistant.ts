@@ -137,19 +137,36 @@ export async function askAssistant(text: string, resend = false, files?: ChatFil
   let reply = -1;
   let said = '';
   try {
-    for (let round = 0; round < 12; round++) {
-      const r = await session.step(abort.signal);
+    let resumes = 0;
+    let glue = false;
+    for (let round = 0; round < 16; round++) {
+      // Texte affiché pendant qu'il s'écrit ; une suite après une coupure se colle sans saut de ligne.
+      const head = said ? (glue ? said : `${said}\n\n`) : '';
+      const live = (t: string) => {
+        if (!t.trim() || mine !== turn) return;
+        if (reply < 0) reply = push({ role: 'assistant', text: head + t.trimStart() });
+        else patchEntry(reply, { text: head + t.trimStart() });
+      };
+      const r = await session.step(abort.signal, live);
       if (r.text.trim()) {
-        said = said ? `${said}\n\n${r.text.trim()}` : r.text.trim();
+        said = said ? (glue ? `${said}${r.text}` : `${said}\n\n${r.text.trim()}`) : r.text.trim();
         if (reply < 0) reply = push({ role: 'assistant', text: said });
         else patchEntry(reply, { text: said });
       }
+      glue = false;
       if (r.stop === 'refusal') {
         push({ role: 'error', text: 'L’assistant a décliné cette demande.' });
         break;
       }
       if (!r.calls.length) {
-        if (r.stop === 'max_tokens') push({ role: 'error', text: 'Réponse tronquée.' });
+        // Coupée à la limite de longueur : le modèle reprend là où il s'est arrêté (trois fois au plus).
+        if (r.stop === 'max_tokens' && resumes < 3) {
+          resumes++;
+          glue = true;
+          session.addUser('Ta réponse a été coupée. Reprends exactement là où tu t’es arrêté, sans rien répéter ni annoncer.');
+          continue;
+        }
+        if (r.stop === 'max_tokens') push({ role: 'error', text: 'Réponse très longue, interrompue : demandez la suite.' });
         break;
       }
       const results = r.calls.map((c) => {
