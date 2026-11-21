@@ -34,7 +34,10 @@
 
 .th {
   /* Filets verticaux entre les intitulés, dans le prolongement de ceux des cellules. */
-  border-right: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--rule) 55%, var(--paper));
+  /* Le fond déborde vers le haut : rien de ce qui défile ne transparaît au-dessus des intitulés
+     (interstice d'arrondi au zoom, Safari). */
+  box-shadow: 0 -24px 0 var(--paper);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -65,7 +68,7 @@
   padding: 0;
   vertical-align: middle;
 }
-thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); border-bottom: 1px solid var(--ink); padding: 0; }
+thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); border-bottom: 1px solid var(--ink); padding: 0; box-shadow: 0 -24px 0 var(--paper); }
 
 .cell {
   position: relative;
