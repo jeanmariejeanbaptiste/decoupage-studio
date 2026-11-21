@@ -79,3 +79,21 @@ test('supprimer un jour : sans dialogue s’il est vide, confirmé s’il porte 
   await page.getByRole('alertdialog').getByRole('button', { name: 'Supprimer', exact: true }).click();
   await expect(page.getByTestId('band-1')).toHaveCount(0);
 });
+
+test('plan de travail : une séquence glissée sur une autre du même jour passe avant elle', async ({ page }) => {
+  await page.goto('/#/schedule?seed=rav3');
+  await page.getByTestId('suggest-schedule').click();
+  const band = page.getByTestId('band-1');
+  const strips = band.getByTestId('strip');
+  const first = (await strips.nth(0).locator('span').first().innerText()).trim();
+  const third = (await strips.nth(2).locator('span').first().innerText()).trim();
+  const from = (await strips.nth(2).boundingBox())!;
+  const to = (await strips.nth(0).boundingBox())!;
+  await page.mouse.move(from.x + 40, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 40, from.y + from.height / 2 - 10, { steps: 3 });
+  await page.mouse.move(to.x + 40, to.y + to.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await expect(strips.nth(0).locator('span').first()).toHaveText(third);
+  await expect(strips.nth(1).locator('span').first()).toHaveText(first);
+});

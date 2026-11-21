@@ -1,4 +1,4 @@
-import { decorLocation, setDecorLocation } from '../../domain/locations';
+import { decorLocation, setDecorLocation, shareLocation } from '../../domain/locations';
 import type { FilmingLocation, ID, IntExt, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { CommitField } from './CommitField';
@@ -33,6 +33,20 @@ export function DecorFacts({ doc, decorId, readOnly, onDeleted }: { doc: Project
           </select>
         </label>
       </div>
+      <label className={s.field}>
+        <span>Même lieu que</span>
+        <select value={decor.locationFrom ?? ''} disabled={readOnly} onChange={(e) => mutateDoc((d) => shareLocation(d, decorId, e.target.value || undefined))} data-testid="decor-same-place">
+          <option value="">—</option>
+          {Object.values(doc.decors)
+            .filter((x) => x.id !== decorId && !x.locationFrom)
+            .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+            .map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+        </select>
+      </label>
       <CommitField label="Accès" value={loc.access ?? ''} readOnly={readOnly} onCommit={(v) => set({ access: v })} />
       <CommitField label="Contact" value={loc.contact ?? ''} readOnly={readOnly} onCommit={(v) => set({ contact: v })} />
       {!readOnly && <DeleteFiche doc={doc} kind="decor" id={decorId} onDeleted={onDeleted} />}

@@ -534,3 +534,17 @@ describe('plan de travail : bandes, bilan et emploi du temps', async () => {
     expect(performance.now() - t0).toBeLessThan(3000);
   });
 });
+
+describe('ordre des bandes dans un jour', () => {
+  it('une séquence passe avant une autre ; sans cible, à la fin', async () => {
+    const { buildFiction } = await import('../../seed/fiction');
+    const { moveStrip, stripsByDay } = await import('./schedule');
+    const doc = buildFiction();
+    for (const s of Object.values(doc.shots)) s.shootingDay = 1;
+    const [a, b, c] = doc.project.sequenceIds;
+    moveStrip(doc, c, a);
+    expect(stripsByDay(doc).get(1)!.map((x) => x.seqId)).toEqual([c, a, b]);
+    moveStrip(doc, c);
+    expect(stripsByDay(doc).get(1)!.map((x) => x.seqId)).toEqual([a, b, c]);
+  });
+});

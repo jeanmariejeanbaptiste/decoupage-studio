@@ -61,3 +61,22 @@ describe('lieux de tournage distincts des décors', () => {
     expect(decorsCsv(next)).toContain('Lycée Voltaire;101 avenue de la République;Parking rue Sedaine;M. Roux');
   });
 });
+
+describe('même lieu pour plusieurs décors', () => {
+  it('le décor reprend le lieu et le suit, dans les deux sens', async () => {
+    const { buildFiction } = await import('../../seed/fiction');
+    const { decorLocation, setDecorLocation, shareLocation } = await import('./locations');
+    const doc = buildFiction();
+    const [a, b] = Object.keys(doc.decors);
+    setDecorLocation(doc, a, { address: '12 rue des Gares' });
+    shareLocation(doc, b, a);
+    expect(decorLocation(doc.decors[b]).address).toBe('12 rue des Gares');
+    setDecorLocation(doc, a, { address: '14 rue des Gares' });
+    expect(decorLocation(doc.decors[b]).address).toBe('14 rue des Gares');
+    setDecorLocation(doc, b, { contact: 'Régie' });
+    expect(decorLocation(doc.decors[a]).contact).toBe('Régie');
+    shareLocation(doc, b, undefined);
+    setDecorLocation(doc, a, { address: 'ailleurs' });
+    expect(decorLocation(doc.decors[b]).address).toBe('14 rue des Gares');
+  });
+});

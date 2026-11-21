@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, CalendarDays, CalendarRange, ChevronDown, ChevronRi
 import { DayTimeline } from './DayTimeline';
 import { sequenceCharacterIds } from '../../domain/characters';
 import { sequenceNumber, shotCode } from '../../domain/numbering';
-import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, liveShotCount, scheduleProgress, stripOwnShots, dayStats, dayTotalsText, longDate, plural, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds } from '../../domain/schedule';
+import { addBanner, BANNER_KINDS, bannerLabel, clockTime, dayAgenda, showTime, moveBanner, removeBanner, setStripMinutes, estimatedStripMinutes, updateBanner, type AgendaItem, type BannerKind, stripsByTime, addDay, assignShots, dayHasData, liveShotCount, scheduleProgress, stripOwnShots, dayStats, dayTotalsText, longDate, plural, removeDay, scheduleDays, stripsByDay, stripTone, suggestSchedule, updateDay, type Strip, type StripTone, stripCharacterIds, moveStrip } from '../../domain/schedule';
 import { computeTiming } from '../../domain/timing';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { characterNumbers, numberedCast } from '../../domain/registry';
@@ -80,8 +80,22 @@ export function SchedulePage({ doc }: { doc: ProjectDoc }) {
   const onDragEnd = (e: DragEndEvent) => {
     const from = String(e.active.id).split(':');
     const to = e.over ? String(e.over.id).split(':') : null;
-    if (from[0] !== 'strip' || !to || to[0] !== 'day') return;
+    if (from[0] !== 'strip' || !to) return;
     const fromDay = Number(from[1]);
+    // Lâchée sur une autre bande : elle passe avant elle (et dans son jour).
+    if (to[0] === 'onstrip') {
+      const toDay = Number(to[1]);
+      const target = to[2];
+      if (target === from[2]) return;
+      const strip = strips.get(fromDay)?.find((x) => x.seqId === from[2]);
+      const ids = strip ? stripOwnShots(doc, fromDay, strip) : [];
+      mutateDoc((d) => {
+        if (toDay !== fromDay && ids.length) assignShots(d, ids, toDay || undefined);
+        moveStrip(d, from[2], target);
+      });
+      return;
+    }
+    if (to[0] !== 'day') return;
     const toDay = Number(to[1]);
     if (fromDay === toDay) return;
     const strip = strips.get(fromDay)?.find((x) => x.seqId === from[2]);
@@ -324,6 +338,12 @@ function BannerRow({ day, item, first, last }: { day: number; item: Extract<Agen
 function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number; item: Extract<AgendaItem, { type: 'strip' }>; days: number[]; nums: Map<ID, number> }) {
   const strip = item.strip;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `strip:${day}:${strip.seqId}` });
+  // Cible aussi : une bande lâchée dessus vient se ranger avant elle.
+  const drop = useDroppable({ id: `onstrip:${day}:${strip.seqId}` });
+  const refs = (el: HTMLDivElement | null) => {
+    setNodeRef(el);
+    drop.setNodeRef(el);
+  };
   const [open, setOpen] = useState(false);
   const seq = doc.sequences[strip.seqId];
   const decor = seq?.decorId ? doc.decors[seq.decorId] : undefined;
@@ -333,12 +353,12 @@ function StripRow({ doc, day, item, days, nums }: { doc: ProjectDoc; day: number
   const planned = doc.schedule?.days.find((x) => x.n === day)?.durations?.[strip.seqId];
   return (
     <div
-      ref={setNodeRef}
-      className={[s.strip, TONE[stripTone(seq)], isDragging ? s.dragging : ''].join(' ')}
+      ref={refs}
+      className={[s.strip, TONE[stripTone(seq)], isDragging ? s.dragging : '', drop.isOver && !isDragging ? s.dropBefore : ''].join(' ')}
       style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 10 } : undefined}
       data-testid="strip"
     >
-      <div className={s.stripMain} {...listeners} {...attributes} aria-label={`Séquence ${sequenceNumber(doc, strip.seqId)}, glisser vers un autre jour`}>
+      <div className={s.stripMain} {...listeners} {...attributes} aria-label={`Séquence ${sequenceNumber(doc, strip.seqId)}, glisser vers un autre jour ou avant une autre séquence`}>
         <span className={s.num}>{sequenceNumber(doc, strip.seqId)}</span>
         <span className={s.ie}>{[seq?.intExt, seq?.effect].filter(Boolean).join(' · ')}</span>
         {/* Forme courte (« INT · N ») pour les bandes étroites. */}

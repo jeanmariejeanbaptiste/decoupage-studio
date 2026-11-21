@@ -247,6 +247,8 @@ export interface Decor {
   /** Ancien champ (adresse de tournage), repris dans `location.address` à l'ouverture du projet. */
   address?: string;
   location?: FilmingLocation;
+  /** Tourné au même lieu qu'un autre décor : son lieu de tournage suit celui-ci. */
+  locationFrom?: ID;
   notes?: string;
   /** Anciens noms (renommé dans une version : les autres, figées, l'écrivent encore). */
   aliases?: string[];

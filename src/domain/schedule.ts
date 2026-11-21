@@ -1017,3 +1017,22 @@ export function shotSlotsText(doc: ProjectDoc, day: number, shotId: ID): string 
 export function firstSlot(doc: ProjectDoc, day: number, shotId: ID): { start: string; end: string } | undefined {
   return shotSlot(doc, day, shotId) ?? declaredDay(doc, day)?.parts?.[shotId]?.[0];
 }
+
+/**
+ * Déplace une séquence dans l'ordre du plan de travail, juste avant `before` (à la suite des bandes
+ * d'un jour quand `before` manque) : c'est cet ordre qui range les bandes de chaque jour. Une bande
+ * calée à une heure de l'emploi du temps garde sa place horaire.
+ */
+export function moveStrip(doc: ProjectDoc, seqId: ID, before?: ID): void {
+  const sch = ensureSchedule(doc);
+  const current = sch.order?.length ? sch.order : [];
+  const rank = (id: ID) => {
+    const i = current.indexOf(id);
+    return i >= 0 ? i : current.length + doc.project.sequenceIds.indexOf(id);
+  };
+  const all = [...new Set([...current, ...doc.project.sequenceIds])].filter((id) => doc.sequences[id]).sort((a, b) => rank(a) - rank(b));
+  const rest = all.filter((id) => id !== seqId);
+  const at = before ? rest.indexOf(before) : -1;
+  rest.splice(at < 0 ? rest.length : at, 0, seqId);
+  sch.order = rest;
+}
