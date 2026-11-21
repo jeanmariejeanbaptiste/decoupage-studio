@@ -95,7 +95,31 @@ const randomCode = (n: number) => Array.from(crypto.getRandomValues(new Uint8Arr
 
 export const shareLink = (room: string) => `${window.location.origin}${window.location.pathname}#/join?room=${room}`;
 
+/** Relais Cloudflare par défaut ; connexion directe (PeerJS) seulement si un serveur est déclaré (tests). */
+function viaRelay(): boolean {
+  try {
+    return !localStorage.getItem('ds-peer-server');
+  } catch {
+    return true;
+  }
+}
+
 async function newPeer(id?: string): Promise<Peer> {
+  if (viaRelay()) {
+    const { RelayPeer } = await import('./relayPeer');
+    return new Promise((resolve, reject) => {
+      const p = new RelayPeer(id);
+      const timer = setTimeout(() => reject(new Error('Le service de mise en relation ne répond pas.')), 15000);
+      p.on('open', () => {
+        clearTimeout(timer);
+        resolve(p as unknown as Peer);
+      });
+      p.on('error', (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+    });
+  }
   const { Peer } = await import('peerjs');
   return new Promise((resolve, reject) => {
     const p = id ? new Peer(id, peerOptions()) : new Peer(peerOptions());

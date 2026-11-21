@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "deploy:relay": "NODE_USE_ENV_PROXY=1 node scripts/deploy-relay.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
