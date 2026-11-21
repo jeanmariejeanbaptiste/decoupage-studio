@@ -9,7 +9,8 @@ const field = (page: Page, label: string) => page.getByLabel(label, { exact: tru
 
 async function fromTemplate(page: Page, seed = 'fiction') {
   await page.goto(`/#/production?seed=${seed}`);
-  await page.getByTestId('production-template').click();
+  // Calendrier type : plus proposé à l'écran, posé par l'accès de test.
+  await page.evaluate(() => (window as unknown as { __ds: { productionTemplate: () => void } }).__ds.productionTemplate());
   await expect(page.getByTestId('task-row')).toHaveCount(17);
 }
 
@@ -37,7 +38,7 @@ test('rendez-vous : tournage de nuit sur deux jours, la fin suit le début', asy
   await expect(dlg).toBeHidden();
   await expect(page.getByTestId('day-2027-03-10').getByTestId('calendar-item')).toContainText('Tournage de nuit');
   await expect(page.getByTestId('day-2027-03-11').getByTestId('calendar-item')).toContainText('Tournage de nuit');
-  await page.getByRole('tab', { name: 'Semaine' }).click();
+  await page.getByRole('radio', { name: 'Semaine' }).click();
   await expect(page.getByTestId('calendar-week').getByTestId('calendar-item').filter({ hasText: 'Tournage de nuit' })).toHaveCount(2);
   // Relu tel quel : 20:00 – 02:00.
   await page.getByTestId('calendar-week').getByTestId('calendar-item').first().click();
