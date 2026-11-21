@@ -139,6 +139,9 @@ test('carte : les jours sont des boutons à bascule', async ({ page }) => {
   await page.getByTestId('callsheet-link-1').click();
   await page.getByTestId('stop-address').first().fill('3 quai Voltaire, Paris');
   await page.getByRole('button', { name: 'Jour suivant' }).click();
+  // Le jour 2 affiché (ses lieux sont vides) avant d'écrire.
+  await expect(page).toHaveURL(/day=2$/);
+  await expect(page.getByTestId('stop-address').first()).toHaveValue('');
   await page.getByTestId('stop-address').first().fill('23 rue Clovis, Paris');
   await page.getByRole('button', { name: 'Plan de travail' }).click();
   const days = page.getByTestId('schedule-map').getByRole('group', { name: 'Jour' });
