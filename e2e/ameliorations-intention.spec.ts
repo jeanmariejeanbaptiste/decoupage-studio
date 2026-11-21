@@ -4,10 +4,9 @@ import { readFileSync } from 'node:fs';
 /** Un paragraphe vide à la fin de la note, curseur dedans. */
 async function newParagraph(page: Page) {
   const ed = page.getByTestId('note-editor');
-  await ed.locator('blockquote').click();
+  await ed.locator('p').last().click();
   await page.keyboard.press('End');
   await page.keyboard.press('Enter');
-  await page.getByTestId('note-style').selectOption('p');
   return ed;
 }
 
@@ -33,9 +32,6 @@ test('note : un corps choisi au curseur s’applique à la frappe suivante', asy
   await expect(ed.locator('font')).toHaveCount(0);
   // Le corps affiché suit, avec une virgule pour les demi-points.
   await expect(page.getByTestId('note-size')).toHaveValue('14');
-  await ed.locator('h1').click();
-  await page.getByTestId('note-style').selectOption('h3');
-  await expect(page.getByTestId('note-size').locator('option:checked')).toHaveText('12,5');
 });
 
 test('note : rétablir survit à un déplacement du curseur', async ({ page }) => {
@@ -182,20 +178,19 @@ test('note : grand écran, zoom à 100 %', async ({ page }) => {
 test('note : ruban d’un seul arrêt de tabulation, flèches pour circuler', async ({ page }) => {
   await page.goto('/#/intention?seed=fiction');
   const focused = () => page.evaluate(() => document.activeElement?.getAttribute('data-testid'));
-  await page.getByTestId('note-style').focus();
-  expect(await focused()).toBe('note-style');
-  await page.keyboard.press('ArrowRight');
+  await page.getByTestId('note-font').focus();
   expect(await focused()).toBe('note-font');
-  await expect(page.getByTestId('note-style')).toHaveValue('p');
+  await page.keyboard.press('ArrowRight');
+  expect(await focused()).toBe('note-size');
   await page.keyboard.press('End');
-  expect(await focused()).toBe('note-pagebreak');
+  expect(await focused()).toBe('note-image');
   await page.keyboard.press('Home');
-  expect(await focused()).toBe('note-style');
+  expect(await focused()).toBe('note-font');
   await page.keyboard.press('ArrowLeft');
-  expect(await focused()).toBe('note-pagebreak');
+  expect(await focused()).toBe('note-image');
   // Un seul arrêt : Tab quitte les contrôles de mise en forme.
   await page.keyboard.press('Tab');
-  expect(await focused()).not.toMatch(/^note-(style|font|size|bold|line|image)/);
+  expect(await focused()).not.toMatch(/^note-(font|size|bold|line|image)/);
   for (const name of ['Zoom avant', 'Zoom arrière']) {
     const b = await page.getByRole('button', { name }).boundingBox();
     expect(Math.min(b!.width, b!.height)).toBeGreaterThanOrEqual(24);
