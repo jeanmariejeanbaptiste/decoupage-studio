@@ -91,7 +91,7 @@ describe('focales', () => {
 describe('angle', () => {
   it('sépare l’axe et la hauteur', () => {
     expect(angleParts(['3/4 Face', 'Hauteur regard'])).toEqual({ axis: '3/4 Face', height: 'Hauteur regard' });
-    expect(angleParts(['Subjectif'])).toEqual({ height: 'Subjectif' });
+    expect(angleParts(['Subjectif'])).toEqual({});
   });
   it('remplace à sa place, ajoute l’axe en tête et la hauteur après, retire', () => {
     expect(setAnglePart(['3/4 Face', 'Hauteur regard'], 'axis', 'Profil')).toEqual(['Profil', 'Hauteur regard']);

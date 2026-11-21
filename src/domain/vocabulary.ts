@@ -47,7 +47,6 @@ export const HEIGHTS: readonly VocabEntry[] = [
   e('contre_plongee', 'Contre-plongée', 'Contre-plongée', 'CP', ['contre plongee', 'contre plongé']),
   e('top_shot', 'Top shot', 'Top shot (plongée totale)', undefined, ['plongee totale', 'vue du dessus', 'zenithal']),
   e('low_angle', 'Low angle', 'Low angle (caméra au sol)', undefined, ['camera au sol', 'ras du sol']),
-  e('subjectif', 'Subjectif', 'Plan subjectif', 'POV', ['pov', 'subjective']),
 ];
 
 export const ANGLES: readonly VocabEntry[] = [...AXES, ...HEIGHTS];
@@ -142,7 +141,6 @@ export function valueLabel(value: string, style: 'court' | 'long', custom: Custo
 export function angleKind(token: string): 'axis' | 'height' | 'pov' | undefined {
   const m = matchVocab(token, ANGLES);
   if (!m) return undefined;
-  if (m.key === 'subjectif') return 'pov';
   return AXES.includes(m) ? 'axis' : 'height';
 }
 

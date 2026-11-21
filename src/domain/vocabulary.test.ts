@@ -41,7 +41,7 @@ describe('vocabulaire', () => {
   it('classe axes et hauteurs, et détecte les conflits', () => {
     expect(angleKind('3/4 Face')).toBe('axis');
     expect(angleKind('Hauteur regard')).toBe('height');
-    expect(angleKind('POV')).toBe('pov');
+    expect(angleKind('POV')).toBeUndefined();
     expect(angleKind('bizarre')).toBeUndefined();
     expect(hasAngleConflict(['Face', 'Hauteur regard'])).toBe(false);
     expect(hasAngleConflict(['Face', 'Dos'])).toBe(true);
