@@ -175,72 +175,6 @@ test('assistant : un autre projet ouvert, la conversation repart de zéro et rie
 
 // --- Commentaires (auteur, sans partage) -------------------------------------------------------
 
-test('commentaires : planche à dessin au-dessus de la bulle, Échap referme planche et fenêtre, cellule désignée', async ({ page }) => {
-  await page.goto('/#/grid?seed=rav3');
-  await page.getByTestId('toggle-print').click();
-  const cell = page.locator('tr[data-shot] td[data-col="value"]').first();
-  await cell.click();
-  const pop = page.getByTestId('comment-popover');
-  await expect(pop).toBeVisible();
-  // La cellule commentée reste désignée, une seule.
-  await expect(page.locator('[data-comment-active]')).toHaveCount(1);
-  expect(await cell.getAttribute('data-comment-active')).toBe('');
-  await page.getByTestId('comment-text').fill('Un plan plus serré');
-  await page.getByTestId('comment-sketch').click();
-  const pad = page.getByTestId('sketch-pad');
-  await expect(pad).toBeVisible();
-  await expect(pop).toBeHidden();
-  // Un clic sur le fond referme la planche : la bulle revient avec son brouillon.
-  await page.mouse.click(5, 300);
-  await expect(pad).toHaveCount(0);
-  await expect(page.getByTestId('comment-text')).toHaveValue('Un plan plus serré');
-  // Échap referme la planche seule.
-  await page.getByTestId('comment-sketch').click();
-  await expect(pad).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(pad).toHaveCount(0);
-  await expect(page.getByTestId('comment-text')).toHaveValue('Un plan plus serré');
-  await page.getByTestId('comment-send').click();
-  // Signé « Réalisation » quand le projet n'a pas de réalisateur, jamais « Moi ».
-  await expect(pop.getByTestId('comment')).toContainText('Réalisation');
-  await page.keyboard.press('Escape');
-  await expect(pop).toHaveCount(0);
-  await expect(page.locator('[data-comment-active]')).toHaveCount(0);
-  await expect(page.locator('td[data-commented]')).toHaveCount(1);
-  // La fenêtre des commentaires se ferme à Échap.
-  await page.getByTestId('version-switcher').click();
-  await page.getByTestId('version-comments').click();
-  await expect(page.getByTestId('comments-panel')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByTestId('comments-panel')).toHaveCount(0);
-});
-
-test('planche à dessin : un geste interrompu clôt le trait', async ({ page }) => {
-  await page.goto('/#/grid?seed=rav3');
-  await page.getByTestId('toggle-print').click();
-  await page.locator('tr[data-shot] td[data-col="value"]').first().click();
-  await page.getByTestId('comment-sketch').click();
-  const canvas = page.getByTestId('sketch-pad').locator('canvas');
-  await canvas.evaluate((c) => {
-    // Pointeur simulé : la capture ne s'applique qu'aux vrais pointeurs actifs.
-    c.setPointerCapture = () => undefined;
-    const r = c.getBoundingClientRect();
-    const ev = (type: string, x: number) => c.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, clientX: r.left + x, clientY: r.top + 50 }));
-    ev('pointerdown', 20);
-    ev('pointermove', 60);
-    ev('pointercancel', 60);
-    ev('pointermove', 120);
-    ev('pointerdown', 200);
-    ev('pointermove', 260);
-    ev('pointerup', 260);
-  });
-  // Deux traits distincts : deux annulations.
-  const undo = page.getByRole('button', { name: 'Annuler le dernier trait' });
-  await undo.click();
-  await expect(undo).toBeEnabled();
-  await undo.click();
-  await expect(undo).toBeDisabled();
-});
 
 // --- Partage en direct (serveur de mise en relation local) ------------------------------------
 
@@ -381,9 +315,12 @@ test.describe('partage', () => {
     await h.page.getByTestId('share-stop').click();
   });
 
-  test('relecture : commentaires écrits en même temps par l’hôte et l’invité, aucun perdu', async ({ browser }) => {
+  test('relecture : commentaires écrits en même temps par deux invités, aucun perdu', async ({ browser }) => {
     const h = await host(browser, 'fiction', 'Commenter');
     await h.page.getByTestId('share-button').click();
+    const other = await participant(browser);
+    await join(other, h.link, h.password, 'Paul');
+    await expect(other.getByTestId('guest-banner')).toContainText('relecture');
     const guest = await participant(browser);
     await join(guest, h.link, h.password, 'Nina');
     await expect(guest.getByTestId('guest-banner')).toContainText('relecture');
@@ -392,15 +329,87 @@ test.describe('partage', () => {
       await p.locator('tr[data-shot] td[data-col="value"]').nth(row).click();
       await p.getByTestId('comment-text').fill(text);
     };
-    await write(h.page, 0, 'De l’hôte');
+    await write(other, 0, 'De Paul');
     await write(guest, 3, 'De Nina');
     // Envoyés dans la même tranche de temps.
-    await Promise.all([h.page.getByTestId('comment-send').click(), guest.getByTestId('comment-send').click()]);
-    await h.page.keyboard.press('Escape');
+    await Promise.all([other.getByTestId('comment-send').click(), guest.getByTestId('comment-send').click()]);
+    await other.keyboard.press('Escape');
     await guest.keyboard.press('Escape');
     await expect(h.page.locator('td[data-commented]')).toHaveCount(2);
+    await expect(other.locator('td[data-commented]')).toHaveCount(2);
     await expect(guest.locator('td[data-commented]')).toHaveCount(2);
     await h.page.getByTestId('share-button').click();
     await h.page.getByTestId('share-stop').click();
   });
+  test('commentaires (relecteur invité) : planche à dessin au-dessus de la bulle, Échap referme planche et fenêtre, cellule désignée', async ({ browser }) => {
+    const h = await host(browser, 'rav3', 'Commenter');
+    const page = await participant(browser);
+    await join(page, h.link, h.password, 'Nina');
+    await expect(page.getByTestId('guest-banner')).toBeVisible();
+    const cell = page.locator('tr[data-shot] td[data-col="value"]').first();
+    await cell.click();
+    const pop = page.getByTestId('comment-popover');
+    await expect(pop).toBeVisible();
+    // La cellule commentée reste désignée, une seule.
+    await expect(page.locator('[data-comment-active]')).toHaveCount(1);
+    expect(await cell.getAttribute('data-comment-active')).toBe('');
+    await page.getByTestId('comment-text').fill('Un plan plus serré');
+    await page.getByTestId('comment-sketch').click();
+    const pad = page.getByTestId('sketch-pad');
+    await expect(pad).toBeVisible();
+    await expect(pop).toBeHidden();
+    // Un clic sur le fond referme la planche : la bulle revient avec son brouillon.
+    await page.mouse.click(5, 300);
+    await expect(pad).toHaveCount(0);
+    await expect(page.getByTestId('comment-text')).toHaveValue('Un plan plus serré');
+    // Échap referme la planche seule.
+    await page.getByTestId('comment-sketch').click();
+    await expect(pad).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(pad).toHaveCount(0);
+    await expect(page.getByTestId('comment-text')).toHaveValue('Un plan plus serré');
+    await page.getByTestId('comment-send').click();
+    // Signé du nom du relecteur.
+    await expect(pop.getByTestId('comment')).toContainText('Nina');
+    await page.keyboard.press('Escape');
+    await expect(pop).toHaveCount(0);
+    await expect(page.locator('[data-comment-active]')).toHaveCount(0);
+    await expect(page.locator('td[data-commented]')).toHaveCount(1);
+    // Chez l'hôte, la fenêtre des commentaires se ferme à Échap.
+    await h.page.getByTestId('version-switcher').click();
+    await h.page.getByTestId('version-comments').click();
+    await expect(h.page.getByTestId('comments-panel')).toBeVisible();
+    await h.page.keyboard.press('Escape');
+    await expect(h.page.getByTestId('comments-panel')).toHaveCount(0);
+  });
+
+  test('planche à dessin : un geste interrompu clôt le trait', async ({ browser }) => {
+    const h = await host(browser, 'rav3', 'Commenter');
+    const page = await participant(browser);
+    await join(page, h.link, h.password, 'Nina');
+    await expect(page.getByTestId('guest-banner')).toBeVisible();
+    await page.locator('tr[data-shot] td[data-col="value"]').first().click();
+    await page.getByTestId('comment-sketch').click();
+    const canvas = page.getByTestId('sketch-pad').locator('canvas');
+    await canvas.evaluate((c) => {
+      // Pointeur simulé : la capture ne s'applique qu'aux vrais pointeurs actifs.
+      c.setPointerCapture = () => undefined;
+      const r = c.getBoundingClientRect();
+      const ev = (type: string, x: number) => c.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, clientX: r.left + x, clientY: r.top + 50 }));
+      ev('pointerdown', 20);
+      ev('pointermove', 60);
+      ev('pointercancel', 60);
+      ev('pointermove', 120);
+      ev('pointerdown', 200);
+      ev('pointermove', 260);
+      ev('pointerup', 260);
+    });
+    // Deux traits distincts : deux annulations.
+    const undo = page.getByRole('button', { name: 'Annuler le dernier trait' });
+    await undo.click();
+    await expect(undo).toBeEnabled();
+    await undo.click();
+    await expect(undo).toBeDisabled();
+  });
+
 });

@@ -50,7 +50,7 @@ type Msg =
   | { t: 'hello'; password: string; name: string }
   | { t: 'welcome'; doc: ProjectDoc; mode: ShareMode; keep: boolean; hostName: string; guests: Guest[]; name?: string }
   | { t: 'denied'; reason: string }
-  | { t: 'bye' }
+  | { t: 'bye'; kicked?: boolean }
   | { t: 'ops'; ops: Op[] }
   | { t: 'settings'; mode: ShareMode; keep: boolean }
   | { t: 'guests'; guests: Guest[] }
@@ -419,7 +419,8 @@ export function updateShareSettings(patch: Partial<Pick<ShareState, 'mode' | 'ke
 export function kickGuest(id: string) {
   const c = conns.get(id);
   if (c) {
-    send(c.conn, { t: 'bye' });
+    // Exclu (et non partage fermé) : l'invité est prévenu comme tel.
+    send(c.conn, { t: 'bye', kicked: true });
     setTimeout(() => c.conn.close(), 300);
   }
   conns.delete(id);
@@ -458,6 +459,7 @@ export function stopHosting() {
 
 let joinCreds: { room: string; password: string; name: string } | null = null;
 let byeReceived = false;
+let byeKicked = false;
 
 export async function joinSession(room: string, password: string, name: string): Promise<boolean> {
   // Un partage hébergé dans cet onglet se ferme d'abord (ses invités sont prévenus).
@@ -488,6 +490,7 @@ async function connectToHost(patience: number): Promise<true | string> {
   const until = Date.now() + patience;
   let last = 'L’hôte ne répond pas : son partage est peut-être fermé.';
   byeReceived = false;
+  byeKicked = false;
   while (Date.now() < until && joinCreds === creds) {
     try {
       if (!peer || peer.destroyed) peer = await openPeer(undefined, Math.max(0, until - Date.now()));
@@ -552,7 +555,10 @@ function attemptJoin(p: Peer, creds: { room: string; password: string; name: str
         if (m.t === 'denied') done({ message: m.reason, final: true });
         return;
       }
-      if (m.t === 'bye') byeReceived = true;
+      if (m.t === 'bye') {
+        byeReceived = true;
+        byeKicked = !!m.kicked;
+      }
       else if (m.t === 'ops') applyRemote(m.ops.filter((o) => o.p[0] !== 'review'));
       else if (m.t === 'settings') {
         const wasKept = useShare.getState().keep;
@@ -570,7 +576,7 @@ function attemptJoin(p: Peer, creds: { room: string; password: string; name: str
       if (hostConn !== conn || useShare.getState().status !== 'joined') return;
       // Fermeture voulue par l'hôte : retour à l'accueil. Coupure réseau : l'invité garde le projet
       // à l'écran et se reconnecte seul.
-      if (byeReceived) void expelled();
+      if (byeReceived) void expelled(byeKicked);
       else void rejoin();
     });
   });
