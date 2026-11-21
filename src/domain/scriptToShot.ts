@@ -362,11 +362,64 @@ export function shotsFromSequenceText(doc: ProjectDoc, seqId: ID, opts: { dialog
     .filter((id): id is ID => !!id);
 }
 
-/** Texte versé dans une cellule Action depuis un passage du scénario : l'action, sinon la réplique. */
+/**
+ * Texte versé dans une cellule Action depuis un passage du scénario, selon la règle de la création d'un
+ * plan : l'action (« Réplique de NOM. » pour une réplique seule) ; les répliques vont ailleurs
+ * (`placePassageReplies`).
+ */
 export function passageInsertText(doc: ProjectDoc, source: string, start: number, end: number): string {
+  return passageOf(doc, source, start, end, { dialogueShown: true }).action.trim();
+}
+
+/**
+ * Répliques d'un passage versé dans la cellule Action d'un plan existant, rangées comme à la création
+ * d'un plan : Sujet vide → celui qui parle ; colonne Dialogue affichée → « NOM : réplique » ; sinon
+ * mention courte dans Son (« Rép. « … » », le nom seulement s'il n'est pas le sujet du plan).
+ * Rien n'est écrit deux fois. Renvoie vrai si le plan a changé.
+ */
+export function placePassageReplies(doc: ProjectDoc, shotId: ID, source: string, start: number, end: number, opts: { dialogueShown: boolean }): boolean {
+  const shot = doc.shots[shotId];
   const p = passageOf(doc, source, start, end, { dialogueShown: true });
-  // Versée à la main dans une cellule Action, une réplique seule y entre telle quelle.
-  return (p.replyOnly ? p.dialogue : p.action || p.dialogue).trim();
+  if (!shot || !p.dialogue) return false;
+  let changed = false;
+  if (!shot.subject.trim() && p.subject) {
+    shot.subject = p.subject;
+    changed = true;
+  }
+  if (opts.dialogueShown) {
+    const block = doc.blocks[shot.actionBlockId];
+    if (block && !(block.dialogue ?? '').includes(p.dialogue)) {
+      block.dialogue = [block.dialogue?.trim(), p.dialogue].filter(Boolean).join(' ');
+      changed = true;
+    }
+    return changed;
+  }
+  const subject = fold(shot.subject.trim());
+  const mentions = repliesOf(source, start, end).map((r) =>
+    fold(r.name) === subject ? `Rép. « ${shortQuote(r.line)} »` : `Rép. ${r.name.toLocaleUpperCase('fr')} « ${shortQuote(r.line)} »`,
+  );
+  const sound = shot.sound ?? '';
+  const add = mentions.filter((m) => !sound.includes(m));
+  if (add.length) {
+    shot.sound = [sound.trim(), ...add].filter(Boolean).join(' · ');
+    changed = true;
+  }
+  return changed;
+}
+
+/** Répliques d'un passage (personnage et texte), les lignes d'un même personnage jointes. */
+function repliesOf(source: string, start: number, end: number): Array<{ name: string; line: string }> {
+  const replies: Array<{ name: string; line: string }> = [];
+  for (const el of parseFountain(source)) {
+    if (el.end <= start || el.start >= end || el.type !== 'dialogue' || !el.speaker) continue;
+    const part = el.text.slice(Math.max(start, el.start) - el.start, Math.min(end, el.end) - el.start).trim();
+    if (!part) continue;
+    const name = displayName(el.speaker);
+    const last = replies.at(-1);
+    if (last && last.name === name) last.line += ` ${part}`;
+    else replies.push({ name, line: part });
+  }
+  return replies;
 }
 
 /**

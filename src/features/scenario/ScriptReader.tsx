@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { create } from 'zustand';
 import { matchSequence, parseFountain, sceneAt, scenesOf, shiftAnchors, type ScriptElement } from '../../domain/fountain';
 import { sequenceHeading } from '../../domain/numbering';
-import { createShotsFromSelection, passageInsertText, sentencesOf, splitByScene } from '../../domain/scriptToShot';
+import { createShotsFromSelection, passageInsertText, placePassageReplies, sentencesOf, splitByScene } from '../../domain/scriptToShot';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
@@ -131,6 +131,8 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
     if (!t) return false;
     const text = passageInsertText(doc, source, start, end);
     if (text) {
+      // Les répliques du passage vont où les range la création d'un plan (Sujet, Dialogue ou Son).
+      mutateDoc((d) => void placePassageReplies(d, t.shotId, source, start, end, { dialogueShown: d.project.settings.gridColumns.includes('dialogue') }));
       t.insert(text, { start, end });
       rememberPassage(end);
     } else t.refocus();

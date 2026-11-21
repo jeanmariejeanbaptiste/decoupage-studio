@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createProjectDoc } from './factory';
 import { addSequence, addShot } from './ops';
-import { anchorShotToPassages, chronologicalIndex, createShotFromPassage, passageInsertText, passageOf, sentencesOf, upperName } from './scriptToShot';
+import { anchorShotToPassages, chronologicalIndex, createShotFromPassage, passageInsertText, passageOf, placePassageReplies, sentencesOf, upperName } from './scriptToShot';
 
 const SCRIPT = `INT. ENTREPRISE - JOUR
 
@@ -212,10 +212,27 @@ describe('passages versés dans une cellule Action', () => {
     const shot = addShot(doc, seq);
     return { doc, shot };
   };
-  it('texte versé : l’action seule, sinon la réplique', () => {
+  it('texte versé : l’action seule ; une réplique seule, comme à la création d’un plan', () => {
     const { doc } = setup();
     expect(passageInsertText(doc, SCRIPT, ...at('Elle est seule. Devant'))).toBe('Elle est seule. Devant');
-    expect(passageInsertText(doc, SCRIPT, ...at('Tu es en avance'))).toBe('MARC : Tu es en avance');
+    expect(passageInsertText(doc, SCRIPT, ...at('Tu es en avance'))).toBe('Réplique de MARC.');
+  });
+  it('répliques rangées comme à la création : sujet, puis Son (nom tu pour le même sujet) ou Dialogue', () => {
+    const { doc, shot } = setup();
+    const r = at('Tu es en avance');
+    expect(placePassageReplies(doc, shot, SCRIPT, ...r, { dialogueShown: false })).toBe(true);
+    expect(doc.shots[shot]).toMatchObject({ subject: 'Marc', sound: 'Rép. « Tu es en avance »' });
+    // Une seconde fois : rien n'est écrit deux fois.
+    expect(placePassageReplies(doc, shot, SCRIPT, ...r, { dialogueShown: false })).toBe(false);
+    // Autre sujet (plan de réaction) : le nom de celui qui parle est donné.
+    const { doc: d2, shot: s2 } = setup();
+    d2.shots[s2].subject = 'Léa';
+    placePassageReplies(d2, s2, SCRIPT, ...r, { dialogueShown: false });
+    expect(d2.shots[s2]).toMatchObject({ subject: 'Léa', sound: 'Rép. MARC « Tu es en avance »' });
+    // Colonne Dialogue affichée : la réplique y va.
+    const { doc: d3, shot: s3 } = setup();
+    placePassageReplies(d3, s3, SCRIPT, ...r, { dialogueShown: true });
+    expect(d3.blocks[d3.shots[s3].actionBlockId].dialogue).toBe('MARC : Tu es en avance');
   });
   it('ancre posée, étendue dans la même scène, laissée telle quelle dans une autre', () => {
     const { doc, shot } = setup();

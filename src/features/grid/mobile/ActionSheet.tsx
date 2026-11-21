@@ -4,7 +4,8 @@ import { editableText } from '../../../domain/cells';
 import { parseFountain, parseHeading } from '../../../domain/fountain';
 import { sequenceNumber } from '../../../domain/numbering';
 import { insertAtCaret, markRanges, scriptPieces, type ScriptPiece } from '../../../domain/phoneCut';
-import { passageInsertText } from '../../../domain/scriptToShot';
+import { mutateDoc } from '../../../store/projectStore';
+import { passageInsertText, placePassageReplies } from '../../../domain/scriptToShot';
 import type { ID, ProjectDoc } from '../../../domain/types';
 import { commitCell } from '../actions';
 import { Sheet, sheetStyles as s } from './Sheet';
@@ -52,6 +53,8 @@ export function ActionSheet({ doc, shotId, onClose }: { doc: ProjectDoc; shotId:
   const source = doc.scenario ?? '';
   const take = (p: ScriptPiece) => {
     const snippet = passageInsertText(doc, source, p.start, p.end) || p.text;
+    const dialogueShown = doc.project.settings.gridColumns.includes('dialogue');
+    mutateDoc((d) => void placePassageReplies(d, shotId, source, p.start, p.end, { dialogueShown }));
     const r = insertAtCaret(text, caret, snippet);
     setText(r.text);
     setCaret(r.caret);
