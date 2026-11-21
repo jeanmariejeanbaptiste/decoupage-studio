@@ -96,6 +96,9 @@ export interface ChatSession {
   addUser(text: string): void;
   step(signal?: AbortSignal): Promise<TurnResult>;
   addToolResults(results: readonly ToolResult[]): void;
+  /** Longueur de l'historique, pour revenir en arrière après un tour en échec. */
+  size(): number;
+  truncate(length: number): void;
 }
 
 export class AiError extends Error {}
@@ -127,7 +130,16 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
     }
     throw httpError(res.status, detail);
   }
-  return JSON.parse(text) as unknown;
+  return parseJson(text);
+}
+
+/** Corps d'une réponse réussie : une page HTML (proxy, portail Wi-Fi, mauvaise adresse) n'est pas du JSON. */
+export function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new AiError('Réponse illisible du service (adresse ou réseau à vérifier).');
+  }
 }
 
 // --- Anthropic : SDK officiel, chargé à la demande ----------------------------------------------
@@ -139,6 +151,8 @@ function anthropicSession(key: string, model: string, system: string, tools: rea
     provider: 'anthropic',
     model,
     addUser: (text) => messages.push({ role: 'user', content: text }),
+    size: () => messages.length,
+    truncate: (n) => void messages.splice(n),
     addToolResults: (results) =>
       messages.push({ role: 'user', content: results.map((r) => ({ type: 'tool_result', tool_use_id: r.id, content: r.output, ...(r.isError ? { is_error: true } : {}) })) }),
     async step(signal) {
@@ -188,6 +202,8 @@ function openAiSession(provider: ProviderId, baseUrl: string, key: string, model
     provider,
     model,
     addUser: (text) => messages.push({ role: 'user', content: text }),
+    size: () => messages.length,
+    truncate: (n) => void messages.splice(Math.max(1, n)),
     addToolResults: (results) => results.forEach((r) => messages.push({ role: 'tool', tool_call_id: r.id, content: r.output })),
     async step(signal) {
       const headers: Record<string, string> = key ? { authorization: `Bearer ${key}` } : {};
@@ -240,6 +256,8 @@ function geminiSession(key: string, model: string, system: string, tools: readon
     provider: 'gemini',
     model,
     addUser: (text) => contents.push({ role: 'user', parts: [{ text }] }),
+    size: () => contents.length,
+    truncate: (n) => void contents.splice(n),
     addToolResults: (results) =>
       contents.push({ role: 'user', parts: results.map((r) => ({ functionResponse: { name: r.name, response: r.isError ? { error: r.output } : { result: r.output } } })) }),
     async step(signal) {
@@ -409,7 +427,7 @@ async function getJson(url: string, headers: Record<string, string>, signal?: Ab
   }
   const text = await res.text();
   if (!res.ok) throw httpError(res.status, text.slice(0, 200));
-  return JSON.parse(text) as unknown;
+  return parseJson(text);
 }
 
 /** Modèles que cette clé donne réellement, selon le fournisseur (avec leur prix quand il est publié). */

@@ -18,6 +18,8 @@ export function CommentPopover() {
   const pop = useCommentsUi((u) => u.popover);
   const draft = useCommentsUi((u) => u.draft);
   const drawing = useCommentsUi((u) => u.drawing);
+  // Planche à dessin ouverte : la bulle s'efface (sans perdre son brouillon) et ne se ferme pas d'un clic dehors.
+  const sketching = useCommentsUi((u) => !!u.sketch);
   const doc = useProjectStore((st) => st.doc);
   const canComment = useCanComment();
   const drive = useDriveReview();
@@ -30,9 +32,11 @@ export function CommentPopover() {
     setPos({ left: Math.max(8, Math.min(pop.x, window.innerWidth - r.width - 8)), top: Math.max(8, Math.min(pop.y + 6, window.innerHeight - r.height - 8)) });
   }, [pop, doc, drawing]);
   useEffect(() => {
-    if (!pop || drawing) return;
+    if (!pop || drawing || sketching) return;
     const out = (e: MouseEvent) => {
       const t = e.target as Element;
+      // Élément retiré par ce même clic (fond de la planche à dessin qui se referme) : pas un clic dehors.
+      if (!t.isConnected) return;
       if (box.current?.contains(t) || t.closest?.('[data-comment-trigger], [data-testid="sketch-pad"]')) return;
       closeComment();
     };
@@ -43,7 +47,7 @@ export function CommentPopover() {
       window.removeEventListener('mousedown', out);
       window.removeEventListener('keydown', esc);
     };
-  }, [pop, drawing]);
+  }, [pop, drawing, sketching]);
 
   if (!pop || !doc || drawing) return null;
   const threads = shownComments(doc).filter((x) => sameAnchor(x.anchor, pop.anchor));
@@ -59,7 +63,7 @@ export function CommentPopover() {
     resetDraft();
   };
   return (
-    <div ref={box} className={s.popover} style={pos} role="dialog" aria-label="Commentaires" data-testid="comment-popover">
+    <div ref={box} className={s.popover} style={sketching ? { ...pos, display: 'none' } : pos} role="dialog" aria-label="Commentaires" data-testid="comment-popover">
       <button type="button" className={s.close} aria-label="Fermer" onClick={closeComment}>
         <X size={14} strokeWidth={1.4} />
       </button>

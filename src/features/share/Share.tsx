@@ -72,7 +72,16 @@ export function ShareButton() {
   };
   const link = st.room ? shareLink(st.room) : '';
   return (
-    <div className={s.wrap} ref={ref}>
+    <div
+      className={s.wrap}
+      ref={ref}
+      // Échap, depuis le bouton ou le panneau, referme le panneau et rend la main au bouton.
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || !open || qr) return;
+        setOpen(false);
+        ref.current?.querySelector<HTMLButtonElement>('[data-testid="share-button"]')?.focus();
+      }}
+    >
       <button
         type="button"
         className={s.trigger}
@@ -161,7 +170,8 @@ export function ShareButton() {
           )}
         </div>
       )}
-      {qr && hosting && st.password && <QrScreen link={link} password={st.password} onClose={() => setQr(false)} />}
+      {/* Le QR code porte aussi le mot de passe, déjà affiché en grand : un geste de moins pour chacun. */}
+      {qr && hosting && st.password && <QrScreen link={`${link}&pw=${st.password}`} password={st.password} onClose={() => setQr(false)} />}
     </div>
   );
 }
@@ -178,7 +188,11 @@ export function JoinPage() {
       return '';
     }
   });
-  const [password, setPassword] = useState('');
+  // Arrivée par le QR code : mot de passe déjà rempli, puis retiré de l'adresse (et de l'historique).
+  const [password, setPassword] = useState(() => params.get('pw') ?? '');
+  useEffect(() => {
+    if (params.has('pw')) history.replaceState(history.state, '', `#/join?${new URLSearchParams({ room }).toString()}`);
+  }, [params, room]);
   const busy = st.status === 'joining';
   return (
     <div className="page">
@@ -222,7 +236,11 @@ export function GuestBanner() {
     <div className={s.banner} role="status" data-testid="guest-banner">
       <span>
         {st.status === 'reconnecting' && 'Connexion perdue, reconnexion… · '}
-        Projet partagé par <b>{st.hostName}</b> · {st.mode === 'read' ? 'lecture seule' : st.mode === 'review' ? 'relecture' : 'modification'}
+        Projet partagé{st.hostName ? (
+          <>
+            {' '}par <b>{st.hostName}</b>
+          </>
+        ) : null} · {st.mode === 'read' ? 'lecture seule' : st.mode === 'review' ? 'relecture' : 'modification'}
         {st.guests.length > 1 ? ` · ${st.guests.length} personnes connectées` : ''}
         {st.keep ? '' : ' · rien n’est enregistré sur cet ordinateur'}
       </span>
