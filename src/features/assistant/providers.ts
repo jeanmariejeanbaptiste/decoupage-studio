@@ -90,10 +90,27 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+/** Document joint à un message (Claude seulement) : image, PDF, ou texte lu tel quel. */
+export interface ChatFile {
+  name: string;
+  mediaType: string;
+  base64?: string;
+  text?: string;
+}
+
+/** Fournisseurs qui reçoivent les documents joints. */
+export const acceptsFiles = (p: ProviderId) => p === 'anthropic';
+
+function fileBlock(f: ChatFile): unknown {
+  if (f.mediaType.startsWith('image/')) return { type: 'image', source: { type: 'base64', media_type: f.mediaType, data: f.base64 } };
+  if (f.mediaType === 'application/pdf') return { type: 'document', title: f.name, source: { type: 'base64', media_type: 'application/pdf', data: f.base64 } };
+  return { type: 'document', title: f.name, source: { type: 'text', media_type: 'text/plain', data: f.text ?? '' } };
+}
+
 export interface ChatSession {
   provider: ProviderId;
   model: string;
-  addUser(text: string): void;
+  addUser(text: string, files?: readonly ChatFile[]): void;
   step(signal?: AbortSignal): Promise<TurnResult>;
   addToolResults(results: readonly ToolResult[]): void;
   /** Longueur de l'historique, pour revenir en arrière après un tour en échec. */
@@ -150,7 +167,7 @@ function anthropicSession(key: string, model: string, system: string, tools: rea
   return {
     provider: 'anthropic',
     model,
-    addUser: (text) => messages.push({ role: 'user', content: text }),
+    addUser: (text, files) => messages.push({ role: 'user', content: files?.length ? [...files.map(fileBlock), { type: 'text', text }] : text }),
     size: () => messages.length,
     truncate: (n) => void messages.splice(n),
     addToolResults: (results) =>

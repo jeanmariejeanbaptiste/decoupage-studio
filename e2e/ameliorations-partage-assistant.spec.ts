@@ -413,3 +413,29 @@ test.describe('partage', () => {
   });
 
 });
+
+test('assistant : plein écran, documents joints envoyés à Claude (PDF et texte)', async ({ page }) => {
+  const bodies = await mockAssistant(page, () => ({ text: 'Lu.' }));
+  await page.goto('/#/grid?seed=fiction');
+  const panel = await openPanel(page);
+  await panel.getByTestId('assistant-full').click();
+  const vw = page.viewportSize()!.width;
+  await expect.poll(async () => (await panel.boundingBox())!.width).toBeGreaterThan(vw - 2);
+  await panel.getByTestId('assistant-file-input').setInputFiles([
+    { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Tourner la nuit.') },
+    { name: 'plan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') },
+  ]);
+  await expect(panel.getByTestId('assistant-files').locator('li')).toHaveCount(2);
+  await panel.getByTestId('assistant-input').fill('Résume ces documents.');
+  await panel.getByTestId('assistant-send').click();
+  await expect(panel.getByTestId('assistant-assistant')).toContainText('Lu.');
+  const content = bodies[0].messages!.at(-1)!.content as { type: string; title?: string; source?: { type: string; data?: string } }[];
+  expect(content.map((c) => c.type)).toEqual(['document', 'document', 'text']);
+  expect(content[0]).toMatchObject({ title: 'notes.txt', source: { type: 'text', data: 'Tourner la nuit.' } });
+  expect(content[1]).toMatchObject({ title: 'plan.pdf', source: { type: 'base64' } });
+  await expect(panel.getByTestId('assistant-user').locator('li')).toHaveCount(2);
+  // Échap réduit d'abord, puis ferme.
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await panel.boundingBox())!.width).toBeLessThan(vw - 100);
+  await expect(panel).toBeVisible();
+});

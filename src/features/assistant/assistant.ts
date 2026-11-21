@@ -5,7 +5,7 @@ import { shotCode, sequenceHeading } from '../../domain/numbering';
 import type { ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
-import { AiError, createSession, isConfigured, loadAiSettings, modelOf, type ChatSession } from './providers';
+import { AiError, createSession, isConfigured, loadAiSettings, modelOf, type ChatSession, acceptsFiles, type ChatFile } from './providers';
 
 enablePatches();
 
@@ -19,10 +19,14 @@ export interface ChatEntry {
   after?: ProjectDoc;
   /** Erreur d'un tour resté sans effet : la demande à renvoyer. */
   retry?: string;
+  /** Documents joints au message (et à renvoyer avec lui). */
+  files?: ChatFile[];
 }
 
 interface AssistantState {
   open: boolean;
+  /** Conversation en plein écran. */
+  full?: boolean;
   busy: boolean;
   entries: ChatEntry[];
   session: ChatSession | null;
@@ -67,7 +71,7 @@ export function retryAssistant(entryId: number) {
   const e = st.entries.find((x) => x.id === entryId);
   if (!e?.retry || st.busy) return;
   useAssistant.setState({ entries: st.entries.filter((x) => x.id !== entryId) });
-  void askAssistant(e.retry, true);
+  void askAssistant(e.retry, true, e.files);
 }
 
 export function stopAssistant() {
@@ -105,7 +109,7 @@ function context(doc: ProjectDoc): string {
 }
 
 /** Envoie un message : le modèle lit et modifie le projet par ses outils, en un seul pas d'annulation. */
-export async function askAssistant(text: string, resend = false): Promise<void> {
+export async function askAssistant(text: string, resend = false, files?: ChatFile[]): Promise<void> {
   const msg = text.trim();
   const st = useAssistant.getState();
   if (!msg || st.busy) return;
@@ -121,9 +125,10 @@ export async function askAssistant(text: string, resend = false): Promise<void> 
   const abort = new AbortController();
   const mine = ++turn;
   useAssistant.setState({ busy: true, session, abort });
-  if (!resend) push({ role: 'user', text: msg });
+  const sent = files?.length && acceptsFiles(settings.provider) ? files : undefined;
+  if (!resend) push({ role: 'user', text: msg, files: sent });
   const mark = session.size();
-  session.addUser(`${context(base)}\n${msg}`);
+  session.addUser(`${context(base)}\n${msg}`, sent);
   let work: ProjectDoc = base;
   const patches: Patch[] = [];
   const changes: string[] = [];
@@ -164,7 +169,7 @@ export async function askAssistant(text: string, resend = false): Promise<void> 
     // Rien n'est arrivé de ce tour : l'historique revient à son état d'avant, la demande peut être renvoyée.
     const empty = reply < 0 && !patches.length;
     if (empty) session.truncate(mark);
-    if ((e as Error).name !== 'AbortError' && mine === turn) push({ role: 'error', text: e instanceof AiError ? e.message : `Erreur : ${(e as Error).message}`, retry: empty ? msg : undefined });
+    if ((e as Error).name !== 'AbortError' && mine === turn) push({ role: 'error', text: e instanceof AiError ? e.message : `Erreur : ${(e as Error).message}`, retry: empty ? msg : undefined, files: empty ? sent : undefined });
   } finally {
     try {
       // Conversation abandonnée (nouvelle conversation, autre projet) : rien n'est versé.
