@@ -16,6 +16,9 @@
   border-spacing: 0;
   table-layout: fixed;
   font-variant-numeric: tabular-nums;
+  /* L'en-tête collant déborde de 8 px au-dessus du bord (caché au repos) : aucun interstice d'arrondi
+     (Safari, zoom) ne laisse voir les lignes qui défilent dessous. */
+  margin-top: -8px;
 }
 .gutterCol { width: 24px; }
 .col_sequence { width: 14%; }
@@ -35,18 +38,15 @@
 .th {
   /* Filets verticaux entre les intitulés, dans le prolongement de ceux des cellules. */
   border-right: 1px solid color-mix(in srgb, var(--rule) 55%, var(--paper));
-  /* Le fond déborde vers le haut : rien de ce qui défile ne transparaît au-dessus des intitulés
-     (interstice d'arrondi au zoom, Safari). */
-  box-shadow: 0 -24px 0 var(--paper);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   position: sticky;
-  top: 0;
+  top: -8px;
   z-index: 3;
   background: var(--paper);
   border-bottom: 1px solid var(--ink);
-  padding: 8px 8px 6px;
+  padding: 16px 8px 6px;
   font-weight: 600;
   font-size: 11.5px;
   letter-spacing: 0.08em;
@@ -68,7 +68,7 @@
   padding: 0;
   vertical-align: middle;
 }
-thead .gutter { position: sticky; top: 0; z-index: 4; background: var(--paper); border-bottom: 1px solid var(--ink); padding: 0; box-shadow: 0 -24px 0 var(--paper); }
+thead .gutter { position: sticky; top: -8px; z-index: 4; background: var(--paper); border-bottom: 1px solid var(--ink); padding: 0; }
 
 .cell {
   position: relative;
