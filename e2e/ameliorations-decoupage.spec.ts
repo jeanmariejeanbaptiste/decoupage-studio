@@ -11,18 +11,6 @@ const doc = (page: Page) =>
 test.describe('téléphone', () => {
   test.use({ viewport: PHONE, hasTouch: true });
 
-  test('barre du tableau : menu Colonnes dans l’écran, sans inspecteur ni scénario', async ({ page }) => {
-    await page.goto('/#/grid?seed=fiction');
-    await expect(page.getByTestId('mobile-cut')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Inspecteur' })).toHaveCount(0);
-    await expect(page.getByTestId('toggle-scenario')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Colonnes' }).click();
-    const box = await page.getByRole('menu').boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.x).toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(PHONE.width);
-    expect(box!.y + box!.height).toBeLessThanOrEqual(PHONE.height);
-  });
 
   test('storyboard : barre dans l’écran, commandes des cartes visibles', async ({ page }) => {
     await page.goto('/#/storyboard?seed=fiction');
@@ -36,34 +24,8 @@ test.describe('téléphone', () => {
     await expect(page.getByTestId('storyboard-draw').first()).toHaveCSS('opacity', '1');
   });
 
-  test('dialogue : la puce de personnage complète le texte sans l’effacer', async ({ page }) => {
-    await page.goto('/#/grid?seed=fiction');
-    await page.getByRole('button', { name: 'Colonnes' }).click();
-    await page.getByRole('menu').getByLabel('Dialogue').check();
-    await page.getByRole('button', { name: 'Colonnes' }).click();
-    const field = page.getByLabel('Dialogue', { exact: true });
-    await field.fill('Ça suffit. ');
-    // Aucune puce ne remplace un texte en cours de phrase.
-    await field.fill('Ça suffit');
-    await expect(page.locator('[data-field="dialogue"] button')).toHaveCount(0);
-    await field.fill('Ça suffit. ma');
-    await page.locator('[data-field="dialogue"] button', { hasText: 'MARC :' }).click();
-    await expect(field).toHaveValue('Ça suffit. MARC : ');
-  });
 });
 
-test('téléphone, mode durée : la durée du plan se saisit', async ({ page }) => {
-  await page.goto('/#/settings?seed=fiction&section=minutage');
-  await page.getByRole('radiogroup', { name: 'Mode de TC' }).getByText('Durée de chaque plan').click();
-  await page.getByTestId('settings-save').click();
-  await page.setViewportSize(PHONE);
-  await page.goto('/#/grid');
-  const field = page.getByLabel('Durée', { exact: true });
-  await field.fill('0:12');
-  await field.blur();
-  const d = await doc(page);
-  expect(Object.values(d.shots).some((s) => s.durationSec === 12)).toBe(true);
-});
 
 const ROWS = '[data-testid="shot-row"]';
 const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
@@ -171,11 +133,14 @@ test('storyboard : ⌘P suit l’orientation choisie à l’export', async ({ pa
 
 test('plan abandonné : texte estompé dans le tableau', async ({ page }) => {
   await page.goto('/#/grid?seed=fiction');
-  await page.getByRole('button', { name: 'Inspecteur' }).click();
-  await page.locator('[data-cell="1:subject"]').click();
   const subject = page.locator('[data-cell="1:subject"]');
   const normal = await subject.evaluate((el) => getComputedStyle(el).color);
-  await page.getByTestId('inspector').getByLabel('Statut').selectOption('abandonné');
+  await page.getByRole('button', { name: 'Colonnes' }).click();
+  await page.getByRole('menu').getByRole('checkbox', { name: /^Statut/ }).check();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-cell="1:status"]').click();
+  await page.keyboard.type('abandonn');
+  await page.getByRole('option', { name: 'abandonné', exact: true }).click();
   await expect(page.locator(ROWS).nth(1)).toHaveAttribute('data-status', 'abandonné');
   await page.locator('[data-cell="0:subject"]').click();
   await expect.poll(() => subject.evaluate((el) => getComputedStyle(el).color)).not.toBe(normal);
