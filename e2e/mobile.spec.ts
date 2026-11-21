@@ -177,15 +177,15 @@ test('téléphone : action prise du scénario (phrase insérée au curseur, surl
   expect(d.blocks[d.shots[id].actionBlockId].text).toBe('');
   expect(d.blocks[d.shots[id].actionBlockId].scenarioAnchor).toBeUndefined();
 
-  // Son : un champ de texte libre, sur plusieurs lignes.
+  // Son : pastilles et note libre (le champ reste un texte).
   await field(page, 'sound').click();
   const son = page.getByTestId('sheet-sound');
-  await expect(son.getByRole('button')).toHaveCount(1);
-  await son.getByRole('textbox').fill('Son direct\nAmbiance du hall, roue qui grince');
+  await son.locator('[data-sound-kind="Son direct"]').click();
+  await page.getByTestId('sound-note').fill('roue qui grince');
   await done(page);
-  await expect(field(page, 'sound')).toContainText('Ambiance du hall, roue qui grince');
+  await expect(field(page, 'sound')).toContainText('Son direct · roue qui grince');
   d = await docOf(page);
-  expect(d.shots[id].sound).toBe('Son direct\nAmbiance du hall, roue qui grince');
+  expect(d.shots[id].sound).toBe('Son direct · roue qui grince');
 });
 
 test('téléphone : insérer un plan entre deux plans, une séquence entre deux séquences', async ({ page }) => {
