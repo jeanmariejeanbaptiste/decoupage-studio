@@ -114,7 +114,8 @@ export function Grid({ doc, model, animate = false }: Props) {
     const body = wrap?.querySelector<HTMLElement>(`tbody[data-seq="${focusSeq}"]`);
     useUi.getState().set({ focusSeq: null });
     if (!wrap || !body) return;
-    const head = wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+    // En-tête : sa hauteur visible (il déborde de 8 px au-dessus du bord).
+    const head = (wrap.querySelector('thead')?.getBoundingClientRect().height ?? 8) - 8;
     wrap.scrollTop += body.getBoundingClientRect().top - wrap.getBoundingClientRect().top - head;
     const add = body.querySelector<HTMLElement>('[data-testid="add-first-shot"]');
     if (add) add.focus({ preventScroll: true });

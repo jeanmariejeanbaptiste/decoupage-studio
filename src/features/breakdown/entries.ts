@@ -1,5 +1,5 @@
 import { matchSequence, scenesOf, type Scene } from '../../domain/fountain';
-import { sequenceHeading, sequenceNumber } from '../../domain/numbering';
+import { sequenceHeading, sequenceNumber, type SeqNo } from '../../domain/numbering';
 import type { ID, ProjectDoc } from '../../domain/types';
 
 /** Une scène à dépouiller : scène du scénario, séquence du découpage, ou les deux. */
@@ -35,13 +35,13 @@ export function entryName(doc: ProjectDoc, e: Entry): string {
  * vérifications et l'export. Une scène du scénario pas encore au découpage n'a pas de numéro (« – »)
  * et ne décale pas les autres. Un même numéro partout : liste, fiche, rapports, export.
  */
-export function entryNumbers(doc: ProjectDoc, entries: readonly Entry[]): { byKey: Map<string, number>; bySeq: Map<ID, number> } {
-  const byKey = new Map<string, number>();
-  const bySeq = new Map<ID, number>();
+export function entryNumbers(doc: ProjectDoc, entries: readonly Entry[]): { byKey: Map<string, SeqNo>; bySeq: Map<ID, SeqNo> } {
+  const byKey = new Map<string, SeqNo>();
+  const bySeq = new Map<ID, SeqNo>();
   for (const e of entries) {
     if (!e.seqId) continue;
     const n = sequenceNumber(doc, e.seqId);
-    if (n <= 0) continue;
+    if (!n) continue;
     byKey.set(e.key, n);
     bySeq.set(e.seqId, n);
   }
@@ -49,4 +49,4 @@ export function entryNumbers(doc: ProjectDoc, entries: readonly Entry[]): { byKe
 }
 
 /** « 3, ENTREPRISE / BUREAU DIRECTRICE » au numéro du dépouillement. */
-export const entryLabel = (doc: ProjectDoc, e: Entry, n: number | undefined) => `${n ?? '–'}, ${entryName(doc, e) || (e.scene?.heading ?? '').toLocaleUpperCase('fr')}`;
+export const entryLabel = (doc: ProjectDoc, e: Entry, n: SeqNo | undefined) => `${n ?? '–'}, ${entryName(doc, e) || (e.scene?.heading ?? '').toLocaleUpperCase('fr')}`;

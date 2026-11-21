@@ -1,3 +1,4 @@
+import { sequenceNumber } from '../../domain/numbering';
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildFiction } from '../../../seed/fiction';
@@ -5,7 +6,7 @@ import { breakdownCsv } from '../../domain/exports';
 import { entriesOf, entryLabel, entryNumbers } from './entries';
 
 describe('numéros du dépouillement', () => {
-  it('ceux du découpage, même après déplacement d’une séquence, comme l’export', () => {
+  it('ceux du découpage (numéros du scénario), même après déplacement d’une séquence, comme l’export', () => {
     const doc = produce(buildFiction(), (d) => {
       const ids = d.project.sequenceIds;
       ids.unshift(ids.pop()!);
@@ -14,11 +15,13 @@ describe('numéros du dépouillement', () => {
     const { bySeq } = entryNumbers(doc, entries);
     const csvRows = breakdownCsv(doc).split(/\r?\n/).slice(1).filter(Boolean);
     doc.project.sequenceIds.forEach((id, i) => {
-      expect(bySeq.get(id)).toBe(i + 1);
-      expect(csvRows[i].replace(/^\W*/, '')).toMatch(new RegExp(`^${i + 1}, `));
+      const n = sequenceNumber(doc, id);
+      expect(bySeq.get(id)).toBe(n);
+      expect(csvRows[i].replace(/^\W*/, '')).toMatch(new RegExp(`^${n}, `));
     });
+    // La séquence déplacée en tête garde son numéro du scénario.
     const moved = entries.find((e) => e.seqId === doc.project.sequenceIds[0])!;
-    expect(entryLabel(doc, moved, bySeq.get(moved.seqId!))).toMatch(/^1, /);
+    expect(entryLabel(doc, moved, bySeq.get(moved.seqId!))).toMatch(new RegExp(`^${doc.project.sequenceIds.length}, `));
   });
 
   it('une scène sans séquence n’a pas de numéro et ne décale pas les suivantes', () => {

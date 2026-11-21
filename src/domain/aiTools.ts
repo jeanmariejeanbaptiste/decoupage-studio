@@ -3,7 +3,7 @@
  * fournisseur (Anthropic, OpenAI, Gemini…) : schémas JSON, puis exécution sur un brouillon du projet.
  * Toutes les modifications d'une réponse forment une seule étape d'annulation (voir features/assistant).
  */
-import { shotNumberLabel } from './numbering';
+import { sequenceIdByNumber, sequenceNumber, shotNumberLabel } from './numbering';
 import { addBreakdownItems, breakdownCategories, breakdownLabel, breakdownOf } from './breakdown';
 import { applyFormat } from './factory';
 import { scenesOf, shiftAnchors } from './fountain';
@@ -230,9 +230,9 @@ const asStr = (v: unknown) => (typeof v === 'string' ? v.trim() : undefined);
 const asList = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : undefined);
 
 function seqIdAt(doc: ProjectDoc, n: unknown): ID {
-  const i = asInt(n);
-  const id = i !== undefined ? doc.project.sequenceIds[i - 1] : undefined;
-  if (!id) throw new Error(`Séquence ${String(n)} introuvable (le projet en compte ${doc.project.sequenceIds.length}).`);
+  // Numéro affiché (celui du scénario, bis compris : « 4A »), comme partout ailleurs.
+  const id = typeof n === 'number' || typeof n === 'string' ? sequenceIdByNumber(doc, n) : undefined;
+  if (!id) throw new Error(`Séquence ${String(n)} introuvable (numéros : ${doc.project.sequenceIds.map((x) => sequenceNumber(doc, x)).join(', ')}).`);
   return id;
 }
 
@@ -297,7 +297,7 @@ function describeSequence(doc: ProjectDoc, seqId: ID) {
   const timing = computeTiming(doc);
   const seq = doc.sequences[seqId];
   return {
-    sequence: doc.project.sequenceIds.indexOf(seqId) + 1,
+    sequence: sequenceNumber(doc, seqId),
     label: seq.label,
     int_ext: seq.intExt ?? null,
     effect: seq.effect ?? null,
@@ -378,7 +378,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
         const index = after === undefined ? undefined : Math.max(0, Math.min(after, doc.project.sequenceIds.length));
         const id = addSequence(doc, index, { label: label.toLocaleUpperCase('fr'), intExt: asStr(input.int_ext) as IntExt | undefined, effect: asStr(input.effect) as Effect | undefined, summary: asStr(input.summary) || undefined }, false);
         setSequenceDecorByName(doc, id, label);
-        const n = doc.project.sequenceIds.indexOf(id) + 1;
+        const n = sequenceNumber(doc, id);
         return { result: JSON.stringify({ sequence: n }), change: `Séquence ${n} ajoutée (${label.toLocaleUpperCase('fr')})` };
       }
       case 'update_sequence': {
@@ -423,7 +423,7 @@ export function runAiTool(doc: ProjectDoc, name: string, raw: unknown): ToolOutc
           prev = id;
           index = doc.sequences[seqId].shotIds.indexOf(id) + 1;
         }
-        const n = doc.project.sequenceIds.indexOf(seqId) + 1;
+        const n = sequenceNumber(doc, seqId);
         const nums = created.map((id) => doc.sequences[seqId].shotIds.indexOf(id) + 1);
         return { result: JSON.stringify({ added_shots: nums }), change: `${created.length} plan${created.length > 1 ? 's' : ''} ajouté${created.length > 1 ? 's' : ''} à la séquence ${n}` };
       }

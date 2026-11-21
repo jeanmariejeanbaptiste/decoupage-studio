@@ -2,12 +2,12 @@
  * Demandes toutes faites à l'assistant, lancées depuis les pages (dépouillement, découpage, séquencier) :
  * l'assistant lit le scénario et agit sur le projet avec ses outils ; tout s'annule en une fois.
  */
-import { sequenceHeading } from '../../domain/numbering';
+import { sequenceHeading, sequenceNumber } from '../../domain/numbering';
 import { outlineSequences } from '../../domain/outline';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { askAssistant, toggleAssistant } from './assistant';
 
-const label = (doc: ProjectDoc, seqId: ID) => `la séquence ${doc.project.sequenceIds.indexOf(seqId) + 1} « ${sequenceHeading(doc, seqId).replace(/^\d+,\s*/, '')} »`;
+const label = (doc: ProjectDoc, seqId: ID) => `la séquence ${sequenceNumber(doc, seqId)} « ${sequenceHeading(doc, seqId).replace(/^\d+,\s*/, '')} »`;
 
 /** Dépouillement d'une séquence (ou d'une scène du scénario pas encore au découpage). */
 export function suggestBreakdown(doc: ProjectDoc, target: { seqId?: ID; heading?: string }): void {

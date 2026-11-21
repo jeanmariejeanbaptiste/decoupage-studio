@@ -1,3 +1,4 @@
+import type { SeqNo } from '../../../domain/numbering';
 import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FileText, Keyboard } from 'lucide-react';
 import { editableText } from '../../../domain/cells';
@@ -33,6 +34,8 @@ export function ActionSheet({ doc, shotId, onClose }: { doc: ProjectDoc; shotId:
   }, [doc, shot.sequenceId]);
   const hasScript = pieces.some((p) => p.kind !== 'heading');
   const seqNo = sequenceNumber(doc, shot.sequenceId);
+  const afterId = doc.project.sequenceIds[doc.project.sequenceIds.indexOf(shot.sequenceId) + 1];
+  const nextNo = afterId ? sequenceNumber(doc, afterId) : '';
   const [mode, setMode] = useState<Mode>(hasScript ? 'script' : 'keys');
   const area = useRef<HTMLTextAreaElement>(null);
 
@@ -108,7 +111,7 @@ export function ActionSheet({ doc, shotId, onClose }: { doc: ProjectDoc; shotId:
               <Pieces pieces={pieces} seqNumber={seqNo} isOn={isOn} onTake={take} />
               {next.length > 0 && (
                 <div className={s.next}>
-                  <Pieces pieces={next} seqNumber={seqNo + 1} isOn={isOn} onTake={take} />
+                  <Pieces pieces={next} seqNumber={nextNo} isOn={isOn} onTake={take} />
                 </div>
               )}
             </div>
@@ -149,7 +152,7 @@ function Mirror({ text, marks, caret }: { text: string; marks: Array<[number, nu
 }
 
 /** Le scénario d'une séquence : en-tête, phrases d'action à toucher, répliques entières. */
-function Pieces({ pieces, seqNumber, isOn, onTake }: { pieces: ScriptPiece[]; seqNumber: number; isOn: (p: ScriptPiece) => boolean; onTake: (p: ScriptPiece) => void }) {
+function Pieces({ pieces, seqNumber, isOn, onTake }: { pieces: ScriptPiece[]; seqNumber: SeqNo; isOn: (p: ScriptPiece) => boolean; onTake: (p: ScriptPiece) => void }) {
   const blocks: ReactNode[] = [];
   let para: ScriptPiece[] = [];
   const flush = () => {

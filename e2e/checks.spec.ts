@@ -297,7 +297,7 @@ test('vérifications sur téléphone : une séquence sans plan s’ouvre dans la
   await page.getByTestId('mobile-overview').click();
   await page.locator('[data-gap$=":e"]').last().click();
   await page.getByTestId('mobile-insert-seq').click();
-  await expect(page.getByTestId('mobile-code')).toHaveText('4.1');
+  await expect(page.getByTestId('mobile-code')).toHaveText('3A.1');
   await page.getByTestId('mobile-more').click();
   await page.getByRole('menuitem', { name: 'Supprimer le plan' }).click();
   await expect(page.getByTestId('mobile-code')).toHaveText('3.3');
@@ -308,5 +308,5 @@ test('vérifications sur téléphone : une séquence sans plan s’ouvre dans la
   await expect(target).toBeInViewport();
   await expect(target).toBeFocused();
   await target.click();
-  await expect(page.getByTestId('mobile-code')).toHaveText('4.1');
+  await expect(page.getByTestId('mobile-code')).toHaveText('3A.1');
 });

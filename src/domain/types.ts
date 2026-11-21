@@ -294,7 +294,7 @@ export interface ProjectDoc {
    * Vue triée (jamais enregistrée) : numéros d'origine à afficher, pour que le tri ne renumérote
    * ni les séquences ni les plans (le clap garde son numéro).
    */
-  display?: { seqNumbers?: Record<ID, number>; shotNumbers?: Record<ID, number> };
+  display?: { seqNumbers?: Record<ID, number | string>; shotNumbers?: Record<ID, number> };
   scenario?: string;
   /** Note d'intention en texte brut (comptes de mots, assistant, export texte), tenue à jour par l'éditeur. */
   intention?: string;
