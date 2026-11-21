@@ -71,7 +71,8 @@ test('comparer les versions : texte entier marqué, résumé, seulement les chan
 test('comparer : changer de versions, retour à la page d’origine, export PDF, rien n’est modifié', async ({ page }) => {
   await withV2(page);
   const before = await page.evaluate(() => JSON.stringify((window as unknown as { __ds: { doc: () => unknown } }).__ds.doc()));
-  await page.getByRole('button', { name: /Découpage technique/ }).click();
+  // Depuis le Scénario (le découpage compare son propre contenu).
+  await page.evaluate(() => void (location.hash = '#/scenario'));
   await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-compare').click();
   await expect(page.getByTestId('compare-page')).toBeVisible();
@@ -92,18 +93,18 @@ test('comparer : changer de versions, retour à la page d’origine, export PDF,
   expect(pdf.length).toBeGreaterThan(2000);
   // Flèche de retour : la page d'où l'on venait, sans laisser la comparaison dans l'historique.
   await page.getByTestId('compare-back').click();
-  await expect(page).toHaveURL(/#\/grid/);
+  await expect(page).toHaveURL(/#\/scenario/);
   await page.goBack();
   await expect(page.getByTestId('compare-page')).toHaveCount(0);
   // Après un rechargement, la flèche ramène encore à la page d'origine.
-  await page.goto('/#/grid');
+  await page.goto('/#/scenario');
   await page.getByTestId('version-switcher').click();
   await page.getByTestId('version-compare').click();
   await expect(page.getByTestId('compare-page')).toBeVisible();
   await page.reload();
   await expect(page.getByTestId('compare-page')).toBeVisible();
   await page.getByTestId('compare-back').click();
-  await expect(page).toHaveURL(/#\/grid/);
+  await expect(page).toHaveURL(/#\/scenario/);
   const after = await page.evaluate(() => JSON.stringify((window as unknown as { __ds: { doc: () => unknown } }).__ds.doc()));
   expect(after).toBe(before);
 });

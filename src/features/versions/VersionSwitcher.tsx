@@ -70,6 +70,7 @@ export function VersionSwitcher({ doc, cut = false }: { doc: ProjectDoc; cut?: b
     const n = all.filter((x) => !x.c.resolved).length;
     return (
       <span className={s.wrap}>
+        {comparing && <CutCompare doc={doc} onClose={() => setComparing(false)} />}
         <button
           type="button"
           className={s.trigger}

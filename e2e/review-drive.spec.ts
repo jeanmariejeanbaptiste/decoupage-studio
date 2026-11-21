@@ -404,13 +404,13 @@ test('relecture en ligne : publier, lire sans compte, commenter (connexion, sél
   await expect(carried).toContainText('Oui, on change.');
   await nina.keyboard.press('Escape');
 
-  // Le relecteur compare V2 avec V1 (consultation seulement), puis revient au découpage.
+  // Le relecteur compare le découpage des versions publiées (consultation seulement).
   await nina.getByTestId('version-compare').click();
-  await expect(nina.getByTestId('compare-a').locator('option:checked')).toHaveText('V2');
-  await expect(nina.getByTestId('compare-b').locator('option:checked')).toHaveText('V1');
-  await expect(nina.getByTestId('compare-summary')).toContainText('aucun changement');
-  await nina.getByTestId('compare-back').click();
-  await expect(nina).toHaveURL(/#\/grid/);
+  const cmp = nina.getByTestId('cut-compare');
+  await expect(cmp).toBeVisible();
+  await expect(cmp.locator('select').first().locator('option')).toHaveText(['V1', 'V2']);
+  await nina.keyboard.press('Escape');
+  await expect(cmp).toHaveCount(0);
 
   // Jamais rien de privé, et rien d'enregistré chez le relecteur.
   const finalText = fake.snapshotText();

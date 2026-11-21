@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { cutDiff } from '../../domain/cutDiff';
-import { activeVersion } from '../../domain/versions';
+import { activeVersion, comparableVersions } from '../../domain/versions';
+import { useReadOnly } from '../../store/share';
 import type { ProjectDoc } from '../../domain/types';
 import s from './CutCompare.module.css';
 
@@ -12,7 +13,9 @@ const MARK = { added: 'Ajouté', removed: 'Retiré', changed: 'Modifié' } as co
  * par champ (avant → après). Par défaut, la version courante face à celle dont elle est partie.
  */
 export function CutCompare({ doc, onClose }: { doc: ProjectDoc; onClose: () => void }) {
-  const versions = doc.versions ?? [];
+  // Invité : les versions publiées seulement.
+  const readOnly = useReadOnly();
+  const versions = comparableVersions(doc, readOnly);
   const cur = activeVersion(doc);
   const [b, setB] = useState(cur?.id ?? versions.at(-1)?.id ?? '');
   const [a, setA] = useState(() => cur?.from ?? versions.find((v) => v.id !== b)?.id ?? '');
