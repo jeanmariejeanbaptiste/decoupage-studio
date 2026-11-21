@@ -11,6 +11,9 @@ import { mutateDoc, undo } from '../../store/projectStore';
 import { useDriveReview, useReadOnly } from '../../store/share';
 import { ask } from '../../ui/dialogStore';
 import { openCompare } from './compareUi';
+import { CutCompare } from './CutCompare';
+import { clearCut } from '../../domain/cutDiff';
+import { deleteSequence } from '../../domain/ops';
 import s from './VersionSwitcher.module.css';
 
 /** Place du menu (300 px au plus) : sous le bouton, aligné à droite si possible, jamais hors de la page. */
@@ -31,7 +34,9 @@ const dateFmt =new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short'
  * Versions du film, communes au scénario et au découpage : on passe de l'une à l'autre, on en crée une
  * (copie de la courante : tout ce qui y reste garde sa préparation). Les autres pages suivent la courante.
  */
-export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
+/** `cut` : menu du découpage (comparer et effacer le découpage, version vierge) ; sinon celui du scénario. */
+export function VersionSwitcher({ doc, cut = false }: { doc: ProjectDoc; cut?: boolean }) {
+  const [comparing, setComparing] = useState(false);
   const readOnly = useReadOnly();
   const drive = useDriveReview();
   const [open, setOpen] = useState(false);
@@ -55,7 +60,7 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
   // Comparer : deux versions au moins (invités et relecteurs compris, parmi les versions publiées : on consulte, rien ne change).
   const comparable = comparableVersions(doc, readOnly).length > 1;
   const compareIcon = comparable ? (
-    <button type="button" className={s.compare} onClick={() => openCompare(doc, readOnly)} aria-label="Comparer les versions" title="Comparer les versions" data-view data-testid="version-compare">
+    <button type="button" className={s.compare} onClick={() => (cut ? setComparing(true) : openCompare(doc, readOnly))} aria-label="Comparer les versions" title="Comparer les versions" data-view data-testid="version-compare">
       <GitCompare size={14} strokeWidth={1.4} aria-hidden="true" />
     </button>
   ) : null;
@@ -102,6 +107,7 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
 
   return (
     <div className={s.wrap} ref={ref}>
+      {comparing && <CutCompare doc={doc} onClose={() => setComparing(false)} />}
       <button type="button" className={s.trigger} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title="Versions" data-testid="version-switcher">
         {current.name}
         <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
@@ -202,7 +208,8 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
               className={s.add}
               onClick={() => {
                 setOpen(false);
-                openCompare(doc, readOnly);
+                if (cut) setComparing(true);
+                else openCompare(doc, readOnly);
               }}
               data-testid="version-compare"
             >
@@ -223,10 +230,57 @@ export function VersionSwitcher({ doc }: { doc: ProjectDoc }) {
               <Plus size={13} strokeWidth={1.5} /> Nouvelle version ({nextVersionName(list.map((v) => v.name))})
             </button>
           )}
-          {!readOnly && <ClearScenario doc={doc} name={current.name} onDone={() => setOpen(false)} />}
+          {!readOnly && cut && (
+            <button
+              type="button"
+              className={[s.add, s.flat].join(' ')}
+              onClick={() => {
+                flushEditors();
+                // Même scénario, découpage vide : la version précédente garde le sien.
+                mutateDoc((d) => {
+                  createVersion(d);
+                  clearCut(d, deleteSequence);
+                });
+                setOpen(false);
+              }}
+              data-testid="version-new-blank"
+            >
+              <Plus size={13} strokeWidth={1.5} /> Nouvelle version vierge ({nextVersionName(list.map((v) => v.name))})
+            </button>
+          )}
+          {!readOnly && (cut ? <ClearCut doc={doc} name={current.name} onDone={() => setOpen(false)} /> : <ClearScenario doc={doc} name={current.name} onDone={() => setOpen(false)} />)}
         </div>
       )}
     </div>
+  );
+}
+
+/** Effacer le découpage de la version courante (le scénario reste), confirmé, annulable. */
+function ClearCut({ doc, name, onDone }: { doc: ProjectDoc; name: string; onDone: () => void }) {
+  const n = doc.project.sequenceIds.length;
+  if (!n) return null;
+  const shots = doc.project.sequenceIds.reduce((k, id) => k + (doc.sequences[id]?.shotIds.length ?? 0), 0);
+  return (
+    <button
+      type="button"
+      className={[s.add, s.quiet].join(' ')}
+      onClick={async () => {
+        onDone();
+        flushEditors();
+        const r = await ask({
+          title: `Effacer le découpage de ${name} ?`,
+          body: `${n} séquence${n > 1 ? 's' : ''} et ${shots} plan${shots > 1 ? 's' : ''}. Le scénario et les autres versions restent. Annulable avec ⌘Z tant que la page est ouverte ; pour garder ce découpage, créez plutôt une nouvelle version vierge.`,
+          confirmLabel: `Effacer ${name}`,
+          danger: true,
+        });
+        if (!r.ok) return;
+        mutateDoc((d) => void clearCut(d, deleteSequence));
+        useUi.getState().toast({ message: `Découpage de ${name} effacé.`, actionLabel: 'Annuler', action: undo });
+      }}
+      data-testid="cut-clear"
+    >
+      <Eraser size={13} strokeWidth={1.5} /> Effacer le découpage…
+    </button>
   );
 }
 

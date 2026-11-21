@@ -190,7 +190,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         <header className="page-head">
           <div className={s.toolbar} role="toolbar" aria-label="Outils du storyboard">
             <div className={s.left}>
-              <VersionSwitcher doc={storeDoc} />
+              <VersionSwitcher doc={storeDoc} cut />
               {views}
               {previewToggle}
             </div>
@@ -210,7 +210,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         doc={storeDoc}
         lead={
           <>
-            <VersionSwitcher doc={storeDoc} />
+            <VersionSwitcher doc={storeDoc} cut />
             {views}
             {previewToggle}
           </>
@@ -246,7 +246,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
               {views}
               {previewToggle}
               {!readOnly && <ColumnsMenu doc={doc} />}
-              <VersionSwitcher doc={storeDoc} />
+              <VersionSwitcher doc={storeDoc} cut />
               <CutExport doc={storeDoc} defaultContent="grid" />
             </>
           }
@@ -259,7 +259,7 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
         <div className={s.toolbar} role="toolbar" aria-label="Outils de la grille">
           {/* Gauche : ce qu'on regarde (tableau, storyboard ou aperçu), puis l'action liée à la sélection. */}
           <div className={s.left}>
-            {!interviewView && <VersionSwitcher doc={storeDoc} />}
+            {!interviewView && <VersionSwitcher doc={storeDoc} cut />}
             {views}
             {previewToggle}
             {!printView && !interviewView && <ColumnsMenu doc={doc} />}
