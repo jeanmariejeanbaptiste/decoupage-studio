@@ -22,7 +22,7 @@
 }
 .gutterCol { width: 24px; }
 .col_sequence { width: 14%; }
-.col_number { width: 36px; }
+.col_number { width: 44px; }
 .col_storyboard { width: 40px; }
 .col_subject { width: 9%; }
 .col_value { width: 8.5%; }
@@ -96,7 +96,7 @@ thead .gutter { position: sticky; top: -8px; z-index: 4; background: var(--paper
   border-right: 1px solid var(--rule);
   background: color-mix(in srgb, var(--seq-color, var(--kraft)) 9%, var(--paper-card));
 }
-.c_number { text-align: center; vertical-align: middle; }
+.c_number { text-align: center; vertical-align: middle; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .c_action { border-left: 1px solid var(--rule); }
 .c_tc, .c_focal, .c_aperture { white-space: nowrap; }
 .c_tc { vertical-align: middle; text-align: center; }

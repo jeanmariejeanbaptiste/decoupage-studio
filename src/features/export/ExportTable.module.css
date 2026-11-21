@@ -69,7 +69,7 @@
 .h_tc { font-style: italic; font-weight: 700 !important; }
 .seq { break-inside: avoid; page-break-inside: avoid; }
 .c_sequence, .c_subject { color: var(--x-ink); }
-.c_number { color: var(--x-red); }
+.c_number { color: var(--x-red); white-space: nowrap; }
 .c_value, .c_angle, .c_movement, .c_action { color: var(--x-brown); font-weight: 400; }
 .c_focal, .c_aperture { color: var(--x-ink); font-weight: 700; }
 .c_tc { color: var(--x-ink); font-weight: 700; font-style: italic; }
