@@ -14,9 +14,10 @@ const name = 'share';
 const form = new FormData();
 form.append(
   'metadata',
-  new Blob([JSON.stringify({ main_module: 'worker.js', compatibility_date: '2026-11-01', bindings: [{ type: 'durable_object_namespace', name: 'ROOMS', class_name: 'Room' }], migrations: { new_tag: 'v1', new_sqlite_classes: ['Room'] } })], { type: 'application/json' }),
+  new Blob([JSON.stringify({ main_module: 'worker.js', compatibility_date: '2026-11-01', bindings: [{ type: 'durable_object_namespace', name: 'ROOMS', class_name: 'Room' }, { type: 'durable_object_namespace', name: 'ACCOUNTS', class_name: 'Accounts' }, { type: 'durable_object_namespace', name: 'VAULTS', class_name: 'Vault' }], migrations: { old_tag: 'v1', new_tag: 'v2', new_sqlite_classes: ['Accounts', 'Vault'] } })], { type: 'application/json' }),
 );
 form.append('worker.js', new Blob([readFileSync(new URL('../server/relay/worker.js', import.meta.url))], { type: 'application/javascript+module' }), 'worker.js');
+form.append('accounts.js', new Blob([readFileSync(new URL('../server/relay/accounts.js', import.meta.url))], { type: 'application/javascript+module' }), 'accounts.js');
 await j(await fetch(`${API}/accounts/${account}/workers/scripts/${name}`, { method: 'PUT', headers, body: form }));
 await j(await fetch(`${API}/accounts/${account}/workers/scripts/${name}/subdomain`, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ enabled: true }) }));
 const sub = (await j(await fetch(`${API}/accounts/${account}/workers/subdomain`, { headers }))).subdomain;

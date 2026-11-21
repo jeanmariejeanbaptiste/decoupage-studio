@@ -140,7 +140,7 @@ export function App() {
     // Relecture en ligne (si configurée) : retours relevés, réponses renvoyées.
     const stopReview = startReviewSync();
     setHomeHooks({ removed: (id) => void cloudForget(id), restored: (id) => void cloudRestore(id), closeLink: closeReviewLink, reopenLink: reopenReviewLink });
-    if (useCloud.getState().enabled && useCloud.getState().user) void preloadGoogle().catch(() => undefined);
+    if (useCloud.getState().enabled && useCloud.getState().user && useCloud.getState().user?.provider !== 'studio') void preloadGoogle().catch(() => undefined);
     void boot().finally(() => {
       setBooted(true);
       // Session Google reprise (jeton encore valide) : les autres appareils sont rattrapés.

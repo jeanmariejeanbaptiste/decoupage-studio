@@ -12,6 +12,9 @@
  * - invité reçoit { t: 'ready' } (hôte présent), { t: 'nohost' }, { t: 'data', d }, { t: 'closed' }
  * - invité envoie { t: 'data', d }
  */
+import { accountsFetch } from './accounts.js';
+export { Accounts, Vault } from './accounts.js';
+
 export class Room {
   constructor(state) {
     this.state = state;
@@ -86,6 +89,8 @@ export class Room {
 
 export default {
   async fetch(request, env) {
+    const own = await accountsFetch(request, env);
+    if (own) return own;
     const url = new URL(request.url);
     const m = url.pathname.match(/^\/room\/([A-Za-z0-9_-]{4,80})$/);
     if (url.pathname === '/') return new Response('Découpage Studio — relais du partage', { headers: { 'content-type': 'text/plain; charset=utf-8' } });

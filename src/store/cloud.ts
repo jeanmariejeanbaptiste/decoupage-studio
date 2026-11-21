@@ -47,12 +47,14 @@ interface Gis {
 
 export interface CloudUser {
   email: string;
+  /** Compte propre à l'outil (serveur Cloudflare) plutôt que Google. */
+  provider?: 'studio';
   name?: string;
   picture?: string;
 }
 
 interface CloudState {
-  /** Connexion possible : un identifiant d'application Google est configuré. */
+  /** Connexion Google possible : un identifiant d'application Google est configuré. */
   enabled: boolean;
   user: CloudUser | null;
   /** Jeton valide en mémoire (synchronisation privée). */
@@ -125,10 +127,73 @@ function keepTokens(): void {
   }
 })();
 
+// --- Compte propre à l'outil (serveur Cloudflare) ------------------------------------------------
+
+export const STUDIO_API = 'https://share.decoupage-studio.workers.dev';
+const STUDIO_TOKEN = 'ds-studio-token';
+function studioToken(): string | null {
+  try {
+    return localStorage.getItem(STUDIO_TOKEN);
+  } catch {
+    return null;
+  }
+}
+const isStudio = () => useCloud.getState().user?.provider === 'studio';
+
+async function studio(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = studioToken();
+  if (!token) {
+    useCloud.setState({ connected: false });
+    throw new Error('Session expirée : reconnectez-vous.');
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${STUDIO_API}${path}`, { ...init, headers: { ...(init.headers as Record<string, string>), authorization: `Bearer ${token}` } });
+  } catch {
+    throw new Error('Serveur injoignable : vérifiez la connexion.');
+  }
+  if (res.status === 401) {
+    try {
+      localStorage.removeItem(STUDIO_TOKEN);
+    } catch {
+      /* stockage indisponible */
+    }
+    useCloud.setState({ connected: false });
+    throw new Error('Session expirée : reconnectez-vous.');
+  }
+  if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Le serveur a répondu ${res.status}.`);
+  return res;
+}
+
+/** Connexion (ou création du compte) par adresse et mot de passe ; renvoie le message d'erreur éventuel. */
+export async function studioSignIn(email: string, password: string, create: boolean): Promise<string | null> {
+  let res: Response;
+  try {
+    res = await fetch(`${STUDIO_API}/auth/${create ? 'signup' : 'login'}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
+  } catch {
+    return 'Serveur injoignable : vérifiez la connexion.';
+  }
+  const j = (await res.json().catch(() => ({}))) as { token?: string; email?: string; error?: string };
+  if (!res.ok || !j.token) return j.error ?? `Le serveur a répondu ${res.status}.`;
+  const user: CloudUser = { email: j.email ?? email, provider: 'studio' };
+  try {
+    localStorage.setItem(STUDIO_TOKEN, j.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    /* stockage indisponible : connexion le temps de l'onglet */
+  }
+  useCloud.setState({ user, connected: true, status: 'idle', error: undefined });
+  void syncAll();
+  return null;
+}
+
 const gis = () => (window as unknown as { google?: Gis }).google;
 const holder = (scope: string, margin = 0) => held.find((h) => h.scopes.includes(scope) && Date.now() + margin < h.expiresAt);
 /** Synchronisation privée possible : quelqu'un s'est connecté ici, et son jeton vaut encore. */
-const valid = () => !!useCloud.getState().user && !!holder(SCOPE_APPDATA);
+const valid = () => {
+  const user = useCloud.getState().user;
+  return !!user && (user.provider === 'studio' ? !!studioToken() : !!holder(SCOPE_APPDATA));
+};
 const fileFlag = () => {
   try {
     return localStorage.getItem(FILE_FLAG) === '1';
@@ -140,7 +205,7 @@ const fileFlag = () => {
 /** Jeton donnant accès aux fichiers de l'application (relecture), s'il est encore valide. */
 export const driveFileToken = (): string | null => holder(SCOPE_FILE)?.token ?? null;
 
-export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: !!storedUser() && !!holder(SCOPE_APPDATA), fileAccess: !!holder(SCOPE_FILE), status: 'idle' }));
+export const useCloud = create<CloudState>(() => ({ enabled: !!GOOGLE_CLIENT_ID, user: storedUser(), connected: !!storedUser() && (storedUser()?.provider === 'studio' ? !!studioToken() : !!holder(SCOPE_APPDATA)), fileAccess: !!holder(SCOPE_FILE), status: 'idle' }));
 
 /**
  * Où en est la relecture en ligne (renseigné par `review.ts`) : un relecteur sans compte ne garde
@@ -276,7 +341,7 @@ export function keepSessionAlive(): () => void {
     if (renewing) return;
     const user = useCloud.getState().user;
     const margin = 5 * 60_000;
-    const needSync = !!user && !holder(SCOPE_APPDATA, margin);
+    const needSync = !!user && user.provider !== 'studio' && !holder(SCOPE_APPDATA, margin);
     // Sans compte de synchronisation : seulement pour l'auteur d'une relecture publiée (un relecteur
     // est redemandé au geste « Envoyer », jamais hors de sa relecture).
     const needFile = fileFlag() && !holder(SCOPE_FILE, margin) && (!!user || reviewContext.published());
@@ -286,7 +351,7 @@ export function keepSessionAlive(): () => void {
       void preloadGoogle().catch(() => undefined);
       return;
     }
-    if (user) ask(g, { kind: 'sync', silent: true }, { prompt: '', hint: user.email, scope: syncScope() });
+    if (user && needSync) ask(g, { kind: 'sync', silent: true }, { prompt: '', hint: user.email, scope: syncScope() });
     else ask(g, { kind: 'file', silent: true }, { prompt: '', scope: SCOPE_FILE });
   };
   window.addEventListener('click', onGesture, true);
@@ -354,6 +419,15 @@ async function onToken(r: TokenResponse, req: Request | null) {
 }
 
 export function signOut(): void {
+  if (isStudio()) {
+    const token = studioToken();
+    if (token) void fetch(`${STUDIO_API}/auth/logout`, { method: 'POST', headers: { authorization: `Bearer ${token}` } }).catch(() => undefined);
+    try {
+      localStorage.removeItem(STUDIO_TOKEN);
+    } catch {
+      /* stockage indisponible */
+    }
+  }
   for (const h of held) gis()?.accounts?.oauth2.revoke(h.token);
   held = [];
   keepTokens();
@@ -410,6 +484,7 @@ async function drive(url: string, init: RequestInit = {}): Promise<Response> {
 }
 
 async function listFiles(): Promise<DriveFile[]> {
+  if (isStudio()) return ((await (await studio('/files')).json()) as { files: DriveFile[] }).files;
   const out: DriveFile[] = [];
   let page = '';
   do {
@@ -422,6 +497,10 @@ async function listFiles(): Promise<DriveFile[]> {
 }
 
 async function upload(meta: Record<string, unknown>, blob: Blob, id?: string): Promise<string> {
+  if (isStudio()) {
+    const headers = { 'content-type': blob.type || 'application/octet-stream', 'x-meta': encodeURIComponent(JSON.stringify({ name: meta.name, appProperties: meta.appProperties })) };
+    return ((await (await studio(id ? `/files/${id}` : '/files', { method: id ? 'PATCH' : 'POST', headers, body: blob })).json()) as { id: string }).id;
+  }
   const b = `ds${Math.random().toString(36).slice(2)}`;
   const body = new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: ${blob.type || 'application/octet-stream'}\r\n\r\n`, blob, `\r\n--${b}--`]);
   const url = id ? `${UPLOAD}/files/${id}?uploadType=multipart&fields=id` : `${UPLOAD}/files?uploadType=multipart&fields=id`;
@@ -429,8 +508,8 @@ async function upload(meta: Record<string, unknown>, blob: Blob, id?: string): P
   return ((await res.json()) as { id: string }).id;
 }
 
-const download = async (id: string) => (await drive(`${API}/files/${id}?alt=media`)).blob();
-const removeFile = (id: string) => drive(`${API}/files/${id}`, { method: 'DELETE' });
+const download = async (id: string) => (isStudio() ? await studio(`/files/${id}`) : await drive(`${API}/files/${id}?alt=media`)).blob();
+const removeFile = (id: string) => (isStudio() ? studio(`/files/${id}`, { method: 'DELETE' }) : drive(`${API}/files/${id}`, { method: 'DELETE' }));
 
 /** Suppressions faites ici hors connexion, à reporter dans le Drive (identifiant et date). */
 interface Tomb {
