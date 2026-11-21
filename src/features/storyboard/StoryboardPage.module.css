@@ -180,3 +180,17 @@
 .cropText { padding: 6px 10px; border: 0; border-radius: 6px; background: none; color: var(--ink-soft); font: inherit; cursor: pointer; }
 .cropText:hover { color: var(--ink); background: var(--hover); }
 .cropOk { padding: 6px 16px; border: 1px solid var(--ink); border-radius: 6px; background: var(--ink); color: var(--paper); font: inherit; font-weight: 500; cursor: pointer; }
+
+/* Écran tactile : pas de survol, les commandes des cartes restent visibles. */
+@media (hover: none) {
+  .draw, .addFrame, .icons, .cropBtn { opacity: 1; }
+}
+.cropBtn:focus-visible { opacity: 1; }
+
+/* Téléphone : la barre passe à la ligne ; le nombre de cartes par ligne suit la largeur. */
+@media (max-width: 700px) {
+  .toolbar { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  .perRow { display: none; }
+  .opts .opt:first-child { border-radius: 7px; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)) !important; }
+}

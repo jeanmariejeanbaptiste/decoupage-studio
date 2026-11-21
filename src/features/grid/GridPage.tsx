@@ -4,7 +4,7 @@ import { useIsMobile } from '../../ui/useIsMobile';
 import { useReadOnly, useReviewing } from '../../store/share';
 import { ScenarioPanel } from '../scenario/ScenarioPanel';
 import { OneShotStudio } from '../oneshot/OneShotStudio';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownUp, ChevronDown, ChevronUp, Columns3, Eye, Link2, PanelRight, ScrollText, Unlink2 } from 'lucide-react';
 import { Inspector } from '../inspector/Inspector';
 import { ALL_COLUMNS, COLUMN_DEFS, columnMenuLabel, followOrder, isMovableColumn, moveColumn, setColumnShown, tcLast } from '../../domain/columns';
@@ -283,25 +283,30 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
                   <Button variant="icon" icon={<ArrowDownUp {...IC} />} aria-label="Trier pour le tournage" title="Trier pour le tournage" onClick={() => setUi({ sortView: true, printView: false, editing: null })} data-testid="open-sort" />
                 )}
                 {!readOnly && <AiCutMenu doc={storeDoc} />}
-                <Button
-                  variant="icon"
-                  icon={<PanelRight {...IC} />}
-                  aria-label="Inspecteur"
-                  aria-pressed={rightPanel === 'inspector'}
-                  className={rightPanel === 'inspector' ? s.iconOn : ''}
-                  onClick={() => setUi({ rightPanel: rightPanel === 'inspector' ? null : 'inspector' })}
-                  title="Inspecteur du plan"
-                />
-                <Button
-                  variant="icon"
-                  icon={<ScrollText {...IC} />}
-                  aria-label="Scénario"
-                  aria-pressed={rightPanel === 'scenario'}
-                  className={rightPanel === 'scenario' ? s.iconOn : ''}
-                  onClick={() => setUi({ rightPanel: rightPanel === 'scenario' ? null : 'scenario' })}
-                  title="Scénario à droite"
-                  data-testid="toggle-scenario"
-                />
+                {/* Téléphone : ni inspecteur ni panneau du scénario, seuls les champs du plan. */}
+                {!isMobile && (
+                  <>
+                    <Button
+                      variant="icon"
+                      icon={<PanelRight {...IC} />}
+                      aria-label="Inspecteur"
+                      aria-pressed={rightPanel === 'inspector'}
+                      className={rightPanel === 'inspector' ? s.iconOn : ''}
+                      onClick={() => setUi({ rightPanel: rightPanel === 'inspector' ? null : 'inspector' })}
+                      title="Inspecteur du plan"
+                    />
+                    <Button
+                      variant="icon"
+                      icon={<ScrollText {...IC} />}
+                      aria-label="Scénario"
+                      aria-pressed={rightPanel === 'scenario'}
+                      className={rightPanel === 'scenario' ? s.iconOn : ''}
+                      onClick={() => setUi({ rightPanel: rightPanel === 'scenario' ? null : 'scenario' })}
+                      title="Scénario à droite"
+                      data-testid="toggle-scenario"
+                    />
+                  </>
+                )}
               </div>
             )}
             {itwSelected ? <InterviewExport doc={storeDoc} /> : <CutExport doc={storeDoc} defaultContent="grid" />}
@@ -362,6 +367,16 @@ export function GridPage({ doc: storeDoc, board = false }: { doc: ProjectDoc; bo
 function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // Le menu reste dans la fenêtre (téléphone : bouton parfois proche du bord gauche).
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    const r = open ? menuRef.current?.getBoundingClientRect() : undefined;
+    if (!r) return setShift(0);
+    const margin = 8;
+    if (r.left < margin) setShift(margin - r.left);
+    else if (r.right > window.innerWidth - margin) setShift(window.innerWidth - margin - r.right);
+  }, [open]);
   const cols = doc.project.settings.gridColumns;
   useEffect(() => {
     if (!open) return;
@@ -388,7 +403,7 @@ function ColumnsMenu({ doc }: { doc: ProjectDoc }) {
         <ChevronDown size={13} strokeWidth={1.5} aria-hidden="true" />
       </button>
       {open && (
-        <div className={[s.menu, s.menuLeft].join(' ')} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+        <div ref={menuRef} className={[s.menu, s.menuLeft].join(' ')} style={shift ? { transform: `translateX(${shift}px)` } : undefined} role="menu" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
           <p className={s.menuTitle}>Colonnes de la grille</p>
           {listed.map((c) => {
             const on = cols.includes(c);

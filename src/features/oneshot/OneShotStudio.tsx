@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { ArrowRight, Maximize2, Minimize2, Plus, Trash2, X } from 'lucide-react';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -16,6 +16,9 @@ import s from './OneShotStudio.module.css';
 
 /** Temps alternés en gris (aucune couleur) : on les distingue par leur ton et leur numéro. */
 const HUES = ['#111318', '#5f636b', '#3a3e46', '#8b9099'];
+const CSS_ESCAPE = (v: string) => (typeof window !== 'undefined' && window.CSS?.escape ? window.CSS.escape(v) : v);
+/** Lecteurs d'écran : comment déplacer un temps sans la souris. */
+const A11Y = { screenReaderInstructions: { draggable: 'Alt et flèche gauche ou droite pour déplacer ce temps.' } };
 
 /** Éditeur plein écran d'un plan-séquence : frise des temps, puis une fiche par temps. */
 export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
@@ -43,6 +46,15 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
     subject: [...new Set([...Object.values(doc.characters).map((c) => c.name), ...doc.sequences[shot.sequenceId].shotIds.map((id) => doc.shots[id]?.subject).filter(Boolean)])],
   };
   const set = (b: OneShotBeat, patch: Partial<OneShotBeat>) => mutateDoc((d) => updateBeat(d, shotId, b.id, patch));
+  // Au clavier : Alt + ← / → sur l'en-tête d'une fiche avance ou recule le temps ; l'en-tête garde le focus.
+  const moveByKey = (e: ReactKeyboardEvent<HTMLDivElement>, b: OneShotBeat, i: number) => {
+    if (!e.altKey || e.target !== e.currentTarget || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    e.preventDefault();
+    const to = i + (e.key === 'ArrowLeft' ? -1 : 1);
+    if (to < 0 || to >= beats.length) return;
+    mutateDoc((d) => reorderBeat(d, shotId, b.id, to));
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`#beat-${CSS_ESCAPE(b.id)} [data-beat-handle]`)?.focus());
+  };
   const total = Math.max(1, t.expected || beats.length);
   const share = (i: number) => {
     const b = beats[i];
@@ -96,6 +108,7 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
 
         <DndContext
           sensors={sensors}
+          accessibility={A11Y}
           collisionDetection={closestCenter}
           onDragEnd={(e: DragEndEvent) => {
             const to = beats.findIndex((x) => x.id === e.over?.id);
@@ -112,7 +125,15 @@ export function OneShotStudio({ doc }: { doc: ProjectDoc }) {
               <SortableCard id={b.id} className={[s.card, focus === b.id ? s.cardOn : ''].join(' ')} style={{ borderTopColor: HUES[i % HUES.length] }} onFocus={() => setFocus(b.id)}>
                 {(handle) => (
                 <>
-                <div className={s.cardHead} {...handle} title="Glisser pour déplacer le temps">
+                <div
+                  className={s.cardHead}
+                  {...handle}
+                  data-beat-handle
+                  aria-label={`Temps ${i + 1}`}
+                  aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                  onKeyDown={(e) => moveByKey(e, b, i)}
+                  title="Glisser pour déplacer le temps"
+                >
                   <b style={{ color: HUES[i % HUES.length] }}>T{i + 1}</b>
                   <span className={s.when}>
                     début {w.startMin === w.startMax ? formatTc(w.startMin) : `${formatTc(w.startMin)} – ${formatTc(w.startMax)}`}

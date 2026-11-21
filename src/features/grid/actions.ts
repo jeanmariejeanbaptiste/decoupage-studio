@@ -1,7 +1,7 @@
 /**
  * Commandes de la grille, partagées par le clavier, la barre d'outils et la palette.
  */
-import { isEditable, editableText, setCellText } from '../../domain/cells';
+import { isEditable, editableText, setCellText, writableForRow } from '../../domain/cells';
 import { recognizeCharacters } from '../../domain/characters';
 import { shotCode, sequenceHeading, sequenceNumber } from '../../domain/numbering';
 import {
@@ -226,10 +226,26 @@ export function duplicateCurrent(): void {
   select(mutateDoc((x) => duplicateShot(x, cur)));
 }
 
-export function deleteCurrentShots(): void {
+export async function deleteCurrentShots(): Promise<void> {
   const d = doc();
   const ids = selectedShotIds();
   if (!d || ids.length === 0) return;
+  // Une grande sélection demande la même confirmation qu'une grosse séquence (caméras d'interview comprises).
+  const n = new Set(ids.flatMap((id) => interviewGroupOf(d, id))).size;
+  if (n >= BIG_SEQUENCE) {
+    const res = await ask({
+      title: `Supprimer ${n} plans ?`,
+      body: 'L’opération reste annulable (⌘Z).',
+      confirmLabel: 'Supprimer les plans',
+      danger: true,
+      checkbox: `Oui, je supprime ces ${n} plans`,
+    });
+    if (!res.ok) return;
+    if (!res.checked) {
+      ui().toast({ message: 'Suppression annulée : cochez la case pour confirmer.', tone: 'warn' });
+      return;
+    }
+  }
   const row = ui().selection?.focus.row ?? 0;
   mutateDoc((x) => ids.forEach((id) => deleteShot(x, id)));
   const after = doc();
@@ -293,7 +309,14 @@ export function moveCurrentShot(delta: -1 | 1): void {
   const own = interviewGroupOf(d, cur).filter((id) => seq.shotIds.includes(id));
   const i = seq.shotIds.indexOf(delta < 0 ? own[0] : own[own.length - 1]);
   let j = i + delta;
-  if (j < 0 || j >= seq.shotIds.length) return;
+  if (j < 0 || j >= seq.shotIds.length) {
+    // Au bord de la séquence : le plan passe dans la voisine (même garde-fou qu'au glisser-déposer).
+    const order = d.project.sequenceIds;
+    const nextSeq = order[order.indexOf(seq.id) + delta];
+    if (!nextSeq || !d.sequences[nextSeq]) return;
+    void dropShot(cur, nextSeq, delta < 0 ? d.sequences[nextSeq].shotIds.length : 0);
+    return;
+  }
   const near = interviewGroupOf(d, seq.shotIds[j]).filter((id) => seq.shotIds.includes(id));
   if (own.length === 1 && near.length > 1) j = seq.shotIds.indexOf(delta < 0 ? near[0] : near[near.length - 1]);
   const splits = mutateDoc((x) => moveShot(x, cur, seq.id, j)) ?? 0;
@@ -395,7 +418,8 @@ export function fillDown(): void {
   const sel = ui().selection;
   if (!d || !sel) return;
   const col = sel.anchor.col;
-  if (!isEditable(col)) return;
+  // Le libellé de séquence n'est pas une valeur de plan : le recopier renommerait les séquences suivantes.
+  if (!isEditable(col) || col === 'sequence') return;
   const ids = selectedShotIds();
   if (ids.length < 2) return;
   const text = editableText(d, ids[0], col);
@@ -426,7 +450,7 @@ export function pasteMatrix(matrix: string[][], start: CellPos, columns: readonl
       const shotId = order[idx];
       line.forEach((cell, j) => {
         const col = columns[c0 + j];
-        if (col && isEditable(col)) setCellText(x, shotId, col, cell);
+        if (col && writableForRow(x, shotId, col)) setCellText(x, shotId, col, cell);
       });
       idx++;
     }

@@ -9,7 +9,7 @@ import { diagonalFov, fullFrameEquivalent, horizontalFov } from '../../domain/fo
 import { sequenceHeading, shotCode } from '../../domain/numbering';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { isZoom } from '../../domain/vocabulary';
-import { putBlob } from '../../store/db';
+import { storeImage } from '../storyboard/storeImage';
 import { cropStyle, removeFrame, setFrame } from '../../domain/keyframes';
 import { aspectRatio } from '../../domain/aspect';
 import { mutateDoc } from '../../store/projectStore';
@@ -33,11 +33,7 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
     return (
       <aside className={s.panel} aria-label="Inspecteur du plan">
         <Header onClose={() => set({ rightPanel: null })} />
-        <p className={s.empty}>
-          <Hand>Sélectionnez un plan</Hand>
-          <br />
-          pour voir son angle de champ, son matériel et ses notes.
-        </p>
+        <p className={s.empty}>Aucun plan sélectionné</p>
       </aside>
     );
   }
@@ -57,7 +53,8 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
 
   const dropImage = async (file: File | undefined) => {
     if (!file || !file.type.startsWith('image/')) return;
-    const key = await putBlob(doc.project.id, file.name, file);
+    const key = await storeImage(doc.project.id, file);
+    if (!key) return;
     update((d) => setFrame(d, shot.id, 0, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined, baseCrop: undefined, baseFit: undefined, sketchAspect: undefined }));
   };
   const fmt = (n: number) => n.toFixed(1).replace('.', ',');
@@ -148,7 +145,9 @@ export function Inspector({ doc, shotId }: { doc: ProjectDoc; shotId: ID | undef
                   const f = e.target.files?.[0];
                   e.target.value = '';
                   if (!f?.type.startsWith('image/')) return;
-                  const key = await putBlob(doc.project.id, f.name, f);
+                  // Réduite au-delà de 2400 px ; un stockage refusé est signalé (rien n'est posé).
+                  const key = await storeImage(doc.project.id, f);
+                  if (!key) return;
                   update((d) => {
                     if (!d.shots[shot.id].storyboard) d.shots[shot.id].storyboard = { blobKey: key };
                     else (d.shots[shot.id].keyframes ??= []).push({ id: newId(), blobKey: key });
@@ -255,7 +254,7 @@ function Header({ onClose }: { onClose: () => void }) {
  * Champ de l'inspecteur saisi d'un trait : la frappe reste locale et n'est enregistrée qu'en quittant
  * le champ (ou Entrée), si bien qu'une note entière s'annule en une seule fois avec ⌘Z.
  */
-function Draft({ value, onCommit, multiline, type, placeholder }: { value: string; onCommit: (v: string) => void; multiline?: boolean; type?: string; placeholder?: string }) {
+function Draft({ value, onCommit, multiline, type, placeholder, readOnly = false }: { value: string; onCommit: (v: string) => void; multiline?: boolean; type?: string; placeholder?: string; readOnly?: boolean }) {
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -267,6 +266,7 @@ function Draft({ value, onCommit, multiline, type, placeholder }: { value: strin
   };
   const common = {
     value: draft,
+    readOnly,
     onFocus: () => setFocused(true),
     onBlur: commit,
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),

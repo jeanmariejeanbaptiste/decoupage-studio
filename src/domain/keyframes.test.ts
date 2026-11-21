@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
-import { addKeyframe, clampCrop, framesOf, imageCount, removeFrame, setFrame } from './keyframes';
+import { addKeyframe, clampCrop, downscaleSize, framesOf, imageCount, removeFrame, setFrame } from './keyframes';
 
 describe('keyframes d’un plan', () => {
   it('ajoute, renseigne et retire des keyframes sans dupliquer le plan', () => {
@@ -39,5 +39,18 @@ describe('cadrage toujours plein (remplir)', () => {
     expect(clampCrop({ zoom: 0.5, x: 0, y: 0, rot: 0 }, R).zoom).toBe(1);
     expect(clampCrop({ zoom: 1, x: 0, y: 0, rot: 90 }, R).zoom).toBeCloseTo(R, 5);
     expect(clampCrop({ zoom: 1, x: 0, y: 0, rot: 10 }, R).zoom).toBeGreaterThan(1.1);
+  });
+});
+
+describe('réduction des images importées', () => {
+  it('ramène le plus grand côté à 2400 px en gardant les proportions', () => {
+    expect(downscaleSize(6000, 4000)).toEqual({ width: 2400, height: 1600 });
+    expect(downscaleSize(3000, 6000)).toEqual({ width: 1200, height: 2400 });
+  });
+  it('laisse les images qui tiennent déjà, et les tailles inconnues', () => {
+    expect(downscaleSize(2400, 1000)).toBeNull();
+    expect(downscaleSize(800, 600)).toBeNull();
+    expect(downscaleSize(0, 0)).toBeNull();
+    expect(downscaleSize(NaN, 10)).toBeNull();
   });
 });

@@ -18,7 +18,7 @@ import { computeTiming, type Timing } from '../../domain/timing';
 import { renderTokens } from '../../domain/tokens';
 import type { ID, ProjectDoc, Shot } from '../../domain/types';
 import { isZoom, valueLabel } from '../../domain/vocabulary';
-import { putBlob } from '../../store/db';
+import { storeImage } from './storeImage';
 import { mutateDoc } from '../../store/projectStore';
 import { useBlobUrl } from '../../ui/useBlobUrl';
 import { usePrintMedia } from '../../ui/usePrintMedia';
@@ -150,6 +150,8 @@ export function StoryboardExportOptions({ doc }: { doc: ProjectDoc }) {
 export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { doc: ProjectDoc; lead?: ReactNode; trail?: ReactNode; selectedShot?: ID; onSelect?: (id: ID) => void }) {
   const timing = useMemo(() => computeTiming(doc), [doc]);
   const perPage = doc.project.settings.exportPrefs?.storyboard?.perPage ?? 4;
+  // Impression (⌘P) : l'orientation choisie à l'export, comme l'aperçu.
+  const portrait = doc.project.settings.exportPrefs?.storyboard?.orientation === 'portrait';
   const perRow = doc.project.settings.storyboardPerRow;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const allShots = doc.project.sequenceIds.flatMap((id) => doc.sequences[id]?.shotIds ?? []);
@@ -189,7 +191,6 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
         {allShots.length === 0 && (
           <div className="card empty">
             <span className="hand">Aucun plan pour l’instant</span>
-            <p>Le storyboard se remplit à partir du découpage.</p>
           </div>
         )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -212,9 +213,9 @@ export function StoryboardPage({ doc, lead, trail, selectedShot, onSelect }: { d
         </DndContext>
       </div>
 
-      {/* Page paysage sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
-      <style>{'@media print { @page { size: A4 landscape; margin: 0; } }'}</style>
-      {printing && <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} />}
+      {/* Page sans nom : Safari ignore les pages nommées (`page: storyboard`). */}
+      <style>{`@media print { @page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 0; } }`}</style>
+      {printing && <Sheets doc={doc} shots={allShots} perPage={perPage} timing={timing} className={s.print} orientation={portrait ? 'portrait' : undefined} print />}
     </div>
   );
 }
@@ -245,7 +246,7 @@ function paginateShots(doc: ProjectDoc, shots: ID[], cols: number, rows: number)
   return pages.filter((p) => p.length);
 }
 
-function Sheets({ doc, shots, perPage, timing, className, orientation, visible = false }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait'; visible?: boolean }) {
+function Sheets({ doc, shots, perPage, timing, className, orientation, visible = false, print = false }: { doc: ProjectDoc; shots: ID[]; perPage: number; timing: Timing; className: string; orientation?: 'landscape' | 'portrait'; visible?: boolean; print?: boolean }) {
   const ink = !!doc.project.settings.exportInkSaver;
   // Grille calculée pour le format des images : seuls les nombres de cases qui remplissent bien la
   // feuille sont retenus ; le reste de hauteur va en marges, un peu plus en bas qu'en haut.
@@ -268,7 +269,8 @@ function Sheets({ doc, shots, perPage, timing, className, orientation, visible =
         marginTop: `${layout.top.toFixed(2)}mm`,
       }
     : { gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` };
-  const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
+  // À l'impression du navigateur, hauteur prudente en portrait (marges ajoutées par certains navigateurs).
+  const size = orientation === 'portrait' ? { '--sheet-w': '210mm', '--sheet-h': print ? '265mm' : '297mm' } : orientation ? { '--sheet-w': '297mm', '--sheet-h': '210mm' } : undefined;
   return (
     <div className={className} aria-hidden={visible ? undefined : true} style={size as React.CSSProperties | undefined}>
       {pages.map((ids, i) => (
@@ -316,7 +318,7 @@ function FrameCell({ printing, children }: { printing: boolean; children: React.
 function PerRowPicker({ doc }: { doc: ProjectDoc }) {
   const v = doc.project.settings.storyboardPerRow;
   return (
-    <label className={s.opt}>
+    <label className={[s.opt, s.perRow].join(' ')}>
       <span className={s.optName}>Par ligne</span>
       <span className={s.optValue}>{v ?? 'Auto'}</span>
       <ChevronDown size={13} strokeWidth={1.4} aria-hidden="true" />
@@ -462,7 +464,8 @@ function FrameView({ doc, shot, index, count, frame, printing, ratio }: { doc: P
   const label = `${shotCode(doc, shot.id)}${count > 1 ? ` · K${index + 1}` : ''}`;
   const importImage = async (f: File | undefined) => {
     if (!f?.type.startsWith('image/')) return;
-    const key = await putBlob(doc.project.id, f.name, f);
+    const key = await storeImage(doc.project.id, f);
+    if (!key) return;
     mutateDoc((d) => setFrame(d, shot.id, index, { blobKey: key, baseKey: undefined, sketch: undefined, crop: undefined, fit: undefined }));
   };
   return (
