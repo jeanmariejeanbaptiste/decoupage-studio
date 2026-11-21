@@ -2,6 +2,7 @@
  * Exports de la note d'intention : les pages exactes de l'éditeur (PDF, images A4), toujours sur
  * papier blanc quel que soit le thème, et un document Word qui garde la mise en forme.
  */
+import { wordFontStacks, wordImageBox } from '../../domain/richText';
 import { getBlob } from '../../store/db';
 import { downloadBlob } from '../../store/persistence';
 import { finish, type PageExportOptions } from '../export/imageExport';
@@ -52,13 +53,41 @@ const blobToDataUrl = (b: Blob) =>
     r.readAsDataURL(b);
   });
 
+/** Dimensions naturelles d'une image (null si le navigateur ne sait pas la lire). */
+async function naturalSize(b: Blob): Promise<{ w: number; h: number } | null> {
+  try {
+    const bmp = await createImageBitmap(b);
+    const out = { w: bmp.width, h: bmp.height };
+    bmp.close();
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 /** Document Word (HTML que Word, Pages et LibreOffice ouvrent) : styles, images et sauts de page gardés. */
 export async function downloadNoteWord(html: string, title: string, fileBase: string): Promise<void> {
-  let body = html;
-  for (const m of new Set([...html.matchAll(/data-blob="([^"]+)"/g)].map((x) => x[1]))) {
-    const b = await getBlob(m);
-    if (b) body = body.split(`data-blob="${m}"`).join(`src="${await blobToDataUrl(b)}"`);
+  const parsed = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  for (const img of Array.from(parsed.querySelectorAll<HTMLImageElement>('img[data-blob]'))) {
+    const b = await getBlob(img.getAttribute('data-blob')!);
+    img.removeAttribute('data-blob');
+    if (!b) {
+      img.remove();
+      continue;
+    }
+    img.setAttribute('src', await blobToDataUrl(b));
+    // Word et LibreOffice lisent mal une largeur en % sans hauteur : taille en px, proportions gardées.
+    const size = await naturalSize(b);
+    if (size) {
+      const box = wordImageBox(size.w, size.h, parseFloat(img.style.width) || 100);
+      img.removeAttribute('style');
+      img.setAttribute('width', String(box.width));
+      img.setAttribute('height', String(box.height));
+    }
+    const para = img.parentElement;
+    if (para?.tagName === 'P' && !para.style.textAlign) para.setAttribute('align', 'center');
   }
+  let body = wordFontStacks(parsed.body.innerHTML);
   body = body.replace(/<hr class="page-break">/g, '<br clear="all" style="page-break-before: always">');
   const css = `@page WordSection { size: 21cm 29.7cm; margin: 2.5cm; } div.WordSection { page: WordSection; }
 body { font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #111318; }

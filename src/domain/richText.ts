@@ -18,14 +18,36 @@ export type ParagraphStyle = (typeof PARAGRAPH_STYLES)[number]['key'];
 
 /** Polices proposées (servies avec l'application). */
 export const RICH_FONTS = [
-  { family: 'Inter Variable', label: 'Inter' },
-  { family: 'Source Serif 4', label: 'Source Serif' },
-  { family: 'Cormorant Garamond', label: 'Cormorant Garamond' },
-  { family: 'Courier Prime', label: 'Courier Prime' },
+  { family: 'Inter Variable', label: 'Inter', fallback: "'Inter', 'Helvetica Neue', Arial, sans-serif" },
+  { family: 'Source Serif 4', label: 'Source Serif', fallback: "'Source Serif 4', Georgia, serif" },
+  { family: 'Cormorant Garamond', label: 'Cormorant Garamond', fallback: "'Cormorant Garamond', Garamond, Georgia, serif" },
+  { family: 'Courier Prime', label: 'Courier Prime', fallback: "'Courier Prime', 'Courier New', monospace" },
 ] as const;
 
+/** Polices d'un traitement de texte : chaque police de la note suivie de ses polices de secours (export Word). */
+export function wordFontStacks(html: string): string {
+  return html.replace(/font-family: '([^']+)'/g, (all, fam: string) => {
+    const f = RICH_FONTS.find((x) => x.family === fam);
+    return f ? `font-family: ${f.fallback}` : all;
+  });
+}
+
+/** Zone de texte d'une page A4 à marges de 2,5 cm, en px CSS (16 cm de large, 230 mm de haut au plus pour une image). */
+export const WORD_TEXT_PX = { w: Math.round((160 * 96) / 25.4), h: Math.round((230 * 96) / 25.4) };
+
+/** Taille d'une image dans le document Word : la largeur voulue (en % de la zone de texte), proportions gardées. */
+export function wordImageBox(naturalW: number, naturalH: number, widthPct = 100): { width: number; height: number } {
+  let width = (WORD_TEXT_PX.w * Math.min(100, Math.max(5, widthPct))) / 100;
+  let height = naturalW > 0 ? (width * naturalH) / naturalW : width;
+  if (height > WORD_TEXT_PX.h) {
+    width = (width * WORD_TEXT_PX.h) / height;
+    height = WORD_TEXT_PX.h;
+  }
+  return { width: Math.round(width), height: Math.round(height) };
+}
+
 /** Corps proposés, en points. */
-export const RICH_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48] as const;
+export const RICH_SIZES = [8, 9, 10, 10.5, 11, 12, 12.5, 13, 14, 15, 16, 18, 20, 24, 28, 36, 48] as const;
 
 /** Interlignes proposés. */
 export const LINE_SPACINGS = [1, 1.15, 1.5, 2] as const;
@@ -36,8 +58,24 @@ export const INDENT_STEP_CM = 1.25;
 const BLOCKS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE', 'UL', 'OL', 'LI']);
 const INLINE: Record<string, string> = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u', S: 's', STRIKE: 's', DEL: 's', SUB: 'sub', SUP: 'sup' };
 const ALIGN = /^(left|center|right|justify)$/;
+/** Balises dont rien ne passe (en-tête d'un document collé, scripts, objets, balises Office vides). */
+const SKIP = new Set(['SCRIPT', 'STYLE', 'TITLE', 'META', 'LINK', 'HEAD', 'TEMPLATE', 'NOSCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'XML', 'O:P']);
+const skipped = (el: Element) => SKIP.has(el.tagName.toUpperCase());
+const BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, li, div, table, hr';
 
-const escText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Un tableau collé : une ligne par rangée, cellules séparées par un point médian. */
+function tableRows(table: Element): string[] {
+  return Array.from((table as HTMLTableElement).rows ?? [])
+    .map((tr) =>
+      Array.from(tr.cells)
+        .map((td) => cleanInline(td).replace(/^(<br>)+|(<br>)+$/g, ''))
+        .filter((c) => c.replace(/<br>/g, '').trim())
+        .join(' · '),
+    )
+    .filter(Boolean);
+}
+
+const escText = (s: string) => s.replace(/\u200b/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escAttr = (s: string) => escText(s).replace(/"/g, '&quot;');
 
 /** Corps d'un ancien `<font size>` (1 à 7) en points. */
@@ -78,9 +116,19 @@ function inlineStyle(el: Element): string {
   const size = st?.fontSize ? sizeOk(st.fontSize) : el.tagName === 'FONT' && el.getAttribute('size') ? `${FONT_SIZE_PT[el.getAttribute('size')!] ?? 12}pt` : null;
   if (size) out.push(`font-size: ${size}`);
   if (st?.backgroundColor && st.backgroundColor !== 'transparent' && !/rgba\(0, 0, 0, 0\)/.test(st.backgroundColor)) out.push(`background-color: ${HIGHLIGHT}`);
-  if (/bold|[6-9]00/.test(st?.fontWeight ?? '')) out.push('font-weight: 700');
-  if (st?.fontStyle === 'italic') out.push('font-style: italic');
   return out.join('; ');
+}
+
+/** Marques portées par le style d'un élément en ligne (collage) : b, i, u, s, de l'intérieur vers l'extérieur. */
+function inlineMarks(el: Element): string[] {
+  const st = (el as HTMLElement).style;
+  const out: string[] = [];
+  const deco = `${st?.textDecoration ?? ''} ${st?.textDecorationLine ?? ''}`;
+  if (/line-through/.test(deco)) out.push('s');
+  if (/underline/.test(deco)) out.push('u');
+  if (st?.fontStyle === 'italic') out.push('i');
+  if (/bold|[6-9]00/.test(st?.fontWeight ?? '')) out.push('b');
+  return out;
 }
 
 function cleanInline(node: Node): string {
@@ -101,12 +149,23 @@ function cleanInline(node: Node): string {
       out += cleanImage(el);
       continue;
     }
-    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'IFRAME' || tag === 'OBJECT') continue;
+    if (skipped(el)) continue;
+    if (tag === 'TABLE') {
+      const rows = tableRows(el).join('<br>');
+      out += rows ? `${out && !out.endsWith('<br>') ? '<br>' : ''}${rows}` : '';
+      continue;
+    }
     const inner = cleanInline(el);
-    if (INLINE[tag]) out += inner ? `<${INLINE[tag]}>${inner}</${INLINE[tag]}>` : '';
+    // Gras « normal » (Google Docs enveloppe tout son texte dans un tel <b>) : transparent.
+    if ((tag === 'B' || tag === 'STRONG') && /^(normal|[1-5]00)$/.test((el as HTMLElement).style?.fontWeight ?? '')) out += inner;
+    else if (INLINE[tag]) out += inner ? `<${INLINE[tag]}>${inner}</${INLINE[tag]}>` : '';
     else if (tag === 'SPAN' || tag === 'FONT' || tag === 'MARK') {
       const style = tag === 'MARK' ? `background-color: ${HIGHLIGHT}` : inlineStyle(el);
-      out += style && inner ? `<span style="${style}">${inner}</span>` : inner;
+      // Gras, italique, souligné et barré portés par un style : ramenés aux balises de la note.
+      const marks = tag === 'MARK' ? '' : inlineMarks(el);
+      let body = inner;
+      for (const m of marks) body = `<${m}>${body}</${m}>`;
+      out += style && inner ? `<span style="${style}">${body}</span>` : inner ? body : '';
     } else if (BLOCKS.has(tag) || tag === 'DIV') out += inner ? `${out && !out.endsWith('<br>') ? '<br>' : ''}${inner}` : '';
     else out += inner;
   }
@@ -143,26 +202,45 @@ function cleanBlocks(node: Node): string {
     }
     if (tag === 'UL' || tag === 'OL') {
       flush();
-      const items = Array.from(el.children)
-        .filter((li) => li.tagName === 'LI')
-        .map((li) => {
-          const nested = Array.from(li.children).filter((x) => x.tagName === 'UL' || x.tagName === 'OL');
+      // Sous-liste posée à côté d'une puce (c'est ainsi que Chrome indente) : rattachée à la puce d'avant.
+      const groups: { li: Element | null; extra: Element[] }[] = [];
+      for (const x of Array.from(el.children)) {
+        if (x.tagName === 'LI') {
+          groups.push({ li: x, extra: [] });
+          // Puce rangée dans une autre (désindentation de Chrome) : elle la suit.
+          for (const inner of Array.from(x.children)) if (inner.tagName === 'LI') groups.push({ li: inner, extra: [] });
+        }
+        else if (x.tagName === 'UL' || x.tagName === 'OL') {
+          if (!groups.length) groups.push({ li: null, extra: [] });
+          groups[groups.length - 1].extra.push(x);
+        }
+      }
+      const items = groups
+        .map(({ li: item, extra }) => {
+          const li = item ?? el.ownerDocument.createElement('li');
+          const nested = [...Array.from(li.children).filter((x) => x.tagName === 'UL' || x.tagName === 'OL'), ...extra];
           const own = li.cloneNode(true) as Element;
-          own.querySelectorAll(':scope > ul, :scope > ol').forEach((x) => x.remove());
+          own.querySelectorAll(':scope > ul, :scope > ol, :scope > li').forEach((x) => x.remove());
           const st = blockStyle(li);
           return `<li${st ? ` style="${st}"` : ''}>${cleanInline(own) || '<br>'}${nested.map((n) => cleanBlocks({ childNodes: [n] } as unknown as Node)).join('')}</li>`;
         });
       if (items.length) out += `<${tag.toLowerCase()}>${items.join('')}</${tag.toLowerCase()}>`;
       continue;
     }
-    if (BLOCKS.has(tag) || tag === 'DIV') {
+    if (skipped(el)) continue;
+    if (tag === 'TABLE') {
+      flush();
+      for (const row of tableRows(el)) out += `<p>${row}</p>`;
+      continue;
+    }
+    if (BLOCKS.has(tag) || tag === 'DIV' || /^H[56]$/.test(tag)) {
       flush();
       // Un bloc qui en contient d'autres (copier-coller) : ses blocs sont repris un par un.
-      if (Array.from(el.children).some((x) => BLOCKS.has(x.tagName) || x.tagName === 'DIV' || x.tagName === 'HR')) {
+      if (Array.from(el.children).some((x) => BLOCKS.has(x.tagName) || x.tagName === 'DIV' || x.tagName === 'HR' || x.tagName === 'TABLE')) {
         out += cleanBlocks(el);
         continue;
       }
-      const t = tag === 'DIV' || tag === 'LI' ? 'p' : tag.toLowerCase();
+      const t = tag === 'DIV' || tag === 'LI' ? 'p' : /^H[56]$/.test(tag) ? 'h3' : tag.toLowerCase();
       const st = blockStyle(el);
       const inner = cleanInline(el);
       out += `<${t}${st ? ` style="${st}"` : ''}>${inner || '<br>'}</${t}>`;
@@ -174,7 +252,12 @@ function cleanBlocks(node: Node): string {
       if (img) out += `<p>${img}</p>`;
       continue;
     }
-    if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+    // Élément en ligne qui contient des blocs (collage de Google Docs) : ses blocs restent des blocs.
+    if (el.querySelector(BLOCK_SELECTOR)) {
+      flush();
+      out += cleanBlocks(el);
+      continue;
+    }
     loose += cleanInline({ childNodes: [el] } as unknown as Node);
   }
   flush();
@@ -198,7 +281,8 @@ export function richToText(html: string): string {
           const own = li.cloneNode(true) as Element;
           own.querySelectorAll('ul, ol').forEach((x) => x.remove());
           parts.push(`${prefix}${c.tagName === 'OL' ? `${i + 1}.` : '•'} ${textOf(own)}`.trimEnd());
-          walk(li, `${prefix}  `);
+          // Seules les sous-listes : le texte de la puce (gras, italique…) est déjà repris.
+          for (const sub of Array.from(li.children)) if (sub.tagName === 'UL' || sub.tagName === 'OL') walk({ children: [sub] } as unknown as Element, `${prefix}  `);
         });
       } else if (c.tagName !== 'HR') {
         const t = textOf(c);
@@ -227,6 +311,16 @@ function textOf(el: Element): string {
 export function textToRich(text: string): string {
   const paras = text.replace(/\r\n?/g, '\n').split(/\n\s*\n/).map((p) => p.replace(/^\n+|\n+$/g, ''));
   return paras.filter((p) => p.trim()).map((p) => `<p>${escText(p).replace(/\n/g, '<br>')}</p>`).join('');
+}
+
+/** Plus grand côté d'une image rangée dans le projet (au-delà, elle est réduite à l'import). */
+export const NOTE_IMAGE_MAX_PX = 2400;
+
+/** Taille à laquelle ranger une image : réduite, proportions gardées, si un côté dépasse `max` ; sinon null. */
+export function shrunkImageSize(w: number, h: number, max = NOTE_IMAGE_MAX_PX): { w: number; h: number } | null {
+  if (!(w > 0 && h > 0) || Math.max(w, h) <= max) return null;
+  const k = max / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
 }
 
 /** Clés des images du projet posées dans la note. */
