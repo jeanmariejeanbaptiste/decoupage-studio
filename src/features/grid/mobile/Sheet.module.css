@@ -92,3 +92,17 @@
 .chips button { display: inline-flex; align-items: center; height: 38px; padding: 0 15px; border-radius: 19px; border: 1px solid var(--m-rule); font-size: 15px; color: var(--m-soft); letter-spacing: -0.006em; }
 .chips button.on { border-color: var(--m-ink); color: var(--m-ink); font-weight: 500; }
 .meta { padding: 22px 24px 0; font-size: 13px; letter-spacing: 0.06em; color: var(--m-soft); }
+
+/* Son : pastilles cochées, répliques de la séquence, ambiance et note. */
+.soundKinds button { gap: 6px; }
+.soundBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 24px calc(32px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 20px; }
+.soundLabel { display: block; margin: 0 0 6px; font-size: 12px; color: var(--m-faint); letter-spacing: 0.01em; }
+.lines { display: flex; flex-direction: column; gap: 4px; }
+.line { display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; font-size: 16px; line-height: 1.4; color: var(--m-soft); -webkit-tap-highlight-color: transparent; }
+.lineOn { background: var(--m-mark); color: var(--m-ink); }
+.lineWho { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 600; }
+.lineWho em { font-style: normal; font-weight: 400; letter-spacing: 0.02em; text-transform: none; color: var(--m-faint); }
+.soundField { display: block; }
+.soundField input { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--m-rule); border-radius: 0; outline: none; padding: 4px 0 8px; background: transparent; color: var(--m-ink); font: inherit; font-size: 17px; }
+.soundField input:focus { border-bottom-color: var(--m-ink); }
+.soundField input::placeholder { color: var(--m-ghost); }

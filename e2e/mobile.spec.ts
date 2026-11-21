@@ -301,3 +301,26 @@ test('téléphone : un champ absent du projet s’ajoute d’un appui et s’ouv
   await expect(field(page, 'dialogue')).toContainText('Attends.');
   await expect(add).toHaveCount(0);
 });
+
+test('téléphone : feuille Son, pastilles, réplique de la séquence (nom tu pour le sujet), ambiance et note', async ({ page }) => {
+  await page.goto('/#/grid?seed=fiction');
+  await page.getByTestId('mobile-overview').click();
+  await page.getByTestId('mobile-list-shot').nth(5).click();
+  await expect(code(page)).toHaveText('2.2');
+  await page.locator('[data-add-field="sound"]').click();
+  const sheet = page.getByTestId('sheet-sound');
+  await sheet.locator('[data-sound-kind="Son direct"]').click();
+  await sheet.locator('[data-sound-kind="Réplique"]').click();
+  // Le guichetier, sujet du plan, parle : son nom n'est pas répété.
+  await sheet.locator('[data-reply]').filter({ hasText: 'combien de temps' }).click();
+  await sheet.locator('[data-sound-kind="Ambiance"]').click();
+  await page.getByTestId('sound-ambiance').fill('le hall');
+  await done(page);
+  await expect(field(page, 'sound')).toContainText(/Son direct · Ambiance : le hall · Rép\. « C.est pour combien de temps.* »/);
+  // Rouverte : tout est retrouvé, une réplique se retire.
+  await field(page, 'sound').click();
+  await expect(sheet.locator('[data-reply][aria-pressed="true"]')).toHaveCount(1);
+  await sheet.locator('[data-reply]').filter({ hasText: 'combien de temps' }).click();
+  await done(page);
+  await expect(field(page, 'sound')).toHaveText(/Son direct · Ambiance : le hall · Réplique$/);
+});

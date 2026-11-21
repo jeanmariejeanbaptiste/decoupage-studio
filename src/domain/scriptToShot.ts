@@ -145,7 +145,7 @@ export function passageOf(doc: ProjectDoc, source: string, start: number, end: n
 }
 
 /** Début de réplique reconnaissable : cinq mots au plus. */
-function shortQuote(line: string): string {
+export function shortQuote(line: string): string {
   const words = line.split(/\s+/).filter(Boolean);
   return words.length > 5 ? `${words.slice(0, 5).join(' ').replace(/[,;:]$/, '')}…` : words.join(' ');
 }

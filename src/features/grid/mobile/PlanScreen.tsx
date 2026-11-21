@@ -20,7 +20,7 @@ const HEAD_COLS: readonly ColumnKey[] = ['value', 'subject', 'angle', 'focal'];
 /** Jamais sur l'écran du plan : le numéro est dans l'en-tête, le TC au bout des tirets, la séquence en tête. */
 const HIDDEN: readonly ColumnKey[] = ['number', 'tc', 'sequence', 'characters', 'grip', 'shotDuration'];
 
-export type SheetKind = { kind: 'value' | 'movement' | 'action' | 'sequence' } | { kind: 'text'; col: ColumnKey; label: string };
+export type SheetKind = { kind: 'value' | 'movement' | 'action' | 'sequence' | 'sound' } | { kind: 'text'; col: ColumnKey; label: string };
 
 /** Libellé d'un champ sur téléphone (« Mouvement de caméra » → « Mouvement »). */
 export const fieldLabel = (c: ColumnKey) => (c === 'movement' ? shortLabel(COLUMN_DEFS[c]) : COLUMN_DEFS[c].label);
@@ -96,7 +96,7 @@ export function PlanScreen({
   // Champs que le projet n'affiche pas encore : un appui les ajoute (comme le menu Colonnes) et les ouvre.
   const more = readOnly || shot.interview ? [] : ALL_COLUMNS.filter((c) => !cols.includes(c) && isEditable(c) && !HIDDEN.includes(c) && !['storyboard', 'shootingDay', 'status'].includes(c));
   const sheetOf = (c: ColumnKey): SheetKind =>
-    c === 'movement' ? { kind: 'movement' } : c === 'action' ? { kind: 'action' } : c === 'value' ? { kind: 'value' } : { kind: 'text', col: c, label: fieldLabel(c) };
+    c === 'movement' ? { kind: 'movement' } : c === 'action' ? { kind: 'action' } : c === 'value' ? { kind: 'value' } : c === 'sound' ? { kind: 'sound' } : { kind: 'text', col: c, label: fieldLabel(c) };
   const addField = (c: ColumnKey) => {
     mutateDoc((d) => setColumnShown(d.project.settings, c, true));
     if (!HEAD_COLS.includes(c) || c === 'subject' || c === 'value') onOpen(sheetOf(c));

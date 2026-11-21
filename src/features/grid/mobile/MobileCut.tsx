@@ -11,6 +11,7 @@ import { ActionSheet } from './ActionSheet';
 import { MovementSheet } from './MovementSheet';
 import { Overview } from './Overview';
 import { PlanScreen, type SheetKind } from './PlanScreen';
+import { SoundSheet } from './SoundSheet';
 import { SequenceSheet, TextSheet } from './TextSheet';
 import { ValueSheet } from './ValueSheet';
 import s from './MobileCut.module.css';
@@ -144,6 +145,7 @@ export function MobileCut({ doc, tools }: { doc: ProjectDoc; tools?: ReactNode }
       {sheet?.kind === 'movement' && <MovementSheet doc={doc} shotId={shotId} cols={cols} onClose={close} />}
       {sheet?.kind === 'action' && <ActionSheet doc={doc} shotId={shotId} onClose={close} />}
       {sheet?.kind === 'sequence' && <SequenceSheet doc={doc} shotId={shotId} onClose={close} />}
+      {sheet?.kind === 'sound' && <SoundSheet doc={doc} shotId={shotId} onClose={close} />}
       {sheet?.kind === 'text' && <TextSheet doc={doc} shotId={shotId} col={sheet.col} label={sheet.label} onClose={close} />}
     </div>
   );
