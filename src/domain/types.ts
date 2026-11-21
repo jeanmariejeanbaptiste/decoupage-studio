@@ -86,6 +86,8 @@ export interface ProjectSettings {
   exportNoMerge?: boolean;
   /** Export intelligent : sur chaque page, les colonnes facultatives vides sont masquées. */
   exportSmart?: boolean;
+  /** Import d'un découpage par une IA : autorise la mise à jour des plans existants (absent : jamais, tout s'ajoute à la suite). */
+  cutImportUpdate?: boolean;
   /** Passages du scénario ajoutés au découpage : rangés d'office dans la séquence de leur scène, ou séquence choisie. */
   scenarioLink?: 'auto' | 'free';
   /** Orientation des pages exportées (PDF et images). */

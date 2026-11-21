@@ -1,4 +1,5 @@
-import { isEditable, setCellText } from './cells';
+import { editableText, isEditable, setCellText } from './cells';
+import { produce } from 'immer';
 import { ALL_COLUMNS, COLUMN_DEFS } from './columns';
 import { parseHeading } from './fountain';
 import { addSequence, addShot, deleteShot } from './ops';
@@ -148,7 +149,14 @@ const EXAMPLE: Partial<Record<ColumnKey, string>>[] = [
 ];
 
 export interface ParsedCut {
-  sequences: { heading: string; rows: Partial<Record<ColumnKey, string>>[]; /** Colonnes du tableau importé. */ columns: ColumnKey[] }[];
+  sequences: {
+    heading: string;
+    rows: Partial<Record<ColumnKey, string>>[];
+    /** Colonnes du tableau importé. */
+    columns: ColumnKey[];
+    /** N° de chaque ligne, s'il y a une colonne N° (découpage copié d'ici). */
+    codes?: (string | undefined)[];
+  }[];
   /** Problèmes relevés (ligne par ligne), sans bloquer ce qui se lit. */
   warnings: string[];
 }
@@ -191,6 +199,7 @@ export function parseCutFile(text: string): ParsedCut {
   const out: ParsedCut = { sequences: [], warnings: [] };
   let cur: ParsedCut['sequences'][number] | null = null;
   let header: (ColumnKey | null)[] | null = null;
+  let codeAt = -1;
   for (let i = start + 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line || line.startsWith('```')) continue;
@@ -214,6 +223,8 @@ export function parseCutFile(text: string): ParsedCut {
       keys.forEach((k, j) => k === null && cs[j] && out.warnings.push(`Ligne ${i + 1} : colonne « ${cs[j]} » inconnue, ignorée.`));
       // N°, Séquence, TC : calculés par l'outil (présents dans un découpage copié d'ici), passés sans bruit.
       header = keys.map((k) => (k && isEditable(k) ? k : null));
+      codeAt = keys.indexOf('number');
+      if (codeAt >= 0) cur.codes = [];
       cur.columns = header.filter((k): k is ColumnKey => !!k);
       continue;
     }
@@ -229,7 +240,10 @@ export function parseCutFile(text: string): ParsedCut {
       const tokens = k === 'value' ? [v] : parseTokens(v).tokens;
       for (const t of tokens) if (!matchVocab(t, entries)) out.warnings.push(`Ligne ${i + 1} : « ${t} » n’est pas dans la liste ${COLUMN_DEFS[k].label}.`);
     }
-    if (Object.keys(row).length) cur.rows.push(row);
+    if (Object.keys(row).length) {
+      cur.rows.push(row);
+      cur.codes?.push(codeAt >= 0 ? cs[codeAt]?.trim() || undefined : undefined);
+    }
   }
   if (!out.sequences.length) throw new Error('Aucune séquence trouvée (titres « ## INT. LIEU - JOUR »).');
   return out;
@@ -262,12 +276,31 @@ export function cutOverlap(doc: ProjectDoc, cut: ParsedCut): number {
 }
 
 /**
+ * Plan visé par chaque ligne en mise à jour. Avec une colonne N° qui correspond aux plans de la séquence,
+ * chaque ligne retrouve son plan par son numéro (une ligne sautée ne décale rien ; un numéro inconnu
+ * donne un plan ajouté). Sans N° reconnu : dans l'ordre. Les caméras d'interview ne sont jamais visées.
+ */
+function updateTargets(doc: ProjectDoc, seqId: ID, s: ParsedCut['sequences'][number]): (ID | undefined)[] {
+  const own = doc.sequences[seqId].shotIds.filter((id) => !doc.shots[id]?.interview);
+  const byCode = new Map(own.map((id) => [shotCode(doc, id), id]));
+  const codes = s.codes ?? [];
+  if (!codes.some((c) => c && byCode.has(c))) return own;
+  const used = new Set<ID>();
+  return s.rows.map((_, i) => {
+    const id = codes[i] ? byCode.get(codes[i]!) : undefined;
+    if (!id || used.has(id)) return undefined;
+    used.add(id);
+    return id;
+  });
+}
+
+/**
  * Ajoute le découpage lu au projet. Une nouvelle séquence se place à la fin. Une séquence déjà présente
  * (même intitulé) reçoit les plans :
  * - `append` : à la suite des siens (un autre morceau du découpage) ;
- * - `update` : sur ses plans, dans l'ordre (nouvelle version : actions reformulées…). Seules les colonnes
- *   du tableau importé changent ; images, dessins et préparation restent ; les plans en plus s'ajoutent,
- *   ceux en moins sont gardés.
+ * - `update` : sur ses plans, retrouvés par leur N° (sinon dans l'ordre). Seules les cellules remplies
+ *   changent ; images, dessins et préparation restent ; les plans en plus s'ajoutent, ceux en moins sont
+ *   gardés. Rien n'est jamais supprimé.
  */
 export function applyCut(doc: ProjectDoc, cut: ParsedCut, mode: 'append' | 'update' = 'append'): { sequences: number; merged: number; shots: number; updated: number; rejected: number } {
   let shots = 0;
@@ -292,15 +325,14 @@ export function applyCut(doc: ProjectDoc, cut: ParsedCut, mode: 'append' | 'upda
     // Séquence existante réduite à un plan vierge : il cède la place aux plans importés.
     const existing = [...doc.sequences[seqId].shotIds];
     const placeholder = same && s.rows.length && existing.length === 1 && blankShot(doc, existing[0]) ? existing[0] : null;
-    const targets = same && mode === 'update' && !placeholder ? existing.filter((id) => !doc.shots[id]?.interview) : [];
+    const targets = same && mode === 'update' && !placeholder ? updateTargets(doc, seqId, s) : [];
     s.rows.forEach((row, i) => {
       const target = targets[i];
       const id = target ?? addShot(doc, seqId);
       if (target) updated++;
       else shots++;
-      // Mise à jour : toutes les colonnes du tableau importé (une cellule vide efface) ; ajout : les cellules remplies.
-      const keys = target ? s.columns : (Object.keys(row) as ColumnKey[]);
-      for (const k of keys) if (!setCellText(doc, id, k, row[k] ?? '')) rejected++;
+      // Seules les cellules remplies s'écrivent : une cellule vide ne gomme jamais rien.
+      for (const k of Object.keys(row) as ColumnKey[]) if (!setCellText(doc, id, k, row[k] ?? '')) rejected++;
     });
     if (placeholder) deleteShot(doc, placeholder);
   }
@@ -332,4 +364,13 @@ export function cutToMarkdown(doc: ProjectDoc): string {
     });
   });
   return `${out.join('\n')}\n`;
+}
+
+/** Ce que ferait une mise à jour, sans rien toucher : plans dont un texte change, plans ajoutés. */
+export function updatePreview(doc: ProjectDoc, cut: ParsedCut): { changed: number; added: number } {
+  let added = 0;
+  const next = produce(doc, (d) => void (added = applyCut(d, cut, 'update').shots));
+  const cols = [...new Set(cut.sequences.flatMap((s) => s.columns))];
+  const changed = Object.keys(doc.shots).filter((id) => cols.some((c) => editableText(doc, id, c) !== editableText(next, id, c))).length;
+  return { changed, added };
 }

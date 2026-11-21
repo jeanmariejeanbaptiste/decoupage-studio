@@ -54,9 +54,20 @@ test('IA externe : une nouvelle version d’une séquence met ses plans à jour 
   const v1 = ['# DECOUPAGE DECOUPAGE-STUDIO v1', '## INT. CUISINE - JOUR', '| Sujet | Action |', '|---|---|', '| Léa | Elle boit. |', '| Tasse | Vapeur. |'].join('\n');
   await paste(v1);
   await expect(rows).toHaveCount(n + 2);
+  // Garde-fou par défaut : rien d'existant ne change, les plans viennent à la suite, sans question.
+  await paste(v1.replace('Elle boit.', 'Elle boit son café, pensive.'));
+  await expect(rows).toHaveCount(n + 4);
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.getByText('Elle boit.', { exact: true })).toBeVisible();
+  await page.getByTestId('toast').getByRole('button', { name: 'Annuler' }).click();
+  await expect(rows).toHaveCount(n + 2);
+  await page.getByTestId('ai-cut').click();
+  await page.getByTestId('ai-cut-protect').uncheck();
+  await page.keyboard.press('Escape');
   await paste(v1.replace('Elle boit.', 'Elle boit son café, pensive.'));
   const dlg = page.getByRole('alertdialog');
   await expect(dlg).toContainText('Cette séquence existe déjà');
+  await expect(dlg).toContainText('1 plan modifié, 0 plan ajouté');
   await dlg.getByRole('button', { name: 'Mettre à jour' }).click();
   await expect(rows).toHaveCount(n + 2);
   await expect(page.getByText('Elle boit son café, pensive.')).toBeVisible();

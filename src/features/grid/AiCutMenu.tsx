@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { aiCutInstructions, applyCut, cutOverlap, parseCutFile } from '../../domain/cutImport';
+import { aiCutInstructions, applyCut, cutOverlap, parseCutFile, updatePreview } from '../../domain/cutImport';
 import type { ProjectDoc } from '../../domain/types';
 import { pickFile } from '../../store/persistence';
 import { mutateDoc, undo, useProjectStore } from '../../store/projectStore';
@@ -67,15 +67,19 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
       let mode: 'append' | 'update' = 'append';
       const doc0 = useProjectStore.getState().doc;
       const overlap = doc0 ? cutOverlap(doc0, cut) : 0;
-      if (overlap) {
+      // Garde-fou (par défaut) : l'import ne touche jamais aux plans existants, tout vient à la suite.
+      if (overlap && doc0 && doc0.project.settings.cutImportUpdate) {
+        // Par défaut, rien de l'existant ne bouge : les plans importés viennent à la suite.
+        const p = updatePreview(doc0, cut);
+        const pl = (k: number, w: string) => `${k} ${w}${k > 1 ? 's' : ''}`;
         const q = await ask({
           title: overlap > 1 ? `${overlap} séquences existent déjà` : 'Cette séquence existe déjà',
-          body: 'Mettre à jour : leurs plans prennent le nouveau texte, dans l’ordre (images et préparation gardées). Ajouter : les plans importés viennent à la suite.',
-          confirmLabel: 'Mettre à jour',
-          altLabel: 'Ajouter à la suite',
+          body: `Ajouter : les plans importés viennent à la suite, rien n’est modifié.\nMettre à jour : ${pl(p.changed, 'plan')} ${p.changed > 1 ? 'modifiés' : 'modifié'}, ${pl(p.added, 'plan')} ${p.added > 1 ? 'ajoutés' : 'ajouté'} ; rien n’est supprimé, une cellule vide ne gomme rien.`,
+          confirmLabel: 'Ajouter à la suite',
+          altLabel: 'Mettre à jour',
         });
         if (!q.ok && !q.alt) return;
-        mode = q.ok ? 'update' : 'append';
+        mode = q.alt ? 'update' : 'append';
       }
       let r = { sequences: 0, merged: 0, shots: 0, updated: 0, rejected: 0 };
       mutateDoc((d) => void (r = applyCut(d, cut, mode)));
@@ -106,6 +110,15 @@ export function AiCutMenu({ doc }: { doc: ProjectDoc }) {
           <button type="button" role="menuitem" className={s.menuAction} onClick={() => void importFile()} data-testid="ai-cut-import">
             ou importer son fichier .md…
           </button>
+          <label className={s.menuCheck} title="Décoché : un import sur des séquences déjà découpées peut mettre à jour leurs plans (après confirmation)">
+            <input
+              type="checkbox"
+              checked={!doc.project.settings.cutImportUpdate}
+              onChange={(e) => mutateDoc((d) => void (d.project.settings.cutImportUpdate = !e.target.checked || undefined))}
+              data-testid="ai-cut-protect"
+            />
+            Ne jamais modifier les plans existants
+          </label>
         </div>
       )}
     </div>

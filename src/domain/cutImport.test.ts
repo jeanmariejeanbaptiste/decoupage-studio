@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
 import { produce } from 'immer';
-import { CUT_HEADER, aiCutInstructions, applyCut, cutOverlap, cutToMarkdown, parseCutFile } from './cutImport';
+import { CUT_HEADER, aiCutInstructions, applyCut, cutOverlap, cutToMarkdown, parseCutFile, updatePreview } from './cutImport';
 import { addSequence, checkInvariants } from './ops';
 
 const COLS = ['sequence', 'number', 'subject', 'value', 'angle', 'movement', 'focal', 'action', 'tc', 'sound'] as const;
@@ -108,5 +108,35 @@ describe('cutToMarkdown', () => {
     expect(cutOverlap(doc, cut)).toBe(doc.project.sequenceIds.length);
     const next = produce(doc, (d) => void applyCut(d, cut, 'update'));
     expect(cutToMarkdown(next)).toBe(md);
+  });
+});
+
+describe('mise à jour prudente', () => {
+  const seq1 = (doc: ReturnType<typeof buildRav3>) => doc.sequences[doc.project.sequenceIds[0]];
+  it('retrouve les plans par leur N° : une ligne sautée ne décale rien, une cellule vide ne gomme rien', () => {
+    const doc = buildRav3();
+    const lines = cutToMarkdown(doc).split('\n');
+    const first = lines.findIndex((l) => l.startsWith('| 1.1 |'));
+    // L'IA saute 1.2 et rend 1.3 avec un sujet vide et une autre valeur.
+    const row13 = lines[first + 2].split(' | ');
+    row13[1] = '';
+    row13[2] = 'Insert';
+    lines.splice(first + 1, 2, row13.join(' | '));
+    const before = produce(doc, () => {});
+    const cut = parseCutFile(lines.join('\n'));
+    expect(updatePreview(doc, cut)).toEqual({ changed: 1, added: 0 });
+    const next = produce(doc, (d) => void applyCut(d, cut, 'update'));
+    const ids = seq1(next).shotIds;
+    expect(ids).toEqual(seq1(before).shotIds);
+    expect(next.shots[ids[1]]).toEqual(before.shots[ids[1]]);
+    expect(next.shots[ids[2]].subject).toBe(before.shots[ids[2]].subject);
+    expect(next.shots[ids[2]].value).toBe('Insert');
+  });
+  it('séquences mal numérotées par l’IA : l’intitulé fait foi, le numéro est ignoré', () => {
+    const doc = buildRav3();
+    const md = cutToMarkdown(doc).replace(/^## (\d+)\./gm, (_, n) => `## ${Number(n) + 10}.`);
+    const next = produce(doc, (d) => void applyCut(d, parseCutFile(md), 'update'));
+    expect(next.project.sequenceIds).toEqual(doc.project.sequenceIds);
+    expect(cutToMarkdown(next)).toBe(cutToMarkdown(doc));
   });
 });
