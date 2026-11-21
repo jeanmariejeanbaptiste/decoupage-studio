@@ -143,7 +143,8 @@ test('découpage : le nom d’une longue séquence reste visible tant qu’un de
         const s = sc.getBoundingClientRect();
         const c = cell.getBoundingClientRect();
         const t = tb.getBoundingClientRect();
-        if (Math.min(s.bottom, t.bottom) - Math.max(s.top + head, t.top) < c.height + 20) continue;
+        // Place pour le nom et la marge basse de sa cellule (durée estimée et écart compris).
+        if (Math.min(s.bottom, t.bottom) - Math.max(s.top + head, t.top) < c.height + 48) continue;
         if (c.top < s.top + head - 1 || c.bottom > s.bottom + 1) bad.push(`${tb.getAttribute('data-seq')}@${f.toFixed(1)}`);
       }
     }

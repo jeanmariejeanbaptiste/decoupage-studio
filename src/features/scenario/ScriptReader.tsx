@@ -108,7 +108,10 @@ export function ScriptReader({ doc, source, className, capture }: { doc: Project
   useLayoutEffect(() => {
     const el = resume ? segAt(resume) : null;
     if (!el) return;
-    el.scrollIntoView({ block: 'center' });
+    // Seul le lecteur défile (scrollIntoView ferait défiler aussi le découpage et la page).
+    let box = el.parentElement;
+    while (box && !(box.scrollHeight > box.clientHeight && /auto|scroll/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+    if (box) box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - (box.clientHeight - el.offsetHeight) / 2;
     el.classList.add(s.resumeFlash);
     const t = window.setTimeout(() => el.classList.remove(s.resumeFlash), 1800);
     return () => window.clearTimeout(t);

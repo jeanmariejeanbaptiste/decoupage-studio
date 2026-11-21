@@ -64,9 +64,12 @@ test.describe('ancien registre', () => {
     await page.goto('/#/grid?seed=fiction');
     const head = page.locator('tbody[data-seq]').first().getByTestId('seq-timing');
     await expect(head.getByTestId('seq-progress')).toHaveCount(0);
-    await page.locator('[data-cell="0:subject"]').click();
-    await page.getByRole('button', { name: 'Inspecteur', exact: true }).click();
-    await page.getByTestId('inspector').getByLabel('Statut').selectOption('tourné');
+    await page.getByRole('button', { name: 'Colonnes' }).click();
+    await page.getByRole('menu').getByRole('checkbox', { name: /^Statut/ }).check();
+    await page.keyboard.press('Escape');
+    await page.locator('[data-cell="0:status"]').click();
+    await page.keyboard.type('tourné');
+    await page.getByRole('option', { name: 'tourné', exact: true }).click();
     await expect(head.getByTestId('seq-progress')).toHaveText('1/4 tourné');
   });
 

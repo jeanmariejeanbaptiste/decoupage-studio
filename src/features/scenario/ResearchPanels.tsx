@@ -1,3 +1,6 @@
+import { CharacterFacts } from './CharacterFacts';
+import { DecorFacts } from './DecorFacts';
+import { OrphanFiches } from './OrphanFiches';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { SBlock } from '../../domain/screenplay';
@@ -97,7 +100,13 @@ export function CharactersPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectD
     if (sort === 'scenes') r.sort((a, b) => b.total - a.total);
     return r;
   }, [scenes, sort]);
-  if (!list.length) return <p className={s.empty}>Aucun personnage dans le texte.</p>;
+  if (!list.length)
+    return (
+      <div className={s.panel} data-testid="scenario-characters">
+        <p className={s.empty}>Aucun personnage dans le texte.</p>
+        <OrphanFiches doc={doc} kind="characters" readOnly={readOnly} />
+      </div>
+    );
   const edit = (name: string, patch: Partial<Character>) =>
     mutateDoc((d) => {
       const c = findCharacter(d, name) ?? d.characters[addCharacter(d, { name: titleCase(name), kind: 'secondaire' })];
@@ -150,6 +159,7 @@ export function CharactersPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectD
                     <Field label="Costume" value={fiche?.costume ?? ''} readOnly={readOnly} onCommit={(v) => edit(c.name, { costume: v.trim() || undefined })} />
                   </div>
                   <Field label="Description" multiline value={fiche?.notes ?? ''} readOnly={readOnly} placeholder="Fonction, situation, désir, besoin, arc, jeu…" onCommit={(v) => edit(c.name, { notes: v.trim() || undefined })} />
+                  {fiche && <CharacterFacts doc={doc} characterId={fiche.id} readOnly={readOnly} onDeleted={() => setOpen(null)} />}
                   <Sides blocks={blocks} name={c.name} scenes={scenes} onGo={onGo} />
                 </div>
               )}
@@ -157,6 +167,7 @@ export function CharactersPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectD
           );
         })}
       </ul>
+      <OrphanFiches doc={doc} kind="characters" readOnly={readOnly} />
     </div>
   );
 }
@@ -190,7 +201,13 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
   const scenes = useScenes(doc, blocks);
   const list = useMemo(() => locationReports(scenes), [scenes]);
   const [open, setOpen] = useState<string | null>(null);
-  if (!list.length) return <p className={s.empty}>Aucun décor dans le texte.</p>;
+  if (!list.length)
+    return (
+      <div className={s.panel} data-testid="scenario-decors">
+        <p className={s.empty}>Aucun décor dans le texte.</p>
+        <OrphanFiches doc={doc} kind="decors" readOnly={readOnly} />
+      </div>
+    );
   const edit = (name: string, intExt: string, patch: Partial<Decor>) =>
     mutateDoc((d) => {
       const dec = findDecor(d, name) ?? d.decors[addDecor(d, { name, intExt: intExt === 'EXT' ? 'EXT' : intExt === 'INT/EXT' ? 'INT/EXT' : 'INT' })];
@@ -237,6 +254,7 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
                     ))}
                   </p>
                   <Field label="Adresse de tournage" value={decorLocation(fiche).address ?? ''} readOnly={readOnly} onCommit={(v) => editLocation(l.location, l.intExt[0] ?? '', { address: v })} />
+                  {fiche && <DecorFacts doc={doc} decorId={fiche.id} readOnly={readOnly} onDeleted={() => setOpen(null)} />}
                   <Field label="Description" multiline value={fiche?.notes ?? ''} readOnly={readOnly} placeholder="Surface, disposition, ambiance sonore, évolution, accessoires…" onCommit={(v) => edit(l.location, l.intExt[0] ?? '', { notes: v.trim() || undefined })} />
                 </div>
               )}
@@ -244,6 +262,7 @@ export function DecorsPanel({ doc, blocks, readOnly, onGo }: { doc: ProjectDoc; 
           );
         })}
       </ul>
+      <OrphanFiches doc={doc} kind="decors" readOnly={readOnly} />
     </div>
   );
 }
