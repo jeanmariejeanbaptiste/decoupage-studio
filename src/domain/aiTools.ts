@@ -220,6 +220,7 @@ Règles :
 - Vocabulaire du cadre : valeurs, axes et hauteurs, mouvements tels que listés dans les outils ; focales en millimètres.
 - Le séquencier (get_outline) lit le scénario : une phrase par séquence, étape de Truby et intrigue ; ses numéros sont ceux du texte.
 - Ne supprime rien sans demande explicite.
+- Gros découpage : avance séquence par séquence, un appel add_shots par séquence (douze plans au plus par appel), et n’écris pas le découpage en clair avant de l’ajouter.
 - Après tes modifications, résume en une ou deux phrases ce que tu as fait (l’utilisateur peut tout annuler d’un clic).`;
 
 // --- Exécution ---------------------------------------------------------------------------------

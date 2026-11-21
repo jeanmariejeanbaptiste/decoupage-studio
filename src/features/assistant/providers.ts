@@ -196,6 +196,12 @@ function anthropicSession(key: string, model: string, system: string, tools: rea
         let soFar = '';
         if (onText) stream.on('text', (d) => onText((soFar += d)));
         const r = await stream.finalMessage();
+        // Coupée en plein appel d'outil : l'appel incomplet est écarté (il serait faux) ; le modèle le refera en reprenant.
+        if (r.stop_reason === 'max_tokens' && r.content.some((b) => b.type === 'tool_use')) {
+          const kept = r.content.filter((b) => b.type === 'text');
+          messages.push({ role: 'assistant', content: kept.length ? kept : [{ type: 'text', text: '…' }] });
+          return { text: kept.map((b) => (b.type === 'text' ? b.text : '')).join(''), calls: [], stop: 'max_tokens' };
+        }
         // Réponse renvoyée telle quelle (blocs de réflexion compris) : l'historique ne se réécrit jamais.
         messages.push({ role: 'assistant', content: r.content });
         const text = r.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
