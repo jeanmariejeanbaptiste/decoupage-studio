@@ -1,3 +1,4 @@
+import { compareSeqNo, type SeqNo } from '../../domain/numbering';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import {
@@ -315,7 +316,7 @@ function EntryText({
 }: {
   doc: ProjectDoc;
   entry: Entry;
-  n?: number;
+  n?: SeqNo;
   active: boolean;
   full?: boolean;
   hot: string | null;
@@ -364,7 +365,7 @@ function WholeSheet({
   onGo,
 }: {
   doc: ProjectDoc;
-  numberOf: (seqId: ID) => number | undefined;
+  numberOf: (seqId: ID) => SeqNo | undefined;
   labelOf: (seqId: ID) => string;
   current?: ID;
   readOnly: boolean;
@@ -401,7 +402,7 @@ function WholeSheet({
                       <span className={s.wName}>{e.item}</span>
                       <span className={s.wSeqs} data-view>
                         {[...e.seqIds]
-                          .sort((a, b) => (numberOf(a) ?? 0) - (numberOf(b) ?? 0))
+                          .sort((a, b) => compareSeqNo(numberOf(a), numberOf(b)))
                           .map((id) => (
                             <button key={id} type="button" className={id === current ? s.wNow : ''} onClick={() => onGo(id)} title={labelOf(id)}>
                               {numberOf(id)}

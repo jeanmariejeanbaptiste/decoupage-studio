@@ -127,7 +127,7 @@ test('dépouillement : liste du film entier, et rapports par élément et par s�
   await expect(page.getByTestId('breakdown-full')).toBeVisible();
 });
 
-test('dépouillement : numéros du découpage ; une scène pas encore au découpage n’en décale aucun', async ({ page }) => {
+test('dépouillement : numéros du scénario ; une scène pas encore au découpage n’a pas de numéro, les suivantes gardent le leur au scénario', async ({ page }) => {
   await page.goto('/#/scenario?seed=fiction');
   const ed = page.getByTestId('script-editor');
   await ed.locator('[data-type="heading"]').first().click();
@@ -137,11 +137,11 @@ test('dépouillement : numéros du découpage ; une scène pas encore au découp
   await page.getByRole('button', { name: /Dépouillement/ }).first().click();
   const scenes = page.getByTestId('breakdown-scene');
   await expect(scenes.nth(0)).toContainText('–QUAI');
-  await expect(scenes.nth(1)).toContainText('1GARE — HALL');
-  await expect(scenes.nth(3)).toContainText('3PARVIS DE LA GARE');
+  await expect(scenes.nth(1)).toContainText('2GARE — HALL');
+  await expect(scenes.nth(3)).toContainText('4PARVIS DE LA GARE');
   await page.getByTestId('breakdown-view-reports').click();
   await page.getByLabel('Rapport', { exact: true }).selectOption('sequences');
-  await expect(page.getByTestId('breakdown-report-seq').nth(1)).toContainText('1, GARE — HALL');
+  await expect(page.getByTestId('breakdown-report-seq').nth(1)).toContainText('2, GARE — HALL');
 });
 
 test('dépouillement : le compteur de la liste compte les éléments de la fiche, saisis ou déduits', async ({ page }) => {

@@ -442,7 +442,8 @@ test('relecture : les séquences pas encore découpées figurent dans l’aperç
   const table = guest.getByTestId('export-table').first();
   await expect(table).toContainText('1, ENTREPRISE / ACCUEIL');
   await expect(table).toContainText('2, RUE');
-  await expect(table).toContainText('3, GARE — HALL');
+  // Hors du scénario remplacé : numéro bis après la 2.
+  await expect(table).toContainText('2A, GARE — HALL');
   // On vise une séquence vide : « la séquence 2 manque ».
   await table.locator('tbody').filter({ hasText: '2, RUE' }).locator('td[data-col="sequence"]').click();
   await guest.getByTestId('comment-text').fill('La séquence 2 manque.');

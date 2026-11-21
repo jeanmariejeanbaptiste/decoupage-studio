@@ -87,7 +87,7 @@ export function sortShots(doc: ProjectDoc, ids: readonly ID[], criteria: readonl
 export function sortedDoc(doc: ProjectDoc, o: SortOptions): ProjectDoc {
   const keep = o.seqIds?.length ? new Set(o.seqIds) : null;
   const seqIds = doc.project.sequenceIds.filter((id) => doc.sequences[id] && (!keep || keep.has(id)));
-  const seqNumbers: Record<ID, number> = {};
+  const seqNumbers: Record<ID, number | string> = {};
   const shotNumbers: Record<ID, number> = {};
   for (const sid of doc.project.sequenceIds) for (const id of doc.sequences[sid]?.shotIds ?? []) shotNumbers[id] = shotNumber(doc, id);
 

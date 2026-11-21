@@ -24,7 +24,7 @@ import { createVersion, ensureVersions, nextVersionName } from '../../domain/ver
 import { VersionSwitcher } from '../versions/VersionSwitcher';
 import { ComparePage } from '../versions/ComparePage';
 import { scenarioHref, scenarioLocation, useLocation, type ScenarioView } from '../../app/router';
-import { sequenceHeading, shotCode, shotNumberLabel } from '../../domain/numbering';
+import { sequenceHeading, sequenceNumber, shotCode, shotNumberLabel } from '../../domain/numbering';
 import {
   BLOCK_LABELS,
   blockLabel,
@@ -973,7 +973,7 @@ function CutView({ doc }: { doc: ProjectDoc }) {
         return (
           <section key={seqId} data-cut-seq={seqId}>
             <h3>
-              {doc.project.sequenceIds.indexOf(seqId) + 1}. {cutHeading(doc, seqId)}
+              {sequenceNumber(doc, seqId)}. {cutHeading(doc, seqId)}
             </h3>
             {(seq?.actionBlockIds ?? []).map((bId) => {
               const b = doc.blocks[bId];

@@ -9,7 +9,7 @@ import { allFloorPlans, floorPlanSvg } from './exports';
 import { oneShotPlanKey, planOf } from './floorplan';
 import { beatTransitions, formatOneShotDuration, oneShotTiming } from './oneshot';
 import { formatFocal } from './focal';
-import { sequenceHeading, shotCode } from './numbering';
+import { sequenceHeading, sequenceNumber, shotCode } from './numbering';
 import { characterNumbers, characterStats, decorStats, decorUsage, characterUsage, numberedCast, usageDayLabel } from './registry';
 import { bannerLabel, showTime, callSheetAgenda, callSheetStrips, dayAgenda, dayKeyTimes, dayEquipment, dayStats, dayTitle, dayTotalsText, firstSlot, scheduleDays, shotSlotsText, stripCharacterIds, stripTone, type AgendaItem } from './schedule';
 import { decorLocation } from './locations';
@@ -233,7 +233,7 @@ ${events ? `<h3>Horaires</h3><table class="cs-events"><tbody>${events}</tbody></
       // Lieu de tournage : nom, adresse (celle du jour d'abord), accès et contact.
       const address = d?.seqAddresses?.[strip.seqId] ?? (seq?.decorId ? d?.addresses?.[seq.decorId] : undefined) ?? loc.address ?? '';
       const place = [loc.name && `<b>${esc(loc.name)}</b>`, esc(address), address.trim() && routeLink(doc, address), loc.access && `<span class="muted">Accès : ${esc(loc.access)}</span>`, loc.contact && `<span class="muted">Contact : ${esc(loc.contact)}</span>`].filter(Boolean).join('<br>');
-      return `<tr><td class="time">${r ? esc(slotText(r)) : '—'}</td><td class="code">${doc.project.sequenceIds.indexOf(strip.seqId) + 1}</td><td><b>${esc(heading.toUpperCase())}</b>${summary ? `<br><span class="muted">${esc(summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
+      return `<tr><td class="time">${r ? esc(slotText(r)) : '—'}</td><td class="code">${sequenceNumber(doc, strip.seqId)}</td><td><b>${esc(heading.toUpperCase())}</b>${summary ? `<br><span class="muted">${esc(summary)}</span>` : ''}</td><td>${cast.join(', ')}</td><td class="time">${strip.shotIds.length} pl.${dur ? ` · ${esc(formatTc(Math.round(dur)))}` : ''}</td><td>${place}</td></tr>`;
     })
     .join('');
   const scenes = `<h3>Séquences</h3><table><thead><tr><th>Horaire</th><th>Séq.</th><th>Description</th><th>Personnages</th><th>Plans · durée</th><th>Lieu de tournage</th></tr></thead><tbody>${seqRows || '<tr><td colspan="6" class="muted">Aucune séquence ce jour.</td></tr>'}</tbody></table>`;
@@ -308,7 +308,7 @@ export function registryDocument(doc: ProjectDoc): DocPage {
   const cu = characterUsage(doc);
   const du = decorUsage(doc);
   const unused = '<span class="muted">inutilisé</span>';
-  const n = (ids: string[]) => ids.map((id) => doc.project.sequenceIds.indexOf(id) + 1).join(', ');
+  const n = (ids: string[]) => ids.map((id) => sequenceNumber(doc, id)).join(', ');
   const body = `<h2>Séquences</h2><table><thead><tr><th>N°</th><th>Libellé</th><th>Décor</th><th>INT/EXT · effet</th><th>Personnages</th><th>Plans</th><th>Estimée</th><th>Calculée</th><th>Écart</th></tr></thead><tbody>${doc.project.sequenceIds
     .map((id, i) => {
       const s = doc.sequences[id];

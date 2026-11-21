@@ -1,3 +1,4 @@
+import { compareSeqNo, type SeqNo } from '../../domain/numbering';
 import { useMemo, useRef, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { breakdownCategories, breakdownLabel, type BreakdownCategory } from '../../domain/breakdown';
@@ -15,7 +16,7 @@ type ItemSort = 'film' | 'often' | 'long' | 'alpha';
 
 /** Numéros et libellés du dépouillement (ceux du découpage), par séquence. */
 interface Numbering {
-  no: (seqId: ID) => number | undefined;
+  no: (seqId: ID) => SeqNo | undefined;
   label: (seqId: ID) => string;
 }
 
@@ -184,7 +185,7 @@ function ItemRow({ numbering, e, head, withCat, onGo }: { numbering: Numbering; 
         <td>
           <span className={s.seqLinks} data-view>
             {[...e.seqIds]
-              .sort((a, b) => (numbering.no(a) ?? 0) - (numbering.no(b) ?? 0))
+              .sort((a, b) => compareSeqNo(numbering.no(a), numbering.no(b)))
               .map((id) => (
                 <button key={id} type="button" className={r.link} onClick={() => onGo(id)} title={numbering.label(id)}>
                   {numbering.no(id)}

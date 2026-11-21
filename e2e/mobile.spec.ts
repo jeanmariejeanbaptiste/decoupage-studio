@@ -208,7 +208,8 @@ test('téléphone : insérer un plan entre deux plans, une séquence entre deux 
   await page.locator(`[data-gap="${s1}:5:e"]`).click();
   await expect(page.getByTestId('mobile-insert-shot')).toHaveText(/Plan\s*1\.6/);
   await page.getByTestId('mobile-insert-seq').click();
-  await expect(code(page)).toHaveText('2.1');
+  // Séquence absente du scénario : numéro bis, la suivante garde le sien.
+  await expect(code(page)).toHaveText('1A.1');
   d = await docOf(page);
   expect(d.project.sequenceIds).toHaveLength(4);
   expect(d.project.sequenceIds[2]).toBe(s2);
@@ -218,8 +219,8 @@ test('téléphone : insérer un plan entre deux plans, une séquence entre deux 
   await done(page);
   await expect(page.getByTestId('mobile-seq')).toContainText('Gare — Couloir');
   await page.getByTestId('mobile-overview').click();
-  await expect(page.locator('h2').nth(1)).toContainText('2·Gare — Couloir');
-  await expect(page.locator('h2').nth(2)).toContainText('3·GARE — CONSIGNE');
+  await expect(page.locator('h2').nth(1)).toContainText('1A·Gare — Couloir');
+  await expect(page.locator('h2').nth(2)).toContainText('2·GARE — CONSIGNE');
 });
 
 test('téléphone : réorganiser à l’appui long sur la poignée, dans la séquence et vers une autre', async ({ page }) => {

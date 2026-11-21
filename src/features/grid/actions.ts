@@ -3,7 +3,7 @@
  */
 import { isEditable, editableText, setCellText } from '../../domain/cells';
 import { recognizeCharacters } from '../../domain/characters';
-import { shotCode, sequenceHeading } from '../../domain/numbering';
+import { shotCode, sequenceHeading, sequenceNumber } from '../../domain/numbering';
 import {
   addCharacter,
   addSequence,
@@ -260,7 +260,7 @@ export async function deleteSequenceOf(shotId?: ID, seqIdArg?: ID): Promise<void
   if (n >= BIG_SEQUENCE) {
     const label = d.sequences[seqId].label.trim();
     const res = await ask({
-      title: `Supprimer la séquence ${d.project.sequenceIds.indexOf(seqId) + 1}${label ? `, ${label.toUpperCase()}` : ''} ?`,
+      title: `Supprimer la séquence ${sequenceNumber(d, seqId)}${label ? `, ${label.toUpperCase()}` : ''} ?`,
       body: `${n} plans seront supprimés. L’opération reste annulable (⌘Z).`,
       confirmLabel: 'Supprimer la séquence',
       danger: true,
