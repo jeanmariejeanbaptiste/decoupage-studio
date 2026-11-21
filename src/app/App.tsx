@@ -1,10 +1,11 @@
 import { redoHome, undoHome } from '../store/homeHistory';
-import { isShortcut } from '../store/shortcuts';
+import { isShortcut, startShortcutSync } from '../store/shortcuts';
 import { useCanCopy, useDriveReview, useReadOnly, useShare } from '../store/share';
 import { closeReviewLink, forgetReviewSession, reopenReviewLink, resumeReview, startReviewSync } from '../store/review';
 import { ReviewPage } from '../features/review/Review';
 import { openSnapshot } from '../store/snapshot';
 import { REVIEWED } from '../features/shell/steps';
+import { documentTitle } from './documentTitle';
 import { switchTheme } from '../ui/themeSwitch';
 import { GuestBanner, JoinPage } from '../features/share/Share';
 import { useEffect, useMemo, useState } from 'react';
@@ -43,7 +44,7 @@ import { cloudForget, cloudRestore, keepSessionAlive, preloadGoogle, startCloudP
 import { setHomeHooks } from '../store/homeHistory';
 import { AccountButton } from '../features/shell/Account';
 import { redo, undo, useDoc, useHistory } from '../store/projectStore';
-import { toggleSidebar, useUi } from '../store/uiStore';
+import { startUiSync, toggleSidebar, useUi } from '../store/uiStore';
 import { Button } from '../ui/Button';
 import { ContextMenuHost } from '../ui/ContextMenu';
 import { DialogHost } from '../ui/Modal';
@@ -68,6 +69,16 @@ const SAVE_LABEL: Record<string, string> = {
   idle: '',
 };
 
+/** Retire un paramètre de l'adresse, sans nouvelle entrée d'historique ni hashchange. */
+function dropHashParam(name: string): void {
+  const [path, query = ''] = window.location.hash.split('?');
+  const params = new URLSearchParams(query);
+  if (!params.has(name)) return;
+  params.delete(name);
+  const q = params.toString();
+  history.replaceState(history.state, '', `${window.location.pathname}${window.location.search}${path}${q ? `?${q}` : ''}`);
+}
+
 async function boot(): Promise<void> {
   const { route } = parseHash(window.location.hash);
   // Lien de relecture : la page d'arrivée l'ouvre elle-même.
@@ -75,8 +86,13 @@ async function boot(): Promise<void> {
   // Lien autonome : la page d'arrivée l'ouvre elle-même.
   if (route === 'view') return;
   const seed = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('seed');
-  if (seed === 'rav3') return void (await openDoc(buildRav3()));
-  if (seed === 'fiction') return void (await openDoc(buildFiction()));
+  const build = seed === 'rav3' ? buildRav3 : seed === 'fiction' ? buildFiction : null;
+  if (build) {
+    await openDoc(build());
+    // Démonstration ouverte : un rechargement ou un favori ne doit plus l'écraser.
+    dropHashParam('seed');
+    return;
+  }
   // Rechargement pendant une relecture en ligne : elle se rouvre (l'accueil la referme).
   if (route === 'home') forgetReviewSession();
   else if (await resumeReview()) return;
@@ -114,6 +130,8 @@ export function App() {
 
   useEffect(() => {
     const stop = startAutosave();
+    // Préférences de ce navigateur (thème, raccourcis, menu) : suivies d'un onglet à l'autre.
+    const stopPrefs = [startShortcutSync(), startUiSync()];
     // Assistant réglé : essai silencieux, il n'est proposé que s'il répond.
     void recheckAi();
     // Synchronisation Google Drive (si configurée) : envoi après chaque enregistrement, suppressions suivies.
@@ -135,6 +153,7 @@ export function App() {
       stopCloud();
       stopSession();
       stopReview();
+      stopPrefs.forEach((f) => f());
     };
   }, []);
 
@@ -155,12 +174,35 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    // Barre d'état du téléphone et de l'application installée : au fond de la page.
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'encre' ? '#0f1115' : '#ffffff');
     try {
       localStorage.setItem('ds-theme', theme);
     } catch {
       /* stockage indisponible */
     }
   }, [theme]);
+
+  // Tiroir du téléphone : le focus y entre sur la page courante ; Échap le referme et rend le focus au bouton.
+  const drawerOpen = phone && sidebarOpen && route !== 'home' && !!doc;
+  useEffect(() => {
+    if (!drawerOpen) return;
+    document.querySelector<HTMLElement>('aside [aria-current="page"]')?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      // Échap déjà traitée (menu, champ…) ou destinée à une fenêtre ouverte par-dessus : pas pour le tiroir.
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (useUi.getState().paletteOpen || useUi.getState().helpOpen || document.querySelector('[aria-modal="true"], [role="alertdialog"]')) return;
+      toggleSidebar(false);
+      document.querySelector<HTMLElement>('[data-testid="toggle-sidebar"]')?.focus({ preventScroll: true });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+
+  const projectTitle = doc?.project.title;
+  useEffect(() => {
+    document.title = documentTitle(route, projectTitle);
+  }, [route, projectTitle]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -174,20 +216,28 @@ export function App() {
       }
       if (isShortcut(e, 'palette')) {
         e.preventDefault();
-        setUi({ paletteOpen: !useUi.getState().paletteOpen });
+        // Une seule fenêtre à la fois : la palette remplace l'aide.
+        setUi({ paletteOpen: !useUi.getState().paletteOpen, helpOpen: false });
         return;
       }
-      if (e.key === 'Escape' && useUi.getState().helpOpen) setUi({ helpOpen: false });
+      if (e.key === 'Escape' && useUi.getState().helpOpen) {
+        // Échap consommée par l'aide : le tiroir du téléphone reste ouvert.
+        e.preventDefault();
+        setUi({ helpOpen: false });
+        return;
+      }
       if (e.defaultPrevented || isTextTarget(e.target)) return;
       if (isShortcut(e, 'help')) {
         e.preventDefault();
-        setUi({ helpOpen: true });
+        setUi({ helpOpen: true, paletteOpen: false });
         return;
       }
       const isUndo = isShortcut(e, 'undo');
       const isRedo = isShortcut(e, 'redo') || (mod && !e.shiftKey && (e.key === 'y' || e.key === 'Y'));
       if (isUndo || isRedo) {
         e.preventDefault();
+        // Rien ne s'annule derrière une fenêtre ouverte, où l'on ne verrait pas le changement.
+        if (useUi.getState().paletteOpen || useUi.getState().helpOpen || document.querySelector('[data-testid="wizard"]')) return;
         // À l'accueil, annuler / rétablir portent sur la suppression des projets.
         if (window.location.hash.replace(/^#\/?/, '').split('?')[0] === '' || window.location.hash.startsWith('#/home')) {
           if (isRedo) void redoHome();
@@ -255,7 +305,7 @@ export function App() {
           onContextMenuCapture={readOnly ? (e) => e.stopPropagation() : undefined}
         >
           {booted && (
-            <ErrorBoundary key={route} onHome={() => navigate('home')}>
+            <ErrorBoundary key={route} resetKey={window.location.hash} onHome={() => navigate('home')}>
               <Page route={route} />
             </ErrorBoundary>
           )}
@@ -315,17 +365,8 @@ function Page({ route }: { route: Route }) {
   if (route === 'calendar' || route === 'production') return <CalendarPage doc={doc} />;
   if (route === 'breakdown') return <BreakdownPage doc={doc} />;
   if (route === 'equipment') return <EquipmentPage doc={doc} />;
-  return (
-    <div className="page">
-      <div className="card empty">
-        <span className="hand">Cette étape arrive bientôt</span>
-        <p>Le découpage technique est déjà prêt à l’emploi.</p>
-        <Button variant="outline" onClick={() => navigate('grid')}>
-          Ouvrir le découpage
-        </Button>
-      </div>
-    </div>
-  );
+  // Toute autre route (#/print sans droit de copie, par exemple) : le découpage.
+  return <GridPage doc={doc} />;
 }
 
 /** Lien autonome en cours d'ouverture, ou abîmé. */

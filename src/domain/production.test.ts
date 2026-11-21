@@ -14,6 +14,7 @@ import {
   durationDays,
   findTask,
   formatFrDate,
+  heldBy,
   isHeld,
   isLate,
   isPinned,
@@ -21,6 +22,7 @@ import {
   normalizeProduction,
   parseFrDate,
   phaseDays,
+  pinnedBy,
   phaseSpan,
   placePhase,
   placeTask,
@@ -388,6 +390,12 @@ describe('modèle et plan de travail', () => {
     });
     expect(dates(all, shootId)).toEqual(['2027-03-01', '2027-03-04']);
     expect(isPinned(all, task(all, shootId))).toBe(true);
+    // Variantes d'après une étendue calculée une fois : mêmes réponses.
+    for (const d of [one, all]) {
+      const t = task(d, shootId);
+      expect(pinnedBy(shootingRange(d), t)).toBe(isPinned(d, t));
+      expect(heldBy(shootingRange(d), t)).toBe(isHeld(d, t));
+    }
   });
 });
 
@@ -401,6 +409,15 @@ describe('calendrier et fichier', () => {
     expect(productionItems(synced, { withLinked: true }).some((it) => it.title === 'Tournage')).toBe(true);
     const lock = items.find((it) => it.title === 'Scénario verrouillé')!;
     expect(lock).toMatchObject({ milestone: true, date: lock.endDate, source: 'production', group: 'Développement' });
+    // Plan de travail daté en partie : l'étape liée ne couvre que ce qui suit le dernier jour daté.
+    const partial = produce(synced, (d) => {
+      updateDay(d, 2, { date: undefined });
+      syncProduction(d);
+    });
+    const shoot = productionItems(partial).find((it) => it.title === 'Tournage');
+    expect(shoot).toMatchObject({ date: '2027-06-02' });
+    expect(shoot!.endDate > '2027-06-02').toBe(true);
+    expect(itemsOn(calendarItems(partial), '2027-06-01').map((x) => x.title)).not.toContain('Tournage');
     // Tournage commencé pendant la préparation : le jour de tournage passe devant les étapes.
     const early = produce(withShooting(produce(buildRav3(), (d) => applyTemplate(d, '2026-11-09')), '2027-01-20', '2027-06-20'), (d) => syncProduction(d));
     const day = itemsOn(calendarItems(early), '2027-01-20').map((x) => x.source);
@@ -429,6 +446,73 @@ describe('calendrier et fichier', () => {
     const gone = { ...doc, production: { phases: 'x' } as unknown as Production };
     normalizeProduction(gone);
     expect(gone.production).toBeUndefined();
+  });
+
+  it('rompt les boucles relues d’un fichier : les dates ne partent pas des siècles plus loin', () => {
+    const doc = blank();
+    doc.production = {
+      phases: [
+        {
+          id: 'p',
+          name: 'P',
+          tasks: [
+            { id: 'a', name: 'A', start: '2027-01-01T10:00', end: '2027-01-05', after: ['b'] },
+            { id: 'b', name: 'B', start: '2027-01-06', end: '2027-01-08', after: ['a', 'a'] },
+          ],
+        },
+      ],
+    };
+    const out = migrate(doc);
+    const links = allTasks(out.production).flatMap((r) => (r.task.after ?? []).map((p) => `${r.task.id}<${p}`));
+    expect(links).toEqual(['b<a']);
+    expect(task(out, 'a').start).toBe('2027-01-01');
+    const moved = produce(out, (d) => setTaskDates(d, 'a', '2027-01-02', '2027-01-06'));
+    expect(dates(moved, 'b')).toEqual(['2027-01-07', '2027-01-09']);
+    // Boucle laissée telle quelle (sans relecture) : la cascade s'arrête vite.
+    const raw = blank();
+    raw.production = structuredClone(doc.production);
+    raw.production!.phases[0].tasks[0].start = '2027-01-01';
+    const pushed = produce(raw, (d) => setTaskDates(d, 'a', '2027-01-02', '2027-01-06'));
+    expect(task(pushed, 'a').start < '2028-01-01').toBe(true);
+    expect(task(pushed, 'b').start < '2028-01-01').toBe(true);
+  });
+
+  it('relit une seule étape liée, jamais un jalon, et des identifiants uniques', () => {
+    const doc = withShooting(buildRav3(), '2027-06-01', '2027-06-03');
+    const broken = {
+      ...doc,
+      production: {
+        phases: [
+          {
+            id: 'p',
+            name: 'P',
+            tasks: [
+              { id: 'm', name: 'Jalon', start: '2027-01-01', end: '2027-01-01', milestone: true, linked: 'schedule' },
+              { id: 's1', name: 'Tournage', start: '2027-02-01', end: '2027-02-10', linked: 'schedule', planned: 10 },
+              { id: 's2', name: 'Autre', start: '2027-03-01', end: '2027-03-10', linked: 'schedule', planned: 10 },
+              { id: 's1', name: 'Double', start: '2027-04-01', end: '2027-04-02' },
+              { id: 'z', name: 'Z', start: '2027-04-01', end: '2027-04-02', linked: 'autre' },
+            ],
+          },
+        ],
+      } as unknown as Production,
+    };
+    const out = migrate(broken);
+    const tasks = out.production!.phases[0].tasks;
+    expect(tasks.map((t) => t.name)).toEqual(['Jalon', 'Tournage', 'Autre', 'Double', 'Z']);
+    expect(new Set(tasks.map((t) => t.id)).size).toBe(5);
+    expect(tasks[1].id).toBe('s1');
+    expect(tasks.filter((t) => t.linked).map((t) => t.id)).toEqual(['s1']);
+    expect(tasks.find((t) => t.id === 's2')!.planned).toBeUndefined();
+    expect(dates(out, 's1')[0]).toBe('2027-06-01');
+  });
+
+  it('refuse une date hors de la frise et plafonne la durée', () => {
+    const doc = chain();
+    expect(dates(produce(doc, (d) => setTaskDates(d, 'a', '2027-01-04', '2207-05-21')), 'a')).toEqual(['2027-01-04', '2027-01-08']);
+    expect(dates(produce(doc, (d) => setTaskDates(d, 'a', '1901-01-01', '2027-01-08')), 'a')).toEqual(['2027-01-04', '2027-01-08']);
+    const long = produce(doc, (d) => setDuration(d, 'a', 200_000));
+    expect(durationDays(task(long, 'a'))).toBe(3650);
   });
 });
 

@@ -112,12 +112,12 @@ export function ScheduleMap({ doc, places, days }: { doc: ProjectDoc; places: Ma
   return (
     <section className={s.panel} aria-label="Carte des lieux de tournage" data-view data-testid="schedule-map">
       {withPlaces.length > 1 && (
-        <div className={s.days} role="tablist" aria-label="Jour">
-          <button type="button" role="tab" aria-selected={day === undefined} className={day === undefined ? s.on : ''} onClick={() => choose(undefined)}>
+        <div className={s.days} role="group" aria-label="Jour">
+          <button type="button" aria-pressed={day === undefined} className={day === undefined ? s.on : ''} onClick={() => choose(undefined)}>
             Tous
           </button>
           {withPlaces.map((n) => (
-            <button key={n} type="button" role="tab" aria-selected={day === n} className={day === n ? s.on : ''} onClick={() => choose(n)} data-testid={`map-day-${n}`}>
+            <button key={n} type="button" aria-pressed={day === n} className={day === n ? s.on : ''} onClick={() => choose(n)} data-testid={`map-day-${n}`}>
               J{n}
             </button>
           ))}

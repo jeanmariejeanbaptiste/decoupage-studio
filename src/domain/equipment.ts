@@ -144,6 +144,10 @@ export function aggregateEquipment(doc: ProjectDoc): Record<EquipmentCategory, E
   }
   // Machinerie, lumière et son saisis au dépouillement : une seule liste pour le chef de poste, avec
   // les plans de leurs séquences. Un libellé déjà déduit ailleurs (même poste) y gagne ces plans.
+  // Index poste + libellé replié → première ligne qui le porte (un long métrage en compte des centaines).
+  const byLabel = new Map<string, EquipmentLine>();
+  const labelKey = (category: string, label: string) => `${category}|${fold(label)}`;
+  for (const l of byKey.values()) if (!byLabel.has(labelKey(l.category, l.label))) byLabel.set(labelKey(l.category, l.label), l);
   for (const seqId of doc.project.sequenceIds) {
     const seq = doc.sequences[seqId];
     const b = doc.breakdown?.[seqId];
@@ -153,9 +157,15 @@ export function aggregateEquipment(doc: ProjectDoc): Record<EquipmentCategory, E
       for (const raw of b[cat] ?? []) {
         const label = raw.trim();
         if (!label) continue;
-        const same = [...byKey.values()].find((l) => l.category === category && fold(l.label) === fold(label));
+        const k = labelKey(category, label);
+        const same = byLabel.get(k);
         const line = same ?? { key: `breakdown:${category}:${fold(label)}`, category, label, shotIds: [], manual: false, fromBreakdown: true };
-        for (const id of shots) if (!line.shotIds.includes(id)) line.shotIds.push(id);
+        if (!same) byLabel.set(k, line);
+        const has = new Set(line.shotIds);
+        for (const id of shots) if (!has.has(id)) {
+          has.add(id);
+          line.shotIds.push(id);
+        }
         byKey.set(line.key, line);
       }
     }

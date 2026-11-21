@@ -90,7 +90,8 @@ describe('matériel : une seule liste avec le dépouillement', () => {
     expect(derivedBreakdown(doc, s2).machinerie).toContain('Travelling Western');
     expect(derivedBreakdown(doc, s1).machinerie).not.toContain('Travelling Western');
     expect(derivedBreakdown(doc, s1).machinerie).not.toContain('Grue Louma');
-    expect(breakdownCsv(doc).match(/Grue Louma/g)).toHaveLength(1);
+    // Une fois par séquence (même graphie partout), jamais une seconde fois comme déduit.
+    expect(breakdownCsv(doc).match(/grue louma/gi)).toHaveLength(2);
   });
 
   it('retiré du matériel, il sort aussi du dépouillement', () => {

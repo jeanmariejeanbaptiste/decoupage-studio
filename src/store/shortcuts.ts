@@ -36,6 +36,15 @@ export function resetShortcuts(id?: ShortcutId) {
   persist(map);
 }
 
+/** Raccourcis réglés dans un autre onglet : repris ici (sans quoi le prochain réglage d'ici les effacerait). */
+export function startShortcutSync(): () => void {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === KEY || e.key === null) useShortcuts.setState({ map: load() });
+  };
+  window.addEventListener('storage', onStorage);
+  return () => window.removeEventListener('storage', onStorage);
+}
+
 /** L'évènement correspond-il au raccourci (tel que l'utilisateur l'a réglé) ? */
 export const isShortcut = (e: KeyLike, id: ShortcutId) => matchesCombo(e, useShortcuts.getState().map[id]);
 

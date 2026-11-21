@@ -142,7 +142,8 @@ const TIME_RE = /^(\d{1,2}):(\d{2})$/;
 
 export function toMinutes(time: string | undefined): number | undefined {
   const m = time ? TIME_RE.exec(time) : null;
-  return m ? Number(m[1]) * 60 + Number(m[2]) : undefined;
+  // « 25:99 » n'est pas une heure.
+  return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : undefined;
 }
 
 export const fromMinutes = (min: number) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
@@ -185,10 +186,14 @@ export function eventItem(e: CalendarEvent): CalendarItem | undefined {
   }
   const start = toMinutes(e.start.slice(11, 16)) ?? 0;
   const endDate = isValidDate(e.end) ? e.end.slice(0, 10) : date;
-  let end = toMinutes(e.end?.slice(11, 16));
+  const end = toMinutes(e.end?.slice(11, 16));
   // Fin absente ou avant le début : une heure par défaut, sans franchir minuit.
-  if (end === undefined || endDate < date || (endDate === date && end <= start)) end = Math.min(start + 60, 24 * 60 - 1);
-  return { ...base, endDate: endDate < date ? date : endDate, start: fromMinutes(start), end: fromMinutes(end), allDay: false };
+  if (end === undefined || endDate < date || (endDate === date && end <= start)) {
+    return { ...base, endDate: date, start: fromMinutes(start), end: fromMinutes(Math.min(start + 60, 24 * 60 - 1)), allDay: false };
+  }
+  // Fin à minuit pile : « 00:00 » sur le dernier jour occupé, le lendemain reste libre.
+  if (end === 0) return { ...base, endDate: addDays(endDate, -1), start: fromMinutes(start), end: '00:00', allDay: false };
+  return { ...base, endDate, start: fromMinutes(start), end: fromMinutes(end), allDay: false };
 }
 
 /** Décors d'un jour de tournage, dans l'ordre des bandes. */
@@ -223,17 +228,27 @@ export function shootingItems(doc: ProjectDoc): CalendarItem[] {
 
 /**
  * Étapes et jalons du calendrier de production, en journées entières. L'étape liée au plan de travail
- * n'y figure pas quand des jours de tournage sont datés : ils sont déjà dans le calendrier, un par un.
+ * ne double pas les jours de tournage datés, déjà dans le calendrier un par un : tous datés, elle n'y
+ * figure pas ; datés en partie, elle ne couvre que ce qui suit le dernier jour daté (durée prévue).
  */
 export function productionItems(doc: ProjectDoc, opts: { withLinked?: boolean } = {}): CalendarItem[] {
   const plan = doc.production;
-  const dated = scheduleDays(doc).some((d) => isValidDate(d.date));
+  const days = scheduleDays(doc);
+  const dates = days.map((d) => d.date).filter((d): d is string => isValidDate(d)).map((d) => d.slice(0, 10)).sort();
+  const lastDated = dates[dates.length - 1];
+  const allDated = days.length > 0 && dates.length === days.length;
   const out: CalendarItem[] = [];
   for (const phase of plan?.phases ?? [])
     for (const t of phase.tasks) {
-      if (!isValidDate(t.start) || (t.linked && dated && !opts.withLinked)) continue;
+      if (!isValidDate(t.start)) continue;
       const end = t.milestone || !isValidDate(t.end) || t.end < t.start ? t.start : t.end;
-      out.push({ key: `p:${t.id}`, title: t.name, date: t.start, endDate: end, allDay: true, source: 'production', taskId: t.id, milestone: t.milestone || undefined, group: phase.name });
+      let start = t.start;
+      if (t.linked && !opts.withLinked && lastDated) {
+        if (allDated) continue;
+        if (lastDated >= start) start = addDays(lastDated, 1);
+        if (start > end) continue;
+      }
+      out.push({ key: `p:${t.id}`, title: t.name, date: start, endDate: end, allDay: true, source: 'production', taskId: t.id, milestone: t.milestone || undefined, group: phase.name });
     }
   return out;
 }
@@ -274,6 +289,9 @@ export function eventsOn(doc: ProjectDoc, date: string | undefined): CalendarIte
   return itemsOn(own, date).sort((a, b) => Number(b.allDay) - Number(a.allDay) || from(a).localeCompare(from(b)));
 }
 
+/** Fin d'un élément minuté sur son dernier jour, en minutes ; « 00:00 » = minuit, fin de la journée. */
+const endMinutes = (it: CalendarItem) => toMinutes(it.end) || 24 * 60;
+
 /** Heure d'un élément un jour donné : début ce jour-là, « jusqu'à » s'il a commencé avant ; rien pour une journée entière. */
 export function timeOn(it: CalendarItem, date: string): string {
   if (it.allDay) return '';
@@ -300,7 +318,7 @@ export function hourRange(items: readonly CalendarItem[], dates: readonly string
     for (const it of itemsOn(items, date)) {
       if (it.allDay) continue;
       const s = it.date < date ? 0 : toMinutes(it.start)!;
-      const e = it.endDate > date ? 24 * 60 : toMinutes(it.end)!;
+      const e = it.endDate > date ? 24 * 60 : endMinutes(it);
       a = Math.min(a, Math.floor(s / 60));
       b = Math.max(b, Math.ceil(e / 60));
     }
@@ -328,7 +346,7 @@ export function layoutDay(items: readonly CalendarItem[], date: string, from = 7
     .filter((it) => !it.allDay)
     .map((item) => {
       const a0 = item.date < date ? 0 : toMinutes(item.start)!;
-      const b0 = item.endDate > date ? 24 * 60 : toMinutes(item.end)!;
+      const b0 = item.endDate > date ? 24 * 60 : endMinutes(item);
       const a = Math.max(lo, Math.min(a0, hi - 15));
       return { item, a, b: Math.min(hi, Math.max(b0, a + 15)) };
     })
@@ -380,6 +398,15 @@ export function removeEvent(doc: ProjectDoc, id: ID): void {
   if (!doc.calendar.length) delete doc.calendar;
 }
 
+/** Décale un rendez-vous de `days` jours : heures et durée gardées. */
+export function moveEvent(doc: ProjectDoc, id: ID, days: number): void {
+  const e = doc.calendar?.find((x) => x.id === id);
+  if (!e || !days || !isValidDate(e.start)) return;
+  const move = (s: string) => `${addDays(s.slice(0, 10), days)}${s.slice(10)}`;
+  e.start = move(e.start);
+  if (isValidDate(e.end)) e.end = move(e.end);
+}
+
 /** Champs du formulaire d'un rendez-vous (date, heures « HH:MM », dernier jour d'une journée entière). */
 export interface EventFields {
   title: string;
@@ -407,20 +434,109 @@ export function eventFields(e: CalendarEvent): EventFields {
     allDay: it?.allDay ?? true,
     start: it?.allDay ? '09:00' : (it?.start ?? '09:00'),
     end: it?.allDay ? '10:00' : (it?.end ?? '10:00'),
-    endDate: it?.endDate ?? date,
+    // Rendez-vous minuté : jour de la fin (minuit = le lendemain).
+    endDate: it && !it.allDay && it.end === '00:00' ? addDays(it.endDate, 1) : (it?.endDate ?? date),
     kind: e.kind ?? 'autre',
     note: e.note ?? '',
   };
 }
 
-/** Rendez-vous tiré du formulaire : fin avant le début corrigée (une heure, ou un seul jour). */
+/**
+ * Fin avant le début : le lendemain seulement pour une nuit (début à midi ou après, fin à midi ou
+ * avant, seize heures au plus : 22:00 – 06:00, 20:00 – 00:00) ; ailleurs c'est une coquille.
+ */
+export function overnight(a: number, b: number): boolean {
+  return b < a && a >= 12 * 60 && b <= 12 * 60 && b + 24 * 60 - a <= 16 * 60;
+}
+
+/** Jour de la fin d'un rendez-vous minuté d'après ses heures : le lendemain pour une nuit. */
+export function autoEndDate(date: string, start: string, end: string): string {
+  const a = toMinutes(start);
+  const b = toMinutes(end);
+  return a !== undefined && b !== undefined && overnight(a, b) ? addDays(date, 1) : date;
+}
+
+/**
+ * Rendez-vous tiré du formulaire. Minuté : la fin tombe le jour `endDate` quand il suit la date ;
+ * sinon le lendemain pour une nuit, et une heure après le début si la fin n'est pas après lui.
+ */
 export function eventFromFields(f: EventFields): Omit<CalendarEvent, 'id'> {
   const base = { title: f.title.trim() || 'Sans titre', kind: f.kind, note: f.note.trim() || undefined };
   if (f.allDay) return { ...base, start: f.date, end: f.endDate > f.date ? f.endDate : undefined, allDay: true };
   const a = toMinutes(f.start) ?? 9 * 60;
   let b = toMinutes(f.end) ?? a + 60;
-  if (b <= a) b = Math.min(a + 60, 24 * 60 - 1);
-  return { ...base, start: `${f.date}T${fromMinutes(a)}`, end: `${f.date}T${fromMinutes(b)}` };
+  let endDate = f.date;
+  if (isValidDate(f.endDate) && f.endDate > f.date) endDate = f.endDate;
+  else if (overnight(a, b)) endDate = addDays(f.date, 1);
+  else if (b <= a) b = Math.min(a + 60, 24 * 60 - 1);
+  return { ...base, start: `${f.date}T${fromMinutes(a)}`, end: `${endDate}T${fromMinutes(b)}` };
+}
+
+/**
+ * Nouveau début ou nouvelle date dans le formulaire : la fin suit du même écart (durée gardée, minuit
+ * franchi s'il le faut). Changer la fin seule ne touche pas au début.
+ */
+export function shiftStart(f: EventFields, patch: { date?: string; start?: string }): EventFields {
+  const out = { ...f };
+  if (patch.date !== undefined && isValidDate(patch.date)) {
+    const span = Math.max(0, daysFrom(f.date, f.endDate));
+    out.date = patch.date;
+    out.endDate = addDays(patch.date, span);
+  }
+  const a0 = toMinutes(f.start);
+  const a1 = toMinutes(patch.start);
+  if (patch.start !== undefined) {
+    out.start = patch.start;
+    const b0 = toMinutes(f.end);
+    if (a0 !== undefined && a1 !== undefined && b0 !== undefined) {
+      // Durée en minutes, jours compris ; le jour de la fin suit (minuit franchi ou non).
+      let offset = daysFrom(f.date, f.endDate);
+      if (f.allDay || offset < 0 || (offset === 0 && b0 <= a0)) offset = overnight(a0, b0) ? 1 : 0;
+      let dur = offset * 24 * 60 + b0 - a0;
+      if (dur <= 0) dur = 60;
+      const end = a1 + dur;
+      out.end = fromMinutes(end % (24 * 60));
+      if (!f.allDay) out.endDate = addDays(out.date, Math.floor(end / (24 * 60)));
+    }
+  }
+  return out;
+}
+
+/** Jours de `a` à `b`. */
+const daysFrom = (a: string, b: string) => Math.round((toUtc(b).getTime() - toUtc(a).getTime()) / 86_400_000);
+
+/**
+ * Rendez-vous relus d'un fichier : seuls restent ceux qui ont un identifiant et une date valide (un
+ * identifiant en double est renouvelé). Titre,
+ * type, note et fin abîmés sont corrigés ou retirés ; une heure impossible les passe en journée entière.
+ */
+export function normalizeCalendar(doc: ProjectDoc): void {
+  const raw = doc.calendar as unknown;
+  if (raw === undefined) return;
+  const ids = new Set<string>();
+  const out: CalendarEvent[] = [];
+  for (const x of Array.isArray(raw) ? (raw as unknown[]) : []) {
+    if (!x || typeof x !== 'object') continue;
+    const e = x as Record<string, unknown>;
+    if (typeof e.id !== 'string' || !e.id || typeof e.start !== 'string' || !isValidDate(e.start.slice(0, 10))) continue;
+    // Identifiant en double (fusion, copie) : le second en reçoit un nouveau.
+    const id = ids.has(e.id) ? newId() : e.id;
+    ids.add(id);
+    const ev: CalendarEvent = { id, title: typeof e.title === 'string' && e.title.trim() ? e.title : 'Sans titre', start: e.start };
+    if (typeof e.end === 'string' && isValidDate(e.end.slice(0, 10))) ev.end = e.end;
+    if (typeof e.note === 'string' && e.note) ev.note = e.note;
+    if (CALENDAR_KINDS.some((k) => k.kind === e.kind)) ev.kind = e.kind as CalendarKind;
+    let allDay = e.allDay === true || ev.start.length <= 10;
+    if (!allDay && toMinutes(ev.start.slice(11, 16)) === undefined) allDay = true;
+    if (allDay) {
+      if (e.allDay === true || ev.start.length > 10) ev.allDay = true;
+      ev.start = ev.start.slice(0, 10);
+      if (ev.end) ev.end = ev.end.slice(0, 10);
+    } else if (ev.end && (ev.end.length <= 10 || toMinutes(ev.end.slice(11, 16)) === undefined)) delete ev.end;
+    out.push(ev);
+  }
+  if (out.length) doc.calendar = out;
+  else delete doc.calendar;
 }
 
 /** Champs vides retirés, titre rogné. */
@@ -467,7 +583,8 @@ export function calendarIcs(items: readonly CalendarItem[], name: string, now = 
   for (const it of items) {
     lines.push('BEGIN:VEVENT', `UID:${uid(it)}@decoupage-studio`, `DTSTAMP:${stamp}`);
     if (it.allDay) lines.push(`DTSTART;VALUE=DATE:${icsDate(it.date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(it.endDate, 1))}`);
-    else lines.push(`DTSTART:${icsDateTime(it.date, it.start!)}`, `DTEND:${icsDateTime(it.endDate, it.end!)}`);
+    // Fin à minuit : le lendemain à 00:00.
+    else lines.push(`DTSTART:${icsDateTime(it.date, it.start!)}`, `DTEND:${it.end === '00:00' ? icsDateTime(addDays(it.endDate, 1), '00:00') : icsDateTime(it.endDate, it.end!)}`);
     const summary = it.milestone ? `◆ ${it.title}` : it.allDay && it.start ? `${it.title} · RDV ${it.start}` : it.title;
     lines.push(`SUMMARY:${icsText(summary)}`);
     if (it.note?.trim()) lines.push(`DESCRIPTION:${icsText(it.note.trim())}`);

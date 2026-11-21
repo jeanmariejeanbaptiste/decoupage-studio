@@ -3,6 +3,7 @@
  * jours de tournage (comme les rapports du scénario, mais pour les accessoires, costumes, effets…).
  */
 import { addedCharacters, breakdownCategories, breakdownOf, derivedBreakdown, type BreakdownCategory } from './breakdown';
+import { aggregateEquipment } from './equipment';
 import { stripsByDay } from './schedule';
 import { fold } from './text';
 import type { Timing } from './timing';
@@ -38,9 +39,10 @@ export function breakdownIndex(doc: ProjectDoc, timing?: Timing): BreakdownEntry
   const byKey = new Map<string, BreakdownEntry>();
   const order: string[] = [];
   const days = daysBySequence(doc);
+  const eq = aggregateEquipment(doc);
   for (const seqId of doc.project.sequenceIds) {
     const manual = breakdownOf(doc, seqId);
-    const derived = derivedBreakdown(doc, seqId);
+    const derived = derivedBreakdown(doc, seqId, eq);
     // Personnages ajoutés à la séquence (pas nommés par ses plans) : saisis, donc retirables.
     const added = addedCharacters(doc, seqId);
     for (const cat of cats) {

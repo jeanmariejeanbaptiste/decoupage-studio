@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type MouseEvent,
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { CalendarArrowDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { navigate, useLocation } from '../../app/router';
 import {
@@ -22,6 +14,7 @@ import {
   itemsOn,
   layoutDay,
   monthGrid,
+  moveEvent,
   newEventFields,
   periodTitle,
   removeEvent,
@@ -36,6 +29,8 @@ import {
   type CalendarView,
   type EventFields,
 } from '../../domain/calendar';
+import { daysBetween } from '../../domain/production';
+import { exportBase } from '../../domain/serialize';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc } from '../../store/projectStore';
 import { downloadBlob } from '../../store/persistence';
@@ -164,9 +159,11 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
     // Étapes du calendrier de production : lecture seule ici, modifiables là-bas.
     if (it.source === 'production') return navigate('production', { task: it.taskId! });
     const e = doc.calendar?.find((x) => x.id === it.eventId);
-    if (e && !readOnly) setEditing({ id: e.id, fields: eventFields(e) });
+    // Lecture seule : la fenêtre s'ouvre quand même, pour lire l'horaire et la note.
+    if (e) setEditing({ id: e.id, fields: eventFields(e) });
   };
   const save = (f: EventFields) => {
+    if (readOnly) return setEditing(null);
     const ev = eventFromFields(f);
     const id = editing?.id;
     mutateDoc((d) => (id ? updateEvent(d, id, ev) : void addEvent(d, ev)));
@@ -174,10 +171,7 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
   };
   const exportIcs = () => {
     const name = doc.project.title || 'Projet';
-    downloadBlob(
-      new Blob([calendarIcs(items, name)], { type: 'text/calendar;charset=utf-8' }),
-      `${name}-calendrier.ics`,
-    );
+    downloadBlob(new Blob([calendarIcs(items, name)], { type: 'text/calendar;charset=utf-8' }), `${exportBase(doc)}-calendrier.ics`);
   };
 
   // Sous-pages, en tête comme celles du Scénario.
@@ -236,6 +230,8 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
 
   const title = periodTitle(anchor, view);
   const props: ViewProps = { anchor, today, now, items, onCreate: create, onOpen: open, onDay: openDay };
+  // Rendez-vous glissé d'un jour à l'autre (vue Mois) : un seul changement, annulable.
+  const move = readOnly ? undefined : (it: CalendarItem, days: number) => it.eventId && mutateDoc((d) => moveEvent(d, it.eventId!, days));
 
   return (
     <div className={s.shell}>
@@ -294,7 +290,8 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
             />
           </div>
         </header>
-        {view === 'month' && <MonthView {...props} />}
+        {/* Vues marquées data-view : en lecture seule, on y lit et on ouvre les éléments. */}
+        {view === 'month' && <MonthView {...props} onMove={move} />}
         {view === 'week' && <TimeGrid {...props} dates={weekDays(anchor)} />}
         {view === 'day' && <TimeGrid {...props} dates={[anchor]} />}
         {view === 'year' && <YearView {...props} onMonth={(m) => (setAnchor(m), setView('month'))} />}
@@ -302,6 +299,7 @@ export function CalendarPage({ doc }: { doc: ProjectDoc }) {
           <EventDialog
             initial={editing.fields}
             existing={!!editing.id}
+            readOnly={readOnly}
             onClose={() => setEditing(null)}
             onSave={save}
             onDelete={() => {
@@ -326,35 +324,40 @@ interface ViewProps {
   onDay: (date: string) => void;
 }
 
+/** Rendez-vous tiré dans la vue Mois : depuis la case `from`, au-dessus de la case `over`. */
+interface ChipDrag {
+  it: CalendarItem;
+  from: string;
+  x0: number;
+  y0: number;
+  moved: boolean;
+  over?: string;
+}
+
 const stop = (fn: () => void) => (e: MouseEvent) => {
   e.stopPropagation();
   fn();
 };
 
 /** Élément compact : journée entière en pastille, rendez-vous en ligne « titre … 14:00 ». */
-function Chip({ it, onOpen, date }: { it: CalendarItem; onOpen: (it: CalendarItem) => void; date?: string }) {
-  // Étape de production sur plusieurs jours : nommée le premier jour et chaque lundi, filet seul ailleurs.
-  const span = it.source === 'production' && !it.milestone && !!date;
+function Chip({ it, onOpen, date, onPointerDown, dragged }: { it: CalendarItem; onOpen: (it: CalendarItem) => void; date?: string; onPointerDown?: (e: ReactPointerEvent<HTMLButtonElement>) => void; dragged?: boolean }) {
+  // Étape de production ou rendez-vous sur plusieurs jours : nommé le premier jour et chaque lundi,
+  // bords ouverts du côté de la suite.
+  const span = !!date && it.allDay && ((it.source === 'production' && !it.milestone) || (it.source === 'project' && it.endDate > it.date));
   const cont = span && date !== it.date && weekday(date) !== 0;
   const goes = span && date !== it.endDate && weekday(date) !== 6;
   const label = it.allDay ? it.title : `${it.title}, ${it.start}`;
   return (
     <button
       type="button"
-      className={[
-        it.allDay ? s.pill : s.line,
-        it.source === 'shooting' ? s.shoot : '',
-        it.source === 'production' ? s.prod : '',
-        it.milestone ? s.milestone : '',
-        cont ? s.contL : '',
-        goes ? s.contR : '',
-      ].join(' ')}
+      className={[it.allDay ? s.pill : s.line, it.source === 'shooting' ? s.shoot : '', it.source === 'production' ? s.prod : '', it.milestone ? s.milestone : '', cont ? s.contL : '', goes ? s.contR : '', dragged ? s.lifted : ''].join(' ')}
       aria-label={cont ? it.title : undefined}
       data-kind={it.kind}
       title={[it.allDay && it.start ? `${it.title} · RDV ${it.start}` : label, it.group, it.note]
         .filter(Boolean)
         .join('\n')}
       onClick={stop(() => onOpen(it))}
+      onPointerDown={onPointerDown}
       data-testid="calendar-item"
     >
       <span className={s.chipTitle}>{cont ? '' : it.title}</span>
@@ -378,13 +381,64 @@ function useHeight<T extends HTMLElement>(): [React.RefObject<T>, number] {
   return [ref, h];
 }
 
-function MonthView({ anchor, today, items, onCreate, onOpen, onDay }: ViewProps) {
+function MonthView({ anchor, today, items, onCreate, onOpen, onDay, onMove }: ViewProps & { onMove?: (it: CalendarItem, days: number) => void }) {
   const weeks = monthGrid(anchor);
   const [ref, height] = useHeight<HTMLDivElement>();
   // Lignes visibles par case : le reste se résume en « n de plus » (ouvre la journée).
   const lines = Math.max(1, Math.floor((height / weeks.length - 30) / 20));
+
+  // Glisser un rendez-vous d'une case à l'autre ; au-delà de 4 px seulement, pour garder le clic.
+  const [drag, setDrag] = useState<ChipDrag | null>(null);
+  const dragRef = useRef<ChipDrag | null>(null);
+  const swallow = useRef(false);
+  const escaped = useRef(false);
+  const update = (d: ChipDrag | null) => {
+    dragRef.current = d;
+    setDrag(d);
+  };
+  useEffect(() => {
+    if (!drag) return;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      escaped.current = !!dragRef.current?.moved;
+      update(null);
+    };
+    window.addEventListener('keydown', esc, true);
+    return () => window.removeEventListener('keydown', esc, true);
+  }, [drag]);
+  const start = (it: CalendarItem, date: string) => (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!onMove || it.source !== 'project' || e.button !== 0 || e.pointerType === 'touch') return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    update({ it, from: date, x0: e.clientX, y0: e.clientY, moved: false });
+  };
+  const moveTo = (e: ReactPointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const moved = d.moved || Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 4;
+    if (!moved) return;
+    const over = (document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-date]') as HTMLElement | null)?.dataset.date;
+    if (moved !== d.moved || over !== d.over) update({ ...d, moved, over });
+  };
+  const drop = () => {
+    const d = dragRef.current;
+    const was = escaped.current;
+    escaped.current = false;
+    if (!d && !was) return;
+    update(null);
+    if (d && !d.moved) return;
+    // Le clic qui suit le lâcher n'ouvre pas la fenêtre.
+    swallow.current = true;
+    setTimeout(() => (swallow.current = false), 0);
+    if (d?.over && d.over !== d.from) onMove?.(d.it, daysBetween(d.from, d.over));
+  };
+  const openChip = (it: CalendarItem) => {
+    if (swallow.current) return void (swallow.current = false);
+    onOpen(it);
+  };
   return (
-    <div className={s.month} data-testid="calendar-month">
+    <div className={s.month} data-view data-testid="calendar-month">
       <div className={s.weekdays}>
         {WEEKDAYS.map((d, i) => (
           <span key={d} className={i >= 5 ? s.weekend : ''}>
@@ -392,7 +446,7 @@ function MonthView({ anchor, today, items, onCreate, onOpen, onDay }: ViewProps)
           </span>
         ))}
       </div>
-      <div ref={ref} className={s.monthBody} style={{ '--rows': weeks.length } as CSSProperties}>
+      <div ref={ref} className={s.monthBody} style={{ '--rows': weeks.length } as CSSProperties} onPointerMove={moveTo} onPointerUp={drop} onPointerCancel={() => update(null)} onLostPointerCapture={() => dragRef.current && update(null)}>
         {weeks.flatMap((w) =>
           w.days.map((date) => {
             const list = itemsOn(items, date);
@@ -401,7 +455,7 @@ function MonthView({ anchor, today, items, onCreate, onOpen, onDay }: ViewProps)
             return (
               <div
                 key={date}
-                className={[s.cell, isWeekend(date) ? s.weekendCell : '', out ? '' : s.outside].join(' ')}
+                className={[s.cell, isWeekend(date) ? s.weekendCell : '', out ? '' : s.outside, drag?.moved && drag.over === date ? s.dropTarget : ''].join(' ')}
                 onClick={() => onCreate(date)}
                 data-date={date}
                 data-testid={`day-${date}`}
@@ -416,7 +470,7 @@ function MonthView({ anchor, today, items, onCreate, onOpen, onDay }: ViewProps)
                 </button>
                 <div className={s.chips}>
                   {shown.map((it) => (
-                    <Chip key={it.key} it={it} onOpen={onOpen} date={date} />
+                    <Chip key={it.key} it={it} onOpen={openChip} date={date} onPointerDown={start(it, date)} dragged={!!drag?.moved && drag.it.key === it.key} />
                   ))}
                   {shown.length < list.length && (
                     <button type="button" className={s.more} onClick={stop(() => onDay(date))}>
@@ -457,24 +511,18 @@ function TimeGrid({ dates, today, now, items, onCreate, onOpen, onDay }: ViewPro
   }, []);
   const single = dates.length === 1;
   return (
-    <div
-      className={s.timeGrid}
-      style={{ '--sb': `${bar}px` } as CSSProperties}
-      data-testid={single ? 'calendar-day' : 'calendar-week'}
-    >
+    <div className={s.timeGrid} style={{ '--sb': `${bar}px` } as CSSProperties} data-view data-testid={single ? 'calendar-day' : 'calendar-week'}>
       {/* Vue Jour : la date est déjà le titre de la page. */}
       {!single && (
         <div className={s.tgHead} style={cols}>
           <span />
           {dates.map((date) => (
-            <button
-              key={date}
-              type="button"
-              className={[s.colHead, isWeekend(date) ? s.weekend : ''].join(' ')}
-              onClick={() => onDay(date)}
-              aria-label={longDay.format(utc(date))}
-            >
-              {WEEKDAYS[weekday(date)]} <b className={date === today ? s.today : ''}>{dayNum(date)}</b>
+            <button key={date} type="button" className={[s.colHead, isWeekend(date) ? s.weekend : ''].join(' ')} onClick={() => onDay(date)} aria-label={longDay.format(utc(date))}>
+              <span className={s.colDay}>{WEEKDAYS[weekday(date)]}</span>
+              <span className={s.colInitial} aria-hidden="true">
+                {INITIALS[weekday(date)]}
+              </span>{' '}
+              <b className={date === today ? s.today : ''}>{dayNum(date)}</b>
             </button>
           ))}
         </div>
@@ -556,17 +604,11 @@ function TimeGrid({ dates, today, now, items, onCreate, onOpen, onDay }: ViewPro
 function YearView({ anchor, today, items, onDay, onMonth }: ViewProps & { onMonth: (date: string) => void }) {
   const year = anchor.slice(0, 4);
   // Les étapes de production durent des semaines : seuls leurs jalons marquent un jour.
-  const busy = useMemo(
-    () =>
-      busyDates(
-        items.filter((it) => it.source !== 'production' || it.milestone),
-        `${year}-01-01`,
-        `${year}-12-31`,
-      ),
-    [items, year],
-  );
+  const busy = useMemo(() => busyDates(items.filter((it) => it.source !== 'production' || it.milestone), `${year}-01-01`, `${year}-12-31`), [items, year]);
+  // Jours de tournage : marqués à part, c'est ce qu'on cherche d'abord sur l'année.
+  const shoot = useMemo(() => busyDates(items.filter((it) => it.source === 'shooting'), `${year}-01-01`, `${year}-12-31`), [items, year]);
   return (
-    <div className={s.year} data-testid="calendar-year">
+    <div className={s.year} data-view data-testid="calendar-year">
       {yearMonths(anchor).map((m) => (
         <section key={m} className={s.mini}>
           <button type="button" className={s.miniTitle} onClick={() => onMonth(m)}>
@@ -584,13 +626,8 @@ function YearView({ anchor, today, items, onDay, onMonth }: ViewProps & { onMont
                   <button
                     key={date}
                     type="button"
-                    className={[
-                      s.miniDay,
-                      isWeekend(date) ? s.weekend : '',
-                      date === today ? s.today : '',
-                      busy.has(date) ? s.busy : '',
-                    ].join(' ')}
-                    aria-label={longDay.format(utc(date))}
+                    className={[s.miniDay, isWeekend(date) ? s.weekend : '', date === today ? s.today : '', shoot.has(date) ? s.shootDay : busy.has(date) ? s.busy : ''].join(' ')}
+                    aria-label={[longDay.format(utc(date)), shoot.has(date) ? 'jour de tournage' : busy.has(date) ? 'occupé' : ''].filter(Boolean).join(', ')}
                     onClick={() => onDay(date)}
                     data-testid={`year-${date}`}
                   >

@@ -19,12 +19,14 @@ import { valueLabel } from '../../domain/vocabulary';
 import { shotCode, sequenceHeading } from '../../domain/numbering';
 import {
   bannerLabel,
+  clearSlot,
   dayAgenda,
+  nextFreeStart,
+  timelineRange,
   dayItinerary,
   DEFAULT_DAY_END,
   DEFAULT_DAY_START,
   fromMin,
-  dayEndMin,
   showTime,
   placeSequence,
   placeShot,
@@ -33,7 +35,6 @@ import {
   stripsByDay,
   timelineOf,
   toMin,
-  unplaceShot,
   splitShot,
   placePart,
   resizePart,
@@ -51,9 +52,8 @@ const ROW = 18; // hauteur d'un créneau de 15 min, en px
 /** Emploi du temps horaire d'un jour : on y dépose les plans (ou une séquence entière). */
 export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
   const meta = scheduleDays(doc).find((d) => d.n === day);
-  const start = toMin(meta?.dayStart ?? DEFAULT_DAY_START);
-  // Fin avant le début : tournage de nuit, la journée se termine le lendemain.
-  const end = Math.max(start + 60, dayEndMin(fromMin(start), meta?.dayEnd ?? DEFAULT_DAY_END));
+  // Grille affichée : l'amplitude du jour, étendue aux créneaux, bandeaux et RDV qui en sortent.
+  const { start, end } = timelineRange(doc, day);
   const entries = timelineOf(doc, day);
   const placed = new Set(entries.map((e) => e.shotId));
   const [query, setQuery] = useState('');
@@ -80,13 +80,17 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
   const slots: number[] = [];
   for (let m = start; m < end; m += SLOT_MIN) slots.push(m);
 
+  // Entrée ou double-clic sur une fiche : à la suite du dernier créneau (clavier, téléphone).
+  const placeNext = (ids: readonly ID[]) => mutateDoc((d) => placeSequence(d, day, ids, nextFreeStart(d, day)));
+
   const otherDays = scheduleDays(doc).map((x) => x.n).filter((n) => n !== day);
   const onDragEnd = (e: DragEndEvent) => {
     setActive(null);
     const over = e.over ? String(e.over.id) : '';
     const what = String(e.active.id).split(':');
+    // Rendu à la réserve : le plan reste du jour, seul son créneau s'en va.
     if (over === 'pool' && what[0] === 'tshot' && placed.has(what[1]))
-      return mutateDoc((d) => unplaceShot(d, day, what[1]));
+      return mutateDoc((d) => clearSlot(d, day, what[1]));
     if (!over.startsWith('slot:')) return;
     const at = fromMin(Number(over.slice(5)));
     if (what[0] === 'tshot') mutateDoc((d) => placeShot(d, day, what[1], at));
@@ -117,11 +121,11 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
           <div className={s.scroll}>
             {strips.map((st) => (
               <div key={st.seqId} className={s.group}>
-                <Chip id={`tseq:${st.seqId}`} className={s.seqChip}>
+                <Chip id={`tseq:${st.seqId}`} className={s.seqChip} onPlace={() => placeNext(st.shotIds)}>
                   {sequenceHeading(doc, st.seqId)} <em>{st.shotIds.length} à placer</em>
                 </Chip>
                 {st.shotIds.map((id) => (
-                  <Chip key={id} id={`tshot:${id}`} className={s.shotCard} testid="pool-shot">
+                  <Chip key={id} id={`tshot:${id}`} className={s.shotCard} testid="pool-shot" onPlace={() => placeNext([id])}>
                     <ShotCard doc={doc} id={id} />
                   </Chip>
                 ))}
@@ -136,7 +140,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
               de{' '}
               <input
                 type="time"
-                value={fromMin(start)}
+                value={meta?.dayStart ?? DEFAULT_DAY_START}
                 onChange={(e) =>
                   e.target.value && mutateDoc((d) => updateDay(d, day, { dayStart: e.target.value }))
                 }
@@ -147,7 +151,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
               à{' '}
               <input
                 type="time"
-                value={fromMin(end % (24 * 60))}
+                value={meta?.dayEnd ?? DEFAULT_DAY_END}
                 onChange={(e) =>
                   e.target.value && mutateDoc((d) => updateDay(d, day, { dayEnd: e.target.value }))
                 }
@@ -252,7 +256,7 @@ export function DayTimeline({ doc, day }: { doc: ProjectDoc; day: number }) {
                       ))}
                     </select>
                   )}
-                  <button type="button" aria-label="Retirer de l’emploi du temps" onClick={() => mutateDoc((d) => (e.part ? removePart(d, day, e.shotId, e.part) : unplaceShot(d, day, e.shotId)))}>
+                  <button type="button" aria-label="Retirer de l’emploi du temps" onClick={() => mutateDoc((d) => (e.part ? removePart(d, day, e.shotId, e.part) : clearSlot(d, day, e.shotId)))}>
                     <X size={11} />
                   </button>
                 </span>
@@ -286,14 +290,17 @@ function Chip({
   children,
   disabled,
   testid,
+  onPlace,
 }: {
   id: string;
   className: string;
   children: React.ReactNode;
   disabled?: boolean;
   testid?: string;
+  onPlace?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, disabled });
+  const kind = id.split(':')[0];
   return (
     <div
       ref={setNodeRef}
@@ -301,6 +308,19 @@ function Chip({
       data-testid={testid}
       {...listeners}
       {...attributes}
+      onDoubleClick={onPlace}
+      data-pool-chip={onPlace ? kind : undefined}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && onPlace && !disabled) {
+          e.preventDefault();
+          // Le focus passe à la fiche suivante de même nature (sinon à la précédente) une fois celle-ci placée.
+          const all = [...(e.currentTarget.closest('aside')?.querySelectorAll<HTMLElement>(`[data-pool-chip="${kind}"]`) ?? [])];
+          const i = all.indexOf(e.currentTarget);
+          const candidates = [...all.slice(i + 1), ...all.slice(0, Math.max(0, i)).reverse()];
+          onPlace();
+          requestAnimationFrame(() => requestAnimationFrame(() => candidates.find((el) => el.isConnected)?.focus()));
+        }
+      }}
     >
       {children}
     </div>

@@ -1,12 +1,13 @@
 import { removeProject, undoHome, useHomeHistory } from '../../store/homeHistory';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, FileUp, Trash2 } from 'lucide-react';
+import { ArrowRight, Copy, FileUp, Trash2 } from 'lucide-react';
 import { navigate } from '../../app/router';
 import { listProjects, liveReviewOf, type ProjectSummary } from '../../store/db';
 import { openFromFile, openStoredProject, rememberLastProject } from '../../store/persistence';
 import { useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { NewProjectWizard } from './NewProjectWizard';
+import { duplicateProject } from './duplicateProject';
 import { switchTheme } from '../../ui/themeSwitch';
 import s from './HomePage.module.css';
 import { AccountButton } from './Account';
@@ -22,6 +23,12 @@ const FORMAT_LABEL: Record<string, string> = {
 };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+const dateYearFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+/** « 10 nov. » dans l'année, « 10 nov. 2025 » au-delà. */
+const formatDay = (iso: string) => {
+  const d = new Date(iso);
+  return (d.getFullYear() === new Date().getFullYear() ? dateFmt : dateYearFmt).format(d);
+};
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
@@ -34,10 +41,29 @@ export function HomePage() {
   const [wizard, setWizard] = useState(false);
   const rev = useHomeHistory((h) => h.rev);
   const theme = useUi((u) => u.theme);
-  const refresh = useCallback(() => void listProjects().then(setProjects), []);
+  // Stockage du navigateur refusé (cookies bloqués, profil restreint) : dit une fois, à la place de la liste.
+  const [unavailable, setUnavailable] = useState(false);
+  const refresh = useCallback(
+    () =>
+      void listProjects().then(
+        (list) => {
+          setUnavailable(false);
+          setProjects(list);
+        },
+        () => setUnavailable(true),
+      ),
+    [],
+  );
   // Après une synchronisation Google Drive, des projets ont pu arriver d'un autre ordinateur.
   const synced = useCloud((c) => c.lastSync);
   useEffect(refresh, [refresh, rev, synced]);
+  // Projet enregistré dans un autre onglet : la liste suit.
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel('ds-projects');
+    channel.onmessage = refresh;
+    return () => channel.close();
+  }, [refresh]);
   // Relecture en ligne ouverte : la connexion Google prête pour fermer son lien si le projet est supprimé.
   const anyLive = !!projects?.some((p) => p.liveReview);
   useEffect(() => {
@@ -72,9 +98,33 @@ export function HomePage() {
       });
   };
 
+  // Fichier .decoupage déposé sur la page : ouvert comme par « Ouvrir un fichier… ».
+  const [dropping, setDropping] = useState(false);
+  const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes('Files');
+  const onDrop = async (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    setDropping(false);
+    const file = [...e.dataTransfer.files].find((f) => /\.(decoupage|json)$/i.test(f.name));
+    if (file && (await openFromFile(file))) navigate('grid');
+  };
+
   const n = projects?.length ?? 0;
   return (
-    <div className={s.home} data-tone={theme === 'encre' ? 'dark' : 'light'} data-testid="home">
+    <div
+      className={s.home}
+      data-tone={theme === 'encre' ? 'dark' : 'light'}
+      data-testid="home"
+      data-dropping={dropping || undefined}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDropping(true);
+      }}
+      onDragLeave={(e) => e.relatedTarget === null && setDropping(false)}
+      onDrop={(e) => void onDrop(e)}
+    >
       <Projector />
       <div className={s.grain} aria-hidden="true" />
       <Viewfinder />
@@ -127,13 +177,18 @@ export function HomePage() {
           <span className={s.count}>{pad(n)}</span>
           <span className={s.rule} />
         </p>
-        {projects && projects.length === 0 && (
+        {unavailable && (
+          <div className={s.empty} role="alert">
+            <span>Le stockage du navigateur est indisponible : les projets ne peuvent pas être enregistrés ici.</span>
+          </div>
+        )}
+        {!unavailable && projects && projects.length === 0 && (
           <div className={s.empty}>
             <strong>Aucun projet pour l’instant</strong>
             <span>Le premier commence par « Nouveau projet ».</span>
           </div>
         )}
-        {projects && projects.length > 0 && (
+        {!unavailable && projects && projects.length > 0 && (
           <ul className={s.list} data-testid="project-list">
             {projects.map((p, i) => (
               <li key={p.id} className={s.item} style={{ animationDelay: `${900 + i * 90}ms` }}>
@@ -147,8 +202,22 @@ export function HomePage() {
                   <span className={s.cardTitle}>{p.title}</span>
                   <span className={s.cardMeta}>
                     {p.sequences} séq. · {p.shots} plan{p.shots > 1 ? 's' : ''} ·{' '}
-                    {dateFmt.format(new Date(p.updatedAt))}
+                    {formatDay(p.updatedAt)}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  className={s.dup}
+                  aria-label={`Dupliquer ${p.title}`}
+                  title="Dupliquer"
+                  onClick={() =>
+                    void duplicateProject(p.id).then(refresh, (e) => {
+                      console.error(e);
+                      useUi.getState().toast({ message: `Projet « ${p.title} » : la copie n’a pas pu être faite.`, tone: 'warn' });
+                    })
+                  }
+                >
+                  <Copy size={13} strokeWidth={1.4} />
                 </button>
                 <button
                   type="button"
