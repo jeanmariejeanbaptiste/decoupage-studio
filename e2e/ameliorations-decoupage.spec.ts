@@ -1,12 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const PHONE = { width: 390, height: 844 };
-
-const doc = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __ds: { doc: () => unknown } }).__ds.doc()) as Promise<{
-    shots: Record<string, { durationSec?: number }>;
-    blocks: Record<string, { dialogue?: string }>;
-  }>;
 
 test.describe('téléphone', () => {
   test.use({ viewport: PHONE, hasTouch: true });
@@ -126,7 +120,7 @@ test('storyboard : ⌘P suit l’orientation choisie à l’export', async ({ pa
       ),
     )
     .toBe('portrait');
-  await expect(page.getByText(/^planche 1 \//)).toBeVisible();
+  // Planches sans en-tête (retiré à la demande) : on lit directement le PDF.
   const pdf = (await page.pdf({ preferCSSPageSize: true })).toString('latin1');
   expect(pdf).toMatch(/\/MediaBox \[0 0 59\d/);
 });
