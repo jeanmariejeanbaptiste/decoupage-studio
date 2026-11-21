@@ -20,7 +20,7 @@ export interface ShootingDay {
   calls?: Record<ID, string>;
   /** Ancien format (horaires par séquence), conservé pour compatibilité. */
   slots?: Record<ID, { start?: string; end?: string }>;
-  /** Adresse propre à ce jour pour un décor (sinon celle du Registre). */
+  /** Adresse propre à ce jour pour un décor (sinon celle de la fiche du décor). */
   addresses?: Record<ID, string>;
   /** Adresse de tournage propre à une séquence ce jour-là (prioritaire). */
   seqAddresses?: Record<ID, string>;
@@ -809,7 +809,7 @@ export interface ItineraryStop {
 }
 
 /** Déroulé de la journée : une étape par séquence, dans l’ordre horaire, avec sa plage et son adresse
- *  (adresse du jour pour la séquence, sinon du décor ce jour-là, sinon celle du Registre). */
+ *  (adresse du jour pour la séquence, sinon du décor ce jour-là, sinon celle de la fiche du décor). */
 export function dayItinerary(doc: ProjectDoc, day: number): ItineraryStop[] {
   const d = doc.schedule?.days.find((x) => x.n === day);
   return callSheetAgenda(doc, day).flatMap((it) => {

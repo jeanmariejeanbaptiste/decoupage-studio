@@ -31,7 +31,7 @@ export function entryName(doc: ProjectDoc, e: Entry): string {
 }
 
 /**
- * Numéros du dépouillement : ceux du découpage (sequenceNumber), comme la grille, le registre, les
+ * Numéros du dépouillement : ceux du découpage (sequenceNumber), comme la grille, les
  * vérifications et l'export. Une scène du scénario pas encore au découpage n'a pas de numéro (« – »)
  * et ne décale pas les autres. Un même numéro partout : liste, fiche, rapports, export.
  */

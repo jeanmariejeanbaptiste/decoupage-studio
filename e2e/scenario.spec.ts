@@ -100,8 +100,9 @@ test.describe('scénario et liaison', () => {
     await expect(page.locator('tbody[data-seq]').nth(3)).toContainText('CAFÉ DE LA GARE');
     await page.locator('tbody[data-seq]').nth(3).getByRole('button', { name: 'Ajouter un plan' }).click();
     await expect(page.locator('[data-testid="shot-row"]')).toHaveCount(12);
-    await page.goto('/#/registry?tab=characters');
-    await expect(page.getByTestId('character-row').filter({ has: page.locator('td:nth-child(2)', { hasText: 'Nina' }) })).toHaveCount(1);
+    // Une seule fiche « Nina » dans le projet.
+    const names = await page.evaluate(() => Object.values((window as unknown as { __ds: { doc: () => { characters: Record<string, { name: string }> } } }).__ds.doc().characters).map((c) => c.name));
+    expect(names.filter((n) => n === 'Nina')).toHaveLength(1);
   });
 
   test('pages A4, page de titre, vue découpage, import et export .fountain', async ({ page }) => {
@@ -244,8 +245,7 @@ test('scénario : personnages (présence, fiche, répliques), décors et recherc
   await expect(page.getByTestId('script-editor')).toBeVisible();
   // Plus d'onglet Recherche dans le panneau du texte.
   await expect(page.getByTestId('scenario-tab-research')).toHaveCount(0);
-  await page.goto('/#/registry?tab=characters');
-  await expect(page.getByText('Alice Martin')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Object.values((window as unknown as { __ds: { doc: () => { characters: Record<string, { actor?: string }> } } }).__ds.doc().characters).map((c) => c.actor))).toContain('Alice Martin');
   // Panneau latéral masqué (bouton ou ⌘\), et retenu au rechargement.
   await page.goto('/#/scenario?view=script');
   await page.getByTestId('scenario-side-toggle').click();

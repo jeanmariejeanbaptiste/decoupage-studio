@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import {
   addBreakdownItems,
@@ -16,6 +16,8 @@ import { createSequenceForScene } from '../../domain/scriptToShot';
 import { marksIn } from '../../domain/tagging';
 import type { ID, ProjectDoc } from '../../domain/types';
 import { mutateDoc, useProjectStore } from '../../store/projectStore';
+import { registerFlush } from '../../store/persistence';
+import { setSequenceDecorByName } from '../../domain/registry';
 import { useReadOnly } from '../../store/share';
 import { useUi } from '../../store/uiStore';
 import { ask } from '../../ui/dialogStore';
@@ -257,6 +259,7 @@ export function BreakdownPage({ doc }: { doc: ProjectDoc }) {
           {view === 'full' ? (
             <>
               <p className={s.sideHead}>{entryLabel(doc, entry, numbers.byKey.get(entry.key))}</p>
+              {entry.seqId && <DecorField key={entry.seqId} doc={doc} seqId={entry.seqId} readOnly={readOnly} />}
               {!readOnly && <AddAll suggestions={suggestionsFor(doc, entry, paragraphsFor(doc, entry))} onAdd={(items) => tagIn(entry, items)} />}
               <WholeSheet
                 doc={doc}
@@ -429,6 +432,88 @@ function WholeSheet({
   );
 }
 
+const NEW_DECOR = '__nouveau__';
+
+/**
+ * Décor de la séquence : choisi parmi les décors du projet, ou « Nouveau décor… » nommé puis validé
+ * (Entrée ou en quittant le champ ; Échap renonce). Un nom déjà connu, à la casse, aux accents ou aux
+ * tirets près, rattache au décor existant : pas de doublon. Il range la séquence au plan de travail
+ * et donne son lieu à la feuille de service. Renommer un décor se fait dans sa fiche, pas ici.
+ */
+function DecorField({ doc, seqId, readOnly }: { doc: ProjectDoc; seqId: ID; readOnly: boolean }) {
+  const decorId = doc.sequences[seqId]?.decorId;
+  const current = decorId ? doc.decors[decorId] : undefined;
+  const [naming, setNaming] = useState(false);
+  const [draft, setDraft] = useState('');
+  const decors = useMemo(() => Object.values(doc.decors).sort((a, b) => a.name.localeCompare(b.name, 'fr')), [doc.decors]);
+  const draftRef = useRef('');
+  draftRef.current = draft;
+  const create = useCallback(() => {
+    const name = draftRef.current.trim();
+    draftRef.current = '';
+    setNaming(false);
+    setDraft('');
+    if (name) mutateDoc((d) => setSequenceDecorByName(d, seqId, name));
+  }, [seqId]);
+  // Un nom en cours de saisie est appliqué avant un enregistrement ou si le champ disparaît.
+  useEffect(() => {
+    if (!naming) return;
+    const project = useProjectStore.getState().doc?.project.id;
+    const off = registerFlush(create);
+    return () => {
+      off();
+      if (useProjectStore.getState().doc?.project.id === project) create();
+    };
+  }, [naming, create]);
+  if (readOnly && !current) return null;
+  return (
+    <section className={[s.cat, current ? '' : s.catEmpty].join(' ')} data-testid="breakdown-decor">
+      <h3>
+        <label htmlFor={`decor-${seqId}`}>Décor</label>
+      </h3>
+      {naming ? (
+        <input
+          id={`decor-${seqId}`}
+          autoFocus
+          value={draft}
+          placeholder="Nom du nouveau décor"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={create}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') {
+              draftRef.current = '';
+              setDraft('');
+              setNaming(false);
+            }
+          }}
+          data-testid="breakdown-decor-new"
+        />
+      ) : (
+        <select
+          id={`decor-${seqId}`}
+          className={s.decorSelect}
+          value={current?.id ?? ''}
+          disabled={readOnly}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === NEW_DECOR) return setNaming(true);
+            mutateDoc((d) => void (d.sequences[seqId].decorId = v || undefined));
+          }}
+        >
+          <option value="">—</option>
+          {decors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+          {!readOnly && <option value={NEW_DECOR}>Nouveau décor…</option>}
+        </select>
+      )}
+    </section>
+  );
+}
+
 function AddField({ label, onAdd }: { label: string; onAdd: (v: string) => void }) {
   const [draft, setDraft] = useState('');
   return (
@@ -466,6 +551,7 @@ function BreakdownSheet({
   const [newCat, setNewCat] = useState('');
   return (
     <div className={s.cats}>
+      {seqId && <DecorField doc={doc} seqId={seqId} readOnly={readOnly} />}
       {breakdownCategories(doc).map((cat) => (
         <Category
           key={cat}

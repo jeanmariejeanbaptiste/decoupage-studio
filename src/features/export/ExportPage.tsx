@@ -3,6 +3,8 @@ import { ArrowDown, ArrowUp, Download, Eye, FileText, FolderArchive, FileSpreads
 import { navigate } from '../../app/router';
 import { ALL_COLUMNS, columnMenuLabel, isMovableColumn, moveColumn, tcLast } from '../../domain/columns';
 import { decodeText, toCsv } from '../../domain/csv';
+import { registryDocument } from '../../domain/documents';
+import { charactersCsv, decorsCsv, sequencesCsv, shotsCsv } from '../../domain/exports';
 import { exportBase } from '../../domain/serialize';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
 import { downloadBlob, flushEditors, pickFile, saveToFile } from '../../store/persistence';
@@ -12,10 +14,19 @@ import { mutateDoc, useProjectStore } from '../../store/projectStore';
 import { useUi } from '../../store/uiStore';
 import { Button } from '../../ui/Button';
 import { CsvImport } from './CsvImport';
+import { TabExport } from './TabExport';
 import s from './ExportPage.module.css';
 
 // La vignette du storyboard ne s'exporte pas en tableau.
 const ALL: ColumnKey[] = ALL_COLUMNS.filter((c) => c !== 'storyboard');
+
+/** Tableaux du projet, chacun en CSV : nom du fichier, intitulé, contenu, nombre de lignes. */
+const TABLES = [
+  { key: 'sequences', label: 'Séquences', csv: sequencesCsv, count: (d: ProjectDoc) => d.project.sequenceIds.length },
+  { key: 'personnages', label: 'Personnages', csv: charactersCsv, count: (d: ProjectDoc) => Object.keys(d.characters).length },
+  { key: 'decors', label: 'Décors', csv: decorsCsv, count: (d: ProjectDoc) => Object.keys(d.decors).length },
+  { key: 'plans', label: 'Plans', csv: shotsCsv, count: (d: ProjectDoc) => Object.keys(d.shots).length },
+] as const;
 
 export function ExportPage({ doc }: { doc: ProjectDoc }) {
   const settings = doc.project.settings;
@@ -197,6 +208,36 @@ export function ExportPage({ doc }: { doc: ProjectDoc }) {
             )}
           </div>
         </div>
+      </section>
+
+      {/* Les tableaux du projet (l'ancien registre) : le document mis en page, et chaque tableau en CSV. */}
+      <section className={s.card} data-testid="export-registry">
+        <header className={s.cardHead}>
+          <h2>Registre</h2>
+          <div className={s.actions} data-view>
+            <TabExport id="registry" orientation="landscape" doc={() => registryDocument(useProjectStore.getState().doc ?? doc)} fileBase={`${base}-registre`} />
+          </div>
+        </header>
+        {TABLES.map((t) => {
+          const n = t.count(doc);
+          return (
+            <div key={t.key} className={s.fileRow} data-view>
+              <div className={s.tableName}>
+                <strong>{t.label}</strong>
+                <span>{n}</span>
+              </div>
+              <Button
+                variant="outline"
+                icon={<Table2 size={15} strokeWidth={1.3} />}
+                onClick={() => downloadBlob(new Blob([t.csv(useProjectStore.getState().doc ?? doc)], { type: 'text/csv;charset=utf-8' }), `${base}-${t.key}.csv`)}
+                aria-label={`${t.label} en CSV`}
+                data-testid={`export-csv-${t.key}`}
+              >
+                CSV
+              </Button>
+            </div>
+          );
+        })}
       </section>
 
       <section className={s.card}>

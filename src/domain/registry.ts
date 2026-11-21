@@ -1,5 +1,7 @@
 import { sequenceCharacterIds } from './characters';
 import { newId } from './factory';
+import { parseTc } from './timecode';
+import { fold } from './text';
 import { remapCharacter, refreshRecognition } from './ops';
 import { scheduleDays, stripCharacterIds, stripsByDay, type Strip } from './schedule';
 import type { Timing } from './timing';
@@ -107,6 +109,27 @@ export function decorStats(doc: ProjectDoc, timing: Timing): Map<ID, { sequenceI
   return out;
 }
 
+/**
+ * Durée estimée d'une séquence, saisie librement (« 1:30 », « 90s », « 1m30 ») ; vide : retirée.
+ * Renvoie `false` si la saisie n'est pas une durée (rien n'est modifié).
+ */
+export function setSequenceEstimate(doc: ProjectDoc, seqId: ID, text: string): boolean {
+  const seq = doc.sequences[seqId];
+  const sec = parseEstimate(text);
+  if (!seq || sec === null) return false;
+  if (sec === undefined) delete seq.estimatedSec;
+  else seq.estimatedSec = sec;
+  return true;
+}
+
+/** Durée estimée lue dans une saisie : secondes ; `undefined` si vide ; `null` si ce n'est pas une durée. */
+export function parseEstimate(text: string): number | undefined | null {
+  if (!text.trim()) return undefined;
+  const p = parseTc(text);
+  return p?.kind === 'sec' ? p.sec : null;
+}
+
+/** Plans tournés d'une séquence, sur ses plans à tourner (les abandonnés ne comptent pas). */
 export function sequenceProgress(doc: ProjectDoc, seqId: ID): { done: number; total: number } {
   const ids = (doc.sequences[seqId]?.shotIds ?? []).filter((id) => doc.shots[id]?.status !== 'abandonné');
   return { done: ids.filter((id) => doc.shots[id]?.status === 'tourné').length, total: ids.length };
@@ -159,6 +182,22 @@ export function usageInOtherVersions(doc: ProjectDoc, kind: 'decor' | 'character
   return out;
 }
 
+/**
+ * Clé de comparaison d'un nom de décor : sans casse, sans accents, tirets et ponctuation comptés
+ * comme des espaces (« Gare – hall » = « GARE — HALL »).
+ */
+export function decorKey(name: string): string {
+  return fold(name.replace(/[\p{Pd}\p{P}]+/gu, ' '));
+}
+
+/** Décor d'un nom : par son nom, sinon par un ancien nom (décor renommé dans une autre version). */
+export function findDecorByName(doc: ProjectDoc, name: string): Decor | undefined {
+  const k = decorKey(name);
+  if (!k) return undefined;
+  const all = Object.values(doc.decors);
+  return all.find((d) => decorKey(d.name) === k) ?? all.find((d) => (d.aliases ?? []).some((a) => decorKey(a) === k));
+}
+
 /** Décor d'une séquence : rattache à un décor existant de même nom, sinon le crée. */
 export function setSequenceDecorByName(doc: ProjectDoc, seqId: ID, name: string): void {
   const seq = doc.sequences[seqId];
@@ -168,8 +207,20 @@ export function setSequenceDecorByName(doc: ProjectDoc, seqId: ID, name: string)
     seq.decorId = undefined;
     return;
   }
-  const same = (x: string) => x.toLowerCase() === n.toLowerCase();
-  // Par son nom, sinon par un ancien nom (décor renommé dans une autre version).
-  const existing = Object.values(doc.decors).find((d) => same(d.name)) ?? Object.values(doc.decors).find((d) => (d.aliases ?? []).some(same));
-  seq.decorId = existing?.id ?? addDecor(doc, { name: n, intExt: seq.intExt });
+  seq.decorId = findDecorByName(doc, n)?.id ?? addDecor(doc, { name: n, intExt: seq.intExt });
+}
+
+/**
+ * Renomme une fiche (personnage ou décor) sans toucher au texte : l'ancien nom reste en alias, pour
+ * que les plans et les versions qui le citent la retrouvent.
+ */
+export function renameFiche(doc: ProjectDoc, kind: 'character' | 'decor', id: ID, name: string): void {
+  const f = kind === 'character' ? doc.characters[id] : doc.decors[id];
+  const next = name.trim();
+  if (!f || !next || next === f.name) return;
+  const old = f.name;
+  f.name = next;
+  f.aliases = [...new Set([...(f.aliases ?? []), old])].filter((a) => fold(a) !== fold(next));
+  if (!f.aliases.length) delete f.aliases;
+  if (kind === 'character') refreshRecognition(doc);
 }

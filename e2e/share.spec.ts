@@ -3,8 +3,9 @@ import { PeerServer } from 'peer';
 
 test.describe.configure({ mode: 'serial' });
 
-// Serveur de mise en relation local : le service public de PeerJS n'est pas joignable en test.
-const PORT = 9123;
+// Serveur de mise en relation local : le service public de PeerJS n'est pas joignable en test. Un
+// port par serveur de test (PW_PORT), pour que deux copies de travail s'essaient en même temps.
+const PORT = Number(process.env.PW_PORT) ? Number(process.env.PW_PORT) + 5000 : 9123;
 let server: ReturnType<typeof PeerServer> | null = null;
 test.beforeAll(() => {
   server = PeerServer({ port: PORT, path: '/', host: '127.0.0.1' });
@@ -117,10 +118,6 @@ test('invité en lecture seule : aucune commande d’édition, découpage en ape
   await expect(guest.getByTestId('add-equipment-category')).toBeHidden();
   await guest.getByTestId('equipment-Image').locator('li button').first().click();
   await expect(guest).toHaveURL(/#\/grid/);
-  // Registre : en-têtes de colonnes et numéros de séquence restent visibles.
-  await guest.evaluate(() => void (window.location.hash = '#/registry'));
-  await expect(guest.getByRole('button', { name: 'Libellé', exact: true })).toBeVisible();
-  await expect(guest.getByTitle('Ouvrir dans la grille').first()).toBeVisible();
   // Calendrier de production : frise et zoom consultables, rien de modifiable.
   await guest.evaluate(() => void (window.location.hash = '#/production'));
   await expect(guest.getByTestId('gantt-bar').first()).toBeVisible();

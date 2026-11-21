@@ -39,19 +39,37 @@ describe('vérifications : chaque contrôle mène à l’endroit exact', () => {
     const inst = institutional(['Gros plan', 'Insert']);
     for (const i of check(inst)) codes.add(i.code);
     expect([...codes].sort()).toEqual((Object.keys(CHECK_LABELS) as CheckCode[]).sort());
-    for (const d of [doc, inst]) for (const i of check(d)) expect(checkTarget(d, i).page).toMatch(/^(grid|registry|interview)$/);
+    for (const d of [doc, inst]) for (const i of check(d)) expect(checkTarget(d, i).page).toMatch(/^(grid|seq-head|interview)$/);
   });
 
   it('plan : la cellule où se règle le contrôle', () => {
     const doc = everyCheck();
     const [, , blank, aerial, shoulder] = doc.sequences[doc.project.sequenceIds[1]].shotIds;
-    expect(checkTarget(doc, find(doc, 'missing-value'))).toEqual({ page: 'grid', sequenceId: doc.project.sequenceIds[1], shotId: blank, cols: ['value'] });
+    expect(checkTarget(doc, find(doc, 'missing-value'))).toEqual({ page: 'grid', sequenceId: doc.project.sequenceIds[1], shotId: blank, cols: ['value'], edit: true });
     expect(checkTarget(doc, find(doc, 'missing-subject'))).toMatchObject({ shotId: blank, cols: ['subject'] });
     expect(checkTarget(doc, find(doc, 'zoom-focal'))).toMatchObject({ shotId: aerial, cols: ['focal'] });
     expect(checkTarget(doc, find(doc, 'drone'))).toMatchObject({ shotId: aerial, cols: ['movement'] });
     expect(checkTarget(doc, find(doc, 'stabilizer-safety'))).toMatchObject({ shotId: shoulder, cols: ['movement'] });
     expect(checkTarget(doc, find(doc, 'angle-conflict'))).toMatchObject({ shotId: shoulder, cols: ['angle'] });
     expect(find(doc, 'angle-conflict').detail).toBe('Plongée, Contre-plongée');
+  });
+
+  it('une seule cellule à remplir s’ouvre en saisie ; pas un rappel, une série ni une colonne masquée', () => {
+    const doc = everyCheck();
+    for (const code of ['missing-value', 'missing-subject', 'zoom-focal', 'angle-conflict'] as const) expect(checkTarget(doc, find(doc, code))).toMatchObject({ edit: true });
+    for (const code of ['drone', 'stabilizer-safety', 'jump-cut'] as const) expect(checkTarget(doc, find(doc, code))).not.toHaveProperty('edit');
+    const [row] = checkRows(doc, [find(doc, 'jump-cut')]);
+    expect(row.target).not.toHaveProperty('edit');
+    doc.project.settings.gridColumns = doc.project.settings.gridColumns.filter((c) => c !== 'value');
+    expect(checkTarget(doc, find(doc, 'missing-value'))).not.toHaveProperty('edit');
+  });
+
+  it('plan-séquence : ses colonnes de cadrage ne s’écrivent pas dans la grille, la cellule est seulement sélectionnée', () => {
+    const doc = everyCheck();
+    const issue = find(doc, 'missing-value');
+    doc.shots[issue.shotId!].oneShot = { beats: [] } as unknown as NonNullable<ProjectDoc['shots'][string]['oneShot']>;
+    expect(checkTarget(doc, issue)).toMatchObject({ page: 'grid', cols: ['value'] });
+    expect(checkTarget(doc, issue)).not.toHaveProperty('edit');
   });
 
   it('saute : toutes les colonnes comparées, dans l’ordre de la grille ; le plan voisin est nommé', () => {
@@ -99,12 +117,12 @@ describe('vérifications : chaque contrôle mène à l’endroit exact', () => {
     expect(checkTarget(doc, find(doc, 'jump-cut'))).toMatchObject({ cols: ['subject', 'angle', 'movement'] });
   });
 
-  it('séquence sans plan : la séquence dans le découpage ; écart de durée : la ligne du registre', () => {
+  it('séquence sans plan : la séquence dans le découpage ; écart de durée : l’en-tête de la séquence', () => {
     const doc = everyCheck();
     const [empty, park] = doc.project.sequenceIds;
     expect(checkTarget(doc, find(doc, 'empty-sequence'))).toEqual({ page: 'grid', sequenceId: empty, cols: [] });
     expect(checkPlace(doc, find(doc, 'empty-sequence'))).toBe('1');
-    expect(checkTarget(doc, find(doc, 'estimate-gap'))).toEqual({ page: 'registry', tab: 'sequences', sequenceId: park, col: 'est' });
+    expect(checkTarget(doc, find(doc, 'estimate-gap'))).toEqual({ page: 'seq-head', sequenceId: park, field: 'estimate' });
     expect(checkPlace(doc, find(doc, 'estimate-gap'))).toBe('2');
   });
 
