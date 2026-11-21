@@ -10,7 +10,7 @@ import { AXES, HEIGHTS, MOVEMENTS, matchVocab, valueRank } from './vocabulary';
  * rangés autrement, en gardant leurs numéros d'origine (le clap ne change pas : 3.7, puis 1.6…).
  */
 
-export type SortKey = 'value' | 'subject' | 'dialogue' | 'movement' | 'focal' | 'angle';
+export type SortKey = 'day' | 'decor' | 'intExt' | 'value' | 'subject' | 'dialogue' | 'movement' | 'focal' | 'angle';
 export interface SortCriterion {
   key: SortKey;
   /** Ordre inverse (du plus serré au plus large, plans parlés en dernier…). */
@@ -25,6 +25,9 @@ export interface SortOptions {
 }
 
 export const SORT_KEYS: ReadonlyArray<[SortKey, string]> = [
+  ['day', 'Jour de tournage'],
+  ['decor', 'Décor'],
+  ['intExt', 'Int. / ext.'],
   ['value', 'Valeur'],
   ['subject', 'Sujet'],
   ['dialogue', 'Dialogue'],
@@ -39,7 +42,15 @@ type Rank = number | string;
 
 function rankOf(doc: ProjectDoc, shot: Shot, key: SortKey): Rank {
   const { shot: s, block } = effectiveShot(doc, shot);
+  const seq = doc.sequences[shot.sequenceId];
   switch (key) {
+    case 'day':
+      // Plans pas encore planifiés en dernier.
+      return s.shootingDay ?? 99999;
+    case 'decor':
+      return canon((seq?.decorId && doc.decors[seq.decorId]?.name) || seq?.label || '') || '￿';
+    case 'intExt':
+      return seq?.intExt === 'INT' ? 0 : seq?.intExt === 'EXT' ? 1 : seq?.intExt === 'INT/EXT' ? 2 : 3;
     case 'value': {
       const r = valueRank(s.value);
       return r < 0 ? 999 : r;

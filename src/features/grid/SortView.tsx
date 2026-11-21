@@ -12,6 +12,9 @@ import s from './SortView.module.css';
 const LABEL = Object.fromEntries(SORT_KEYS) as Record<SortKey, string>;
 /** Sens de chaque critère, dit en clair. */
 const DIRECTION: Record<SortKey, [string, string]> = {
+  day: ['J1 d’abord', 'dernier jour d’abord'],
+  decor: ['A → Z', 'Z → A'],
+  intExt: ['intérieurs d’abord', 'extérieurs d’abord'],
   value: ['du plus large', 'du plus serré'],
   subject: ['A → Z', 'Z → A'],
   dialogue: ['parlés d’abord', 'muets d’abord'],

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildRav3 } from '../../seed/rav3';
+import { buildFiction } from '../../seed/fiction';
 import { sequenceHeading, shotCode } from './numbering';
-import { sortedDoc } from './sortView';
+import { sortShots, sortedDoc } from './sortView';
 import { valueRank } from './vocabulary';
 
 describe('découpage trié pour le tournage', () => {
@@ -34,5 +35,22 @@ describe('découpage trié pour le tournage', () => {
     const ids = v.project.sequenceIds.flatMap((sid) => v.sequences[sid].shotIds);
     const firstMoving = ids.findIndex((id) => doc.shots[id].movement.some((m) => m && m !== 'Fixe'));
     expect(ids.slice(firstMoving).some((id) => !doc.shots[id].movement.length || doc.shots[id].movement.every((m) => m === 'Fixe'))).toBe(false);
+  });
+});
+
+describe('tri par jour, décor, intérieur / extérieur', () => {
+  it('range les plans par jour (non planifiés en dernier), puis par décor', () => {
+    const doc = buildFiction();
+    const ids = doc.project.sequenceIds.flatMap((id) => doc.sequences[id].shotIds);
+    doc.shots[ids[0]].shootingDay = 2;
+    doc.shots[ids[5]].shootingDay = 1;
+    const out = sortShots(doc, ids, [{ key: 'day' }]);
+    expect(out[0]).toBe(ids[5]);
+    expect(out[1]).toBe(ids[0]);
+    const ext = sortShots(doc, ids, [{ key: 'intExt', desc: true }]);
+    expect(doc.sequences[doc.shots[ext[0]].sequenceId].intExt).toBe('EXT');
+    const dec = sortShots(doc, ids, [{ key: 'decor' }]);
+    const names = dec.map((id) => doc.sequences[doc.shots[id].sequenceId].label);
+    expect([...names].sort((a, b) => a.localeCompare(b, 'fr'))).toEqual(names);
   });
 });
