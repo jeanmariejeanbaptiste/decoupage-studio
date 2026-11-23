@@ -28,7 +28,7 @@ Vite 5 + React 18 + TypeScript strict · Zustand + immer + zundo · Dexie (Index
 - Ne pas appliquer bêtement une demande : penser aux interdépendances (format ↔ minutage ↔ colonnes ↔ modèles ↔ exports), être force de proposition, s'auto-relire et corriger avant de livrer.
 - Publier = pousser sur `main` (GitHub Pages). Tester avant (tsc, lint, vitest, e2e concernés). Les tags git ne passent pas (403), c'est accepté.
 
-## Architecture récente (v2.10.0)
+## Architecture récente (v2.11.0)
 - Coquille : `features/shell` (Topbar + ProjectMenu, Sidebar groupée et réductible, SettingsPage en brouillon, Account pour Google).
 - Scénario : `domain/screenplay.ts` (blocs typés ↔ Fountain, « @ » seul = réplique sans personnage), `domain/scriptLayout.ts` (gabarit du modèle KIT : Courier Prime, 58 lignes, pagination ; sert l'éditeur et tous les exports, tests ligne à ligne sur `src/domain/__fixtures__/kit`), `domain/fdx.ts` (Final Draft), `features/scenario/ScriptEditor.tsx` (pages de l'export à l'écran, lignes de 16 px), `scriptExport.ts` (PDF texte pdf-lib, images, .docx). `ScriptReader` reste le lecteur du panneau du découpage.
 - Note d'intention : `domain/richText.ts` (HTML réduit et nettoyé), `features/intention/RichEditor.tsx` (pages A4, ruban, barre d'état, annulation propre), `noteExport.ts` ; `intentionHtml` + `intention` (texte brut tenu à jour).
@@ -48,16 +48,18 @@ Vite 5 + React 18 + TypeScript strict · Zustand + immer + zundo · Dexie (Index
 - Assistant : `domain/aiTools.ts` (outils), `features/assistant` (fournisseurs, `askWithImage` pour la vision, raccourcis `quickActions.ts`, conversation, panneau).
 - Interview dans le découpage : `domain/interview.ts` (placeSetup, setSetupNumber, syncInterviewShots appelé dans `projectStore.mutate`), plans liés par `Shot.interview`, numéros 3A/3B (`domain/numbering.ts`).
 - Rapports du scénario : `domain/scriptReports.ts` ; panneaux `features/scenario/ResearchPanels.tsx` ; page de garde détectée à l'import (`detectTitlePage`).
+- Serveur Cloudflare (environnement « decoupage-studio », jeton tenu par le réseau de la session) : `server/relay/worker.js` (relais du partage, `store/relayPeer.ts`) + `accounts.js` (comptes, sauvegarde en ligne ; `cloud.ts` provider `studio`) ; déployer par `npm run deploy:relay`.
+- Numérotation figée (option) : `settings.frozenShots`, `frozenShotLabel` dans `domain/numbering.ts`.
 - Google Drive : `store/cloud.ts` (dormant sans `VITE_GOOGLE_CLIENT_ID`, variable de dépôt `GOOGLE_CLIENT_ID` lue par deploy.yml).
 - Relecture en ligne (Drive) : `domain/reviewSnapshot.ts`, `reviewMerge.ts`, `reviewTrailer.ts`, `store/review.ts`, `store/reviewDrive.ts`, `features/review` (route `review`) ; variables `GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`, `GOOGLE_APP_ID`.
 
 - Séquencier : `domain/outline.ts` (phrase « = » et note `[[ds:…]]`, `moveEntry`, `insertEntry`, `carryOutline`, intrigues, `sequenceSummary`), `domain/truby.ts`, `domain/outlineLayout.ts`, `ops.applyScenarioEdit` (ancres recalées, `reorderCut`) ; `features/scenario/outline/` (Liste, Par intrigue, Intrigues), `SequencesPanel.tsx`, `outlineExport.ts`. Page Scénario : `#/scenario?view=outline|script|cut|stats`.
 
-## Chantiers en cours (au 21 nov. 2026, v2.10.0)
+## Chantiers en cours (au 23 nov. 2026, v2.11.0)
 - Google Drive (synchronisation et relecture en ligne) : code prêt ; l'utilisateur doit créer l'ID client OAuth, la clé d'API restreinte et noter le numéro du projet, puis les mettre dans les variables de dépôt `GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`, `GOOGLE_APP_ID`. Connexion Google sur un poste partagé : conseiller la navigation privée ; vraie solution proposée = serveur propre (Cloudflare) sans Google.
 - Ouvert : numéro de page de l'éditeur au-delà du PDF sur un scénario annoté (notes comptées à l'écran).
-- Production, suite possible : réordonner les séquences dans un jour, horaire par plan, lieu commun à plusieurs décors, programme par poste. Tri pour le tournage : critères décor, int/ext, jour.
+- Production, à faire (accordé) : horaire par plan ; « Même lieu que » dans la page des lieux de tournage. Ne pas toucher la page Découpage (jugée parfaite). Refusés : programme par poste, mot de passe oublié, Set.a.light.
 - Ouverts (Safari jamais vérifié) : pincement du trackpad dans le dessin, pied de page @page, captures très longues, pont Claude Desktop (contenu mixte) ; en-tête collant de la grille à vérifier.
-- Reportés (à proposer) : plans bis à numéro figé, colonnes figées au défilement, raccords pour la scripte, partage via serveur hébergé (Cloudflare, attend un compte), mode révision du scénario.
+- Reportés (à proposer) : raccords pour la scripte (page de production à part), mode révision du scénario.
 - Ne pas changer de modèle en cours de session longue (le cache est perdu) : changer au début d'une session.
 - Toujours vérifier les deux thèmes (captures clair et sombre) avant de pousser ; ne jamais pousser si un test échoue (relancer seuls les tests instables : `share`, `review-drive`, `production` sous charge).

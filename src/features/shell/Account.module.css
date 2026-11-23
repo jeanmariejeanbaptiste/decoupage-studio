@@ -26,3 +26,10 @@
 .error { margin: 0; font-size: 12.5px; color: var(--ink); }
 .link { align-self: center; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .link:hover { color: var(--ink); }
+.signIn { white-space: nowrap; }
+@media (max-width: 600px) {
+  .label { display: none; }
+  .wrap { margin-right: 8px; }
+  .signIn { width: 30px; padding: 0; justify-content: center; }
+  .panel { position: fixed; top: 52px; left: 12px; right: 12px; width: auto; }
+}

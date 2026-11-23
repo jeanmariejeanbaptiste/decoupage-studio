@@ -328,3 +328,11 @@ Accueil refait, Paramètres en rubriques avec raccourcis modifiables, onglet Exp
 - Réplique versée en cellule Action : même règle qu'à la création d'un plan (`placePassageReplies`). Option + glisser duplique un plan. En-tête de grille collant sans interstice. Le retour au dernier passage du scénario ne fait défiler que le lecteur.
 - Écarté : l'auteur n'ouvre pas de commentaire d'un clic dans l'aperçu (seul un relecteur invité) ; la vue téléphone de la branche découpage, remplacée par la refonte.
 
+
+## Version 2.11.0 — 2026-11-23
+- Partage par le relais Cloudflare (`server/relay/worker.js`, `src/store/relayPeer.ts`, `npm run deploy:relay`) : fiable sur les wifi publics ; PeerJS seulement si `ds-peer-server` est défini (tests).
+- Comptes propres à l'outil (adresse + mot de passe) et sauvegarde en ligne sans Google : `server/relay/accounts.js` (Durable Objects `Accounts`, `Vault`), même logique de synchronisation que Drive dans `store/cloud.ts` (`provider: 'studio'`). Pas de « mot de passe oublié » (refusé).
+- Numérotation des plans figée, à activer dans Paramètres › Découpage (`settings.frozenShots`, `frozenShotLabel`) : un ajout devient un bis (3A), cadenas discret près de « N° ».
+- « Subjectif » retiré des angles.
+- Téléphone : bouton de connexion réduit à l'icône, formulaire sur toute la largeur.
+- Refusés : programme par poste, mot de passe oublié, lien avec Set.a.light.

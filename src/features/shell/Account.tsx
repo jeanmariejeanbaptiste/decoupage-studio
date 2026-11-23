@@ -37,10 +37,12 @@ export function AccountButton({ className }: { className?: string }) {
           onPointerEnter={() => enabled && void preloadGoogle().catch(() => undefined)}
           onClick={() => setOpen(!open)}
           aria-expanded={open}
+          aria-label="Se connecter"
           title="Retrouver vos projets sur tous vos appareils"
           data-testid="account-signin"
         >
-          <Cloud size={15} strokeWidth={1.3} /> Se connecter
+          <Cloud size={15} strokeWidth={1.3} aria-hidden="true" />
+          <span className={s.label}>Se connecter</span>
         </button>
         {open && <SignInForm google={enabled} />}
       </div>
