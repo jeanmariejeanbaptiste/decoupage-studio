@@ -27,3 +27,19 @@ describe('numéros du scénario', () => {
     expect([sequenceNumber(doc, a), sequenceNumber(doc, b)]).toEqual([1, 2]);
   });
 });
+
+describe('numérotation figée', () => {
+  it('garde les numéros et numérote les ajouts en bis', async () => {
+    const { freezeShotNumbers, frozenShotLabel, shotCode } = await import('./numbering');
+    const doc = {
+      project: { sequenceIds: ['s'], settings: { shotCodeFormat: '{seq}.{shot}' } },
+      sequences: { s: { id: 's', label: 'X', shotIds: ['a', 'b', 'c'] } },
+      shots: { a: { sequenceId: 's' }, b: { sequenceId: 's' }, c: { sequenceId: 's' } },
+    } as never as import('./types').ProjectDoc;
+    doc.project.settings.frozenShots = freezeShotNumbers(doc);
+    doc.sequences.s.shotIds = ['a', 'n', 'm', 'c'];
+    Object.assign(doc.shots, { n: { sequenceId: 's' }, m: { sequenceId: 's' } });
+    expect(doc.sequences.s.shotIds.map((id) => frozenShotLabel(doc, id))).toEqual(['1', '1A', '1B', '3']);
+    expect(shotCode(doc, 'n')).toBe('1.1A');
+  });
+});

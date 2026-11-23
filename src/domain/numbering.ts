@@ -14,7 +14,8 @@ export function letterCode(n: number): string {
   return s;
 }
 
-export function formatShotCode(seqNumber: SeqNo, shotNumber: number, format: ShotCodeFormat): string {
+export function formatShotCode(seqNumber: SeqNo, shotNumber: number | string, format: ShotCodeFormat): string {
+  if (typeof shotNumber === 'string') return format === '{seq}.{shot}' ? `${seqNumber}.${shotNumber}` : `${seqNumber}-${shotNumber}`;
   switch (format) {
     case '{seq}-{shot}':
       return `${seqNumber}-${shotNumber}`;
@@ -106,6 +107,34 @@ export function shotNumber(doc: ProjectDoc, shotId: ID): number {
   return 0;
 }
 
+/** Numéros figés au moment présent (positions actuelles), pour geler la numérotation. */
+export function freezeShotNumbers(doc: ProjectDoc): Record<ID, number> {
+  const out: Record<ID, number> = {};
+  for (const sid of doc.project.sequenceIds) for (const id of doc.sequences[sid]?.shotIds ?? []) out[id] = shotNumber(doc, id);
+  return out;
+}
+
+/**
+ * Numéro affiché d'un plan quand la numérotation est figée : son numéro gelé, ou le numéro bis du
+ * dernier plan gelé qui le précède (3A, 3B ; « 0A » avant le premier). `undefined` sans gel.
+ */
+export function frozenShotLabel(doc: ProjectDoc, shotId: ID): string | undefined {
+  const f = doc.project.settings.frozenShots;
+  const shot = doc.shots[shotId];
+  if (!f || !shot) return undefined;
+  if (f[shotId] !== undefined) return String(f[shotId]);
+  let base = 0;
+  let extra = 0;
+  for (const id of doc.sequences[shot.sequenceId]?.shotIds ?? []) {
+    if (f[id] !== undefined) {
+      base = f[id];
+      extra = 0;
+    } else extra++;
+    if (id === shotId) return `${base}${letterCode(extra)}`;
+  }
+  return undefined;
+}
+
 /** Lettre de la caméra d'un plan d'interview (A, B…), sinon rien. */
 export function cameraLetter(doc: ProjectDoc, shotId: ID): string {
   const link = doc.shots[shotId]?.interview;
@@ -119,12 +148,14 @@ export function shotCode(doc: ProjectDoc, shotId: ID): string {
   if (!shot) return '';
   const format = doc.project.settings.shotCodeFormat;
   const cam = cameraLetter(doc, shotId);
-  return formatShotCode(sequenceNumber(doc, shot.sequenceId), shotNumber(doc, shotId), format) + (cam ? (format === '{seq}{letter}' ? `-${cam}` : cam) : '');
+  const frozen = frozenShotLabel(doc, shotId);
+  const n = frozen === undefined ? shotNumber(doc, shotId) : /^\d+$/.test(frozen) ? Number(frozen) : frozen;
+  return formatShotCode(sequenceNumber(doc, shot.sequenceId), n, format) + (cam ? (format === '{seq}{letter}' ? `-${cam}` : cam) : '');
 }
 
 /** Numéro affiché dans la colonne N° (« 3 », ou « 3A » pour la caméra A d'une interview). */
 export function shotNumberLabel(doc: ProjectDoc, shotId: ID): string {
-  const n = shotNumber(doc, shotId);
+  const n = frozenShotLabel(doc, shotId) ?? shotNumber(doc, shotId);
   return n ? `${n}${cameraLetter(doc, shotId)}` : '';
 }
 

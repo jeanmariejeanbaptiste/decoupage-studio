@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, ExternalLink, Plus, RotateCcw, X } from 'lucide-react';
 import { SENSOR_CROP } from '../../domain/focal';
+import { freezeShotNumbers } from '../../domain/numbering';
 import { isMusicalFormat, newId, normalizeTiming } from '../../domain/factory';
 import { formatTc, parseTc } from '../../domain/timecode';
 import { previewDuration } from '../../domain/timing';
@@ -266,7 +267,7 @@ export function SettingsPage({ doc }: { doc: ProjectDoc }) {
             <TimingSection doc={doc} />
             <ScriptTimingSection />
             <CameraSection />
-            <CuttingSection />
+            <CuttingSection doc={doc} />
             <VocabularySection />
             <AssistantSection />
             <ShortcutsSection />
@@ -443,7 +444,7 @@ function CameraSection() {
   );
 }
 
-function CuttingSection() {
+function CuttingSection({ doc }: { doc: ProjectDoc }) {
   const { st, patch } = useSettings();
   return (
     <Section id="decoupage" title="Découpage">
@@ -459,6 +460,17 @@ function CuttingSection() {
             ['{seq}.{shot}', '3.4'],
             ['{seq}-{shot}', '3-4'],
             ['{seq}{letter}', '3D'],
+          ]}
+        />
+      </Row>
+      <Row label="Numérotation des plans" hint="Figée, un plan ajouté devient un bis (3A) et les autres gardent leur numéro.">
+        <Radio
+          name="Numérotation des plans"
+          value={st.frozenShots ? 'figee' : 'auto'}
+          onChange={(v) => patch({ frozenShots: v === 'figee' ? freezeShotNumbers(doc) : undefined })}
+          options={[
+            ['auto', 'Automatique'],
+            ['figee', 'Figée'],
           ]}
         />
       </Row>

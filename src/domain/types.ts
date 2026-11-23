@@ -58,6 +58,11 @@ export interface AudioTrack {
 }
 
 export interface ProjectSettings {
+  /**
+   * Numérotation des plans figée (activée volontairement dans les réglages) : numéro de chaque plan au
+   * moment du gel. Un plan ajouté ensuite prend le numéro bis du précédent (3A, 3B).
+   */
+  frozenShots?: Record<ID, number>;
   /** Durée de chaque plan (par défaut), minutage cumulatif, ou TC calé sur une piste musicale. */
   tcMode: 'duree' | 'cumulatif' | 'piste';
   /** Mode de TC choisi explicitement dans les réglages (sinon les anciens projets passent en durée). */

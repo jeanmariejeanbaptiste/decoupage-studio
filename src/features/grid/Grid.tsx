@@ -1,4 +1,4 @@
-import { Image as ImageIcon } from 'lucide-react';
+import { Image as ImageIcon, Lock } from 'lucide-react';
 import { useFlip } from '../../ui/useFlip';
 import { useEvenRowSpans } from './useEvenRowSpans';
 import { isShortcut } from '../../store/shortcuts';
@@ -7,7 +7,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { editableText, isEditable, parseTsv, toTsv } from '../../domain/cells';
 import { COLUMN_DEFS, shortLabel } from '../../domain/columns';
 import type { ColumnKey, ProjectDoc } from '../../domain/types';
-import { redo, undo } from '../../store/projectStore';
+import { redo, undo, useProjectStore } from '../../store/projectStore';
 import { openInterviewFiche, useUi, type CellPos } from '../../store/uiStore';
 import {
   clearSelection,
@@ -314,6 +314,7 @@ export function Grid({ doc, model, animate = false }: Props) {
                 {i === 1 && <th className={[s.th, s.gutter].join(' ')} aria-hidden="true" />}
                 <th scope="col" className={[s.th, s[`th_${c}`]].join(' ')} title={COLUMN_DEFS[c].label}>
                   <HeadLabel col={c} />
+                  {c === 'number' && <FrozenMark />}
                 </th>
               </Fragment>
             ))}
@@ -386,4 +387,10 @@ function HeadLabel({ col }: { col: ColumnKey }) {
       {short ? shortLabel(def) : def.label}
     </span>
   );
+}
+
+/** Repère discret de la numérotation figée, hors de l'intitulé (qui garde sa place). */
+function FrozenMark() {
+  const frozen = useProjectStore((x) => !!x.doc?.project.settings.frozenShots);
+  return frozen ? <Lock size={9} strokeWidth={1.6} aria-label="Numérotation figée" className={s.frozen} /> : null;
 }
