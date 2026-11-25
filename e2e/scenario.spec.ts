@@ -389,7 +389,7 @@ test('scénario : la page de garde restée dans le texte est reconnue et en sort
   await expect(page.getByRole('listbox', { name: 'Suggestions' })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Tab');
-  await page.keyboard.type('VOX\nÉcrit par Jean-Marie Jean-Baptiste\nFADE IN:\nINT. ENTREPRISE - JOUR\nFlora entre.');
+  await page.keyboard.type('VOX\nÉcrit par Camille Durand\nFADE IN:\nINT. ENTREPRISE - JOUR\nFlora entre.');
   await page.getByTestId('edit-title-page').click();
   await expect(page.getByLabel('Titre', { exact: true })).toHaveValue('VOX');
   await page.getByRole('button', { name: 'Valider' }).click();

@@ -44,19 +44,19 @@ describe('page de garde à l’import', () => {
   it('titre, crédit et auteur, date, coordonnées reconnus avant la première séquence', async () => {
     const { linesToFountain, textToLines } = await import('./scenarioImport');
     const { blocksFromSource, parseTitlePage } = await import('./screenplay');
-    const txt = `LUNDI\n\nÉcrit par Jean-Marie Jean-Baptiste\n\nD'après une idée de la Mission Locale\n\nVersion du 12/10/2026\n\njm@exemple.fr\n06 12 34 56 78\n\nINT. OPEN SPACE - JOUR\n\nFlora entre.\n`;
+    const txt = `LUNDI\n\nÉcrit par Camille Durand\n\nD'après une idée de la Mission Locale\n\nVersion du 12/10/2026\n\ncd@exemple.fr\n06 12 34 56 78\n\nINT. OPEN SPACE - JOUR\n\nFlora entre.\n`;
     const src = linesToFountain(textToLines(txt));
     const tb = blocksFromSource(src).blocks.find((b) => b.type === 'title');
     expect(tb).toBeDefined();
-    expect(parseTitlePage(tb!.text)).toMatchObject({ Title: 'LUNDI', Credit: 'Écrit par', Author: 'Jean-Marie Jean-Baptiste', 'Draft date': 'Version du 12/10/2026' });
-    expect(parseTitlePage(tb!.text).Contact).toContain('jm@exemple.fr');
+    expect(parseTitlePage(tb!.text)).toMatchObject({ Title: 'LUNDI', Credit: 'Écrit par', Author: 'Camille Durand', 'Draft date': 'Version du 12/10/2026' });
+    expect(parseTitlePage(tb!.text).Contact).toContain('cd@exemple.fr');
     expect(src).toContain('INT. OPEN SPACE - JOUR');
   });
   it('page de garde de Fade In (FADE IN: juste après) ; l’ouverture reste au film', async () => {
     const { linesToFountain, textToLines } = await import('./scenarioImport');
-    const src = linesToFountain(textToLines('VOX\n\nWritten by\n\nJean-Marie Jean-Baptiste\n\nFADE IN:\n\nINT. ENTREPRISE / SALLE D’ATTENTE - DAY\n\nFLORA s’arrête un instant.\n'));
+    const src = linesToFountain(textToLines('VOX\n\nWritten by\n\nCamille Durand\n\nFADE IN:\n\nINT. ENTREPRISE / SALLE D’ATTENTE - DAY\n\nFLORA s’arrête un instant.\n'));
     expect(src).toMatch(/^Title: VOX/);
-    expect(src).toContain('Author: Jean-Marie Jean-Baptiste');
+    expect(src).toContain('Author: Camille Durand');
     expect(src).toMatch(/FADE IN:/);
   });
   it('première page d’un PDF avec le seul titre, centré', async () => {
@@ -93,11 +93,11 @@ describe('page de garde à l’import', () => {
     const { titleFromBlocks } = await import('./scenarioImport');
     const blocks = [
       { id: 'a', type: 'action', text: 'VOX' },
-      { id: 'b', type: 'action', text: 'Écrit par Jean-Marie Jean-Baptiste' },
+      { id: 'b', type: 'action', text: 'Écrit par Camille Durand' },
       { id: 'c', type: 'transition', text: 'FADE IN:' },
       { id: 'd', type: 'heading', text: 'INT. ENTREPRISE - DAY' },
     ];
-    expect(titleFromBlocks(blocks)).toEqual({ title: { Title: 'VOX', Credit: 'Écrit par', Author: 'Jean-Marie Jean-Baptiste' }, ids: ['a', 'b'] });
+    expect(titleFromBlocks(blocks)).toEqual({ title: { Title: 'VOX', Credit: 'Écrit par', Author: 'Camille Durand' }, ids: ['a', 'b'] });
     expect(titleFromBlocks([{ id: 'd', type: 'heading', text: 'INT. GARE - JOUR' }])).toBeNull();
   });
   it('un scénario qui commence directement n’a pas de page de garde', async () => {
